@@ -257,9 +257,13 @@ export function bindHomeworkSolverEvents() {
         }
       })
 
+      const totalDurationSeconds = (hw.durationMinutes || 45) * 60
+      const durationSecondsTaken = Math.max(0, totalDurationSeconds - timeLeftSeconds)
+
       const result = await api.submitHomework({
         homeworkId: hw.id,
-        answers: submissionAnswers
+        answers: submissionAnswers,
+        durationSecondsTaken
       })
       
       showToast('Nộp bài thành công! Đang tải kết quả chấm điểm...', 'success')

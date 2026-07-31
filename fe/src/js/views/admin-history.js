@@ -66,7 +66,7 @@ export function renderAdminHistoryView() {
                       <th>Tên bài tập</th>
                       <th>Ngày nộp</th>
                       <th>Điểm số</th>
-                      <th>Trạng thái</th>
+                      <th>Thời gian làm</th>
                       <th>Thao tác</th>
                     </tr>
                   </thead>
@@ -89,10 +89,13 @@ export function renderAdminHistoryView() {
                           <td style="font-family:var(--font-heading); font-weight:700; font-size:16px; color:${isPassed ? '#16a34a' : '#dc2626'};">
                             ${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)}
                           </td>
-                          <td>
-                            <span class="badge ${isPassed ? 'badge-graded' : 'badge-failed'}" style="background:${isPassed ? '#dcfce7' : '#fee2e2'}; color:${isPassed ? '#16a34a' : '#dc2626'}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
-                              ${isPassed ? 'Đạt' : 'Chưa đạt'}
-                            </span>
+                          <td style="color:#475569; font-weight:600;">
+                            ${(() => {
+                              const secs = sub.durationSecondsTaken || 0
+                              const mins = Math.floor(secs / 60)
+                              const remainingSecs = secs % 60
+                              return `${mins}m ${remainingSecs}s`
+                            })()}
                           </td>
                           <td>
                             <button class="btn-secondary view-detail-btn" data-id="${sub.submissionId}" style="padding:4px 10px; font-size:12px; cursor:pointer;">

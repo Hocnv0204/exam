@@ -130,6 +130,7 @@ async function router() {
             correctCount: s.correctCount,
             wrongCount: s.wrongCount,
             isPassed: s.isPassed,
+            durationSecondsTaken: s.durationSecondsTaken || 0,
             status: 'ĐÃ CHẤM'
           }
         })

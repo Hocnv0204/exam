@@ -29,6 +29,7 @@ serve(async (req: Request) => {
           correct_count,
           wrong_count,
           submitted_at,
+          duration_seconds_taken,
           homeworks (title, pass_score),
           profiles!inner (username, full_name, class_id)
         `)
@@ -50,6 +51,7 @@ serve(async (req: Request) => {
           isPassed: Number(sub.total_score) >= passScore,
           correctCount: sub.correct_count,
           wrongCount: sub.wrong_count,
+          durationSecondsTaken: sub.duration_seconds_taken || 0,
           submittedAt: sub.submitted_at,
           studentName: prof?.full_name || prof?.username || 'Học sinh'
         }
@@ -88,6 +90,7 @@ serve(async (req: Request) => {
           correct_count,
           wrong_count,
           submitted_at,
+          duration_seconds_taken,
           homeworks (title, pdf_path, pass_score),
           profiles (username, full_name)
         `)
@@ -173,6 +176,7 @@ serve(async (req: Request) => {
           passScore: (submission.homeworks as unknown as { pass_score: number })?.pass_score,
           correctCount: submission.correct_count,
           wrongCount: submission.wrong_count,
+          durationSecondsTaken: submission.duration_seconds_taken || 0,
           submittedAt: submission.submitted_at,
         },
         questionReview: formattedAnswers,
@@ -191,6 +195,7 @@ serve(async (req: Request) => {
         correct_count,
         wrong_count,
         submitted_at,
+        duration_seconds_taken,
         homeworks (title, pass_score)
       `)
       .eq('student_id', targetStudentId)
@@ -210,6 +215,7 @@ serve(async (req: Request) => {
         isPassed: Number(sub.total_score) >= passScore,
         correctCount: sub.correct_count,
         wrongCount: sub.wrong_count,
+        durationSecondsTaken: sub.duration_seconds_taken || 0,
         submittedAt: sub.submitted_at,
       }
     })

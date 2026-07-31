@@ -165,4 +165,5 @@ export const submittedAnswerItemSchema = z.object({
 export const submitHomeworkSchema = z.object({
   homeworkId: z.string().uuid('Invalid Homework ID'),
   answers: z.array(submittedAnswerItemSchema),
+  durationSecondsTaken: z.number().int().nonnegative().optional(),
 })
