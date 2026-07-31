@@ -98,52 +98,7 @@ async function router() {
         })
       }
 
-      // 3. Fetch Curriculums / Chapters / Lessons (for Curriculum Management)
-      if (['curriculum'].includes(hash) && state.classes.length > 0) {
-        // Fetch all homeworks first
-        try {
-          const rawHomeworks = await api.getHomeworks()
-          state.homeworks = (rawHomeworks || []).map(h => ({
-            id: h.id,
-            title: h.title,
-            lessonId: h.lesson_id,
-            pdfPath: h.pdf_path,
-            durationMinutes: h.duration_minutes,
-            passScore: h.pass_score,
-            maxScore: h.max_score
-          }))
-        } catch (e) {
-          state.homeworks = []
-        }
-
-        state.curriculums = []
-        for (const c of state.classes) {
-          const rawChapters = await api.getChapters(c.id)
-          const chapters = []
-          for (const ch of (rawChapters || [])) {
-            const rawLessons = await api.getLessons(ch.id)
-            chapters.push({
-              id: ch.id,
-              code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
-              title: ch.title,
-              lessons: (rawLessons || []).map(l => {
-                const hwCount = state.homeworks.filter(h => h.lessonId === l.id).length
-                return {
-                  id: l.id,
-                  code: `${ch.order_index || 1}.${l.order_index || 1}`,
-                  title: l.title,
-                  hwCount,
-                  refCount: 0
-                }
-              })
-            })
-          }
-          state.curriculums.push({
-            classId: c.id,
-            chapters
-          })
-        }
-      }
+      // Eager curriculum loader removed - now lazily loaded inside my-classes and curriculum views
 
       // 4. Fetch Dashboard Overview and Submissions (for Admin Dashboard)
       if (hash === 'admin-dashboard') {
