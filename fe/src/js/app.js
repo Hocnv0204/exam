@@ -127,6 +127,8 @@ async function router() {
             submittedAt: new Date(s.submittedAt).toLocaleString('vi-VN'),
             score: s.score,
             maxScore: s.maxScore,
+            correctCount: s.correctCount,
+            wrongCount: s.wrongCount,
             isPassed: s.isPassed,
             status: 'ĐÃ CHẤM'
           }
