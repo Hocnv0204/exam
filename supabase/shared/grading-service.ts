@@ -7,13 +7,13 @@ export interface QuestionGradeInput {
   // Correct Answer Key
   mcAnswer: string | null
   tfAnswers: TrueFalseStatementAnswer | null
-  saAnswer: number | null
+  saAnswer: string | number | null
   saTolerance: number | null
   // Given Answer from Student
   givenAnswer:
     | { type: 'MULTIPLE_CHOICE'; value: string }
     | { type: 'TRUE_FALSE'; value: { s1?: boolean; s2?: boolean; s3?: boolean; s4?: boolean } }
-    | { type: 'SHORT_ANSWER'; value: number }
+    | { type: 'SHORT_ANSWER'; value: string | number }
 }
 
 export interface QuestionGradeResult {

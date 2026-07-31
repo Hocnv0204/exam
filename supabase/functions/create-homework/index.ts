@@ -98,7 +98,7 @@ serve(async (req: Request) => {
           question_id: questionData.id,
           mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || null : null,
           tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
-          sa_answer: q.questionType === 'SHORT_ANSWER' ? q.saAnswer ?? null : null,
+          sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? null : String(q.saAnswer)) : null,
           sa_tolerance: q.questionType === 'SHORT_ANSWER' ? q.saTolerance ?? 0 : 0,
         })
 
@@ -181,7 +181,7 @@ serve(async (req: Request) => {
             question_id: questionData.id,
             mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || null : null,
             tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
-            sa_answer: q.questionType === 'SHORT_ANSWER' ? q.saAnswer ?? null : null,
+            sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? null : String(q.saAnswer)) : null,
             sa_tolerance: q.questionType === 'SHORT_ANSWER' ? q.saTolerance ?? 0 : 0,
           })
 

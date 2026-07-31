@@ -9,7 +9,7 @@ let submissions = []
 
 export function renderAdminHistoryView() {
   const classes = state.classes || []
-  
+
   // Find selected class name
   const selectedClass = classes.find(c => c.id === selectedClassId)
   const classNameText = selectedClass ? selectedClass.name : 'Chưa chọn lớp'
@@ -79,9 +79,9 @@ export function renderAdminHistoryView() {
                         </td>
                       </tr>
                     ` : submissions.map(sub => {
-                      const isPassed = sub.isPassed !== false
-                      const submittedDate = new Date(sub.submittedAt).toLocaleString('vi-VN')
-                      return `
+    const isPassed = sub.isPassed !== false
+    const submittedDate = new Date(sub.submittedAt).toLocaleString('vi-VN')
+    return `
                         <tr class="history-row">
                           <td style="font-weight:700; color:#0f172a;" class="row-student-name">${sub.studentName}</td>
                           <td style="color:#475569;" class="row-hw-title">${sub.homeworkTitle}</td>
@@ -101,7 +101,7 @@ export function renderAdminHistoryView() {
                           </td>
                         </tr>
                       `
-                    }).join('')}
+  }).join('')}
                   </tbody>
                 </table>
               </div>

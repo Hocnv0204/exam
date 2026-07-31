@@ -44,6 +44,13 @@ export function renderAssignmentReviewView() {
     }
   })) : (result.answers || [])
 
+  // Sort answers by question number ascending to fix out-of-order display bug
+  const sortedAnswers = [...answers].sort((a, b) => {
+    const numA = a.questions?.question_number || 0
+    const numB = b.questions?.question_number || 0
+    return numA - numB
+  })
+
   const percentage = Math.round((sub.score / (sub.maxScore || 10)) * 100)
   const isPassed = sub.score >= (sub.passScore || 5)
 
@@ -67,18 +74,9 @@ export function renderAssignmentReviewView() {
           <div class="card" style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);">
             <div style="display:flex; align-items:center; gap:24px;">
               <div>
-                <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">TỔNG ĐIỂM SỐ</div>
-                <div style="font-family:var(--font-heading); font-size:42px; font-weight:700; color:#0f172a;">
-                  ${sub.score} <span style="font-size:20px; color:#64748b; font-weight:400;">/ ${sub.maxScore}</span>
-                </div>
-                <div class="badge ${isPassed ? 'badge-graded' : 'badge-failed'}" style="font-size:13px; background:${isPassed ? '#dcfce7' : '#fee2e2'}; color:${isPassed ? '#15803d' : '#b91c1c'}; border:none; padding:6px 12px; border-radius:8px; display:inline-block; font-weight:700; margin-top:8px;">
+                <div class="badge ${isPassed ? 'badge-graded' : 'badge-failed'}" style="font-size:13px; background:${isPassed ? '#dcfce7' : '#fee2e2'}; color:${isPassed ? '#15803d' : '#b91c1c'}; border:none; padding:6px 12px; border-radius:8px; display:inline-block; font-weight:700;">
                   <i class="fa-solid ${isPassed ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${isPassed ? 'Đã Đạt! Chúc mừng bạn đã hoàn thành bài tập.' : 'Chưa Đạt. Hãy cố gắng luyện tập thêm.'}
                 </div>
-              </div>
-
-              <!-- Circular Score Dial -->
-              <div class="score-circle-widget" style="width:72px; height:72px; border-radius:50%; border:5px solid ${isPassed ? '#16a34a' : '#dc2626'}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; color:${isPassed ? '#16a34a' : '#dc2626'}; background:#ffffff;">
-                ${percentage}%
               </div>
             </div>
 
@@ -98,7 +96,7 @@ export function renderAssignmentReviewView() {
           <!-- Main Layout: Question Reviews + Right Sidebar Navigator -->
           <div class="grid-3">
             <div style="grid-column: span 2; display:flex; flex-direction:column; gap:16px;">
-              ${answers.map(ans => {
+              ${sortedAnswers.map(ans => {
                 const qNum = ans.questions?.question_number || 1
                 const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
                 const qTypeStr = ans.questions?.question_type === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (ans.questions?.question_type === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
@@ -174,7 +172,7 @@ export function renderAssignmentReviewView() {
                 <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:12px;">Sơ đồ câu hỏi</h3>
                 
                 <div class="question-nav-grid" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px;">
-                  ${answers.map(ans => {
+                  ${sortedAnswers.map(ans => {
                     const qNum = ans.questions?.question_number || 1
                     const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
                     return `

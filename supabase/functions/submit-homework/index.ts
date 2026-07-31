@@ -96,7 +96,7 @@ serve(async (req: Request) => {
         points: q.points,
         mcAnswer: key?.mc_answer || null,
         tfAnswers: (key?.tf_answers as unknown as TrueFalseStatementAnswer) || null,
-        saAnswer: key?.sa_answer !== null && key?.sa_answer !== undefined ? Number(key.sa_answer) : null,
+        saAnswer: key?.sa_answer !== null && key?.sa_answer !== undefined ? key.sa_answer : null,
         saTolerance: key?.sa_tolerance !== null && key?.sa_tolerance !== undefined ? Number(key.sa_tolerance) : 0,
         // @ts-ignore dynamic type check in gradeQuestion
         givenAnswer: given,
