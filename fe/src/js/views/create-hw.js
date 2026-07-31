@@ -6,9 +6,9 @@ import { api } from '../api.js'
 
 // In-memory state for building the answer matrix
 let currentConfig = {
-  mcCount: 10,  // Trắc nghiệm ABCD
+  mcCount: 12,  // Trắc nghiệm ABCD
   tfCount: 4,   // Trắc nghiệm Đúng/Sai (4 ý)
-  saCount: 2    // Trả lời ngắn
+  saCount: 6   // Trả lời ngắn
 }
 
 // Store chosen answers:
