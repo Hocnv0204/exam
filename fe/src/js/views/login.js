@@ -15,12 +15,12 @@ export function renderLoginView() {
         <form id="login-form">
           <div class="form-group">
             <span class="form-label-floating">Tên đăng nhập</span>
-            <input type="text" id="login-username" class="form-input" placeholder="Tên đăng nhập (admin)" value="admin" required>
+            <input type="text" id="login-username" class="form-input" placeholder="Nhập tên đăng nhập..." required>
           </div>
 
           <div class="form-group">
             <span class="form-label-floating">Mật khẩu</span>
-            <input type="password" id="login-password" class="form-input" placeholder="Mật khẩu (admin)" value="admin" required>
+            <input type="password" id="login-password" class="form-input" placeholder="Nhập mật khẩu..." required>
             <i class="fa-regular fa-eye-slash input-icon-right" id="toggle-pw-icon"></i>
           </div>
 
@@ -35,10 +35,6 @@ export function renderLoginView() {
             Đăng Nhập <i class="fa-solid fa-arrow-right"></i>
           </button>
         </form>
-
-        <div class="login-hint">
-          Gợi ý: Sử dụng tài khoản <span class="code-chip">admin</span> / <span class="code-chip">admin</span>
-        </div>
       </div>
     </div>
   `
