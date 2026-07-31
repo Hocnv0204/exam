@@ -1,0 +1,39 @@
+services:
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: exam_postgres_db
+    restart: always
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Docker-only: create auth schema stub BEFORE main migrations
+      - ./supabase/docker/docker_auth_stub.sql:/docker-entrypoint-initdb.d/00_auth_stub.sql:ro
+      # Main schema migrations
+      - ./supabase/migrations/20260801000000_initial_schema.sql:/docker-entrypoint-initdb.d/01_initial_schema.sql:ro
+      - ./supabase/migrations/20260801000001_storage_setup.sql:/docker-entrypoint-initdb.d/02_storage_setup.sql:ro
+      - ./supabase/migrations/20260801000002_seed_admin.sql:/docker-entrypoint-initdb.d/03_seed_admin.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Adminer Web UI (Truy cập tại http://localhost:8081)
+  adminer:
+    image: adminer:latest
+    container_name: exam_db_adminer
+    restart: always
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+    driver: local

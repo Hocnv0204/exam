@@ -1,0 +1,52 @@
+# Supabase project configuration
+
+project_id = "online-homework-management"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[functions]
+[functions.login]
+verify_jwt = false
+
+[functions.create-student]
+verify_jwt = true
+
+[functions.reset-password]
+verify_jwt = true
+
+[functions.create-class]
+verify_jwt = true
+
+[functions.create-chapter]
+verify_jwt = true
+
+[functions.create-lesson]
+verify_jwt = true
+
+[functions.create-homework]
+verify_jwt = true
+
+[functions.submit-homework]
+verify_jwt = true
+
+[functions.dashboard]
+verify_jwt = true
+
+[functions.statistics]
+verify_jwt = true
+
+[functions.student-history]
+verify_jwt = true
+
+[functions.homework-detail]
+verify_jwt = true

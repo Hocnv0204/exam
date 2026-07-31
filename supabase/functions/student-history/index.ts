@@ -1,0 +1,184 @@
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { requireAuth } from '../../shared/auth-middleware.ts'
+import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
+
+serve(async (req: Request) => {
+  const corsRes = handleCors(req)
+  if (corsRes) return corsRes
+
+  try {
+    if (req.method !== 'GET') {
+      return errorResponse('Method not allowed', 405)
+    }
+
+    const { user, serviceRoleClient } = await requireAuth(req)
+    const url = new URL(req.url)
+    const queryStudentId = url.searchParams.get('studentId')
+    const submissionId = url.searchParams.get('submissionId')
+    const queryClassId = url.searchParams.get('classId')
+
+    // ADMIN class-wide history list view
+    if (user.role === 'ADMIN' && queryClassId) {
+      const { data: classSubmissions, error: classSubErr } = await serviceRoleClient
+        .from('submissions')
+        .select(`
+          id,
+          homework_id,
+          total_score,
+          max_score,
+          correct_count,
+          wrong_count,
+          submitted_at,
+          homeworks (title, pass_score),
+          profiles!inner (username, full_name, class_id)
+        `)
+        .eq('profiles.class_id', queryClassId)
+        .order('submitted_at', { ascending: false })
+
+      if (classSubErr) return errorResponse(classSubErr.message, 500)
+
+      const formattedList = (classSubmissions || []).map((sub) => {
+        const passScore = Number((sub.homeworks as unknown as { pass_score: number })?.pass_score || 5)
+        const prof = (sub.profiles as unknown as { username: string; full_name: string })
+        return {
+          submissionId: sub.id,
+          homeworkId: sub.homework_id,
+          homeworkTitle: (sub.homeworks as unknown as { title: string })?.title || 'Unknown Homework',
+          score: sub.total_score,
+          maxScore: sub.max_score,
+          passScore,
+          isPassed: Number(sub.total_score) >= passScore,
+          correctCount: sub.correct_count,
+          wrongCount: sub.wrong_count,
+          submittedAt: sub.submitted_at,
+          studentName: prof?.full_name || prof?.username || 'Học sinh'
+        }
+      })
+
+      return jsonResponse({
+        classId: queryClassId,
+        totalSubmissions: formattedList.length,
+        history: formattedList,
+      })
+    }
+
+    let targetStudentId = user.id
+
+    if (user.role === 'ADMIN') {
+      if (queryStudentId) {
+        targetStudentId = queryStudentId
+      }
+    } else {
+      // Student can only query own history
+      if (queryStudentId && queryStudentId !== user.id) {
+        return errorResponse('Forbidden: Students cannot access history of other students', 403)
+      }
+    }
+
+    // Detail view for a specific submission
+    if (submissionId) {
+      const { data: submission, error: subErr } = await serviceRoleClient
+        .from('submissions')
+        .select(`
+          id,
+          homework_id,
+          student_id,
+          total_score,
+          max_score,
+          correct_count,
+          wrong_count,
+          submitted_at,
+          homeworks (title, pdf_path, pass_score),
+          profiles (username, full_name)
+        `)
+        .eq('id', submissionId)
+        .single()
+
+      if (subErr || !submission) return errorResponse('Submission not found', 404)
+
+      // RLS Check for Student
+      if (user.role === 'STUDENT' && submission.student_id !== user.id) {
+        return errorResponse('Forbidden: Submission belongs to another student', 403)
+      }
+
+      // Fetch submission answer details
+      const { data: answers, error: ansErr } = await serviceRoleClient
+        .from('submission_answers')
+        .select(`
+          id,
+          question_id,
+          given_answer,
+          is_correct,
+          score_earned,
+          questions (
+            question_number,
+            question_type,
+            prompt,
+            points,
+            question_answers (mc_answer, tf_answers, sa_answer)
+          )
+        `)
+        .eq('submission_id', submissionId)
+
+      if (ansErr) return errorResponse(ansErr.message, 500)
+
+      return jsonResponse({
+        submission: {
+          id: submission.id,
+          homeworkTitle: (submission.homeworks as unknown as { title: string })?.title,
+          studentName: (submission.profiles as unknown as { full_name: string })?.full_name,
+          score: submission.total_score,
+          maxScore: submission.max_score,
+          passScore: (submission.homeworks as unknown as { pass_score: number })?.pass_score,
+          correctCount: submission.correct_count,
+          wrongCount: submission.wrong_count,
+          submittedAt: submission.submitted_at,
+        },
+        answers: answers || [],
+      })
+    }
+
+    // List view of student's submissions
+    const { data: submissions, error } = await serviceRoleClient
+      .from('submissions')
+      .select(`
+        id,
+        homework_id,
+        total_score,
+        max_score,
+        correct_count,
+        wrong_count,
+        submitted_at,
+        homeworks (title, pass_score)
+      `)
+      .eq('student_id', targetStudentId)
+      .order('submitted_at', { ascending: false })
+
+    if (error) return errorResponse(error.message, 500)
+
+    const formattedList = submissions.map((sub) => {
+      const passScore = Number((sub.homeworks as unknown as { pass_score: number })?.pass_score || 5)
+      return {
+        submissionId: sub.id,
+        homeworkId: sub.homework_id,
+        homeworkTitle: (sub.homeworks as unknown as { title: string })?.title || 'Unknown Homework',
+        score: sub.total_score,
+        maxScore: sub.max_score,
+        passScore,
+        isPassed: Number(sub.total_score) >= passScore,
+        correctCount: sub.correct_count,
+        wrongCount: sub.wrong_count,
+        submittedAt: sub.submitted_at,
+      }
+    })
+
+    return jsonResponse({
+      studentId: targetStudentId,
+      totalSubmissions: formattedList.length,
+      history: formattedList,
+    })
+  } catch (err: unknown) {
+    const error = err as Error
+    return errorResponse(error.message || 'Unauthorized / Error', 401)
+  }
+})
