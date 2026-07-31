@@ -533,8 +533,14 @@ export function bindCreateHwEvents() {
 
     try {
       if (file) {
-        showToast('Đang tải file PDF lên kho lưu trữ...', 'info')
-        pdfPath = await api.uploadFile(file)
+        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '_')
+        const isSameFile = hw && (hw.pdfPath || hw.pdf_path) && (hw.pdfPath || hw.pdf_path).endsWith(sanitizedName)
+        if (!isSameFile) {
+          showToast('Đang tải file PDF mới lên kho lưu trữ...', 'info')
+          pdfPath = await api.uploadFile(file)
+        } else {
+          console.log('[CreateHw] File name is identical to existing. Skipping upload.')
+        }
       }
 
       if (isEdit && hw) {
