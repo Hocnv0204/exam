@@ -98,8 +98,8 @@ async function router() {
         })
       }
 
-      // 3. Fetch Curriculums / Chapters / Lessons (for Curriculum Management, My Classes)
-      if (['curriculum', 'my-classes'].includes(hash) && state.classes.length > 0) {
+      // 3. Fetch Curriculums / Chapters / Lessons (for Curriculum Management)
+      if (['curriculum'].includes(hash) && state.classes.length > 0) {
         // Fetch all homeworks first
         try {
           const rawHomeworks = await api.getHomeworks()
