@@ -9,8 +9,7 @@ DECLARE
     v_admin_id UUID := '00000000-0000-0000-0000-000000000001'::UUID;
     v_email TEXT := 'admin@system.local';
     v_username TEXT := 'admin';
-    -- Pre-computed bcrypt $2b$ hash of 'admin123' (cost=10) - Supabase compatible
-    v_encrypted_pw TEXT := '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
+    v_encrypted_pw TEXT := crypt('admin123', gen_salt('bf'));
 BEGIN
 
     -- Insert into auth.users if not exists
