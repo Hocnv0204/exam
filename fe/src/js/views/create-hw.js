@@ -119,7 +119,7 @@ export function renderCreateHwView() {
               <div class="grid-3">
                 <div>
                   <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
-                  <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: Kiểm tra Chương 3: Con lắc đơn & Động lực học" value="${isEdit ? hw.title : 'Bài tập Kiểm tra Tổng hợp'}">
+                  <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: Kiểm tra Chương 3: Con lắc đơn & Động lực học" value="${isEdit ? hw.title : ''}">
                 </div>
                 <div>
                   <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Chọn lớp học <span style="color:#ef4444;">*</span></label>
@@ -241,8 +241,8 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:14px;">
           ${Array.from({ length: currentConfig.mcCount }, (_, i) => i + 1).map(qNum => {
-            const selected = mcAnswers[qNum] || 'A'
-            return `
+    const selected = mcAnswers[qNum] || 'A'
+    return `
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; display:flex; align-items:center; justify-content:space-between;">
                 <span style="font-weight:700; font-size:15px; color:#334155; width:60px;">Câu ${qNum}</span>
                 <div style="display:flex; gap:6px;">
@@ -257,7 +257,7 @@ function renderAnswerMatrix() {
                 </div>
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -277,9 +277,9 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px;">
           ${Array.from({ length: currentConfig.tfCount }, (_, i) => i + 1).map(index => {
-            const actualQNum = currentConfig.mcCount + index
-            const tfObj = tfAnswers[actualQNum] || { a: true, b: true, c: false, d: true }
-            return `
+    const actualQNum = currentConfig.mcCount + index
+    const tfObj = tfAnswers[actualQNum] || { a: true, b: true, c: false, d: true }
+    return `
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
                 <div style="font-weight:700; font-size:15px; color:#0f172a; margin-bottom:10px; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
                   Câu ${actualQNum}
@@ -287,8 +287,8 @@ function renderAnswerMatrix() {
 
                 <div style="display:flex; flex-direction:column; gap:8px;">
                   ${['a', 'b', 'c', 'd'].map(sub => {
-                    const isTrue = tfObj[sub] !== false
-                    return `
+      const isTrue = tfObj[sub] !== false
+      return `
                       <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:6px 12px; border-radius:8px; border:1px solid #f1f5f9;">
                         <span style="font-weight:600; font-size:13px; color:#334155;">Ý ${sub})</span>
                         <div style="display:flex; gap:6px;">
@@ -308,11 +308,11 @@ function renderAnswerMatrix() {
                         </div>
                       </div>
                     `
-                  }).join('')}
+    }).join('')}
                 </div>
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -332,15 +332,15 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:14px;">
           ${Array.from({ length: currentConfig.saCount }, (_, i) => i + 1).map(index => {
-            const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
-            const val = saAnswers[actualQNum] || ''
-            return `
+    const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
+    const val = saAnswers[actualQNum] || ''
+    return `
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
                 <div style="font-weight:700; font-size:14px; color:#0f172a; margin-bottom:6px;">Câu ${actualQNum}</div>
                 <input type="text" class="form-input sa-input" data-qnum="${actualQNum}" value="${val}" placeholder="Nhập đáp án chuẩn..." style="background:#ffffff;">
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -371,7 +371,7 @@ export function bindCreateHwEvents() {
     const file = e.target.files[0]
     const container = document.getElementById('pdf-preview-container')
     const iframe = document.getElementById('pdf-preview-iframe')
-    
+
     if (file && file.type === 'application/pdf') {
       const fileURL = URL.createObjectURL(file)
       if (iframe && container) {
@@ -420,7 +420,7 @@ export function bindCreateHwEvents() {
   }
 
   classSelect?.addEventListener('change', updateLessonsDropdown)
-  
+
   // Trigger initial dropdown load
   updateLessonsDropdown()
 

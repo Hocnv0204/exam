@@ -35,9 +35,6 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'my-classes' ? 'active' : ''}" onclick="window.location.hash='#my-classes'">
           <i class="fa-solid fa-graduation-cap"></i> Lớp học của tôi
         </div>
-        <div class="nav-item ${currentRoute === 'homework-attempt' ? 'active' : ''}" onclick="window.location.hash='#homework-attempt'">
-          <i class="fa-solid fa-pen-to-square"></i> Làm bài tập
-        </div>
         <div class="nav-item ${currentRoute === 'history' ? 'active' : ''}" onclick="window.location.hash='#history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài
         </div>
