@@ -494,7 +494,7 @@ export function bindCreateHwEvents() {
         id: `q_${globalIndex}`,
         questionNumber: globalIndex,
         questionType: 'MULTIPLE_CHOICE',
-        mcAnswer: mcAnswers[i] || 'A',
+        mcAnswer: mcAnswers[globalIndex] || 'A',
         points: 1.0
       })
       globalIndex++
@@ -506,7 +506,7 @@ export function bindCreateHwEvents() {
         id: `q_${globalIndex}`,
         questionNumber: globalIndex,
         questionType: 'TRUE_FALSE',
-        tfAnswers: tfAnswers[i] || { a: true, b: true, c: false, d: true },
+        tfAnswers: tfAnswers[globalIndex] || { a: true, b: true, c: false, d: true },
         points: 1.0
       })
       globalIndex++
@@ -518,7 +518,7 @@ export function bindCreateHwEvents() {
         id: `q_${globalIndex}`,
         questionNumber: globalIndex,
         questionType: 'SHORT_ANSWER',
-        saAnswer: saAnswers[i] || '',
+        saAnswer: saAnswers[globalIndex] || '',
         points: 1.0
       })
       globalIndex++
