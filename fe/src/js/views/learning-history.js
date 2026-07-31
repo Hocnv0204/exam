@@ -70,7 +70,7 @@ export function renderLearningHistoryView() {
                         <td style="color:#64748b;">${sub.lesson}</td>
                         <td style="color:#64748b;">${sub.submittedAt}</td>
                         <td style="font-family:var(--font-heading); font-weight:700; font-size:16px; color:${isPassed ? '#16a34a' : '#dc2626'};">
-                          ${sub.score}/${sub.maxScore || 10}
+                          ${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)}
                         </td>
                         <td>
                           <span class="badge ${isPassed ? 'badge-graded' : 'badge-failed'}" style="background:${isPassed ? '#dcfce7' : '#fee2e2'}; color:${isPassed ? '#16a34a' : '#dc2626'}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
