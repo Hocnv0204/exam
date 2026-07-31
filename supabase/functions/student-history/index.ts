@@ -122,6 +122,47 @@ serve(async (req: Request) => {
 
       if (ansErr) return errorResponse(ansErr.message, 500)
 
+      const formattedAnswers = (answers || []).map((ans) => {
+        const q = ans.questions as unknown as {
+          question_number: number
+          question_type: string
+          prompt: string
+          points: number
+          question_answers: {
+            mc_answer: string | null
+            tf_answers: unknown
+            sa_answer: string | null
+          } | null
+        }
+
+        const qaRaw = q?.question_answers
+        const qa = Array.isArray(qaRaw) ? qaRaw[0] : qaRaw
+
+        // Extract correct answer summary
+        let correctAnswerSummary: unknown = null
+        if (q) {
+          if (q.question_type === 'MULTIPLE_CHOICE') {
+            correctAnswerSummary = qa?.mc_answer || null
+          } else if (q.question_type === 'TRUE_FALSE') {
+            correctAnswerSummary = qa?.tf_answers || null
+          } else if (q.question_type === 'SHORT_ANSWER') {
+            correctAnswerSummary = qa?.sa_answer || null
+          }
+        }
+
+        return {
+          questionNumber: q?.question_number || 1,
+          prompt: q?.prompt || '',
+          questionType: q?.question_type,
+          givenAnswer: ans.given_answer,
+          isCorrect: ans.is_correct,
+          scoreEarned: Number(ans.score_earned),
+          pointsPossible: q?.points || 1.0,
+          correctAnswerSummary,
+          feedback: ans.is_correct ? 'Correct' : 'Incorrect',
+        }
+      })
+
       return jsonResponse({
         submission: {
           id: submission.id,
@@ -134,7 +175,8 @@ serve(async (req: Request) => {
           wrongCount: submission.wrong_count,
           submittedAt: submission.submitted_at,
         },
-        answers: answers || [],
+        questionReview: formattedAnswers,
+        answers: answers || [], // fallback for backward compatibility
       })
     }
 
