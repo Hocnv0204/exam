@@ -21,7 +21,7 @@ serve(async (req: Request) => {
       return errorResponse('Validation error', 400, validation.error.format())
     }
 
-    const { homeworkId, answers } = validation.data
+    const { homeworkId, answers, durationSecondsTaken } = validation.data
 
     // 1. Fetch homework and verify student class assignment
     const { data: homework, error: homeworkError } = await serviceRoleClient
@@ -137,6 +137,7 @@ serve(async (req: Request) => {
         max_score: homework.max_score,
         correct_count: correctCount,
         wrong_count: wrongCount,
+        duration_seconds_taken: durationSecondsTaken || 0,
       })
       .select('id, submitted_at')
       .single()
