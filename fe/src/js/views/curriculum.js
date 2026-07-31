@@ -7,6 +7,8 @@ import { api } from '../api.js'
 
 let activeClassId = state.classes[0]?.id || 'c1'
 let isLoadingCurriculum = false
+let expandedChapterIds = new Set()
+let expandedLessonIds = new Set()
 
 async function ensureCurriculumLoaded(classId) {
   if (state.curriculums.some(c => c.classId === classId)) {
@@ -22,41 +24,14 @@ async function ensureCurriculumLoaded(classId) {
   }
 
   try {
-    // 1. Fetch homeworks if not loaded yet
-    if (state.homeworks.length === 0) {
-      const rawHomeworks = await api.getHomeworks()
-      state.homeworks = (rawHomeworks || []).map(h => ({
-        id: h.id,
-        title: h.title,
-        lessonId: h.lesson_id,
-        pdfPath: h.pdf_path,
-        durationMinutes: h.duration_minutes,
-        passScore: h.pass_score,
-        maxScore: h.max_score
-      }))
-    }
-
-    // 2. Fetch Chapters & Lessons of this class
+    // Fetch Chapters of this class ONLY
     const rawChapters = await api.getChapters(classId)
-    const chapters = []
-    for (const ch of (rawChapters || [])) {
-      const rawLessons = await api.getLessons(ch.id)
-      chapters.push({
-        id: ch.id,
-        code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
-        title: ch.title,
-        lessons: (rawLessons || []).map(l => {
-          const hwCount = state.homeworks.filter(h => h.lessonId === l.id).length
-          return {
-            id: l.id,
-            code: `${ch.order_index || 1}.${l.order_index || 1}`,
-            title: l.title,
-            hwCount,
-            refCount: 0
-          }
-        })
-      })
-    }
+    const chapters = (rawChapters || []).map(ch => ({
+      id: ch.id,
+      code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+      title: ch.title,
+      lessons: null // Indication that lessons are not loaded yet
+    }))
 
     // Add or Update in state.curriculums
     const existingIndex = state.curriculums.findIndex(c => c.classId === classId)
@@ -69,7 +44,7 @@ async function ensureCurriculumLoaded(classId) {
       })
     }
   } catch (err) {
-    console.error('Failed to load curriculum lazily:', err)
+    console.error('Failed to load chapters lazily:', err)
     showToast('Không thể tải chương trình học cho lớp này!', 'error')
   } finally {
     isLoadingCurriculum = false
@@ -206,57 +181,81 @@ export function renderCurriculumView() {
 }
 
 function renderChapterCard(ch) {
+  const isExpanded = expandedChapterIds.has(ch.id)
+  const isLessonsLoading = isExpanded && ch.lessons === null
+
   return `
     <div class="card" style="padding:18px; margin-bottom:16px;" id="chapter-card-${ch.id}">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" class="chapter-header" data-id="${ch.id}">
         <div>
           <span style="background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; text-transform:uppercase;">${ch.code || 'CHƯƠNG'}</span>
           <h3 style="font-size:17px; font-weight:700; color:#0f172a; margin-top:4px;">${ch.title}</h3>
-          <div style="font-size:12px; color:#64748b;">${ch.lessons?.length || 0} Bài học</div>
+          <div style="font-size:12px; color:#64748b;">
+            ${ch.lessons ? `${ch.lessons.length} Bài học` : 'Nhấp để hiển thị bài học'}
+          </div>
         </div>
-        <button class="btn-delete-chapter" data-id="${ch.id}" title="Xóa chương" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;">
-          <i class="fa-solid fa-trash"></i>
-        </button>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="color:#64748b; font-size:14px;"></i>
+          <button class="btn-delete-chapter" data-id="${ch.id}" title="Xóa chương" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;" onclick="event.stopPropagation();">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
       </div>
 
-      <div style="margin-top:16px; padding-top:16px; border-top:1px solid #f1f5f9; display:flex; flex-direction:column; gap:12px;">
-        ${(ch.lessons || []).map(l => {
-          const lessonHomeworks = state.homeworks?.filter(h => h.lessonId === l.id) || []
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid #f1f5f9; display: ${isExpanded ? 'flex' : 'none'}; flex-direction:column; gap:12px;">
+        ${isLessonsLoading ? `
+          <div style="text-align:center; padding:12px; color:#64748b;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc; margin-right:6px;"></i> Đang tải bài học...
+          </div>
+        ` : ((ch.lessons || []).length === 0 ? `
+          <div style="text-align:center; padding:12px; color:#64748b; font-size:13px;">Chưa có bài học nào</div>
+        ` : (ch.lessons || []).map(l => {
+          const isLSelected = expandedLessonIds.has(l.id)
+          const isHwLoading = isLSelected && l.homeworks === null
+          const lessonHomeworks = l.homeworks || []
+
           return `
             <div style="display:flex; flex-direction:column; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; gap:8px;">
-              <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" class="lesson-header" data-id="${l.id}" data-chapter-id="${ch.id}">
                 <div style="display:flex; align-items:center; gap:12px;">
                   <span style="width:28px; height:28px; background:#ffffff; border:1px solid #cbd5e1; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">${l.code || '1.1'}</span>
                   <div>
                     <div style="font-weight:600; font-size:14px; color:#0f172a;">${l.title}</div>
                     <div style="font-size:12px; color:#64748b;">
-                      <i class="fa-regular fa-file"></i> ${lessonHomeworks.length} Bài tập &nbsp;•&nbsp; 
-                      <i class="fa-solid fa-paperclip"></i> ${l.refCount || 0} Tài liệu tham khảo
+                      <i class="fa-regular fa-file"></i> ${l.homeworks ? `${l.homeworks.length} Bài tập` : 'Nhấp để hiển thị bài tập'} &nbsp;•&nbsp; 
+                      <i class="fa-solid fa-paperclip"></i> ${l.refCount || 0} Tài liệu
                     </div>
                   </div>
                 </div>
-                <button class="btn-secondary btn-edit-lesson" data-chapter-id="${ch.id}" data-lesson-id="${l.id}" style="padding:4px 10px; font-size:12px; cursor:pointer;"><i class="fa-solid fa-pen-to-square"></i> Sửa</button>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <i class="fa-solid ${isLSelected ? 'fa-chevron-up' : 'fa-chevron-down'}" style="color:#94a3b8; font-size:12px; margin-right:4px;"></i>
+                  <button class="btn-secondary btn-edit-lesson" data-chapter-id="${ch.id}" data-lesson-id="${l.id}" style="padding:4px 10px; font-size:12px; cursor:pointer;" onclick="event.stopPropagation();"><i class="fa-solid fa-pen-to-square"></i> Sửa</button>
+                </div>
               </div>
               
               <!-- Homework list under this lesson -->
-              ${lessonHomeworks.length > 0 ? `
-                <div style="display:flex; flex-direction:column; gap:6px; margin-left:40px; padding-left:12px; border-left:2px solid #e2e8f0; margin-top:4px;">
-                  ${lessonHomeworks.map(hw => `
-                    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 12px; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px;">
-                      <div style="font-size:13px; font-weight:500; color:#475569;">
-                        <i class="fa-solid fa-file-signature" style="color:#64748b; font-size:11px; margin-right:4px;"></i>
-                        ${hw.title} <span style="font-size:11px; color:#94a3b8;">(${hw.durationMinutes || 45} phút)</span>
-                      </div>
-                      <button class="btn-secondary btn-edit-homework" data-id="${hw.id}" style="padding:2px 8px; font-size:11px; cursor:pointer; background:#f8fafc; border-color:#cbd5e1;">
-                        <i class="fa-solid fa-wrench"></i> Sửa bài tập
-                      </button>
+              <div style="display: ${isLSelected ? 'flex' : 'none'}; flex-direction:column; gap:6px; margin-left:40px; padding-left:12px; border-left:2px solid #e2e8f0; margin-top:4px;">
+                ${isHwLoading ? `
+                  <div style="color:#64748b; font-size:13px; padding:4px 0;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc; margin-right:6px;"></i> Đang tải bài tập...
+                  </div>
+                ` : (lessonHomeworks.length > 0 ? lessonHomeworks.map(hw => `
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 12px; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px;">
+                    <div style="font-size:13px; font-weight:500; color:#475569;">
+                      <i class="fa-solid fa-file-signature" style="color:#64748b; font-size:11px; margin-right:4px;"></i>
+                      ${hw.title} <span style="font-size:11px; color:#94a3b8;">(${hw.durationMinutes || 45} phút)</span>
                     </div>
-                  `).join('')}
-                </div>
-              ` : ''}
+                    <button class="btn-secondary btn-edit-homework" data-id="${hw.id}" style="padding:2px 8px; font-size:11px; cursor:pointer; background:#f8fafc; border-color:#cbd5e1;">
+                      <i class="fa-solid fa-wrench"></i> Sửa
+                    </button>
+                  </div>
+                `).join('') : `
+                  <div style="color:#94a3b8; font-size:13px; padding:4px 0;">Chưa có bài tập nào</div>
+                `)}
+              </div>
             </div>
           `
-        }).join('')}
+        }).join(''))}
 
         <div style="text-align:center; padding-top:4px;">
           <button class="btn-secondary btn-add-lesson" data-chapter-id="${ch.id}" style="font-size:12px; border:dashed 1px #cbd5e1; color:#0066cc;">
@@ -382,7 +381,7 @@ export function bindCurriculumEvents() {
             id: createdLesson.id,
             code: `${chNum}.${orderIndex}`,
             title: createdLesson.title,
-            hwCount: 0,
+            homeworks: [],
             refCount: 0
           })
 
@@ -487,6 +486,117 @@ export function bindCurriculumEvents() {
       const hwId = btn.getAttribute('data-id')
       if (hwId) {
         window.location.hash = `#create-homework?homeworkId=${hwId}`
+      }
+    })
+  })
+
+  // Toggle Chapter Accordion & Lazy Load Lessons
+  document.querySelectorAll('.chapter-header').forEach(header => {
+    header.addEventListener('click', async (e) => {
+      // Exclude delete button click
+      if (e.target.closest('.btn-delete-chapter')) return
+
+      const chId = header.getAttribute('data-id')
+      if (!chId) return
+
+      const currObj = state.curriculums.find(c => c.classId === activeClassId)
+      const ch = currObj?.chapters.find(c => c.id === chId)
+      if (!ch) return
+
+      if (expandedChapterIds.has(chId)) {
+        expandedChapterIds.delete(chId)
+        const app = document.getElementById('app')
+        if (app) {
+          app.innerHTML = renderCurriculumView()
+          bindCurriculumEvents()
+        }
+      } else {
+        expandedChapterIds.add(chId)
+        if (ch.lessons === null) {
+          // Re-render to show loading status
+          const app = document.getElementById('app')
+          if (app) {
+            app.innerHTML = renderCurriculumView()
+            bindCurriculumEvents()
+          }
+          try {
+            const rawLessons = await api.getLessons(chId)
+            const chNum = ch.code.replace('CHƯƠNG', '').trim() || '1'
+            ch.lessons = (rawLessons || []).map(l => ({
+              id: l.id,
+              code: `${chNum}.${l.order_index || 1}`,
+              title: l.title,
+              refCount: 0,
+              homeworks: null
+            }))
+          } catch (err) {
+            console.error('Failed to load lessons:', err)
+            showToast('Không thể tải danh sách bài học!', 'error')
+            expandedChapterIds.delete(chId)
+          }
+        }
+        const app = document.getElementById('app')
+        if (app) {
+          app.innerHTML = renderCurriculumView()
+          bindCurriculumEvents()
+        }
+      }
+    })
+  })
+
+  // Toggle Lesson Accordion & Lazy Load Homeworks
+  document.querySelectorAll('.lesson-header').forEach(header => {
+    header.addEventListener('click', async (e) => {
+      // Exclude edit button click
+      if (e.target.closest('.btn-edit-lesson')) return
+
+      const lessonId = header.getAttribute('data-id')
+      const chId = header.getAttribute('data-chapter-id')
+      if (!lessonId || !chId) return
+
+      const currObj = state.curriculums.find(c => c.classId === activeClassId)
+      const ch = currObj?.chapters.find(c => c.id === chId)
+      const lesson = ch?.lessons?.find(l => l.id === lessonId)
+      if (!lesson) return
+
+      if (expandedLessonIds.has(lessonId)) {
+        expandedLessonIds.delete(lessonId)
+        const app = document.getElementById('app')
+        if (app) {
+          app.innerHTML = renderCurriculumView()
+          bindCurriculumEvents()
+        }
+      } else {
+        expandedLessonIds.add(lessonId)
+        if (lesson.homeworks === null) {
+          // Re-render to show loading status
+          const app = document.getElementById('app')
+          if (app) {
+            app.innerHTML = renderCurriculumView()
+            bindCurriculumEvents()
+          }
+          try {
+            const rawHomeworks = await api.getHomeworks(lessonId)
+            lesson.homeworks = (rawHomeworks || []).map(hw => ({
+              id: hw.id,
+              title: hw.title,
+              lessonId: hw.lesson_id,
+              pdfPath: hw.pdf_path,
+              durationMinutes: hw.duration_minutes,
+              passScore: hw.pass_score,
+              maxScore: hw.max_score
+            }))
+          } catch (err) {
+            console.error('Failed to load homeworks:', err)
+            showToast('Không thể tải bài tập!', 'error')
+            expandedLessonIds.delete(lessonId)
+          }
+        }
+        const app = document.getElementById('app')
+        if (app) {
+          app.innerHTML = renderCurriculumView()
+          bindCurriculumEvents()
+        }
       }
     })
   })
