@@ -76,7 +76,7 @@ export function renderHomeworkSolverView() {
 
               <!-- PDF Iframe Preview -->
               <div style="flex-grow: 1; display: flex; height: calc(100vh - 180px);">
-                <iframe src="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, 'http://localhost:54321')}" style="width: 100%; height: 100%; border: none; background:#f8fafc;"></iframe>
+                <iframe src="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" style="width: 100%; height: 100%; border: none; background:#f8fafc;"></iframe>
               </div>
             </div>
 

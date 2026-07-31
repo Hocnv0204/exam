@@ -1,6 +1,9 @@
 import { state } from './state.js'
 
-const SUPABASE_FUNCTIONS_URL = 'http://127.0.0.1:54321/functions/v1'
+// Supabase URL from Vite environment variables (falls back to local dev URL)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
+
+const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 
 async function request(endpoint, options = {}) {
   const headers = {
@@ -55,7 +58,7 @@ export const api = {
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
   uploadFile: async (file) => {
     const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
-    const response = await fetch(`http://127.0.0.1:54321/storage/v1/object/pdf-files/${fileName}`, {
+    const response = await fetch(`${SUPABASE_URL}/storage/v1/object/pdf-files/${fileName}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${state.token}`

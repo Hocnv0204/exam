@@ -162,7 +162,7 @@ export function renderCreateHwView() {
                     <label style="font-size:13px; font-weight:700; color:#0f172a; display:block; margin-bottom:6px;">
                       <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem trước file đề bài PDF:
                     </label>
-                    <iframe id="pdf-preview-iframe" style="width:100%; height:500px; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc;" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, 'http://localhost:54321') : ''}"></iframe>
+                    <iframe id="pdf-preview-iframe" style="width:100%; height:500px; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc;" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}"></iframe>
                   </div>
                 </div>
               </div>
@@ -357,7 +357,7 @@ export function bindCreateHwEvents() {
     const iframe = document.getElementById('pdf-preview-iframe')
     const container = document.getElementById('pdf-preview-container')
     if (iframe && container) {
-      const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, 'http://localhost:54321')
+      const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       if (!iframe.src || iframe.src === 'about:blank' || iframe.src === window.location.href) {
         iframe.src = mappedUrl
       }
