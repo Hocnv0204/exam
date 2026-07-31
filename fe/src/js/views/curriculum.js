@@ -6,6 +6,79 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 
 let activeClassId = state.classes[0]?.id || 'c1'
+let isLoadingCurriculum = false
+
+async function ensureCurriculumLoaded(classId) {
+  if (state.curriculums.some(c => c.classId === classId)) {
+    return // Already loaded!
+  }
+
+  isLoadingCurriculum = true
+  // Re-render immediately to show loading spinner
+  const app = document.getElementById('app')
+  if (app) {
+    app.innerHTML = renderCurriculumView()
+    bindCurriculumEvents()
+  }
+
+  try {
+    // 1. Fetch homeworks if not loaded yet
+    if (state.homeworks.length === 0) {
+      const rawHomeworks = await api.getHomeworks()
+      state.homeworks = (rawHomeworks || []).map(h => ({
+        id: h.id,
+        title: h.title,
+        lessonId: h.lesson_id,
+        pdfPath: h.pdf_path,
+        durationMinutes: h.duration_minutes,
+        passScore: h.pass_score,
+        maxScore: h.max_score
+      }))
+    }
+
+    // 2. Fetch Chapters & Lessons of this class
+    const rawChapters = await api.getChapters(classId)
+    const chapters = []
+    for (const ch of (rawChapters || [])) {
+      const rawLessons = await api.getLessons(ch.id)
+      chapters.push({
+        id: ch.id,
+        code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+        title: ch.title,
+        lessons: (rawLessons || []).map(l => {
+          const hwCount = state.homeworks.filter(h => h.lessonId === l.id).length
+          return {
+            id: l.id,
+            code: `${ch.order_index || 1}.${l.order_index || 1}`,
+            title: l.title,
+            hwCount,
+            refCount: 0
+          }
+        })
+      })
+    }
+
+    // Add or Update in state.curriculums
+    const existingIndex = state.curriculums.findIndex(c => c.classId === classId)
+    if (existingIndex !== -1) {
+      state.curriculums[existingIndex].chapters = chapters
+    } else {
+      state.curriculums.push({
+        classId,
+        chapters
+      })
+    }
+  } catch (err) {
+    console.error('Failed to load curriculum lazily:', err)
+    showToast('Không thể tải chương trình học cho lớp này!', 'error')
+  } finally {
+    isLoadingCurriculum = false
+    if (app) {
+      app.innerHTML = renderCurriculumView()
+      bindCurriculumEvents()
+    }
+  }
+}
 
 export function renderCurriculumView() {
   // If activeClassId is not in the list of classes, set it to the first class id
@@ -63,11 +136,15 @@ export function renderCurriculumView() {
             <div style="display:flex; gap:16px; text-align:center;">
               <div style="background:#e0f2fe; padding:10px 20px; border-radius:12px;">
                 <div style="font-size:11px; font-weight:700; color:#0369a1; text-transform:uppercase;">Chương</div>
-                <div style="font-family:var(--font-heading); font-size:22px; font-weight:700; color:#0284c7;">${chapters.length}</div>
+                <div style="font-family:var(--font-heading); font-size:22px; font-weight:700; color:#0284c7;">
+                  ${isLoadingCurriculum ? '<i class="fa-solid fa-circle-notch fa-spin" style="font-size:16px;"></i>' : chapters.length}
+                </div>
               </div>
               <div style="background:#e0f2fe; padding:10px 20px; border-radius:12px;">
                 <div style="font-size:11px; font-weight:700; color:#0369a1; text-transform:uppercase;">Bài học</div>
-                <div style="font-family:var(--font-heading); font-size:22px; font-weight:700; color:#0284c7;">${totalLessons}</div>
+                <div style="font-family:var(--font-heading); font-size:22px; font-weight:700; color:#0284c7;">
+                  ${isLoadingCurriculum ? '<i class="fa-solid fa-circle-notch fa-spin" style="font-size:16px;"></i>' : totalLessons}
+                </div>
               </div>
               <div style="background:#e0f2fe; padding:10px 20px; border-radius:12px;">
                 <div style="font-size:11px; font-weight:700; color:#0369a1; text-transform:uppercase;">Tiến độ</div>
@@ -87,13 +164,18 @@ export function renderCurriculumView() {
               </div>
 
               <div id="chapters-container">
-                ${chapters.length === 0 ? `
+                ${isLoadingCurriculum ? `
+                  <div class="card" style="text-align:center; padding:40px; color:#64748b;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="font-size:32px; color:#0066cc; margin-bottom:12px;"></i>
+                    <p style="font-weight:600;">Đang tải danh sách chương & bài học...</p>
+                  </div>
+                ` : (chapters.length === 0 ? `
                   <div class="card" style="text-align:center; padding:32px; color:#64748b;">
                     <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
                     <p style="font-weight:600;">Chưa có chương học nào cho lớp học này.</p>
                     <p style="font-size:13px; margin-top:4px;">Nhấn nút "Tạo chương mới" ở trên để bắt đầu thêm bài học.</p>
                   </div>
-                ` : chapters.map(ch => renderChapterCard(ch)).join('')}
+                ` : chapters.map(ch => renderChapterCard(ch)).join(''))}
               </div>
             </div>
 
@@ -111,7 +193,7 @@ export function renderCurriculumView() {
               <div class="card" style="text-align:center;">
                 <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:14px;">Độ phủ đề cương</h3>
                 <div style="width:100px; height:100px; border-radius:50%; border:8px solid #0066cc; border-right-color:#e2e8f0; border-bottom-color:#e2e8f0; display:flex; align-items:center; justify-content:center; margin:0 auto 12px auto; font-family:var(--font-heading); font-size:22px; font-weight:700; color:#0066cc;">
-                  ${chapters.length > 0 ? Math.min(100, chapters.length * 25) : 0}%
+                  ${isLoadingCurriculum ? '<i class="fa-solid fa-circle-notch fa-spin" style="font-size:16px;"></i>' : (chapters.length > 0 ? `${Math.min(100, chapters.length * 25)}%` : '0%')}
                 </div>
                 <div style="font-size:13px; color:#64748b;">${chapters.length} Chương đang hoạt động</div>
               </div>
@@ -189,6 +271,11 @@ function renderChapterCard(ch) {
 export function bindCurriculumEvents() {
   bindSidebarEvents()
 
+  // Trigger lazy load if not already loaded
+  if (activeClassId && !isLoadingCurriculum && !state.curriculums.some(c => c.classId === activeClassId)) {
+    ensureCurriculumLoaded(activeClassId)
+  }
+
   const selectEl = document.getElementById('curriculum-class-select')
   if (selectEl) {
     selectEl.addEventListener('change', (e) => {
@@ -248,9 +335,70 @@ export function bindCurriculumEvents() {
           app.innerHTML = renderCurriculumView()
           bindCurriculumEvents()
         }
+        return true
       } catch (err) {
         showToast(`Tạo chương học thất bại: ${err.message}`, 'error')
+        return false
       }
+    })
+  })
+
+  // Add Lesson Event
+  document.querySelectorAll('.btn-add-lesson').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const chId = btn.getAttribute('data-chapter-id')
+      const currObj = state.curriculums.find(c => c.classId === activeClassId)
+      const ch = currObj?.chapters.find(c => c.id === chId)
+
+      if (!ch) return
+
+      const modalHTML = `
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div>
+            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài học <span style="color:#ef4444;">*</span></label>
+            <input type="text" id="modal-lesson-title" class="form-input" placeholder="Ví dụ: Ôn tập đại số cơ bản" required>
+          </div>
+        </div>
+      `
+
+      openModal(`Thêm Bài Học Vào ${ch.title}`, modalHTML, async () => {
+        const title = document.getElementById('modal-lesson-title')?.value.trim()
+        if (!title) {
+          showToast('Vui lòng nhập tên bài học!', 'error')
+          return false
+        }
+
+        try {
+          showToast('Đang tạo bài học...', 'info')
+          const orderIndex = ch.lessons.length + 1
+          const createdLesson = await api.createLesson({
+            chapterId: chId,
+            title,
+            orderIndex
+          })
+
+          const chNum = ch.code.replace('CHƯƠNG', '').trim() || '1'
+          ch.lessons.push({
+            id: createdLesson.id,
+            code: `${chNum}.${orderIndex}`,
+            title: createdLesson.title,
+            hwCount: 0,
+            refCount: 0
+          })
+
+          showToast(`Đã thêm thành công bài học "${title}"!`, 'success')
+
+          const app = document.getElementById('app')
+          if (app) {
+            app.innerHTML = renderCurriculumView()
+            bindCurriculumEvents()
+          }
+          return true
+        } catch (err) {
+          showToast(`Thêm bài học thất bại: ${err.message}`, 'error')
+          return false
+        }
+      })
     })
   })
 
@@ -259,7 +407,6 @@ export function bindCurriculumEvents() {
     btn.addEventListener('click', () => {
       const chId = btn.getAttribute('data-chapter-id')
       const lessonId = btn.getAttribute('data-lesson-id')
-
       const currObj = state.curriculums.find(c => c.classId === activeClassId)
       const ch = currObj?.chapters.find(c => c.id === chId)
       const lesson = ch?.lessons.find(l => l.id === lessonId)
@@ -270,103 +417,39 @@ export function bindCurriculumEvents() {
         <div style="display:flex; flex-direction:column; gap:14px;">
           <div>
             <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài học <span style="color:#ef4444;">*</span></label>
-            <input type="text" id="modal-edit-lesson-title" class="form-input" value="${lesson.title || ''}" placeholder="Nhập tên bài học..." required>
-          </div>
-          <div style="padding-top:10px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-            <button id="modal-delete-lesson-btn" type="button" class="btn-secondary" style="color:#ef4444; border-color:#fca5a5;"><i class="fa-solid fa-trash"></i> Xóa bài học này</button>
+            <input type="text" id="modal-lesson-title" class="form-input" value="${lesson.title}" required>
           </div>
         </div>
       `
 
-      openModal('Chỉnh Sửa Bài Học', modalHTML, async () => {
-        const title = document.getElementById('modal-edit-lesson-title')?.value.trim()
-
-        if (!title) {
-          showToast('Vui lòng nhập tên bài học!', 'error')
-          return false
-        }
-
-        // Backend edit lesson not fully exposed in this UI flow, we modify locally and notify
-        lesson.title = title
-        showToast(`Cập nhật bài học "${title}" thành công!`, 'success')
-
-        const app = document.getElementById('app')
-        if (app) {
-          app.innerHTML = renderCurriculumView()
-          bindCurriculumEvents()
-        }
-      })
-
-      setTimeout(() => {
-        document.getElementById('modal-delete-lesson-btn')?.addEventListener('click', async () => {
-          if (confirm(`Bạn có chắc chắn muốn xóa bài học "${lesson.title}"?`)) {
-            try {
-              showToast('Đang xóa bài học...', 'info')
-              await api.deleteLesson(lessonId)
-              ch.lessons = ch.lessons.filter(l => l.id !== lessonId)
-              document.getElementById('modal-close-btn')?.click()
-              showToast('Đã xóa bài học', 'success')
-              const app = document.getElementById('app')
-              if (app) {
-                app.innerHTML = renderCurriculumView()
-                bindCurriculumEvents()
-              }
-            } catch (err) {
-              showToast(`Xóa bài học thất bại: ${err.message}`, 'error')
-            }
-          }
-        })
-      }, 50)
-    })
-  })
-
-  // Add Lesson Event
-  document.querySelectorAll('.btn-add-lesson').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const chId = btn.getAttribute('data-chapter-id')
-      const modalHTML = `
-        <div style="display:flex; flex-direction:column; gap:14px;">
-          <div>
-            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài học <span style="color:#ef4444;">*</span></label>
-            <input type="text" id="modal-lesson-title" class="form-input" placeholder="Ví dụ: Bài tập tự luyện tổng hợp" required>
-          </div>
-        </div>
-      `
-      openModal('Thêm Bài Học Mới', modalHTML, async () => {
+      openModal(`Sửa Bài Học`, modalHTML, async () => {
         const title = document.getElementById('modal-lesson-title')?.value.trim()
-
         if (!title) {
           showToast('Vui lòng nhập tên bài học!', 'error')
           return false
         }
 
-        const currObj = state.curriculums.find(c => c.classId === activeClassId)
-        const ch = currObj?.chapters.find(c => c.id === chId)
-        if (ch) {
-          try {
-            showToast('Đang tạo bài học...', 'info')
-            const orderIndex = ch.lessons.length + 1
-            const createdLesson = await api.createLesson({
-              chapterId: chId,
-              title,
-              orderIndex
-            })
-            ch.lessons.push({
-              id: createdLesson.id,
-              code: `${ch.code.replace('CHƯƠNG ', '')}.${orderIndex}`,
-              title: createdLesson.title,
-              hwCount: 0,
-              refCount: 0
-            })
-            showToast(`Đã thêm bài học "${title}"!`, 'success')
-            const app = document.getElementById('app')
-            if (app) {
-              app.innerHTML = renderCurriculumView()
-              bindCurriculumEvents()
-            }
-          } catch (err) {
-            showToast(`Tạo bài học thất bại: ${err.message}`, 'error')
+        try {
+          showToast('Đang cập nhật bài học...', 'info')
+          await api.updateLesson({
+            lessonId,
+            chapterId: chId,
+            title,
+            orderIndex: parseInt(lesson.code.split('.')[1], 10) || 1
+          })
+
+          lesson.title = title
+          showToast('Cập nhật bài học thành công!', 'success')
+
+          const app = document.getElementById('app')
+          if (app) {
+            app.innerHTML = renderCurriculumView()
+            bindCurriculumEvents()
           }
+          return true
+        } catch (err) {
+          showToast(`Cập nhật bài học thất bại: ${err.message}`, 'error')
+          return false
         }
       })
     })
@@ -374,22 +457,23 @@ export function bindCurriculumEvents() {
 
   // Delete Chapter Event
   document.querySelectorAll('.btn-delete-chapter').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const chId = btn.getAttribute('data-id')
-      if (confirm('Bạn có chắc chắn muốn xóa chương này?')) {
+      if (confirm('Bạn có chắc chắn muốn xóa chương này cùng toàn bộ các bài học bên trong?')) {
         try {
           showToast('Đang xóa chương học...', 'info')
-          await api.deleteChapter(chId)
-          const currObj = state.curriculums.find(c => c.classId === activeClassId)
-          if (currObj) {
-            currObj.chapters = currObj.chapters.filter(c => c.id !== chId)
-            showToast('Đã xóa chương học', 'success')
-            const app = document.getElementById('app')
-            if (app) {
-              app.innerHTML = renderCurriculumView()
-              bindCurriculumEvents()
+          api.deleteChapter(chId).then(() => {
+            const currObj = state.curriculums.find(c => c.classId === activeClassId)
+            if (currObj) {
+              currObj.chapters = currObj.chapters.filter(c => c.id !== chId)
+              showToast('Đã xóa chương học', 'success')
+              const app = document.getElementById('app')
+              if (app) {
+                app.innerHTML = renderCurriculumView()
+                bindCurriculumEvents()
+              }
             }
-          }
+          })
         } catch (err) {
           showToast(`Xóa chương học thất bại: ${err.message}`, 'error')
         }
@@ -407,5 +491,3 @@ export function bindCurriculumEvents() {
     })
   })
 }
-
-
