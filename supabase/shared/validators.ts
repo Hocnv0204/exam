@@ -36,12 +36,14 @@ export const resetPasswordSchema = z.object({
 export const createClassSchema = z.object({
   name: z.string().min(1, 'Class name is required'),
   description: z.string().optional(),
+  tuitionFee: z.number().nonnegative().optional().default(0),
 })
 
 export const updateClassSchema = z.object({
   classId: z.string().uuid('Invalid Class ID'),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  tuitionFee: z.number().nonnegative().optional(),
 })
 
 export const deleteClassSchema = z.object({
@@ -71,6 +73,8 @@ export const createLessonSchema = z.object({
   title: z.string().min(1, 'Lesson title is required'),
   orderIndex: z.number().int().optional().default(0),
   content: z.string().optional(),
+  videoUrl: z.string().optional().nullable(),
+  theoryFiles: z.array(z.string()).optional().nullable(),
 })
 
 export const updateLessonSchema = z.object({
@@ -78,6 +82,8 @@ export const updateLessonSchema = z.object({
   title: z.string().min(1).optional(),
   orderIndex: z.number().int().optional(),
   content: z.string().optional(),
+  videoUrl: z.string().optional().nullable(),
+  theoryFiles: z.array(z.string()).optional().nullable(),
 })
 
 export const deleteLessonSchema = z.object({

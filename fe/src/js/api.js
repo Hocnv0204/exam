@@ -1,7 +1,7 @@
 import { state } from './state.js'
 
 // Supabase URL from Vite environment variables (falls back to local dev URL)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
 
 const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 
@@ -39,12 +39,18 @@ export const api = {
   updateStudent: (data) => request('create-student', { method: 'PUT', body: JSON.stringify(data) }),
   resetPassword: (data) => request('reset-password', { method: 'POST', body: JSON.stringify(data) }),
   createClass: (data) => request('create-class', { method: 'POST', body: JSON.stringify(data) }),
+  updateClass: (data) => request('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),
   getClasses: () => request('create-class', { method: 'GET' }),
   deleteClass: (classId) => request(`create-class?classId=${classId}`, { method: 'DELETE' }),
+  getClassSessions: (classId, month) => request(`create-class?action=get-sessions&classId=${classId}&month=${month}`, { method: 'GET' }),
+  setClassSessions: (classId, sessionDates, month) => request('create-class?action=set-sessions', { method: 'POST', body: JSON.stringify({ classId, sessionDates, month }) }),
+  getStudentSessions: (studentId, classId, month) => request(`create-class?action=get-student-sessions&studentId=${studentId}&classId=${classId}&month=${month}`, { method: 'GET' }),
+  setStudentSessions: (studentId, classId, sessionDates, month) => request('create-class?action=set-student-sessions', { method: 'POST', body: JSON.stringify({ studentId, classId, sessionDates, month }) }),
   createChapter: (data) => request('create-chapter', { method: 'POST', body: JSON.stringify(data) }),
   getChapters: (classId = '') => request(`create-chapter${classId ? `?classId=${classId}` : ''}`, { method: 'GET' }),
   deleteChapter: (chapterId) => request(`create-chapter?chapterId=${chapterId}`, { method: 'DELETE' }),
   createLesson: (data) => request('create-lesson', { method: 'POST', body: JSON.stringify(data) }),
+  updateLesson: (data) => request('create-lesson?action=update', { method: 'PUT', body: JSON.stringify(data) }),
   getLessons: (chapterId = '') => request(`create-lesson${chapterId ? `?chapterId=${chapterId}` : ''}`, { method: 'GET' }),
   deleteLesson: (lessonId) => request(`create-lesson?lessonId=${lessonId}`, { method: 'DELETE' }),
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),

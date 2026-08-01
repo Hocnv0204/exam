@@ -145,9 +145,9 @@ serve(async (req: Request) => {
         const qaRaw = q?.question_answers
         const qa = Array.isArray(qaRaw) ? qaRaw[0] : qaRaw
 
-        // Extract correct answer summary
+        // Extract correct answer summary (Only for ADMIN)
         let correctAnswerSummary: unknown = null
-        if (q) {
+        if (user.role === 'ADMIN' && q) {
           if (q.question_type === 'MULTIPLE_CHOICE') {
             correctAnswerSummary = qa?.mc_answer || null
           } else if (q.question_type === 'TRUE_FALSE') {

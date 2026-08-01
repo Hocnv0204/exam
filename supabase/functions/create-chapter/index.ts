@@ -21,7 +21,7 @@ serve(async (req: Request) => {
       const classId = url.searchParams.get('classId')
       
       // Student RLS: Can only view chapters of their enrolled class
-      if (user.role === 'STUDENT' && classId !== user.classId) {
+      if (user.role === 'STUDENT' && (!classId || !user.classIds.includes(classId))) {
         return errorResponse('Forbidden: You can only view chapters of your enrolled class', 403)
       }
 

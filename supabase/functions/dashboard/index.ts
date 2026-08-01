@@ -35,7 +35,27 @@ serve(async (req: Request) => {
 
     if (hErr) return errorResponse(hErr.message, 500)
 
-    // 4. Total Submissions Count & Average Score Calculation
+    // 4. Fetch all student sessions and classes to calculate total tuition fee
+    const { data: classTuitions, error: ctErr } = await serviceRoleClient
+      .from('classes')
+      .select('id, tuition_fee')
+    if (ctErr) return errorResponse(ctErr.message, 500)
+    
+    const { data: studentSessions, error: ssErr } = await serviceRoleClient
+      .from('student_sessions')
+      .select('class_id')
+    if (ssErr) return errorResponse(ssErr.message, 500)
+    
+    const tuitionMap = new Map((classTuitions || []).map(c => [c.id, Number(c.tuition_fee || 0)]))
+    let totalTuitionFee = 0
+    if (studentSessions) {
+      studentSessions.forEach(session => {
+        const fee = tuitionMap.get(session.class_id) || 0
+        totalTuitionFee += fee
+      })
+    }
+
+    // 5. Total Submissions Count & Average Score Calculation
     const { data: submissions, count: subCount, error: subErr } = await serviceRoleClient
       .from('submissions')
       .select('id, total_score, submitted_at, homework_id, student_id')
@@ -48,7 +68,7 @@ serve(async (req: Request) => {
       averageScore = Number((sum / submissions.length).toFixed(2))
     }
 
-    // 5. Recent Submissions List (Top 10)
+    // 6. Recent Submissions List (Top 10)
     const { data: recentSubmissionsRaw, error: recErr } = await serviceRoleClient
       .from('submissions')
       .select(`
@@ -80,6 +100,7 @@ serve(async (req: Request) => {
         totalClasses: classCount || 0,
         totalHomeworks: homeworkCount || 0,
         totalSubmissions: subCount || 0,
+        totalTuitionFee,
         averageScore,
       },
       recentSubmissions,

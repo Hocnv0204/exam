@@ -15,11 +15,11 @@ export function renderAdminDashboardView() {
     <div class="app-layout">
       ${renderSidebar('admin-dashboard')}
       <div class="main-content">
-        ${renderNavbar('Nền tảng / Bảng điều khiển Quản trị viên')}
+        ${renderNavbar('Nền tảng / Dashboard Quản trị viên')}
         <div class="content-body">
           <div class="page-header">
             <div>
-              <h1 class="page-title">Bảng điều khiển Quản trị viên</h1>
+              <h1 class="page-title">Dashboard Quản trị viên</h1>
               <p class="page-description">Thống kê thời gian thực, danh sách nộp bài gần đây và tổng quan hệ thống.</p>
             </div>
             <button class="btn-primary" onclick="window.location.hash='#create-homework'" style="width:auto;">
@@ -61,11 +61,11 @@ export function renderAdminDashboardView() {
 
             <div class="card" style="display:flex; align-items:center; gap:16px;">
               <div style="width:50px; height:50px; background:#d1fae5; color:#047857; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">
-                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-money-bill-wave"></i>
               </div>
               <div>
-                <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">Điểm trung bình</div>
-                <div style="font-family:var(--font-heading); font-size:26px; font-weight:700; color:#047857;">${overview.averageScore !== undefined ? `${overview.averageScore}/10` : 'N/A'}</div>
+                <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">Tổng học phí</div>
+                <div style="font-family:var(--font-heading); font-size:20px; font-weight:800; color:#047857;">${(overview.totalTuitionFee || 0).toLocaleString('vi-VN')} VND</div>
               </div>
             </div>
           </div>
