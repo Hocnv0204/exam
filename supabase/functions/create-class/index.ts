@@ -28,17 +28,16 @@ serve(async (req: Request) => {
         return jsonResponse(classes)
       } else {
         // STUDENT
-        if (!user.classId) {
+        if (!user.classIds || user.classIds.length === 0) {
           return jsonResponse([])
         }
-        const { data: studentClass, error } = await serviceRoleClient
+        const { data: studentClasses, error } = await serviceRoleClient
           .from('classes')
           .select('*')
-          .eq('id', user.classId)
-          .single()
+          .in('id', user.classIds)
 
         if (error) return jsonResponse([])
-        return jsonResponse([studentClass])
+        return jsonResponse(studentClasses)
       }
     }
 

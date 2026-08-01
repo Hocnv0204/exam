@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
   fullName: string
   role: UserRole
   classId: string | null
+  classIds: string[]
 }
 
 export async function requireAuth(req: Request): Promise<{
@@ -42,13 +43,24 @@ export async function requireAuth(req: Request): Promise<{
     throw new Error('User profile not found')
   }
 
+  // Retrieve student classes
+  let classIds: string[] = []
+  if (profile.role === 'STUDENT') {
+    const { data: stClasses } = await serviceRoleClient
+      .from('student_classes')
+      .select('class_id')
+      .eq('student_id', userId)
+    classIds = stClasses?.map((c) => c.class_id) || []
+  }
+
   const user: AuthenticatedUser = {
     id: profile.id,
     email: authData.user.email,
     username: profile.username,
     fullName: profile.full_name,
     role: profile.role as UserRole,
-    classId: profile.class_id,
+    classId: profile.class_id || (classIds[0] || null),
+    classIds,
   }
 
   return { user, supabaseClient, serviceRoleClient }

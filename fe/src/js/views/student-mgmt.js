@@ -78,7 +78,15 @@ export function renderStudentMgmtView() {
 }
 
 function renderStudentRow(s) {
-  const initials = s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+  const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
+  
+  // Render classes as individual badges
+  const classBadges = s.className ? s.className.split(', ').map(name => `
+    <span style="background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; margin-right:4px; display:inline-block;">
+      ${name}
+    </span>
+  `).join('') : '<span style="color:#64748b; font-size:12px;">Chưa phân lớp</span>'
+
   return `
     <tr id="row-student-${s.id}">
       <td>
@@ -92,9 +100,9 @@ function renderStudentRow(s) {
       </td>
       <td style="font-family:monospace; font-weight:600; color:#334155;">${s.studentCode || 'STU-8942'}</td>
       <td>
-        <span style="background:#e0f2fe; color:#0369a1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
-          ${s.className}
-        </span>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          ${classBadges}
+        </div>
       </td>
       <td>
         <span class="badge ${s.status === 'Hoạt động' ? 'badge-active' : 'badge-inactive'}">
@@ -104,8 +112,8 @@ function renderStudentRow(s) {
       <td style="color:#64748b;">${s.createdAt || 'Mới khởi tạo'}</td>
       <td>
         <div style="display:flex; gap:10px;">
-          <button class="btn-reset-pw" data-id="${s.id}" data-name="${s.fullName}" title="Đặt lại mật khẩu" style="background:none; border:none; color:#0066cc; cursor:pointer;"><i class="fa-solid fa-key"></i></button>
-          <button class="btn-delete-student" data-id="${s.id}" data-name="${s.fullName}" title="Xóa" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
+          <button class="btn-edit-student" data-id="${s.id}" title="Chỉnh sửa thông tin học sinh" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;"><i class="fa-solid fa-pen-to-square"></i></button>
+          <button class="btn-delete-student" data-id="${s.id}" data-name="${s.fullName}" title="Xóa" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;"><i class="fa-solid fa-trash"></i></button>
         </div>
       </td>
     </tr>
@@ -142,11 +150,12 @@ export function showCreateStudentModal() {
 
       <div>
         <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
-          <i class="fa-solid fa-graduation-cap" style="color:#0066cc;"></i> Chọn lớp học (Danh sách lớp đã có) <span style="color:#ef4444;">*</span>
+          <i class="fa-solid fa-graduation-cap" style="color:#0066cc;"></i> Chọn lớp học (Chọn nhiều lớp) <span style="color:#ef4444;">*</span>
         </label>
-        <select id="modal-student-class" class="form-input" style="background:#ffffff; cursor:pointer;" required>
+        <select id="modal-student-classes" class="form-input" style="background:#ffffff; cursor:pointer; height:auto; min-height:100px; padding:6px 12px;" multiple required>
           ${classOptionsHTML}
         </select>
+        <span style="font-size:11px; color:#64748b; margin-top:4px; display:block;">Giữ phím Ctrl (hoặc Cmd) để chọn nhiều lớp.</span>
       </div>
     </form>
   `
@@ -155,33 +164,35 @@ export function showCreateStudentModal() {
     const username = document.getElementById('modal-student-username')?.value.trim()
     const password = document.getElementById('modal-student-password')?.value.trim()
     const fullName = document.getElementById('modal-student-fullname')?.value.trim()
-    const classId = document.getElementById('modal-student-class')?.value
+    const classesSelect = document.getElementById('modal-student-classes')
+    const classIds = classesSelect ? Array.from(classesSelect.selectedOptions).map(opt => opt.value).filter(Boolean) : []
 
-    if (!username || !password || !fullName || !classId) {
+    if (!username || !password || !fullName || classIds.length === 0) {
       showToast('Vui lòng nhập đầy đủ Username, Password, Tên học sinh và Chọn lớp!', 'error')
       return false
     }
 
-    const selectedClass = state.classes.find(c => c.id === classId)
-    const className = selectedClass ? selectedClass.name : 'Toán 11'
+    const selectedClasses = state.classes.filter(c => classIds.includes(c.id))
+    const classNames = selectedClasses.map(c => c.name).join(', ')
 
     try {
       showToast('Đang tạo tài khoản học sinh...', 'info')
-      const createdData = await api.createStudent({ username, password, fullName, classId })
+      const createdData = await api.createStudent({ username, password, fullName, classIds })
       const newStudent = {
         id: createdData.id || ('s_' + Date.now()),
         username,
         fullName,
         studentCode: 'STU-' + Math.floor(1000 + Math.random() * 9000),
         email: `${username}@eduportal.vn`,
-        className,
-        classId,
+        className: classNames,
+        classId: classIds[0],
+        classIds: classIds,
         status: 'Hoạt động',
         createdAt: new Date().toLocaleDateString('vi-VN')
       }
       state.students.unshift(newStudent)
       updateTable(newStudent)
-      showToast(`Tạo thành công học sinh "${fullName}" cho lớp ${className}!`, 'success')
+      showToast(`Tạo thành công học sinh "${fullName}" cho lớp ${classNames}!`, 'success')
     } catch (err) {
       const newStudent = {
         id: 's_' + Date.now(),
@@ -189,19 +200,118 @@ export function showCreateStudentModal() {
         fullName,
         studentCode: 'STU-' + Math.floor(1000 + Math.random() * 9000),
         email: `${username}@eduportal.vn`,
-        className,
-        classId,
+        className: classNames,
+        classId: classIds[0],
+        classIds: classIds,
         status: 'Hoạt động',
         createdAt: new Date().toLocaleDateString('vi-VN')
       }
       state.students.unshift(newStudent)
       updateTable(newStudent)
-      showToast(`Tạo thành công học sinh "${fullName}" cho lớp ${className}! (Chế độ Demo)`, 'success')
+      showToast(`Tạo thành công học sinh "${fullName}" cho lớp ${classNames}! (Chế độ Demo)`, 'success')
+    }
+  })
+}
+
+export function showEditStudentModal(studentId) {
+  const student = state.students.find(s => s.id === studentId)
+  if (!student) {
+    showToast('Không tìm thấy thông tin học sinh!', 'error')
+    return
+  }
+
+  const studentClassIds = student.classIds || (student.classId ? [student.classId] : [])
+
+  const classOptionsHTML = state.classes.map(c => {
+    const isSel = studentClassIds.includes(c.id) ? 'selected' : ''
+    return `<option value="${c.id}" ${isSel}>${c.name}</option>`
+  }).join('')
+
+  const modalHTML = `
+    <form id="edit-student-modal-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:16px;">
+      <div>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+          Tên đăng nhập (Username)
+        </label>
+        <input type="text" class="form-input" value="${student.username}" disabled style="background:#f1f5f9; cursor:not-allowed;">
+      </div>
+
+      <div>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+          Tên học sinh (Họ và tên) <span style="color:#ef4444;">*</span>
+        </label>
+        <input type="text" id="modal-edit-fullname" class="form-input" value="${student.fullName}" required>
+      </div>
+
+      <div>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+          Mật khẩu mới (Để trống nếu không muốn đổi)
+        </label>
+        <input type="password" id="modal-edit-password" class="form-input" placeholder="Nhập mật khẩu mới tối thiểu 6 ký tự">
+      </div>
+
+      <div>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+          Lớp học (Chọn nhiều lớp) <span style="color:#ef4444;">*</span>
+        </label>
+        <select id="modal-edit-classes" class="form-input" style="background:#ffffff; cursor:pointer; height:auto; min-height:100px; padding:6px 12px;" multiple required>
+          ${classOptionsHTML}
+        </select>
+        <span style="font-size:11px; color:#64748b; margin-top:4px; display:block;">Giữ phím Ctrl (hoặc Cmd) để chọn nhiều lớp.</span>
+      </div>
+    </form>
+  `
+
+  openModal('Cập Nhật Thông Tin Học Sinh', modalHTML, async () => {
+    const fullName = document.getElementById('modal-edit-fullname')?.value.trim()
+    const password = document.getElementById('modal-edit-password')?.value.trim()
+    const classesSelect = document.getElementById('modal-edit-classes')
+    const classIds = classesSelect ? Array.from(classesSelect.selectedOptions).map(opt => opt.value).filter(Boolean) : []
+
+    if (!fullName || classIds.length === 0) {
+      showToast('Vui lòng điền họ tên và chọn ít nhất 1 lớp!', 'error')
+      return false
+    }
+
+    const selectedClasses = state.classes.filter(c => classIds.includes(c.id))
+    const classNames = selectedClasses.map(c => c.name).join(', ')
+
+    try {
+      showToast('Đang cập nhật thông tin học sinh...', 'info')
+      await api.updateStudent({
+        studentId,
+        fullName,
+        classIds,
+        password: password || null
+      })
+
+      // Update local state
+      student.fullName = fullName
+      student.className = classNames
+      student.classId = classIds[0]
+      student.classIds = classIds
+
+      // Re-render student list by triggering filter refresh
+      const searchInput = document.getElementById('student-search-input')
+      searchInput?.dispatchEvent(new Event('input'))
+
+      showToast(`Đã cập nhật thành công thông tin học sinh "${fullName}"!`, 'success')
+    } catch (err) {
+      // Offline/Demo fallback
+      student.fullName = fullName
+      student.className = classNames
+      student.classId = classIds[0]
+      student.classIds = classIds
+      
+      const searchInput = document.getElementById('student-search-input')
+      searchInput?.dispatchEvent(new Event('input'))
+      showToast(`Đã cập nhật thông tin học sinh "${fullName}" (Chế độ Demo)!`, 'success')
     }
   })
 }
 
 window.showCreateStudentModal = showCreateStudentModal
+window.showEditStudentModal = showEditStudentModal
 
 export function bindStudentMgmtEvents() {
   bindSidebarEvents()
@@ -224,7 +334,7 @@ export function bindStudentMgmtEvents() {
 
     const filtered = state.students.filter(s => {
       const matchQuery = !query || s.fullName.toLowerCase().includes(query) || (s.studentCode && s.studentCode.toLowerCase().includes(query)) || (s.username && s.username.toLowerCase().includes(query))
-      const matchClass = !selectedClass || s.classId === selectedClass
+      const matchClass = !selectedClass || s.classId === selectedClass || (s.classIds && s.classIds.includes(selectedClass))
       return matchQuery && matchClass
     })
 
@@ -264,10 +374,10 @@ function updateTable(newStudent) {
 }
 
 function bindTableActionEvents() {
-  document.querySelectorAll('.btn-reset-pw').forEach(btn => {
+  document.querySelectorAll('.btn-edit-student').forEach(btn => {
     btn.onclick = () => {
-      const name = btn.getAttribute('data-name')
-      showToast(`Đã gửi liên kết đặt lại mật khẩu cho ${name}`, 'info')
+      const id = btn.getAttribute('data-id')
+      showEditStudentModal(id)
     }
   })
 

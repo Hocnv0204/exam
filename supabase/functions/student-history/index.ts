@@ -31,9 +31,13 @@ serve(async (req: Request) => {
           submitted_at,
           duration_seconds_taken,
           homeworks (title, pass_score),
-          profiles!inner (username, full_name, class_id)
+          profiles!inner (
+            username,
+            full_name,
+            student_classes!inner (class_id)
+          )
         `)
-        .eq('profiles.class_id', queryClassId)
+        .eq('profiles.student_classes.class_id', queryClassId)
         .order('submitted_at', { ascending: false })
 
       if (classSubErr) return errorResponse(classSubErr.message, 500)

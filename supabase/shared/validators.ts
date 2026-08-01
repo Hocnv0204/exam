@@ -11,13 +11,16 @@ export const createStudentSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   fullName: z.string().min(1, 'Full name is required'),
-  classId: z.string().uuid('Invalid Class ID'),
+  classId: z.string().uuid('Invalid Class ID').optional(),
+  classIds: z.array(z.string().uuid('Invalid Class ID')).optional(),
 })
 
 export const updateStudentSchema = z.object({
   studentId: z.string().uuid('Invalid Student ID'),
   fullName: z.string().min(1).optional(),
   classId: z.string().uuid('Invalid Class ID').optional(),
+  classIds: z.array(z.string().uuid('Invalid Class ID')).optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional().nullable(),
 })
 
 export const deleteStudentSchema = z.object({

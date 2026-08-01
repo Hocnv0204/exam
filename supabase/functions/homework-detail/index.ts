@@ -59,7 +59,7 @@ serve(async (req: Request) => {
       if (!homework.is_published) {
         return errorResponse('Homework is not published', 403)
       }
-      if (user.classId !== homeworkClassId) {
+      if (!user.classIds || !user.classIds.includes(homeworkClassId)) {
         return errorResponse('Forbidden: You do not have access to this class homework', 403)
       }
     }

@@ -34,7 +34,7 @@ serve(async (req: Request) => {
       return errorResponse('Homework not found or not published', 404)
     }
 
-    if (!user.classId) {
+    if (!user.classIds || user.classIds.length === 0) {
       return errorResponse('Student is not assigned to any class', 403)
     }
 
@@ -76,7 +76,7 @@ serve(async (req: Request) => {
     }
 
     const classIdOfHomework = (lesson.chapters as unknown as { class_id: string })?.class_id
-    if (classIdOfHomework !== user.classId) {
+    if (!user.classIds.includes(classIdOfHomework)) {
       return errorResponse('Forbidden: You are not enrolled in the class for this homework', 403)
     }
 
