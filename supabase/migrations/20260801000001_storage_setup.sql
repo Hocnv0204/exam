@@ -8,12 +8,12 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES (
     'pdf-files',
     'pdf-files',
-    false, -- Private bucket, access controlled via RLS / signed URLs / authenticated policy
+    true, -- Public bucket to allow direct PDF downloads via public URL
     52428800, -- 50 MB
     ARRAY['application/pdf']
 )
 ON CONFLICT (id) DO UPDATE SET
-    public = false,
+    public = true,
     file_size_limit = 52428800,
     allowed_mime_types = ARRAY['application/pdf'];
 
