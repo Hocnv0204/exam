@@ -46,6 +46,19 @@ export function renderCreateHwView() {
   const hw = isEdit ? state.editHomeworkData.homework : null
   const questions = isEdit ? (state.editHomeworkData.questions || []) : []
 
+  let deadlineVal = ''
+  if (isEdit && hw && (hw.deadline || hw.deadline_at)) {
+    const d = new Date(hw.deadline || hw.deadline_at)
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      const hours = String(d.getHours()).padStart(2, '0')
+      const minutes = String(d.getMinutes()).padStart(2, '0')
+      deadlineVal = `${year}-${month}-${day}T${hours}:${minutes}`
+    }
+  }
+
   if (isEdit && hw && questions.length > 0) {
     if (currentConfig.editingHomeworkId !== hw.id) {
       currentConfig.editingHomeworkId = hw.id
@@ -162,6 +175,17 @@ export function renderCreateHwView() {
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian làm bài (Phút)</label>
                       <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 45 : 45}" min="5" style="padding:8px 12px; font-size:13px;">
+                    </div>
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần làm tối đa (0 = Không giới hạn)</label>
+                      <input type="number" id="hw-max-attempts" class="form-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.max_attempts !== undefined && hw.max_attempts !== null ? hw.max_attempts : 0)}" min="0" style="padding:8px 12px; font-size:13px;">
+                    </div>
+                  </div>
+
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Hạn chót nộp bài (Deadline)</label>
+                      <input type="datetime-local" id="hw-deadline" class="form-input" value="${deadlineVal}" style="padding:8px 12px; font-size:13px; background:#ffffff;">
                     </div>
                     <div style="display:flex; align-items:flex-end;">
                       <button class="btn-primary" id="save-homework-btn" style="width:100%; padding:9px 12px; font-size:13px; cursor:pointer; height:38px;">
@@ -465,6 +489,11 @@ export function bindCreateHwEvents() {
     const classId = document.getElementById('hw-class-select')?.value
     const lessonId = document.getElementById('hw-lesson-select')?.value
     const duration = parseInt(document.getElementById('hw-duration')?.value || '45', 10)
+    const deadlineRaw = document.getElementById('hw-deadline')?.value
+    const maxAttemptsVal = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
+
+    const deadline = deadlineRaw ? new Date(deadlineRaw).toISOString() : null
+    const maxAttempts = maxAttemptsVal > 0 ? maxAttemptsVal : null
 
     if (!title) {
       showToast('Vui lòng nhập tên bài tập!', 'error')
@@ -552,7 +581,9 @@ export function bindCreateHwEvents() {
           passScore: hw.passScore || hw.pass_score || 5.0,
           maxScore: hw.maxScore || hw.max_score || 10.0,
           isPublished: hw.isPublished !== false,
-          questions
+          questions,
+          deadline,
+          maxAttempts
         })
         showToast(`Đã cập nhật bài tập "${title}" thành công!`, 'success')
         window.location.hash = '#curriculum'
@@ -566,7 +597,9 @@ export function bindCreateHwEvents() {
           passScore: 5.0,
           maxScore: 10.0,
           isPublished: true,
-          questions
+          questions,
+          deadline,
+          maxAttempts
         })
         showToast(`Đã xuất bản bài tập "${title}" thành công!`, 'success')
         window.location.hash = '#curriculum'

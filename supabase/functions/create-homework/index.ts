@@ -50,6 +50,8 @@ serve(async (req: Request) => {
         maxScore,
         isPublished,
         questions,
+        deadline,
+        maxAttempts,
       } = validation.data
 
       // Create Homework Record
@@ -63,6 +65,8 @@ serve(async (req: Request) => {
           pass_score: passScore,
           max_score: maxScore,
           is_published: isPublished,
+          deadline: deadline || null,
+          max_attempts: maxAttempts || null,
         })
         .select()
         .single()
@@ -128,7 +132,7 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions } = validation.data
+      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
       if (lessonId !== undefined) updateData.lesson_id = lessonId
@@ -138,6 +142,8 @@ serve(async (req: Request) => {
       if (passScore !== undefined) updateData.pass_score = passScore
       if (maxScore !== undefined) updateData.max_score = maxScore
       if (isPublished !== undefined) updateData.is_published = isPublished
+      if (deadline !== undefined) updateData.deadline = deadline || null
+      if (maxAttempts !== undefined) updateData.max_attempts = maxAttempts || null
 
       const { data: updatedHomework, error } = await serviceRoleClient
         .from('homeworks')

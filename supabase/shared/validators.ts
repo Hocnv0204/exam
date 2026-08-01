@@ -116,6 +116,8 @@ export const createHomeworkSchema = z.object({
   maxScore: z.number().positive().optional().default(10),
   isPublished: z.boolean().optional().default(true),
   questions: z.array(questionInputSchema).min(1, 'At least one question is required'),
+  deadline: z.string().optional().nullable(),
+  maxAttempts: z.number().int().nonnegative().optional().nullable(),
 })
 
 export const updateHomeworkSchema = z.object({
@@ -128,6 +130,8 @@ export const updateHomeworkSchema = z.object({
   maxScore: z.number().positive().optional(),
   isPublished: z.boolean().optional(),
   questions: z.array(questionInputSchema).optional(),
+  deadline: z.string().optional().nullable(),
+  maxAttempts: z.number().int().nonnegative().optional().nullable(),
 })
 
 export const deleteHomeworkSchema = z.object({

@@ -26,7 +26,7 @@ serve(async (req: Request) => {
     // 1. Fetch homework and verify student class assignment
     const { data: homework, error: homeworkError } = await serviceRoleClient
       .from('homeworks')
-      .select('id, title, max_score, pass_score, is_published, lesson_id')
+      .select('id, title, max_score, pass_score, is_published, lesson_id, deadline, max_attempts')
       .eq('id', homeworkId)
       .single()
 
@@ -36,6 +36,32 @@ serve(async (req: Request) => {
 
     if (!user.classId) {
       return errorResponse('Student is not assigned to any class', 403)
+    }
+
+    // Check deadline
+    if (homework.deadline) {
+      const deadlineDate = new Date(homework.deadline)
+      const now = new Date()
+      if (now > deadlineDate) {
+        return errorResponse('Bài tập đã hết hạn nộp bài', 400)
+      }
+    }
+
+    // Check max attempts limit
+    if (homework.max_attempts && homework.max_attempts > 0) {
+      const { count, error: countError } = await serviceRoleClient
+        .from('submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('homework_id', homeworkId)
+        .eq('student_id', user.id)
+
+      if (countError) {
+        return errorResponse('Failed to verify submission attempts limit', 500)
+      }
+
+      if (count !== null && count >= homework.max_attempts) {
+        return errorResponse('Bạn đã đạt giới hạn tối đa số lần làm bài tập này', 400)
+      }
     }
 
     // Verify homework's lesson -> chapter -> class matches student's class
