@@ -98,125 +98,120 @@ export function renderCreateHwView() {
       ${renderSidebar('create-homework')}
       <div class="main-content">
         ${renderNavbar(isEdit ? 'Quản trị / Sửa bài tập' : 'Quản trị / Tạo bài tập')}
-        <div class="content-body">
-          <div class="page-header">
-            <div>
-              <h1 class="page-title">${isEdit ? 'Chỉnh sửa bài tập' : 'Tạo bài tập về nhà mới'}</h1>
-              <p class="page-description">${isEdit ? 'Cập nhật đề bài PDF, thời gian làm bài, cấu hình số lượng câu hỏi và đáp án chi tiết.' : 'Cấu hình số lượng câu hỏi và nhập đáp án chuẩn cho 3 loại bài tập (Trắc nghiệm ABCD, Đúng/Sai 4 ý, Trả lời ngắn).'}</p>
-            </div>
-            <button class="btn-primary" id="save-homework-btn" style="width:auto;">
-              <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu & Xuất bản bài tập'}
-            </button>
-          </div>
-
-          <!-- General Homework Info -->
-          <div class="card">
-            <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; margin-bottom:16px;">
-              <i class="fa-regular fa-clipboard" style="color:#0066cc;"></i> Thông tin chung bài tập
-            </h3>
-
-            <div style="display:flex; flex-direction:column; gap:16px;">
-              <div class="grid-3">
-                <div>
-                  <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
-                  <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: Kiểm tra Chương 3: Con lắc đơn & Động lực học" value="${isEdit ? hw.title : ''}">
+        <div class="content-body" style="padding: 16px 24px;">
+          <div class="split-homework-layout">
+            
+            <!-- LEFT COLUMN: PDF VIEWER & UPLOAD (60%) -->
+            <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
+              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px;"></i>
+                  <span id="pdf-viewer-title">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
                 </div>
                 <div>
-                  <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Chọn lớp học <span style="color:#ef4444;">*</span></label>
-                  <select id="hw-class-select" class="form-input" style="background:#ffffff; cursor:pointer;">
-                    ${classOptions}
-                  </select>
-                </div>
-                <div>
-                  <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Chọn bài học <span style="color:#ef4444;">*</span></label>
-                  <select id="hw-lesson-select" class="form-input" style="background:#ffffff; cursor:pointer;">
-                    <option value="">Đang tải bài học...</option>
-                  </select>
+                  <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
+                  <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="padding:6px 12px; font-size:12px; height:auto; line-height:1; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                    <i class="fa-solid fa-upload"></i> Chọn file PDF
+                  </button>
                 </div>
               </div>
 
-              <div class="grid-3">
-                <div>
-                  <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Thời gian làm bài (Phút)</label>
-                  <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 45 : 45}" min="5">
-                </div>
-                <div style="grid-column: span 2;">
-                  <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tài liệu đính kèm (File đề bài PDF)</label>
-                  ${isEdit && hw?.pdfPath ? `
-                    <div id="existing-pdf-info" style="display:flex; align-items:center; gap:10px; margin-bottom:10px; padding:10px 14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;">
-                      <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:20px;"></i>
-                      <div style="flex:1; min-width:0;">
-                        <div style="font-size:13px; font-weight:700; color:#166534;">Đã có file đề bài PDF</div>
-                        <div style="font-size:12px; color:#15803d; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${hw.pdfPath}</div>
-                      </div>
-                      <span style="font-size:11px; color:#16a34a; background:#dcfce7; padding:3px 10px; border-radius:6px; font-weight:600;">Đang sử dụng</span>
+              <!-- PDF Iframe Preview / Placeholder -->
+              <div id="pdf-preview-container" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow:hidden; position:relative;">
+                <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; border:none; background:#f8fafc; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
+                ${!(isEdit && hw?.pdfUrl) ? `
+                  <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
+                    <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
+                    <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN: CONFIG & ANSWER KEY MATRIX (40%) -->
+            <div class="question-column" style="overflow-y:auto; max-height:calc(100vh - 120px); display:flex; flex-direction:column; gap:20px; padding-right:4px;">
+              
+              <!-- General Homework Info Card -->
+              <div class="card" style="margin:0; padding:16px;">
+                <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-regular fa-clipboard" style="color:#0066cc;"></i> Thông tin bài tập
+                </h3>
+
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                  <div>
+                    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
+                    <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: Kiểm tra Chương 3..." value="${isEdit ? hw.title : ''}" style="padding:8px 12px; font-size:13px;">
+                  </div>
+
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Chọn lớp học <span style="color:#ef4444;">*</span></label>
+                      <select id="hw-class-select" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
+                        ${classOptions}
+                      </select>
                     </div>
-                  ` : ''}
-                  <input type="file" id="hw-pdf-file" accept=".pdf" class="form-input" style="padding:7px 12px; background:#ffffff;">
-                  ${isEdit && hw?.pdfPath ? `
-                    <div style="font-size:11px; color:#64748b; margin-top:4px;">
-                      <i class="fa-solid fa-info-circle"></i> Chọn file mới để thay thế file hiện tại, hoặc bỏ trống để giữ nguyên.
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Chọn bài học <span style="color:#ef4444;">*</span></label>
+                      <select id="hw-lesson-select" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
+                        <option value="">Đang tải bài học...</option>
+                      </select>
                     </div>
-                  ` : ''}
-                  <div id="pdf-preview-container" style="${isEdit && (hw?.pdfUrl || hw?.pdfPath) ? 'display:block' : 'display:none'}; margin-top:16px;">
-                    <label style="font-size:13px; font-weight:700; color:#0f172a; display:block; margin-bottom:6px;">
-                      <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem trước file đề bài PDF:
-                    </label>
-                    <iframe id="pdf-preview-iframe" style="width:100%; height:500px; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc;" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}"></iframe>
+                  </div>
+
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian làm bài (Phút)</label>
+                      <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 45 : 45}" min="5" style="padding:8px 12px; font-size:13px;">
+                    </div>
+                    <div style="display:flex; align-items:flex-end;">
+                      <button class="btn-primary" id="save-homework-btn" style="width:100%; padding:9px 12px; font-size:13px; cursor:pointer; height:38px;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu & Xuất bản'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <!-- Config Section: Select Quantities for 3 Question Types -->
-          <div class="card" style="border:2px solid #e0f2fe; background:#fafdfm;">
-            <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0369a1; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-sliders"></i> Cấu hình số lượng câu hỏi theo loại
-            </h3>
-            
-            <div class="grid-3" style="margin-bottom:16px;">
-              <div style="background:#ffffff; padding:14px; border:1px solid #e2e8f0; border-radius:12px;">
-                <label style="font-size:13px; font-weight:700; color:#0f172a; display:block; margin-bottom:6px;">
-                  1. Trắc nghiệm A/B/C/D
-                </label>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <input type="number" id="cfg-mc-count" class="form-input" value="${currentConfig.mcCount}" min="0" max="100" style="font-weight:700; text-align:center;">
-                  <span style="font-size:13px; color:#64748b;">Câu</span>
+              <!-- Config Section: Select Quantities for 3 Question Types -->
+              <div class="card" style="border:2px solid #e0f2fe; background:#fafdfm; margin:0; padding:12px 16px;">
+                <h3 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#0369a1; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-sliders"></i> Cấu hình số lượng câu hỏi
+                </h3>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px;">
+                  <div style="background:#ffffff; padding:8px; border:1px solid #e2e8f0; border-radius:8px;">
+                    <label style="font-size:11px; font-weight:700; color:#0f172a; display:block; margin-bottom:4px; text-align:center;">
+                      T.Nghiệm ABCD
+                    </label>
+                    <input type="number" id="cfg-mc-count" class="form-input" value="${currentConfig.mcCount}" min="0" max="100" style="font-weight:700; text-align:center; padding:4px; font-size:12px;">
+                  </div>
+
+                  <div style="background:#ffffff; padding:8px; border:1px solid #e2e8f0; border-radius:8px;">
+                    <label style="font-size:11px; font-weight:700; color:#0f172a; display:block; margin-bottom:4px; text-align:center;">
+                      Đúng / Sai
+                    </label>
+                    <input type="number" id="cfg-tf-count" class="form-input" value="${currentConfig.tfCount}" min="0" max="50" style="font-weight:700; text-align:center; padding:4px; font-size:12px;">
+                  </div>
+
+                  <div style="background:#ffffff; padding:8px; border:1px solid #e2e8f0; border-radius:8px;">
+                    <label style="font-size:11px; font-weight:700; color:#0f172a; display:block; margin-bottom:4px; text-align:center;">
+                      Trả lời ngắn
+                    </label>
+                    <input type="number" id="cfg-sa-count" class="form-input" value="${currentConfig.saCount}" min="0" max="50" style="font-weight:700; text-align:center; padding:4px; font-size:12px;">
+                  </div>
                 </div>
+
+                <button class="btn-primary" id="update-config-btn" style="width:100%; padding:8px 12px; font-size:12px; background:#0066cc; cursor:pointer;">
+                  <i class="fa-solid fa-arrows-rotate"></i> Cập nhật số lượng câu hỏi
+                </button>
               </div>
 
-              <div style="background:#ffffff; padding:14px; border:1px solid #e2e8f0; border-radius:12px;">
-                <label style="font-size:13px; font-weight:700; color:#0f172a; display:block; margin-bottom:6px;">
-                  2. Đúng / Sai (4 ý / câu)
-                </label>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <input type="number" id="cfg-tf-count" class="form-input" value="${currentConfig.tfCount}" min="0" max="50" style="font-weight:700; text-align:center;">
-                  <span style="font-size:13px; color:#64748b;">Câu</span>
-                </div>
-              </div>
-
-              <div style="background:#ffffff; padding:14px; border:1px solid #e2e8f0; border-radius:12px;">
-                <label style="font-size:13px; font-weight:700; color:#0f172a; display:block; margin-bottom:6px;">
-                  3. Trả lời ngắn
-                </label>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <input type="number" id="cfg-sa-count" class="form-input" value="${currentConfig.saCount}" min="0" max="50" style="font-weight:700; text-align:center;">
-                  <span style="font-size:13px; color:#64748b;">Câu</span>
-                </div>
+              <!-- Answer Key Matrix Section -->
+              <div id="answer-matrix-container" style="display:flex; flex-direction:column; gap:16px;">
+                ${renderAnswerMatrix()}
               </div>
             </div>
 
-            <div style="text-align:right;">
-              <button class="btn-primary" id="update-config-btn" style="width:auto; padding:8px 20px; background:#0066cc;">
-                <i class="fa-solid fa-arrows-rotate"></i> Cập nhật số lượng câu hỏi
-              </button>
-            </div>
-          </div>
-
-          <!-- Answer Key Matrix Section -->
-          <div id="answer-matrix-container">
-            ${renderAnswerMatrix()}
           </div>
         </div>
       </div>
@@ -227,120 +222,113 @@ export function renderCreateHwView() {
 function renderAnswerMatrix() {
   return `
     <!-- PART 1: Multiple Choice ABCD -->
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #f1f5f9;">
-        <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a;">
-          <span style="background:#0066cc; color:#ffffff; padding:4px 10px; border-radius:8px; font-size:14px; margin-right:8px;">Phần I</span>
+    <div class="card" style="margin:0; padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #f1f5f9;">
+        <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; color:#0f172a;">
+          <span style="background:#0066cc; color:#ffffff; padding:3px 8px; border-radius:6px; font-size:12px; margin-right:6px;">Phần I</span>
           Trắc nghiệm A/B/C/D (${currentConfig.mcCount} Câu)
         </h3>
-        <span style="font-size:13px; color:#64748b;">Chọn 1 đáp án đúng cho mỗi câu</span>
       </div>
 
       ${currentConfig.mcCount === 0 ? `
-        <div style="font-size:13px; color:#94a3b8; text-align:center; padding:16px;">Không có câu hỏi Trắc nghiệm ABCD.</div>
+        <div style="font-size:12px; color:#94a3b8; text-align:center; padding:8px;">Không có câu hỏi Trắc nghiệm ABCD.</div>
       ` : `
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:14px;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.mcCount }, (_, i) => i + 1).map(qNum => {
-    const selected = mcAnswers[qNum] || 'A'
-    return `
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; display:flex; align-items:center; justify-content:space-between;">
-                <span style="font-weight:700; font-size:15px; color:#334155; width:60px;">Câu ${qNum}</span>
+            const selected = mcAnswers[qNum] || 'A'
+            return `
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+                <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
                 <div style="display:flex; gap:6px;">
                   ${['A', 'B', 'C', 'D'].map(opt => `
                     <button type="button" class="mc-option-btn ${selected === opt ? 'active' : ''}" data-qnum="${qNum}" data-option="${opt}" style="
-                      width:32px; height:32px; border-radius:8px; border:1px solid ${selected === opt ? '#0066cc' : '#cbd5e1'};
+                      width:30px; height:30px; border-radius:6px; border:1px solid ${selected === opt ? '#0066cc' : '#cbd5e1'};
                       background:${selected === opt ? '#0066cc' : '#ffffff'};
                       color:${selected === opt ? '#ffffff' : '#334155'};
-                      font-weight:700; font-size:13px; cursor:pointer; transition:all 0.15s ease;
+                      font-weight:700; font-size:12px; cursor:pointer; transition:all 0.15s ease;
                     ">${opt}</button>
                   `).join('')}
                 </div>
               </div>
             `
-  }).join('')}
+          }).join('')}
         </div>
       `}
     </div>
 
-    <!-- PART 2: True / False (4 sub-items: a, b, c, d) -->
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #f1f5f9;">
-        <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a;">
-          <span style="background:#0284c7; color:#ffffff; padding:4px 10px; border-radius:8px; font-size:14px; margin-right:8px;">Phần II</span>
-          Trắc nghiệm Đúng / Sai (${currentConfig.tfCount} Câu - Mỗi câu 4 ý a, b, c, d)
+    <!-- PART 2: True / False -->
+    <div class="card" style="margin:0; padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #f1f5f9;">
+        <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; color:#0f172a;">
+          <span style="background:#0284c7; color:#ffffff; padding:3px 8px; border-radius:6px; font-size:12px; margin-right:6px;">Phần II</span>
+          Đúng / Sai (${currentConfig.tfCount} Câu)
         </h3>
-        <span style="font-size:13px; color:#64748b;">Chọn Đúng (Đ) hoặc Sai (S) cho từng ý</span>
       </div>
 
       ${currentConfig.tfCount === 0 ? `
-        <div style="font-size:13px; color:#94a3b8; text-align:center; padding:16px;">Không có câu hỏi Đúng / Sai.</div>
+        <div style="font-size:12px; color:#94a3b8; text-align:center; padding:8px;">Không có câu hỏi Đúng / Sai.</div>
       ` : `
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px;">
+        <div style="display:flex; flex-direction:column; gap:12px;">
           ${Array.from({ length: currentConfig.tfCount }, (_, i) => i + 1).map(index => {
-    const actualQNum = currentConfig.mcCount + index
-    const tfObj = tfAnswers[actualQNum] || { a: true, b: true, c: false, d: true }
-    return `
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
-                <div style="font-weight:700; font-size:15px; color:#0f172a; margin-bottom:10px; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
-                  Câu ${actualQNum}
-                </div>
-
-                <div style="display:flex; flex-direction:column; gap:8px;">
+            const actualQNum = currentConfig.mcCount + index
+            const tfObj = tfAnswers[actualQNum] || { a: true, b: true, c: false, d: true }
+            return `
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
+                <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${actualQNum}</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
                   ${['a', 'b', 'c', 'd'].map(sub => {
-      const isTrue = tfObj[sub] !== false
-      return `
-                      <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:6px 12px; border-radius:8px; border:1px solid #f1f5f9;">
-                        <span style="font-weight:600; font-size:13px; color:#334155;">Ý ${sub})</span>
-                        <div style="display:flex; gap:6px;">
+                    const isTrue = tfObj[sub] !== false
+                    return `
+                      <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
+                        <span style="font-weight:700; color:#475569;">${sub})</span>
+                        <div style="display:flex; gap:4px;">
                           <button type="button" class="tf-option-btn ${isTrue ? 'active-true' : ''}" data-qnum="${actualQNum}" data-sub="${sub}" data-val="true" style="
-                            padding:4px 14px; border-radius:6px; font-weight:700; font-size:12px; cursor:pointer;
+                            padding:2px 8px; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer;
                             border:1px solid ${isTrue ? '#16a34a' : '#cbd5e1'};
                             background:${isTrue ? '#16a34a' : '#ffffff'};
                             color:${isTrue ? '#ffffff' : '#475569'};
-                          ">Đúng</button>
-                          
+                          ">Đ</button>
                           <button type="button" class="tf-option-btn ${!isTrue ? 'active-false' : ''}" data-qnum="${actualQNum}" data-sub="${sub}" data-val="false" style="
-                            padding:4px 14px; border-radius:6px; font-weight:700; font-size:12px; cursor:pointer;
+                            padding:2px 8px; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer;
                             border:1px solid ${!isTrue ? '#dc2626' : '#cbd5e1'};
                             background:${!isTrue ? '#dc2626' : '#ffffff'};
                             color:${!isTrue ? '#ffffff' : '#475569'};
-                          ">Sai</button>
+                          ">S</button>
                         </div>
                       </div>
                     `
-    }).join('')}
+                  }).join('')}
                 </div>
               </div>
             `
-  }).join('')}
+          }).join('')}
         </div>
       `}
     </div>
 
     <!-- PART 3: Short Answer -->
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #f1f5f9;">
-        <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a;">
-          <span style="background:#059669; color:#ffffff; padding:4px 10px; border-radius:8px; font-size:14px; margin-right:8px;">Phần III</span>
+    <div class="card" style="margin:0; padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #f1f5f9;">
+        <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; color:#0f172a;">
+          <span style="background:#059669; color:#ffffff; padding:3px 8px; border-radius:6px; font-size:12px; margin-right:6px;">Phần III</span>
           Trả lời ngắn (${currentConfig.saCount} Câu)
         </h3>
-        <span style="font-size:13px; color:#64748b;">Nhập đáp án số hoặc chuỗi văn bản chuẩn</span>
       </div>
 
       ${currentConfig.saCount === 0 ? `
-        <div style="font-size:13px; color:#94a3b8; text-align:center; padding:16px;">Không có câu hỏi Trả lời ngắn.</div>
+        <div style="font-size:12px; color:#94a3b8; text-align:center; padding:8px;">Không có câu hỏi Trả lời ngắn.</div>
       ` : `
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:14px;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.saCount }, (_, i) => i + 1).map(index => {
-    const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
-    const val = saAnswers[actualQNum] || ''
-    return `
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
-                <div style="font-weight:700; font-size:14px; color:#0f172a; margin-bottom:6px;">Câu ${actualQNum}</div>
-                <input type="text" class="form-input sa-input" data-qnum="${actualQNum}" value="${val}" placeholder="Nhập đáp án chuẩn..." style="background:#ffffff;">
+            const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
+            const val = saAnswers[actualQNum] || ''
+            return `
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+                <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${actualQNum}</span>
+                <input type="text" class="form-input sa-input" data-qnum="${actualQNum}" value="${val}" placeholder="Nhập đáp án chuẩn..." style="padding:6px 10px; font-size:13px; background:#ffffff;">
               </div>
             `
-  }).join('')}
+          }).join('')}
         </div>
       `}
     </div>
@@ -356,12 +344,17 @@ export function bindCreateHwEvents() {
   if (isEditMode && hwData?.homework?.pdfUrl) {
     const iframe = document.getElementById('pdf-preview-iframe')
     const container = document.getElementById('pdf-preview-container')
+    const placeholder = document.getElementById('pdf-placeholder')
+    const titleSpan = document.getElementById('pdf-viewer-title')
+    
     if (iframe && container) {
       const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       if (!iframe.src || iframe.src === 'about:blank' || iframe.src === window.location.href) {
         iframe.src = mappedUrl
       }
-      container.style.display = 'block'
+      iframe.style.display = 'block'
+      if (placeholder) placeholder.style.display = 'none'
+      if (titleSpan) titleSpan.textContent = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
     }
   }
 
@@ -369,17 +362,22 @@ export function bindCreateHwEvents() {
   const fileInput = document.getElementById('hw-pdf-file')
   fileInput?.addEventListener('change', (e) => {
     const file = e.target.files[0]
-    const container = document.getElementById('pdf-preview-container')
     const iframe = document.getElementById('pdf-preview-iframe')
+    const placeholder = document.getElementById('pdf-placeholder')
+    const titleSpan = document.getElementById('pdf-viewer-title')
 
     if (file && file.type === 'application/pdf') {
       const fileURL = URL.createObjectURL(file)
-      if (iframe && container) {
+      if (iframe) {
         iframe.src = fileURL
-        container.style.display = 'block'
+        iframe.style.display = 'block'
       }
+      if (placeholder) placeholder.style.display = 'none'
+      if (titleSpan) titleSpan.textContent = file.name
     } else {
-      if (container) container.style.display = 'none'
+      if (iframe) iframe.style.display = 'none'
+      if (placeholder) placeholder.style.display = 'block'
+      if (titleSpan) titleSpan.textContent = 'Chưa chọn file PDF'
     }
   })
 

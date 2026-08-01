@@ -118,3 +118,11 @@ supabase/functions/.env.local
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Frontend specific
+fe/node_modules/
+fe/dist/
+fe/.env
+fe/.env.local
+fe/.env*.local
+
