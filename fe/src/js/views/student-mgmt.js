@@ -121,9 +121,14 @@ function renderStudentRow(s) {
 }
 
 export function showCreateStudentModal() {
-  const classOptionsHTML = state.classes.length > 0 
-    ? state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')
-    : `<option value="">Chưa có lớp học</option>`
+  const classCheckboxesHTML = state.classes.length > 0 
+    ? state.classes.map(c => `
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; color:#334155; cursor:pointer; padding:2px 0;">
+          <input type="checkbox" name="student-classes" value="${c.id}" style="width:16px; height:16px; accent-color:#0066cc; cursor:pointer;">
+          <span>${c.name}</span>
+        </label>
+      `).join('')
+    : `<div style="font-size:13px; color:#64748b;">Chưa có lớp học nào</div>`
 
   const modalHTML = `
     <form id="create-student-modal-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:16px;">
@@ -152,10 +157,9 @@ export function showCreateStudentModal() {
         <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
           <i class="fa-solid fa-graduation-cap" style="color:#0066cc;"></i> Chọn lớp học (Chọn nhiều lớp) <span style="color:#ef4444;">*</span>
         </label>
-        <select id="modal-student-classes" class="form-input" style="background:#ffffff; cursor:pointer; height:auto; min-height:100px; padding:6px 12px;" multiple required>
-          ${classOptionsHTML}
-        </select>
-        <span style="font-size:11px; color:#64748b; margin-top:4px; display:block;">Giữ phím Ctrl (hoặc Cmd) để chọn nhiều lớp.</span>
+        <div style="border:1px solid var(--border-color); border-radius:10px; padding:12px; max-height:150px; overflow-y:auto; background:#ffffff; display:flex; flex-direction:column; gap:6px;">
+          ${classCheckboxesHTML}
+        </div>
       </div>
     </form>
   `
@@ -164,11 +168,10 @@ export function showCreateStudentModal() {
     const username = document.getElementById('modal-student-username')?.value.trim()
     const password = document.getElementById('modal-student-password')?.value.trim()
     const fullName = document.getElementById('modal-student-fullname')?.value.trim()
-    const classesSelect = document.getElementById('modal-student-classes')
-    const classIds = classesSelect ? Array.from(classesSelect.selectedOptions).map(opt => opt.value).filter(Boolean) : []
+    const classIds = Array.from(document.querySelectorAll('input[name="student-classes"]:checked')).map(cb => cb.value)
 
     if (!username || !password || !fullName || classIds.length === 0) {
-      showToast('Vui lòng nhập đầy đủ Username, Password, Tên học sinh và Chọn lớp!', 'error')
+      showToast('Vui lòng nhập đầy đủ Username, Password, Tên học sinh và chọn ít nhất 1 lớp!', 'error')
       return false
     }
 
@@ -222,9 +225,14 @@ export function showEditStudentModal(studentId) {
 
   const studentClassIds = student.classIds || (student.classId ? [student.classId] : [])
 
-  const classOptionsHTML = state.classes.map(c => {
-    const isSel = studentClassIds.includes(c.id) ? 'selected' : ''
-    return `<option value="${c.id}" ${isSel}>${c.name}</option>`
+  const classCheckboxesHTML = state.classes.map(c => {
+    const isChecked = studentClassIds.includes(c.id) ? 'checked' : ''
+    return `
+      <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; color:#334155; cursor:pointer; padding:2px 0;">
+        <input type="checkbox" name="student-classes-edit" value="${c.id}" ${isChecked} style="width:16px; height:16px; accent-color:#0066cc; cursor:pointer;">
+        <span>${c.name}</span>
+      </label>
+    `
   }).join('')
 
   const modalHTML = `
@@ -254,10 +262,9 @@ export function showEditStudentModal(studentId) {
         <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
           Lớp học (Chọn nhiều lớp) <span style="color:#ef4444;">*</span>
         </label>
-        <select id="modal-edit-classes" class="form-input" style="background:#ffffff; cursor:pointer; height:auto; min-height:100px; padding:6px 12px;" multiple required>
-          ${classOptionsHTML}
-        </select>
-        <span style="font-size:11px; color:#64748b; margin-top:4px; display:block;">Giữ phím Ctrl (hoặc Cmd) để chọn nhiều lớp.</span>
+        <div style="border:1px solid var(--border-color); border-radius:10px; padding:12px; max-height:150px; overflow-y:auto; background:#ffffff; display:flex; flex-direction:column; gap:6px;">
+          ${classCheckboxesHTML}
+        </div>
       </div>
     </form>
   `
@@ -265,8 +272,7 @@ export function showEditStudentModal(studentId) {
   openModal('Cập Nhật Thông Tin Học Sinh', modalHTML, async () => {
     const fullName = document.getElementById('modal-edit-fullname')?.value.trim()
     const password = document.getElementById('modal-edit-password')?.value.trim()
-    const classesSelect = document.getElementById('modal-edit-classes')
-    const classIds = classesSelect ? Array.from(classesSelect.selectedOptions).map(opt => opt.value).filter(Boolean) : []
+    const classIds = Array.from(document.querySelectorAll('input[name="student-classes-edit"]:checked')).map(cb => cb.value)
 
     if (!fullName || classIds.length === 0) {
       showToast('Vui lòng điền họ tên và chọn ít nhất 1 lớp!', 'error')
