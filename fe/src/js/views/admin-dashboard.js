@@ -97,7 +97,7 @@ export function renderAdminDashboardView() {
                       </td>
                       <td style="color:#64748b;">${new Date(sub.submittedAt).toLocaleString('vi-VN')}</td>
                       <td>
-                        <button class="btn-secondary" onclick="window.location.hash='#assignment-review'" style="padding:4px 10px; font-size:12px;">Xem lại</button>
+                        <button class="btn-secondary" onclick="window.location.hash='#assignment-review?submissionId=${sub.submissionId}'" style="padding:4px 10px; font-size:12px;">Xem lại</button>
                       </td>
                     </tr>
                   `).join('') || `<tr><td colspan="5" style="text-align:center; color:#64748b; padding:20px;">Chưa có lượt nộp bài nào</td></tr>`}
