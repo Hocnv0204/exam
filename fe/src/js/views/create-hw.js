@@ -102,7 +102,7 @@ export function renderCreateHwView() {
   }
 
   const classOptions = state.classes.map(c => {
-    const isSel = isEdit && hw.classId === c.id
+    const isSel = isEdit && (hw.classId === c.id || hw.class_id === c.id)
     return `<option value="${c.id}" ${isSel ? 'selected' : ''}>${c.name}</option>`
   }).join('')
 
@@ -156,7 +156,7 @@ export function renderCreateHwView() {
                     <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: Kiểm tra Chương 3..." value="${isEdit ? hw.title : ''}" style="padding:8px 12px; font-size:13px;">
                   </div>
 
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Chọn lớp học <span style="color:#ef4444;">*</span></label>
                       <select id="hw-class-select" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
@@ -164,9 +164,15 @@ export function renderCreateHwView() {
                       </select>
                     </div>
                     <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Chọn chương <span style="color:#ef4444;">*</span></label>
+                      <select id="hw-chapter-select" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
+                        <option value="">Đang tải chương...</option>
+                      </select>
+                    </div>
+                    <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Chọn bài học <span style="color:#ef4444;">*</span></label>
                       <select id="hw-lesson-select" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
-                        <option value="">Đang tải bài học...</option>
+                        <option value="">Chọn chương trước...</option>
                       </select>
                     </div>
                   </div>
@@ -405,34 +411,83 @@ export function bindCreateHwEvents() {
     }
   })
 
-  // Dynamic lesson dropdown loader based on selected class
+  // Dynamic class -> chapter -> lesson dropdown loader
   const classSelect = document.getElementById('hw-class-select')
+  const chapterSelect = document.getElementById('hw-chapter-select')
   const lessonSelect = document.getElementById('hw-lesson-select')
 
-  const updateLessonsDropdown = async () => {
+  const updateChaptersDropdown = async (targetChapterId = null, targetLessonId = null) => {
     const classId = classSelect?.value
     if (!classId) return
+
+    if (chapterSelect) {
+      chapterSelect.innerHTML = '<option value="">Đang tải chương...</option>'
+    }
+    if (lessonSelect) {
+      lessonSelect.innerHTML = '<option value="">Chọn chương trước...</option>'
+    }
+
+    try {
+      const chapters = await api.getChapters(classId)
+      let chOptions = '<option value="">-- Chọn chương --</option>'
+      
+      const isEdit = !!state.editHomeworkData
+      const hw = isEdit ? state.editHomeworkData.homework : null
+      const editChapterId = targetChapterId || (hw ? (hw.chapterId || hw.chapter_id) : null)
+      const editLessonId = targetLessonId || (hw ? (hw.lessonId || hw.lesson_id) : null)
+
+      let selectedChId = ''
+      for (const ch of (chapters || [])) {
+        const isSel = editChapterId === ch.id
+        if (isSel) selectedChId = ch.id
+        chOptions += `<option value="${ch.id}" ${isSel ? 'selected' : ''}>${ch.title}</option>`
+      }
+
+      if (chapterSelect) {
+        chapterSelect.innerHTML = chOptions
+      }
+
+      // If we have a pre-selected chapter
+      if (selectedChId) {
+        await updateLessonsDropdown(selectedChId, editLessonId)
+      } else if (!isEdit && chapters && chapters.length === 1) {
+        chapterSelect.value = chapters[0].id
+        await updateLessonsDropdown(chapters[0].id, null)
+      }
+    } catch (e) {
+      if (chapterSelect) {
+        chapterSelect.innerHTML = '<option value="">Lỗi khi tải chương</option>'
+      }
+    }
+  }
+
+  const updateLessonsDropdown = async (chapterId, targetLessonId = null) => {
+    if (!chapterId) {
+      if (lessonSelect) {
+        lessonSelect.innerHTML = '<option value="">Chọn chương trước...</option>'
+      }
+      return
+    }
 
     if (lessonSelect) {
       lessonSelect.innerHTML = '<option value="">Đang tải bài học...</option>'
     }
 
     try {
-      const chapters = await api.getChapters(classId)
-      let optionsHTML = ''
+      const lessons = await api.getLessons(chapterId)
+      let lOptions = '<option value="">-- Chọn bài học --</option>'
+
       const isEdit = !!state.editHomeworkData
       const hw = isEdit ? state.editHomeworkData.homework : null
-      const selectedLessonId = hw ? (hw.lessonId || hw.lesson_id) : null
+      const editLessonId = targetLessonId || (hw ? (hw.lessonId || hw.lesson_id) : null)
 
-      for (const ch of (chapters || [])) {
-        const lessons = await api.getLessons(ch.id)
-        for (const l of (lessons || [])) {
-          const isSel = selectedLessonId === l.id ? 'selected' : ''
-          optionsHTML += `<option value="${l.id}" ${isSel}>${ch.title} - ${l.title}</option>`
-        }
+      for (const l of (lessons || [])) {
+        const isSel = editLessonId === l.id ? 'selected' : ''
+        lOptions += `<option value="${l.id}" ${isSel}>${l.title}</option>`
       }
+
       if (lessonSelect) {
-        lessonSelect.innerHTML = optionsHTML || '<option value="">Chưa có bài học nào (Hãy tạo bài học trước)</option>'
+        lessonSelect.innerHTML = lOptions || '<option value="">Chưa có bài học nào</option>'
       }
     } catch (e) {
       if (lessonSelect) {
@@ -441,10 +496,56 @@ export function bindCreateHwEvents() {
     }
   }
 
-  classSelect?.addEventListener('change', updateLessonsDropdown)
+  classSelect?.addEventListener('change', () => {
+    updateChaptersDropdown()
+  })
+
+  chapterSelect?.addEventListener('change', (e) => {
+    updateLessonsDropdown(e.target.value)
+  })
 
   // Trigger initial dropdown load
-  updateLessonsDropdown()
+  const isEdit = !!state.editHomeworkData
+  const hw = isEdit ? state.editHomeworkData.homework : null
+
+  const initDropdowns = async () => {
+    let initialChapterId = hw ? (hw.chapterId || hw.chapter_id) : null
+    let initialLessonId = hw ? (hw.lessonId || hw.lesson_id) : null
+    let initialClassId = hw ? (hw.classId || hw.class_id) : null
+
+    // Fallback lookup: resolve IDs via matching names if they are not provided by edge function response
+    if (isEdit && hw && (!initialChapterId || !initialLessonId || !initialClassId)) {
+      for (const cls of state.classes) {
+        try {
+          const chapters = await api.getChapters(cls.id)
+          for (const ch of (chapters || [])) {
+            if (ch.title === hw.chapterTitle) {
+              const lessons = await api.getLessons(ch.id)
+              for (const l of (lessons || [])) {
+                if (l.title === hw.lessonTitle) {
+                  initialClassId = cls.id
+                  initialChapterId = ch.id
+                  initialLessonId = l.id
+                  break
+                }
+              }
+            }
+            if (initialLessonId) break
+          }
+        } catch (e) {
+          console.error('[CreateHW] Fallback matching failed:', e)
+        }
+        if (initialLessonId) break
+      }
+    }
+
+    if (initialClassId && classSelect) {
+      classSelect.value = initialClassId
+    }
+    await updateChaptersDropdown(initialChapterId, initialLessonId)
+  }
+
+  initDropdowns()
 
   // Handler for updating question counts config
   const updateConfig = () => {

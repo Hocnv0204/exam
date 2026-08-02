@@ -1,4 +1,4 @@
-import { state } from './state.js'
+import { state, logout } from './state.js'
 
 // Supabase URL from Vite environment variables (falls back to local dev URL)
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
@@ -20,6 +20,11 @@ async function request(endpoint, options = {}) {
       ...options,
       headers
     })
+
+    if (response.status === 401) {
+      logout()
+      throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+    }
 
     const result = await response.json()
     if (!response.ok || result.success === false) {

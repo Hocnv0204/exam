@@ -11,12 +11,9 @@ export function renderStudentDetailsView() {
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const studentId = params.get('studentId')
-  const classId = params.get('classId')
-
+  
   const student = state.students.find(s => s.id === studentId)
-  const currentClass = state.classes.find(c => c.id === classId)
-
-  if (!student || !currentClass) {
+  if (!student) {
     return `
       <div class="app-layout">
         ${renderSidebar('students')}
@@ -25,11 +22,48 @@ export function renderStudentDetailsView() {
           <div class="content-body">
             <div class="card" style="text-align:center; padding:40px; color:#ef4444;">
               <i class="fa-solid fa-triangle-exclamation" style="font-size:36px; margin-bottom:12px;"></i>
-              <p style="font-weight:600;">Không tìm thấy thông tin học sinh hoặc lớp học!</p>
+              <p style="font-weight:600;">Không tìm thấy thông tin học sinh!</p>
               <a href="#classes-admin" class="btn-primary" style="display:inline-block; margin-top:16px; width:auto; text-decoration:none;">Quay lại danh sách lớp</a>
             </div>
           </div>
         </div>
+      </div>
+    `
+  }
+
+  const studentClassIds = student.classIds || (student.classId ? [student.classId] : [])
+  const classId = params.get('classId') || studentClassIds[0]
+  const currentClass = state.classes.find(c => c.id === classId)
+
+  if (!currentClass) {
+    return `
+      <div class="app-layout">
+        ${renderSidebar('students')}
+        <div class="main-content">
+          ${renderNavbar('Nền tảng / Bảng điều khiển')}
+          <div class="content-body">
+            <div class="card" style="text-align:center; padding:40px; color:#ef4444;">
+              <i class="fa-solid fa-triangle-exclamation" style="font-size:36px; margin-bottom:12px;"></i>
+              <p style="font-weight:600;">Không tìm thấy thông tin lớp học!</p>
+              <a href="#classes-admin" class="btn-primary" style="display:inline-block; margin-top:16px; width:auto; text-decoration:none;">Quay lại danh sách lớp</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  const studentClasses = state.classes.filter(c => studentClassIds.includes(c.id))
+  let classSelectorHTML = ''
+  if (studentClasses.length > 1) {
+    classSelectorHTML = `
+      <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+        <span style="font-size:13px; color:#64748b; font-weight:600;"><i class="fa-solid fa-graduation-cap"></i> Chọn lớp học:</span>
+        <select id="details-class-selector" class="form-input" style="width:auto; padding:4px 10px; margin:0; font-size:13px; font-weight:600; background:#ffffff; cursor:pointer;">
+          ${studentClasses.map(c => `
+            <option value="${c.id}" ${c.id === classId ? 'selected' : ''}>${c.name}</option>
+          `).join('')}
+        </select>
       </div>
     `
   }
@@ -59,6 +93,7 @@ export function renderStudentDetailsView() {
                   <i class="fa-regular fa-user"></i> Username: <strong>${student.username}</strong> | 
                   <i class="fa-solid fa-graduation-cap"></i> Lớp đang cấu hình: <strong>${currentClass.name}</strong>
                 </div>
+                ${classSelectorHTML}
               </div>
               <div style="text-align:right;">
                 <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Học phí quy định</div>
@@ -113,12 +148,12 @@ export function renderStudentDetailsView() {
             </div>
           </div>
 
-          <!-- Bottom: Completed Tests List -->
+          <!-- Bottom: Completed & Uncompleted Homework Statistics -->
           <div class="card" style="padding:20px; margin-top:24px;">
             <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; color:#0f172a; margin:0 0 16px 0; display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-square-poll-vertical" style="color:#0066cc;"></i> Các bài kiểm tra đã làm trong tháng
+              <i class="fa-solid fa-square-poll-vertical" style="color:#0066cc;"></i> Thống kê làm bài tập trong lớp
             </h3>
-            <div id="student-month-tests-container">
+            <div id="student-homework-stats-container">
               <!-- Loaded via JS -->
             </div>
           </div>
@@ -135,7 +170,9 @@ export function bindStudentDetailsEvents() {
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const studentId = params.get('studentId')
-  const classId = params.get('classId')
+  const student = state.students.find(s => s.id === studentId)
+  const studentClassIds = student?.classIds || (student?.classId ? [student.classId] : [])
+  const classId = params.get('classId') || studentClassIds[0]
 
   const monthPicker = document.getElementById('details-month-picker')
   if (monthPicker) {
@@ -162,6 +199,15 @@ export function bindStudentDetailsEvents() {
     }
   }
 
+  // Class selection change
+  const classSelector = document.getElementById('details-class-selector')
+  if (classSelector) {
+    classSelector.onchange = () => {
+      const newClassId = classSelector.value
+      window.location.hash = `#student-details?studentId=${studentId}&classId=${newClassId}`
+    }
+  }
+
   // Initial schedule loading
   if (studentId && classId && monthPicker) {
     loadStudentSchedule(studentId, classId, monthPicker.value)
@@ -172,14 +218,17 @@ function currentClassTuitionFee() {
   const hashUrl = window.location.hash.replace('#', '')
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
-  const classId = params.get('classId')
+  const studentId = params.get('studentId')
+  const student = state.students.find(s => s.id === studentId)
+  const studentClassIds = student?.classIds || (student?.classId ? [student.classId] : [])
+  const classId = params.get('classId') || studentClassIds[0]
   const currentClass = state.classes.find(c => c.id === classId)
   return currentClass?.tuitionFee || 0
 }
 
 async function loadStudentSchedule(studentId, classId, month) {
   const gridContainer = document.getElementById('student-calendar-grid-container')
-  const testsContainer = document.getElementById('student-month-tests-container')
+  const statsContainer = document.getElementById('student-homework-stats-container')
   if (!gridContainer) return
 
   gridContainer.innerHTML = `
@@ -189,9 +238,14 @@ async function loadStudentSchedule(studentId, classId, month) {
     </div>
   `
 
-  testsContainer.innerHTML = `
-    <div style="text-align:center; padding:15px; color:#64748b;">Đang tải kết quả bài kiểm tra...</div>
-  `
+  if (statsContainer) {
+    statsContainer.innerHTML = `
+      <div style="text-align:center; padding:24px; color:#64748b;">
+        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px; color:#0066cc; margin-bottom:8px;"></i>
+        Đang tải thống kê làm bài tập...
+      </div>
+    `
+  }
 
   try {
     // 1. Fetch Student Sessions
@@ -273,70 +327,238 @@ async function loadStudentSchedule(studentId, classId, month) {
     // Update Summary Metrics
     updateSummaryMetrics(currentClassTuitionFee())
 
-    // 2. Fetch submission history to populate completed tests
+    // 2. Fetch homeworks under this class
+    const chapters = await api.getChapters(classId) || []
+    const lessonsPromises = chapters.map(ch => api.getLessons(ch.id))
+    const lessonsLists = await Promise.all(lessonsPromises)
+    const lessons = lessonsLists.flat()
+
+    const homeworksPromises = lessons.map(l => api.getHomeworks(l.id))
+    const homeworksLists = await Promise.all(homeworksPromises)
+    
+    const homeworksWithMeta = []
+    for (let i = 0; i < lessons.length; i++) {
+      const lesson = lessons[i]
+      const chapter = chapters.find(ch => ch.id === lesson.chapter_id)
+      const hwList = homeworksLists[i] || []
+      hwList.forEach(hw => {
+        homeworksWithMeta.push({
+          ...hw,
+          lessonTitle: lesson.title,
+          chapterTitle: chapter?.title || ''
+        })
+      })
+    }
+
+    // 3. Fetch Student Submissions History
     const historyResult = await api.getStudentHistory(`studentId=${studentId}`)
     const submissions = historyResult?.history || []
 
-    const monthSubmissions = submissions.filter(sub => {
-      const subDate = new Date(sub.submittedAt)
-      const subYear = subDate.getFullYear()
-      const subMonth = String(subDate.getMonth() + 1).padStart(2, '0')
-      return `${subYear}-${subMonth}` === month
-    })
+    // Calculate completed & uncompleted
+    const completedHomeworks = homeworksWithMeta.filter(hw => 
+      submissions.some(sub => sub.homeworkId === hw.id)
+    )
 
-    if (monthSubmissions.length === 0) {
-      testsContainer.innerHTML = `
-        <div style="text-align:center; padding:24px; color:#64748b; font-style:italic; font-size:13px;">
-          Chưa thực hiện bài kiểm tra nào trong tháng này.
-        </div>
-      `
-    } else {
-      testsContainer.innerHTML = `
-        <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
-          <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
-            <thead>
-              <tr style="background:#f1f5f9; border-bottom:1px solid #e2e8f0;">
-                <th style="padding:12px 16px;">Tên bài kiểm tra</th>
-                <th style="padding:12px 16px; text-align:center;">Điểm số</th>
-                <th style="padding:12px 16px; text-align:center;">Kết quả</th>
-                <th style="padding:12px 16px;">Thời gian làm bài</th>
-                <th style="padding:12px 16px;">Ngày nộp</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${monthSubmissions.map(sub => {
-                const subDateStr = new Date(sub.submittedAt).toLocaleString('vi-VN')
-                const passStatusHTML = sub.isPassed
-                  ? `<span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;">ĐẠT</span>`
-                  : `<span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;">CHƯA ĐẠT</span>`
-                const durationText = sub.durationSecondsTaken
-                  ? `${Math.floor(sub.durationSecondsTaken / 60)} phút ${sub.durationSecondsTaken % 60} giây`
-                  : 'Không rõ'
+    const uncompletedHomeworks = homeworksWithMeta.filter(hw => 
+      !submissions.some(sub => sub.homeworkId === hw.id)
+    )
 
-                return `
-                  <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:12px 16px; font-weight:700; color:#1e293b;">${sub.homeworkTitle}</td>
-                    <td style="padding:12px 16px; text-align:center; font-weight:700; color:#0f172a;">${sub.score}/${sub.maxScore}</td>
-                    <td style="padding:12px 16px; text-align:center;">${passStatusHTML}</td>
-                    <td style="padding:12px 16px; color:#475569;">${durationText}</td>
-                    <td style="padding:12px 16px; color:#64748b;">${subDateStr}</td>
-                  </tr>
-                `
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      `
+    if (statsContainer) {
+      renderHomeworkStats(statsContainer, completedHomeworks, uncompletedHomeworks, submissions)
     }
 
   } catch (e) {
     gridContainer.innerHTML = `
       <div style="text-align:center; padding:20px; color:#ef4444;">
         <i class="fa-solid fa-triangle-exclamation" style="font-size:24px; margin-bottom:8px; display:block;"></i>
-        Tải lịch học học sinh thất bại: ${e.message}
+        Tải dữ liệu thất bại: ${e.message}
       </div>
     `
   }
+}
+
+function renderHomeworkStats(container, completed, uncompleted, submissions) {
+  container.innerHTML = `
+    <!-- Stats Cards Grid -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:20px;">
+      <!-- Total Homeworks -->
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; display:flex; align-items:center; gap:16px;">
+        <div style="width:48px; height:48px; background:#e2e8f0; color:#475569; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">
+          <i class="fa-solid fa-book"></i>
+        </div>
+        <div>
+          <div style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase;">Tổng số bài tập</div>
+          <strong style="font-size:20px; color:#1e293b;">${completed.length + uncompleted.length}</strong>
+        </div>
+      </div>
+
+      <!-- Completed -->
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px; display:flex; align-items:center; gap:16px;">
+        <div style="width:48px; height:48px; background:#dcfce7; color:#16a34a; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <div>
+          <div style="font-size:12px; color:#16a34a; font-weight:600; text-transform:uppercase;">Bài tập đã làm</div>
+          <strong style="font-size:20px; color:#15803d;">${completed.length}</strong>
+        </div>
+      </div>
+
+      <!-- Uncompleted -->
+      <div style="background:#fff1f2; border:1px solid #fecdd3; border-radius:12px; padding:16px; display:flex; align-items:center; gap:16px;">
+        <div style="width:48px; height:48px; background:#ffe4e6; color:#e11d48; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">
+          <i class="fa-solid fa-circle-xmark"></i>
+        </div>
+        <div>
+          <div style="font-size:12px; color:#e11d48; font-weight:600; text-transform:uppercase;">Bài tập chưa làm</div>
+          <strong style="font-size:20px; color:#be123c;">${uncompleted.length}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toggle Action Buttons -->
+    <div style="display:flex; gap:12px; margin-bottom:20px;">
+      <button id="btn-show-completed" class="btn-secondary" style="padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+        <i class="fa-solid fa-list-check"></i> Xem chi tiết
+      </button>
+      <button id="btn-show-uncompleted" class="btn-secondary" style="padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+        <i class="fa-solid fa-list-ol"></i> Xem bài tập chưa làm
+      </button>
+    </div>
+
+    <!-- Details Container -->
+    <div id="homework-stats-details" style="display:none; transition: all 0.2s ease;"></div>
+  `
+
+  const showCompletedBtn = container.querySelector('#btn-show-completed')
+  const showUncompletedBtn = container.querySelector('#btn-show-uncompleted')
+  const detailsDiv = container.querySelector('#homework-stats-details')
+
+  let currentView = null
+
+  const toggleView = (viewType) => {
+    if (currentView === viewType) {
+      detailsDiv.style.display = 'none'
+      currentView = null
+      
+      showCompletedBtn.style.background = ''
+      showCompletedBtn.style.color = ''
+      showCompletedBtn.style.borderColor = ''
+      showUncompletedBtn.style.background = ''
+      showUncompletedBtn.style.color = ''
+      showUncompletedBtn.style.borderColor = ''
+      return
+    }
+
+    currentView = viewType
+    detailsDiv.style.display = 'block'
+    
+    if (viewType === 'completed') {
+      showCompletedBtn.style.background = '#0066cc'
+      showCompletedBtn.style.color = '#ffffff'
+      showCompletedBtn.style.borderColor = '#0066cc'
+      
+      showUncompletedBtn.style.background = ''
+      showUncompletedBtn.style.color = ''
+      showUncompletedBtn.style.borderColor = ''
+
+      const completedHomeworkIds = new Set(completed.map(hw => hw.id))
+      const relevantSubmissions = submissions.filter(sub => completedHomeworkIds.has(sub.homeworkId))
+
+      if (relevantSubmissions.length === 0) {
+        detailsDiv.innerHTML = `
+          <div style="text-align:center; padding:24px; color:#64748b; font-style:italic; font-size:13px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+            Chưa thực hiện bài tập nào trong lớp này.
+          </div>
+        `
+      } else {
+        detailsDiv.innerHTML = `
+          <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+              <thead>
+                <tr style="background:#f1f5f9; border-bottom:1px solid #e2e8f0;">
+                  <th style="padding:12px 16px;">Tên bài kiểm tra</th>
+                  <th style="padding:12px 16px; text-align:center;">Điểm số</th>
+                  <th style="padding:12px 16px; text-align:center;">Kết quả</th>
+                  <th style="padding:12px 16px;">Thời gian làm bài</th>
+                  <th style="padding:12px 16px;">Ngày nộp</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${relevantSubmissions.map(sub => {
+                  const subDateStr = new Date(sub.submittedAt).toLocaleString('vi-VN')
+                  const passStatusHTML = sub.isPassed
+                    ? `<span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;">ĐẠT</span>`
+                    : `<span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;">CHƯA ĐẠT</span>`
+                  const durationText = sub.durationSecondsTaken
+                    ? `${Math.floor(sub.durationSecondsTaken / 60)} phút ${sub.durationSecondsTaken % 60} giây`
+                    : 'Không rõ'
+
+                  return `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                      <td style="padding:12px 16px; font-weight:700; color:#1e293b;">${sub.homeworkTitle}</td>
+                      <td style="padding:12px 16px; text-align:center; font-weight:700; color:#0f172a;">${sub.score}/${sub.maxScore}</td>
+                      <td style="padding:12px 16px; text-align:center;">${passStatusHTML}</td>
+                      <td style="padding:12px 16px; color:#475569;">${durationText}</td>
+                      <td style="padding:12px 16px; color:#64748b;">${subDateStr}</td>
+                    </tr>
+                  `
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `
+      }
+    } else {
+      showUncompletedBtn.style.background = '#e11d48'
+      showUncompletedBtn.style.color = '#ffffff'
+      showUncompletedBtn.style.borderColor = '#e11d48'
+      
+      showCompletedBtn.style.background = ''
+      showCompletedBtn.style.color = ''
+      showCompletedBtn.style.borderColor = ''
+
+      if (uncompleted.length === 0) {
+        detailsDiv.innerHTML = `
+          <div style="text-align:center; padding:24px; color:#64748b; font-style:italic; font-size:13px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+            Chúc mừng! Tất cả bài tập đã được hoàn thành.
+          </div>
+        `
+      } else {
+        detailsDiv.innerHTML = `
+          <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+              <thead>
+                <tr style="background:#f1f5f9; border-bottom:1px solid #e2e8f0;">
+                  <th style="padding:12px 16px;">Tên bài tập</th>
+                  <th style="padding:12px 16px;">Bài học / Chương</th>
+                  <th style="padding:12px 16px; text-align:center;">Điểm đạt yêu cầu</th>
+                  <th style="padding:12px 16px; text-align:center;">Thời gian tối đa</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${uncompleted.map(hw => {
+                  return `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                      <td style="padding:12px 16px; font-weight:700; color:#e11d48;">${hw.title}</td>
+                      <td style="padding:12px 16px; color:#475569;">
+                        <strong>${hw.lessonTitle}</strong><br>
+                        <span style="font-size:11px; color:#64748b;">${hw.chapterTitle}</span>
+                      </td>
+                      <td style="padding:12px 16px; text-align:center; color:#0f172a; font-weight:600;">${hw.pass_score}/${hw.max_score}</td>
+                      <td style="padding:12px 16px; text-align:center; color:#475569;">${hw.duration_minutes} phút</td>
+                    </tr>
+                  `
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `
+      }
+    }
+  }
+
+  showCompletedBtn.onclick = () => toggleView('completed')
+  showUncompletedBtn.onclick = () => toggleView('uncompleted')
 }
 
 function updateSummaryMetrics(tuitionFee) {
