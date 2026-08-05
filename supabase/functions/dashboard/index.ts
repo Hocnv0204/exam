@@ -75,6 +75,8 @@ serve(async (req: Request) => {
         id,
         total_score,
         max_score,
+        correct_count,
+        wrong_count,
         submitted_at,
         profiles (username, full_name),
         homeworks (title)
@@ -91,6 +93,8 @@ serve(async (req: Request) => {
       homeworkTitle: (sub.homeworks as unknown as { title: string })?.title || 'Unknown',
       score: sub.total_score,
       maxScore: sub.max_score,
+      correctCount: sub.correct_count,
+      wrongCount: sub.wrong_count,
       submittedAt: sub.submitted_at,
     }))
 

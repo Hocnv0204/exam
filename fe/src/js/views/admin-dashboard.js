@@ -86,13 +86,18 @@ export function renderAdminDashboardView() {
                   </tr>
                 </thead>
                 <tbody>
-                  ${recentSubmissions.map((sub) => `
+                  ${recentSubmissions.map((sub) => {
+                    const totalQs = (sub.correctCount || 0) + (sub.wrongCount || 0)
+                    const scoreDisplay = sub.correctCount !== undefined && sub.correctCount !== null && totalQs > 0
+                      ? `${sub.correctCount}/${totalQs}`
+                      : `${sub.score}/${sub.maxScore}`
+                    return `
                     <tr>
                       <td style="font-weight:700;">${sub.studentName} (@${sub.username})</td>
                       <td style="color:#64748b;">${sub.homeworkTitle}</td>
                       <td>
                         <span style="font-family:var(--font-heading); font-weight:700; color:${Number(sub.score) >= 5 ? '#0066cc' : '#ef4444'};">
-                          ${sub.score}/${sub.maxScore}
+                          ${scoreDisplay}
                         </span>
                       </td>
                       <td style="color:#64748b;">${new Date(sub.submittedAt).toLocaleString('vi-VN')}</td>
@@ -100,7 +105,7 @@ export function renderAdminDashboardView() {
                         <button class="btn-secondary" onclick="window.location.hash='#assignment-review?submissionId=${sub.submissionId}'" style="padding:4px 10px; font-size:12px;">Xem lại</button>
                       </td>
                     </tr>
-                  `).join('') || `<tr><td colspan="5" style="text-align:center; color:#64748b; padding:20px;">Chưa có lượt nộp bài nào</td></tr>`}
+                  `}).join('') || `<tr><td colspan="5" style="text-align:center; color:#64748b; padding:20px;">Chưa có lượt nộp bài nào</td></tr>`}
                 </tbody>
               </table>
             </div>
