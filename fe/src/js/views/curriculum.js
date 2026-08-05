@@ -631,16 +631,29 @@ export function bindCurriculumEvents() {
 
   // Edit Chapter Event
   document.querySelectorAll('.btn-edit-chapter').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const chId = btn.getAttribute('data-id')
       const currentTitle = btn.getAttribute('data-title')
-      const newTitle = prompt('Nhập tên chương mới:', currentTitle)
-      if (newTitle !== null && newTitle.trim() !== '') {
+      
+      const modalHTML = `
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Tên chương học mới</label>
+            <input type="text" id="modal-edit-chapter-title" class="form-input" value="${currentTitle}" required>
+          </div>
+        </div>
+      `
+      openModal('Sửa Tên Chương', modalHTML, async () => {
+        const newTitle = document.getElementById('modal-edit-chapter-title')?.value.trim()
+        if (!newTitle) {
+          showToast('Vui lòng nhập tên chương', 'error')
+          return false
+        }
         try {
           showToast('Đang cập nhật tên chương...', 'info')
           const updatedChapter = await api.updateChapter({
             chapterId: chId,
-            title: newTitle.trim()
+            title: newTitle
           })
           const currObj = state.curriculums.find(c => c.classId === activeClassId)
           if (currObj) {
@@ -655,10 +668,12 @@ export function bindCurriculumEvents() {
               }
             }
           }
+          return true
         } catch (err) {
           showToast(`Cập nhật thất bại: ${err.message}`, 'error')
+          return false
         }
-      }
+      })
     })
   })
 
