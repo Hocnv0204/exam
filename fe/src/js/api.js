@@ -87,6 +87,7 @@ export const api = {
   createChapter: (data) => request('create-chapter', { method: 'POST', body: JSON.stringify(data) }),
   getChapters: (classId = '') => request(`create-chapter${classId ? `?classId=${classId}` : ''}`, { method: 'GET' }),
   deleteChapter: (chapterId) => request(`create-chapter?chapterId=${chapterId}`, { method: 'DELETE' }),
+  updateChapter: (data) => request('create-chapter', { method: 'PUT', body: JSON.stringify(data) }),
   createLesson: (data) => request('create-lesson', { method: 'POST', body: JSON.stringify(data) }),
   updateLesson: (data) => request('create-lesson?action=update', { method: 'PUT', body: JSON.stringify(data) }),
   getLessons: (chapterId = '') => request(`create-lesson${chapterId ? `?chapterId=${chapterId}` : ''}`, { method: 'GET' }),

@@ -196,6 +196,9 @@ function renderChapterCard(ch) {
         </div>
         <div style="display:flex; align-items:center; gap:12px;">
           <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="color:#64748b; font-size:14px;"></i>
+          <button class="btn-edit-chapter" data-id="${ch.id}" data-title="${ch.title}" title="Sửa tên chương" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;" onclick="event.stopPropagation();">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
           <button class="btn-delete-chapter" data-id="${ch.id}" title="Xóa chương" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;" onclick="event.stopPropagation();">
             <i class="fa-solid fa-trash"></i>
           </button>
@@ -626,6 +629,39 @@ export function bindCurriculumEvents() {
     })
   })
 
+  // Edit Chapter Event
+  document.querySelectorAll('.btn-edit-chapter').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const chId = btn.getAttribute('data-id')
+      const currentTitle = btn.getAttribute('data-title')
+      const newTitle = prompt('Nhập tên chương mới:', currentTitle)
+      if (newTitle !== null && newTitle.trim() !== '') {
+        try {
+          showToast('Đang cập nhật tên chương...', 'info')
+          const updatedChapter = await api.updateChapter({
+            chapterId: chId,
+            title: newTitle.trim()
+          })
+          const currObj = state.curriculums.find(c => c.classId === activeClassId)
+          if (currObj) {
+            const ch = currObj.chapters.find(c => c.id === chId)
+            if (ch) {
+              ch.title = updatedChapter.title
+              showToast('Cập nhật tên chương thành công', 'success')
+              const app = document.getElementById('app')
+              if (app) {
+                app.innerHTML = renderCurriculumView()
+                bindCurriculumEvents()
+              }
+            }
+          }
+        } catch (err) {
+          showToast(`Cập nhật thất bại: ${err.message}`, 'error')
+        }
+      }
+    })
+  })
+
   // Edit Homework Event
   document.querySelectorAll('.btn-edit-homework').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -639,8 +675,8 @@ export function bindCurriculumEvents() {
   // Toggle Chapter Accordion & Lazy Load Lessons
   document.querySelectorAll('.chapter-header').forEach(header => {
     header.addEventListener('click', async (e) => {
-      // Exclude delete button click
-      if (e.target.closest('.btn-delete-chapter')) return
+      // Exclude delete/edit button click
+      if (e.target.closest('.btn-delete-chapter') || e.target.closest('.btn-edit-chapter')) return
 
       const chId = header.getAttribute('data-id')
       if (!chId) return
