@@ -28,14 +28,18 @@ export function renderAssignmentReviewView() {
     passScore: result.passScore,
     correctCount: result.correctCount,
     wrongCount: result.wrongCount,
-    submittedAt: result.submittedAt
+    submittedAt: result.submittedAt,
+    pdfUrl: result.pdfUrl
   }
+
+  const pdfUrl = sub.pdfUrl || result.pdfUrl || ''
   
   const answers = result.questionReview ? result.questionReview.map(q => ({
     is_correct: q.isCorrect,
     score_earned: q.scoreEarned,
     given_answer: q.givenAnswer,
     correct_answer: q.correctAnswerSummary,
+    statementGrades: q.statementGrades,
     questions: {
       question_number: q.questionNumber,
       question_type: q.questionType,
@@ -65,9 +69,16 @@ export function renderAssignmentReviewView() {
               <h1 class="page-title">Xem lại kết quả bài tập</h1>
               <p class="page-description">${sub.homeworkTitle}</p>
             </div>
-            <button class="btn-secondary" onclick="window.location.hash='${state.user?.role === 'ADMIN' ? '#admin-history' : '#history'}'" style="cursor:pointer;">
-              <i class="fa-solid fa-arrow-left"></i> Quay lại lịch sử
-            </button>
+            <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
+              ${pdfUrl ? `
+                <a href="${pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" target="_blank" class="btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#0066cc; color:#ffffff; font-weight:600; cursor:pointer; white-space:nowrap;">
+                  <i class="fa-solid fa-file-pdf"></i> Xem đề bài (PDF)
+                </a>
+              ` : ''}
+              <button class="btn-secondary" onclick="window.location.hash='${state.user?.role === 'ADMIN' ? '#admin-history' : '#history'}'" style="cursor:pointer; white-space:nowrap;">
+                <i class="fa-solid fa-arrow-left"></i> Quay lại lịch sử
+              </button>
+            </div>
           </div>
 
           <!-- Top Overview Banner -->
@@ -101,7 +112,26 @@ export function renderAssignmentReviewView() {
                 const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
                 const qTypeStr = ans.questions?.question_type === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (ans.questions?.question_type === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
                 const scoreEarned = ans.score_earned !== undefined ? ans.score_earned : ans.scoreEarned
+                const pointsPossible = ans.questions?.points || 1
                 const givenAnswer = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer
+                const qType = ans.questions?.question_type
+
+                let cardBorderColor = '#ef4444'
+                let badgeBg = '#fee2e2'
+                let badgeColor = '#dc2626'
+                let badgeIcon = 'fa-xmark'
+
+                if (scoreEarned === pointsPossible) {
+                  cardBorderColor = '#10b981'
+                  badgeBg = '#dcfce7'
+                  badgeColor = '#16a34a'
+                  badgeIcon = 'fa-check'
+                } else if (scoreEarned > 0) {
+                  cardBorderColor = '#f59e0b'
+                  badgeBg = '#fef3c7'
+                  badgeColor = '#d97706'
+                  badgeIcon = 'fa-triangle-exclamation'
+                }
                 
                 let givenStr = ''
                 if (givenAnswer?.type === 'TRUE_FALSE') {
@@ -113,7 +143,6 @@ export function renderAssignmentReviewView() {
 
                 let correctStr = ''
                 const corrKey = ans.correct_answer || ans.questions?.question_answers
-                const qType = ans.questions?.question_type
                 
                 if (qType === 'MULTIPLE_CHOICE') {
                   correctStr = corrKey?.mc_answer || corrKey || 'A'
@@ -131,22 +160,60 @@ export function renderAssignmentReviewView() {
                   correctStr = val !== undefined && val !== null ? String(val) : 'Chưa có'
                 }
 
-                return `
-                  <div class="card" style="border-left:4px solid ${isCorrect ? '#10b981' : '#ef4444'}; margin-bottom: 0;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                      <div>
-                        <span class="question-badge" style="background:${isCorrect ? '#10b981' : '#ef4444'}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
-                        <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">${qTypeStr}</span>
+                let reviewBody = ''
+                if (qType === 'TRUE_FALSE') {
+                  const tfObj = givenAnswer?.value || {}
+                  const corrKeyVal = corrKey?.tf_answers || corrKey || {}
+                  const correctA = corrKeyVal.a !== undefined ? corrKeyVal.a : corrKeyVal.s1
+                  const correctB = corrKeyVal.b !== undefined ? corrKeyVal.b : corrKeyVal.s2
+                  const correctC = corrKeyVal.c !== undefined ? corrKeyVal.c : corrKeyVal.s3
+                  const correctD = corrKeyVal.d !== undefined ? corrKeyVal.d : corrKeyVal.s4
+                  const correctMap = { a: correctA, b: correctB, c: correctC, d: correctD }
+
+                  let statementGrades = ans.statementGrades || ans.questions?.statementGrades
+                  if (!statementGrades && correctMap.a !== undefined) {
+                    statementGrades = {
+                      a: tfObj.a === correctMap.a,
+                      b: tfObj.b === correctMap.b,
+                      c: tfObj.c === correctMap.c,
+                      d: tfObj.d === correctMap.d
+                    }
+                  }
+                  if (!statementGrades) {
+                    statementGrades = {}
+                  }
+
+                  const tfReviewHtml = ['a', 'b', 'c', 'd'].map(sub => {
+                    const studentVal = tfObj[sub]
+                    const isStmtCorrect = statementGrades[sub] === true
+                    const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
+                    const correctValText = correctMap[sub] !== undefined ? (correctMap[sub] ? 'Đ' : 'S') : ''
+
+                    return `
+                      <div style="display:flex; flex-direction:column; gap:4px; padding:10px; background:${isStmtCorrect ? '#f0fdf4' : '#fef2f2'}; border:1px solid ${isStmtCorrect ? '#10b981' : '#ef4444'}; border-radius:8px; font-size:13px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                          <span style="font-weight:700; color:#334155;">Ý ${sub.toUpperCase()}:</span>
+                          <span style="font-weight:700; color:${isStmtCorrect ? '#15803d' : '#b91c1c'}; display:flex; align-items:center; gap:4px;">
+                            <i class="fa-solid ${isStmtCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
+                            ${displayVal}
+                          </span>
+                        </div>
+                        ${(state.user?.role === 'ADMIN' && correctValText) ? `
+                          <div style="font-size:11px; color:#475569; border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px;">
+                            Đáp án đúng: <strong style="color:#15803d;">${correctValText}</strong>
+                          </div>
+                        ` : ''}
                       </div>
-                      <span class="badge" style="background:${isCorrect ? '#dcfce7' : '#fee2e2'}; color:${isCorrect ? '#16a34a' : '#dc2626'}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
-                        <i class="fa-solid ${isCorrect ? 'fa-check' : 'fa-xmark'}"></i> ${scoreEarned} / ${ans.questions?.points || 1} điểm
-                      </span>
-                    </div>
+                    `
+                  }).join('')
 
-                    <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">
-                      Câu hỏi số ${qNum}
+                  reviewBody = `
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                      ${tfReviewHtml}
                     </div>
-
+                  `
+                } else {
+                  reviewBody = `
                     <div style="display:flex; flex-direction:column; gap:10px;">
                       <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:${isCorrect ? '#f0fdf4' : '#fef2f2'}; border:1px solid ${isCorrect ? '#10b981' : '#ef4444'}; border-radius:10px;">
                         <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:${isCorrect ? '#15803d' : '#b91c1c'}; font-size:14px;">
@@ -161,6 +228,26 @@ export function renderAssignmentReviewView() {
                         </div>
                       ` : ''}
                     </div>
+                  `
+                }
+
+                return `
+                  <div class="card" style="border-left:4px solid ${cardBorderColor}; margin-bottom: 0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                      <div>
+                        <span class="question-badge" style="background:${cardBorderColor}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
+                        <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">${qTypeStr}</span>
+                      </div>
+                      <span class="badge" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
+                        <i class="fa-solid ${badgeIcon}"></i> ${scoreEarned} / ${pointsPossible} điểm
+                      </span>
+                    </div>
+
+                    <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">
+                      Câu hỏi số ${qNum}
+                    </div>
+
+                    ${reviewBody}
                   </div>
                 `
               }).join('')}
@@ -174,24 +261,43 @@ export function renderAssignmentReviewView() {
                 <div class="question-nav-grid" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px;">
                   ${sortedAnswers.map(ans => {
                     const qNum = ans.questions?.question_number || 1
-                    const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
+                    const scoreEarned = ans.score_earned !== undefined ? ans.score_earned : ans.scoreEarned
+                    const pointsPossible = ans.questions?.points || 1
+
+                    let navBg = '#fee2e2'
+                    let navColor = '#dc2626'
+                    let navBorder = '#ef4444'
+
+                    if (scoreEarned === pointsPossible) {
+                      navBg = '#dcfce7'
+                      navColor = '#16a34a'
+                      navBorder = '#10b981'
+                    } else if (scoreEarned > 0) {
+                      navBg = '#fef3c7'
+                      navColor = '#d97706'
+                      navBorder = '#f59e0b'
+                    }
+
                     return `
                       <div class="nav-grid-item" style="
-                        background:${isCorrect ? '#e0f2fe' : '#fee2e2'}; 
-                        color:${isCorrect ? '#0066cc' : '#ef4444'}; 
-                        border: 1px solid ${isCorrect ? '#0066cc' : '#ef4444'};
+                        background:${navBg}; 
+                        color:${navColor}; 
+                        border: 1px solid ${navBorder};
                         width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
                       ">${qNum}</div>
                     `
                   }).join('')}
                 </div>
 
-                <div style="display:flex; gap:16px; margin-top:16px; font-size:12px;">
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px; font-size:12px;">
                   <div style="display:flex; align-items:center; gap:6px;">
-                    <div style="width:12px; height:12px; background:#e0f2fe; border: 1px solid #0066cc; border-radius:3px;"></div> Đúng
+                    <div style="width:12px; height:12px; background:#dcfce7; border: 1px solid #10b981; border-radius:3px;"></div> Đúng hoàn toàn
                   </div>
                   <div style="display:flex; align-items:center; gap:6px;">
-                    <div style="width:12px; height:12px; background:#fee2e2; border: 1px solid #ef4444; border-radius:3px;"></div> Sai
+                    <div style="width:12px; height:12px; background:#fef3c7; border: 1px solid #f59e0b; border-radius:3px;"></div> Đúng một phần
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <div style="width:12px; height:12px; background:#fee2e2; border: 1px solid #ef4444; border-radius:3px;"></div> Sai hoàn toàn
                   </div>
                 </div>
               </div>

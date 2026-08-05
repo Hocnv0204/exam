@@ -3,7 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
-import { api } from '../api.js'
+import { api, SUPABASE_URL } from '../api.js'
 
 let activeClassId = state.classes[0]?.id || 'c1'
 let isLoadingCurriculum = false
@@ -251,7 +251,17 @@ function renderChapterCard(ch) {
                     <div style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">
                       ${l.theoryFiles.map(file => {
                         const disp = file.split('_').slice(1).join('_') || file
-                        return `<div style="font-family:monospace; background:#f8fafc; border:1px solid #e2e8f0; padding:4px 8px; border-radius:6px; font-size:12px; display:inline-flex; align-items:center; gap:6px; width:fit-content;"><i class="fa-solid fa-paperclip"></i> ${disp}</div>`
+                        const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+                        const mappedUrl = fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+                        return `
+                          <div style="font-family:monospace; background:#f8fafc; border:1px solid #e2e8f0; padding:4px 8px; border-radius:6px; font-size:12px; display:inline-flex; align-items:center; gap:8px; width:fit-content;">
+                            <i class="fa-solid fa-paperclip"></i> 
+                            <span>${disp}</span>
+                            <span style="color:#0066cc; margin-left:4px; display:inline-flex; align-items:center; cursor:pointer;" title="Xem tài liệu" onclick="window.openModal('${disp}', '<iframe src=&quot;${mappedUrl}&quot; style=&quot;width:100%; height:70vh; border:none; border-radius:8px; background:#f8fafc;&quot;></iframe>'); const mc = document.querySelector('#modal-container .modal-content'); if (mc) mc.style.maxWidth = '900px';">
+                              <i class="fa-solid fa-eye"></i>
+                            </span>
+                          </div>
+                        `
                       }).join('')}
                     </div>
                   `}

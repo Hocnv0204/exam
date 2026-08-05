@@ -135,9 +135,14 @@ export function renderMyClassesView() {
                             return `
                               <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
                                 <span style="font-size:13px; font-weight:600; color:#334155; font-family:monospace;">${dispName}</span>
-                                <button class="btn-secondary btn-download-theory" data-file="${file}" style="padding:4px 10px; font-size:11px; cursor:pointer;">
-                                  <i class="fa-solid fa-download"></i> Tải xuống
-                                </button>
+                                <div style="display:flex; gap:6px;">
+                                  <button class="btn-secondary btn-preview-theory" data-file="${file}" style="padding:4px 10px; font-size:11px; cursor:pointer; background:#ffffff; border-color:#0066cc; color:#0066cc;">
+                                    <i class="fa-solid fa-eye"></i> Xem
+                                  </button>
+                                  <button class="btn-secondary btn-download-theory" data-file="${file}" style="padding:4px 10px; font-size:11px; cursor:pointer;">
+                                    <i class="fa-solid fa-download"></i> Tải xuống
+                                  </button>
+                                </div>
                               </div>
                             `
                           }).join('')}
@@ -344,6 +349,24 @@ export function bindMyClassesEvents() {
     window.location.hash = `#my-classes?classId=${classId}`
   })
 
+  // Preview theory PDF
+  document.querySelectorAll('.btn-preview-theory').forEach(btn => {
+    btn.onclick = () => {
+      const file = btn.getAttribute('data-file')
+      const displayName = file.split('_').slice(1).join('_') || file
+      const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+      const mappedUrl = fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+      openModal(
+        displayName,
+        `<iframe src="${mappedUrl}" style="width:100%; height:70vh; border:none; border-radius:8px; background:#f8fafc;"></iframe>`
+      )
+      const modalContent = document.querySelector('#modal-container .modal-content')
+      if (modalContent) {
+        modalContent.style.maxWidth = '900px'
+      }
+    }
+  })
+
   // Download theory confirmation popup
   document.querySelectorAll('.btn-download-theory').forEach(btn => {
     btn.onclick = () => {
@@ -355,7 +378,8 @@ export function bindMyClassesEvents() {
           Bạn có chắc chắn muốn tải xuống tài liệu lý thuyết <strong>"${displayName}"</strong> không?
          </p>`,
         () => {
-          window.open(`${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`, '_blank')
+          const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+          window.open(fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321'), '_blank')
           return true
         }
       )

@@ -26,7 +26,7 @@ serve(async (req: Request) => {
     // 1. Fetch homework and verify student class assignment
     const { data: homework, error: homeworkError } = await serviceRoleClient
       .from('homeworks')
-      .select('id, title, max_score, pass_score, is_published, lesson_id, deadline, max_attempts')
+      .select('id, title, max_score, pass_score, is_published, lesson_id, deadline, max_attempts, pdf_path')
       .eq('id', homeworkId)
       .single()
 
@@ -129,11 +129,8 @@ serve(async (req: Request) => {
       })
 
       totalScore += gradeResult.scoreEarned
-      if (gradeResult.isCorrect) {
-        correctCount += 1
-      } else {
-        wrongCount += 1
-      }
+      correctCount += gradeResult.correctCount ?? (gradeResult.isCorrect ? 1 : 0)
+      wrongCount += gradeResult.wrongCount ?? (gradeResult.isCorrect ? 0 : 1)
 
       questionReviews.push({
         questionNumber: q.question_number,
@@ -186,6 +183,17 @@ serve(async (req: Request) => {
       return errorResponse(`Failed to record submission answers: ${subAnsError.message}`, 500)
     }
 
+    // Generate Signed URL for PDF storage file
+    let pdfUrl = homework.pdf_path
+    if (pdfUrl && !pdfUrl.startsWith('http')) {
+      const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
+        .from('pdf-files')
+        .createSignedUrl(homework.pdf_path, 3600)
+      if (!storageErr && signedUrlData) {
+        pdfUrl = signedUrlData.signedUrl
+      }
+    }
+
     // 7. Return complete submission result
     return jsonResponse(
       {
@@ -200,6 +208,7 @@ serve(async (req: Request) => {
         correctCount,
         wrongCount,
         questionReview: questionReviews,
+        pdfUrl,
       },
       200
     )

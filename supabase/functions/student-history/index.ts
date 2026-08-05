@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
+import { gradeQuestion } from '../../shared/grading-service.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -108,6 +109,18 @@ serve(async (req: Request) => {
         return errorResponse('Forbidden: Submission belongs to another student', 403)
       }
 
+      // Generate Signed URL for PDF storage file
+      const hwObj = submission.homeworks as unknown as { title: string; pdf_path: string; pass_score: number }
+      let pdfUrl = hwObj?.pdf_path || ''
+      if (pdfUrl && !pdfUrl.startsWith('http')) {
+        const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
+          .from('pdf-files')
+          .createSignedUrl(hwObj.pdf_path, 3600)
+        if (!storageErr && signedUrlData) {
+          pdfUrl = signedUrlData.signedUrl
+        }
+      }
+
       // Fetch submission answer details
       const { data: answers, error: ansErr } = await serviceRoleClient
         .from('submission_answers')
@@ -122,7 +135,7 @@ serve(async (req: Request) => {
             question_type,
             prompt,
             points,
-            question_answers (mc_answer, tf_answers, sa_answer)
+            question_answers (mc_answer, tf_answers, sa_answer, sa_tolerance)
           )
         `)
         .eq('submission_id', submissionId)
@@ -139,11 +152,28 @@ serve(async (req: Request) => {
             mc_answer: string | null
             tf_answers: unknown
             sa_answer: string | null
+            sa_tolerance: number | null
           } | null
         }
 
         const qaRaw = q?.question_answers
         const qa = Array.isArray(qaRaw) ? qaRaw[0] : qaRaw
+
+        // Run grading to retrieve statementGrades and detailed feedback
+        let statementGrades: unknown = null
+        if (q && qa) {
+          const gradeResult = gradeQuestion({
+            questionId: ans.question_id,
+            questionType: q.question_type as any,
+            points: q.points || 1.0,
+            mcAnswer: qa.mc_answer || null,
+            tfAnswers: qa.tf_answers as any || null,
+            saAnswer: qa.sa_answer || null,
+            saTolerance: qa.sa_tolerance !== null && qa.sa_tolerance !== undefined ? Number(qa.sa_tolerance) : 0,
+            givenAnswer: ans.given_answer as any,
+          })
+          statementGrades = gradeResult.statementGrades || null
+        }
 
         // Extract correct answer summary (Only for ADMIN)
         let correctAnswerSummary: unknown = null
@@ -167,6 +197,7 @@ serve(async (req: Request) => {
           pointsPossible: q?.points || 1.0,
           correctAnswerSummary,
           feedback: ans.is_correct ? 'Correct' : 'Incorrect',
+          statementGrades,
         }
       })
 
@@ -182,6 +213,7 @@ serve(async (req: Request) => {
           wrongCount: submission.wrong_count,
           durationSecondsTaken: submission.duration_seconds_taken || 0,
           submittedAt: submission.submitted_at,
+          pdfUrl,
         },
         questionReview: formattedAnswers,
         answers: answers || [], // fallback for backward compatibility
