@@ -314,7 +314,7 @@ export function bindMyClassesEvents() {
   const classId = params.get('classId')
 
   // Load todo homeworks for student notifications
-  if (!selectedClassId && state.user?.role === 'STUDENT') {
+  if (!classId && state.user?.role === 'STUDENT') {
     loadTodoHomeworks()
   }
 
