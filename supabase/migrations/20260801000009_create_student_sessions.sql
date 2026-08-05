@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS public.student_sessions (
     UNIQUE(student_id, class_id, session_date)
 );
 
+
 -- Grant privileges to authenticated and service_role
 GRANT ALL ON TABLE public.student_sessions TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.student_sessions TO authenticated;

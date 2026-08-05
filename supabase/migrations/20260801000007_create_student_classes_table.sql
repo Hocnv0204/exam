@@ -4,7 +4,6 @@ CREATE TABLE IF NOT EXISTS public.student_classes (
     class_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
     PRIMARY KEY (student_id, class_id)
 );
-
 -- Copy existing class assignments from profiles to student_classes
 INSERT INTO public.student_classes (student_id, class_id)
 SELECT id, class_id 

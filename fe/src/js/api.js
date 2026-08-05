@@ -61,6 +61,7 @@ export const api = {
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),
   getHomeworks: (lessonId = '') => request(`create-homework${lessonId ? `?lessonId=${lessonId}` : ''}`, { method: 'GET' }),
+  getTodoHomeworks: () => request('create-homework?todoOnly=true', { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
   getDashboard: () => request('dashboard', { method: 'GET' }),
   getStatistics: (params = '') => request(`statistics?${params}`, { method: 'GET' }),

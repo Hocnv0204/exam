@@ -173,7 +173,12 @@ async function router() {
           return {
             id: s.submissionId,
             homeworkTitle: s.homeworkTitle || 'Bài tập',
-            lesson: 'Bài tập chủ đề',
+            lesson: s.lessonTitle || 'Bài tập chủ đề',
+            lessonId: s.lessonId,
+            chapterTitle: s.chapterTitle || 'Chương học',
+            chapterId: s.chapterId,
+            className: s.className || 'Lớp học',
+            classId: s.classId,
             submittedAt: new Date(s.submittedAt).toLocaleString('vi-VN'),
             score: s.score,
             maxScore: s.maxScore,

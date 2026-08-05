@@ -18,6 +18,71 @@ serve(async (req: Request) => {
 
     // GET: List all homeworks (authenticated users)
     if (req.method === 'GET') {
+      const todoOnly = url.searchParams.get('todoOnly') === 'true'
+
+      if (todoOnly && user.role === 'STUDENT') {
+        if (!user.classIds || user.classIds.length === 0) {
+          return jsonResponse([])
+        }
+
+        // Fetch all published homeworks for the student's classes
+        const { data: homeworks, error: hwError } = await serviceRoleClient
+          .from('homeworks')
+          .select(`
+            id,
+            title,
+            duration_minutes,
+            deadline,
+            max_attempts,
+            created_at,
+            lessons!inner (
+              id,
+              title,
+              chapters!inner (
+                id,
+                title,
+                class_id,
+                classes!inner (
+                  id,
+                  name
+                )
+              )
+            )
+          `)
+          .eq('is_published', true)
+          .in('lessons.chapters.class_id', user.classIds)
+          .order('created_at', { ascending: false })
+
+        if (hwError) return errorResponse(hwError.message, 500)
+
+        // Fetch student's submissions
+        const { data: submissions, error: subError } = await serviceRoleClient
+          .from('submissions')
+          .select('homework_id')
+          .eq('student_id', user.id)
+
+        if (subError) return errorResponse(subError.message, 500)
+
+        const submittedHwIds = new Set((submissions || []).map(s => s.homework_id))
+        const todoHomeworks = (homeworks || []).filter(hw => !submittedHwIds.has(hw.id))
+
+        const formatted = todoHomeworks.map(hw => {
+          const classInfo = (hw.lessons as any)?.chapters?.classes
+          return {
+            id: hw.id,
+            title: hw.title,
+            durationMinutes: hw.duration_minutes,
+            deadline: hw.deadline,
+            maxAttempts: hw.max_attempts,
+            createdAt: hw.created_at,
+            classId: classInfo?.id || null,
+            className: classInfo?.name || 'Lớp học'
+          }
+        })
+
+        return jsonResponse(formatted)
+      }
+
       const lessonId = url.searchParams.get('lessonId')
       let query = serviceRoleClient.from('homeworks').select('*')
       if (lessonId) {

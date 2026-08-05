@@ -293,9 +293,11 @@ export function renderMyClassesView() {
             <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:12px;">
               <i class="fa-solid fa-bullhorn" style="color:#0066cc;"></i> Thông báo học tập
             </h3>
-            <p style="font-size:13px; color:#64748b;">
-              Hãy chọn lớp học của bạn ở trên để kiểm tra toàn bộ danh sách bài học và bài tập về nhà chưa hoàn thành.
-            </p>
+            <div id="todo-homeworks-container">
+              <p style="font-size:13px; color:#64748b; margin:0;">
+                Hãy chọn lớp học của bạn ở trên để kiểm tra toàn bộ danh sách bài học và bài tập về nhà chưa hoàn thành.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -310,6 +312,11 @@ export function bindMyClassesEvents() {
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const classId = params.get('classId')
+
+  // Load todo homeworks for student notifications
+  if (!selectedClassId && state.user?.role === 'STUDENT') {
+    loadTodoHomeworks()
+  }
 
   // Click on Class Card -> Route to My Classes with classId
   document.querySelectorAll('.select-class-card').forEach(card => {
@@ -354,4 +361,103 @@ export function bindMyClassesEvents() {
       )
     }
   })
+}
+
+async function loadTodoHomeworks() {
+  const container = document.getElementById('todo-homeworks-container')
+  if (!container) return
+
+  container.innerHTML = `
+    <div style="text-align:center; padding:24px; color:#64748b;">
+      <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px; color:#0066cc; margin-bottom:8px; display:block; margin-left:auto; margin-right:auto;"></i>
+      <span style="font-size:13px;">Đang tải danh sách bài tập chưa hoàn thành...</span>
+    </div>
+  `
+
+  try {
+    const todoHomeworks = await api.getTodoHomeworks()
+    if (!todoHomeworks || todoHomeworks.length === 0) {
+      container.innerHTML = `
+        <p style="font-size:13px; color:#64748b; margin:0;">
+          Tuyệt vời! Bạn đã hoàn thành tất cả các bài tập được giao.
+        </p>
+      `
+      return
+    }
+
+    // Group by classId
+    const groups = {}
+    todoHomeworks.forEach(hw => {
+      if (!groups[hw.classId]) {
+        groups[hw.classId] = {
+          name: hw.className,
+          homeworks: []
+        }
+      }
+      groups[hw.classId].homeworks.push(hw)
+    })
+
+    let html = `
+      <style>
+        .todo-scroll-container::-webkit-scrollbar {
+          width: 6px;
+        }
+        .todo-scroll-container::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .todo-scroll-container::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .todo-scroll-container::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      </style>
+      <div class="todo-scroll-container" style="display:flex; flex-direction:column; gap:20px; margin-top:8px; max-height:420px; overflow-y:auto; padding-right:8px; scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent;">
+    `
+
+    Object.values(groups).forEach(g => {
+      const homeworksHtml = g.homeworks.map(hw => {
+        const deadlineHtml = hw.deadline
+          ? `<span><i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}</span>`
+          : ''
+        return `
+          <div style="padding:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; display:flex; flex-direction:column; justify-content:space-between; height:100%; box-sizing:border-box;">
+            <div>
+              <div style="font-weight:700; font-size:14px; color:#0f172a; margin-bottom:6px; line-height:1.4;">${hw.title}</div>
+              <div style="font-size:12px; color:#64748b; margin-bottom:12px; display:flex; flex-direction:column; gap:4px;">
+                <span><i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút</span>
+                ${deadlineHtml}
+              </div>
+            </div>
+            <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:8px 14px; font-size:12px; width:100%; cursor:pointer; margin-top:4px;">
+              Bắt đầu làm bài <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+        `
+      }).join('')
+
+      html += `
+        <div>
+          <h4 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#0f172a; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
+            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#0066cc;"></span>
+            Lớp: ${g.name}
+          </h4>
+          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+            ${homeworksHtml}
+          </div>
+        </div>
+      `
+    })
+
+    html += `</div>`
+    container.innerHTML = html
+  } catch (err) {
+    console.error('Failed to load todo homeworks:', err)
+    container.innerHTML = `
+      <p style="font-size:13px; color:#ef4444; margin:0;">
+        Không thể tải danh sách bài tập. Vui lòng tải lại trang hoặc thử lại sau.
+      </p>
+    `
+  }
 }

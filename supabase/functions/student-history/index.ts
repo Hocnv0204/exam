@@ -200,7 +200,22 @@ serve(async (req: Request) => {
         wrong_count,
         submitted_at,
         duration_seconds_taken,
-        homeworks (title, pass_score)
+        homeworks (
+          title,
+          pass_score,
+          lessons (
+            id,
+            title,
+            chapters (
+              id,
+              title,
+              classes (
+                id,
+                name
+              )
+            )
+          )
+        )
       `)
       .eq('student_id', targetStudentId)
       .order('submitted_at', { ascending: false })
@@ -208,11 +223,16 @@ serve(async (req: Request) => {
     if (error) return errorResponse(error.message, 500)
 
     const formattedList = submissions.map((sub) => {
-      const passScore = Number((sub.homeworks as unknown as { pass_score: number })?.pass_score || 5)
+      const homework = sub.homeworks as any
+      const passScore = Number(homework?.pass_score || 5)
+      const lesson = homework?.lessons
+      const chapter = lesson?.chapters
+      const cls = chapter?.classes
+
       return {
         submissionId: sub.id,
         homeworkId: sub.homework_id,
-        homeworkTitle: (sub.homeworks as unknown as { title: string })?.title || 'Unknown Homework',
+        homeworkTitle: homework?.title || 'Unknown Homework',
         score: sub.total_score,
         maxScore: sub.max_score,
         passScore,
@@ -221,6 +241,12 @@ serve(async (req: Request) => {
         wrongCount: sub.wrong_count,
         durationSecondsTaken: sub.duration_seconds_taken || 0,
         submittedAt: sub.submitted_at,
+        lessonId: lesson?.id || null,
+        lessonTitle: lesson?.title || 'Unknown Lesson',
+        chapterId: chapter?.id || null,
+        chapterTitle: chapter?.title || 'Unknown Chapter',
+        classId: cls?.id || null,
+        className: cls?.name || 'Unknown Class'
       }
     })
 
