@@ -11,35 +11,30 @@ let currentConfig = {
   saCount: 6   // Trả lời ngắn
 }
 
-// Store chosen answers:
+// Store chosen answers relative to their sections:
 // mcAnswers: { 1: 'A', 2: 'B', ... }
-// tfAnswers: { 1: { a: true, b: true, c: false, d: true }, ... }
-// saAnswers: { 1: '9.8', 2: '100', ... }
+// tfAnswers: { 1: { a: true, b: false, ... }, ... }
+// saAnswers: { 1: '9.8', ... }
 let mcAnswers = {}
 let tfAnswers = {}
 let saAnswers = {}
 
 function initAnswersState() {
   mcAnswers = {}
-  for (let i = 1; i <= currentConfig.mcCount; i++) {
-    mcAnswers[i] = 'A'
-  }
-
   tfAnswers = {}
-  for (let i = 1; i <= currentConfig.tfCount; i++) {
-    const actualQNum = currentConfig.mcCount + i
-    tfAnswers[actualQNum] = { a: true, b: true, c: false, d: true }
-  }
-
   saAnswers = {}
-  for (let i = 1; i <= currentConfig.saCount; i++) {
-    const actualQNum = currentConfig.mcCount + currentConfig.tfCount + i
-    saAnswers[actualQNum] = ''
-  }
 }
 
 // Initial call
 initAnswersState()
+
+export function resetCreateForm() {
+  currentConfig.editingHomeworkId = null
+  currentConfig.mcCount = 12
+  currentConfig.tfCount = 4
+  currentConfig.saCount = 6
+  initAnswersState()
+}
 
 export function renderCreateHwView() {
   const isEdit = !!state.editHomeworkData
@@ -72,33 +67,27 @@ export function renderCreateHwView() {
       currentConfig.saCount = saQ.length
 
       mcAnswers = {}
-      mcQ.forEach(q => {
-        mcAnswers[q.question_number] = q.answerKey?.mc_answer || 'A'
+      mcQ.forEach((q, index) => {
+        mcAnswers[index + 1] = q.answerKey?.mc_answer || 'A'
       })
 
       tfAnswers = {}
-      tfQ.forEach(q => {
+      tfQ.forEach((q, index) => {
         const val = q.answerKey?.tf_answers || {}
         const a = val.a !== undefined ? val.a : (val.s1 !== undefined ? val.s1 : true)
         const b = val.b !== undefined ? val.b : (val.s2 !== undefined ? val.s2 : true)
         const c = val.c !== undefined ? val.c : (val.s3 !== undefined ? val.s3 : false)
         const d = val.d !== undefined ? val.d : (val.s4 !== undefined ? val.s4 : true)
-        tfAnswers[q.question_number] = { a, b, c, d }
+        tfAnswers[index + 1] = { a, b, c, d }
       })
 
       saAnswers = {}
-      saQ.forEach(q => {
-        saAnswers[q.question_number] = q.answerKey?.sa_answer !== undefined && q.answerKey?.sa_answer !== null ? String(q.answerKey.sa_answer) : ''
+      saQ.forEach((q, index) => {
+        saAnswers[index + 1] = q.answerKey?.sa_answer !== undefined && q.answerKey?.sa_answer !== null ? String(q.answerKey.sa_answer) : ''
       })
     }
   } else if (!isEdit) {
-    if (currentConfig.editingHomeworkId) {
-      currentConfig.editingHomeworkId = null
-      currentConfig.mcCount = 10
-      currentConfig.tfCount = 4
-      currentConfig.saCount = 2
-      initAnswersState()
-    }
+    currentConfig.editingHomeworkId = null
   }
 
   const classOptions = state.classes.map(c => {
@@ -265,7 +254,7 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.mcCount }, (_, i) => i + 1).map(qNum => {
-            const selected = mcAnswers[qNum] || 'A'
+            const selected = mcAnswers[qNum]
             return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                 <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
@@ -301,28 +290,29 @@ function renderAnswerMatrix() {
         <div style="display:flex; flex-direction:column; gap:12px;">
           ${Array.from({ length: currentConfig.tfCount }, (_, i) => i + 1).map(index => {
             const actualQNum = currentConfig.mcCount + index
-            const tfObj = tfAnswers[actualQNum] || { a: true, b: true, c: false, d: true }
+            const tfObj = tfAnswers[index] || {}
             return `
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
                 <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${actualQNum}</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
                   ${['a', 'b', 'c', 'd'].map(sub => {
-                    const isTrue = tfObj[sub] !== false
+                    const isTrue = tfObj[sub] === true
+                    const isFalse = tfObj[sub] === false
                     return `
                       <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
                         <span style="font-weight:700; color:#475569;">${sub})</span>
                         <div style="display:flex; gap:4px;">
-                          <button type="button" class="tf-option-btn ${isTrue ? 'active-true' : ''}" data-qnum="${actualQNum}" data-sub="${sub}" data-val="true" style="
+                          <button type="button" class="tf-option-btn ${isTrue ? 'active-true' : ''}" data-index="${index}" data-sub="${sub}" data-val="true" style="
                             padding:2px 8px; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer;
                             border:1px solid ${isTrue ? '#16a34a' : '#cbd5e1'};
                             background:${isTrue ? '#16a34a' : '#ffffff'};
                             color:${isTrue ? '#ffffff' : '#475569'};
                           ">Đ</button>
-                          <button type="button" class="tf-option-btn ${!isTrue ? 'active-false' : ''}" data-qnum="${actualQNum}" data-sub="${sub}" data-val="false" style="
+                          <button type="button" class="tf-option-btn ${isFalse ? 'active-false' : ''}" data-index="${index}" data-sub="${sub}" data-val="false" style="
                             padding:2px 8px; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer;
-                            border:1px solid ${!isTrue ? '#dc2626' : '#cbd5e1'};
-                            background:${!isTrue ? '#dc2626' : '#ffffff'};
-                            color:${!isTrue ? '#ffffff' : '#475569'};
+                            border:1px solid ${isFalse ? '#dc2626' : '#cbd5e1'};
+                            background:${isFalse ? '#dc2626' : '#ffffff'};
+                            color:${isFalse ? '#ffffff' : '#475569'};
                           ">S</button>
                         </div>
                       </div>
@@ -351,11 +341,11 @@ function renderAnswerMatrix() {
         <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.saCount }, (_, i) => i + 1).map(index => {
             const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
-            const val = saAnswers[actualQNum] || ''
+            const val = saAnswers[index] || ''
             return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                 <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${actualQNum}</span>
-                <input type="text" class="form-input sa-input" data-qnum="${actualQNum}" value="${val}" placeholder="Nhập đáp án chuẩn..." style="padding:6px 10px; font-size:13px; background:#ffffff;">
+                <input type="text" class="form-input sa-input" data-index="${index}" value="${val}" placeholder="Nhập đáp án chuẩn..." style="padding:6px 10px; font-size:13px; background:#ffffff;">
               </div>
             `
           }).join('')}
@@ -618,11 +608,16 @@ export function bindCreateHwEvents() {
 
     // Part I: MC
     for (let i = 1; i <= currentConfig.mcCount; i++) {
+      const ans = mcAnswers[i]
+      if (!ans) {
+        showToast(`Vui lòng chọn đáp án cho Câu ${globalIndex} (Phần I)`, 'error')
+        return
+      }
       questions.push({
         id: `q_${globalIndex}`,
         questionNumber: globalIndex,
         questionType: 'MULTIPLE_CHOICE',
-        mcAnswer: mcAnswers[globalIndex] || 'A',
+        mcAnswer: ans,
         points: 1.0
       })
       globalIndex++
@@ -630,11 +625,16 @@ export function bindCreateHwEvents() {
 
     // Part II: TF
     for (let i = 1; i <= currentConfig.tfCount; i++) {
+      const tf = tfAnswers[i] || {}
+      if (tf.a === undefined || tf.b === undefined || tf.c === undefined || tf.d === undefined) {
+        showToast(`Vui lòng chọn đầy đủ Đúng/Sai cho Câu ${globalIndex} (Phần II)`, 'error')
+        return
+      }
       questions.push({
         id: `q_${globalIndex}`,
         questionNumber: globalIndex,
         questionType: 'TRUE_FALSE',
-        tfAnswers: tfAnswers[globalIndex] || { a: true, b: true, c: false, d: true },
+        tfAnswers: { a: tf.a, b: tf.b, c: tf.c, d: tf.d },
         points: 1.0
       })
       globalIndex++
@@ -642,11 +642,16 @@ export function bindCreateHwEvents() {
 
     // Part III: SA
     for (let i = 1; i <= currentConfig.saCount; i++) {
+      const ans = saAnswers[i]
+      if (ans === undefined || ans === null || ans.trim() === '') {
+        showToast(`Vui lòng nhập đáp án cho Câu ${globalIndex} (Phần III)`, 'error')
+        return
+      }
       questions.push({
         id: `q_${globalIndex}`,
         questionNumber: globalIndex,
         questionType: 'SHORT_ANSWER',
-        saAnswer: saAnswers[globalIndex] || '',
+        saAnswer: ans.trim(),
         points: 1.0
       })
       globalIndex++
@@ -732,12 +737,12 @@ function bindMatrixEvents() {
   // TF click selection
   document.querySelectorAll('.tf-option-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
+      const index = parseInt(btn.getAttribute('data-index'), 10)
       const sub = btn.getAttribute('data-sub')
       const val = btn.getAttribute('data-val') === 'true'
 
-      if (!tfAnswers[qNum]) tfAnswers[qNum] = { a: true, b: true, c: false, d: true }
-      tfAnswers[qNum][sub] = val
+      if (!tfAnswers[index]) tfAnswers[index] = {}
+      tfAnswers[index][sub] = val
 
       // Update UI for this sub item
       const parent = btn.parentElement
@@ -761,8 +766,8 @@ function bindMatrixEvents() {
   // Short answer inputs change
   document.querySelectorAll('.sa-input').forEach(input => {
     input.addEventListener('input', (e) => {
-      const qNum = parseInt(input.getAttribute('data-qnum'), 10)
-      saAnswers[qNum] = e.target.value
+      const index = parseInt(input.getAttribute('data-index'), 10)
+      saAnswers[index] = e.target.value
     })
   })
 }

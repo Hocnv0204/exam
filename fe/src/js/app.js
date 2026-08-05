@@ -4,7 +4,7 @@ import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
 import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
 import { renderStudentMgmtView, bindStudentMgmtEvents } from './views/student-mgmt.js'
-import { renderCreateHwView, bindCreateHwEvents } from './views/create-hw.js'
+import { renderCreateHwView, bindCreateHwEvents, resetCreateForm } from './views/create-hw.js'
 import { renderCurriculumView, bindCurriculumEvents } from './views/curriculum.js'
 import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/homework-solver.js'
 import { renderAssignmentReviewView, bindAssignmentReviewEvents } from './views/assignment-review.js'
@@ -75,6 +75,7 @@ async function router() {
           state.editHomeworkData = hwData
         } else {
           state.editHomeworkData = null
+          resetCreateForm()
         }
       }
 
