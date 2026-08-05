@@ -5,6 +5,36 @@ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0
 
 const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 
+let activeRequests = 0
+let loadingOverlay = null
+
+function showLoading() {
+  activeRequests++
+  if (activeRequests === 1) {
+    if (!loadingOverlay) {
+      loadingOverlay = document.createElement('div')
+      loadingOverlay.className = 'loading-overlay'
+      loadingOverlay.innerHTML = `
+        <div class="spinner-ring">
+          <div></div><div></div><div></div><div></div>
+        </div>
+        <div class="loading-text">Đang tải dữ liệu...</div>
+      `
+      document.body.appendChild(loadingOverlay)
+    }
+    // Force reflow
+    loadingOverlay.getBoundingClientRect()
+    loadingOverlay.classList.add('active')
+  }
+}
+
+function hideLoading() {
+  activeRequests = Math.max(0, activeRequests - 1)
+  if (activeRequests === 0 && loadingOverlay) {
+    loadingOverlay.classList.remove('active')
+  }
+}
+
 async function request(endpoint, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -15,6 +45,7 @@ async function request(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${state.token}`
   }
 
+  showLoading()
   try {
     const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
       ...options,
@@ -35,6 +66,8 @@ async function request(endpoint, options = {}) {
   } catch (err) {
     console.warn(`[API] Edge Function call ${endpoint} failed, falling back to local state mode:`, err.message)
     throw err
+  } finally {
+    hideLoading()
   }
 }
 
@@ -71,17 +104,22 @@ export const api = {
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
   uploadFile: async (file) => {
     const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
-    const response = await fetch(`${SUPABASE_URL}/storage/v1/object/pdf-files/${fileName}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${state.token}`
-      },
-      body: file
-    })
-    if (!response.ok) {
-      const errText = await response.text()
-      throw new Error(`Upload failed: ${errText}`)
+    showLoading()
+    try {
+      const response = await fetch(`${SUPABASE_URL}/storage/v1/object/pdf-files/${fileName}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${state.token}`
+        },
+        body: file
+      })
+      if (!response.ok) {
+        const errText = await response.text()
+        throw new Error(`Upload failed: ${errText}`)
+      }
+      return fileName
+    } finally {
+      hideLoading()
     }
-    return fileName
   }
 }
