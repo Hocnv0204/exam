@@ -57,6 +57,16 @@ serve(async (req: Request) => {
       return errorResponse('Invalid username or password', 401)
     }
 
+    // Get all classIds for students
+    let classIds: string[] = []
+    if (profile.role === 'STUDENT') {
+      const { data: stClasses } = await serviceRoleClient
+        .from('student_classes')
+        .select('class_id')
+        .eq('student_id', profile.id)
+      classIds = stClasses?.map((c) => c.class_id) || []
+    }
+
     return jsonResponse({
       accessToken: sessionData.session.access_token,
       refreshToken: sessionData.session.refresh_token,
@@ -66,7 +76,8 @@ serve(async (req: Request) => {
         username: profile.username,
         fullName: profile.full_name,
         role: profile.role,
-        classId: profile.class_id,
+        classId: profile.class_id || (classIds[0] || null),
+        classIds,
       },
     })
   } catch (err: unknown) {

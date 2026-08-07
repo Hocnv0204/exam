@@ -7,19 +7,15 @@
 
 -- Grant schema usage
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-
 -- Service role: full access to all tables (bypasses RLS via BYPASSRLS or explicit grants)
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO service_role;
-
 -- Authenticated users: CRUD on public tables (RLS policies restrict access further)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-
 -- Anonymous users: read-only to nothing by default (RLS will further restrict)
 GRANT USAGE ON SCHEMA public TO anon;
-
 -- Give service_role the BYPASSRLS attribute so it can skip RLS checks
 DO $bypass$
 BEGIN

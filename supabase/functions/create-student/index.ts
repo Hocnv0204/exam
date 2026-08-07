@@ -27,7 +27,10 @@ serve(async (req: Request) => {
           role,
           class_id,
           created_at,
-          classes (name)
+          student_classes (
+            class_id,
+            classes (name)
+          )
         `)
         .eq('role', 'STUDENT')
         .order('created_at', { ascending: false })
@@ -35,15 +38,22 @@ serve(async (req: Request) => {
       if (error) return errorResponse(error.message, 500)
 
       // Map profiles to match FE format
-      const formattedStudents = (students || []).map((s) => ({
-        id: s.id,
-        username: s.username,
-        fullName: s.full_name,
-        className: (s.classes as unknown as { name: string })?.name || 'Chưa phân lớp',
-        classId: s.class_id,
-        status: 'Hoạt động',
-        createdAt: new Date(s.created_at).toLocaleDateString('vi-VN')
-      }))
+      const formattedStudents = (students || []).map((s) => {
+        const studentClasses = (s.student_classes || []) as unknown as Array<{ class_id: string; classes: { name: string } }>
+        const classIds = studentClasses.map((sc) => sc.class_id)
+        const classNames = studentClasses.map((sc) => sc.classes?.name).filter(Boolean)
+        
+        return {
+          id: s.id,
+          username: s.username,
+          fullName: s.full_name,
+          className: classNames.join(', ') || 'Chưa phân lớp',
+          classId: classIds[0] || null,
+          classIds,
+          status: 'Hoạt động',
+          createdAt: new Date(s.created_at).toLocaleDateString('vi-VN')
+        }
+      })
 
       return jsonResponse(formattedStudents)
     }
@@ -56,18 +66,8 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { username, password, fullName, classId } = validation.data
-
-      // Check if class exists
-      const { data: existingClass, error: classError } = await serviceRoleClient
-        .from('classes')
-        .select('id')
-        .eq('id', classId)
-        .single()
-
-      if (classError || !existingClass) {
-        return errorResponse('Class not found', 404)
-      }
+      const { username, password, fullName, classId, classIds } = validation.data
+      const targetClassIds = classIds && classIds.length > 0 ? classIds : (classId ? [classId] : [])
 
       // Check if username taken
       const { data: existingProfile } = await serviceRoleClient
@@ -104,7 +104,7 @@ serve(async (req: Request) => {
           username,
           full_name: fullName,
           role: 'STUDENT',
-          class_id: classId,
+          class_id: targetClassIds[0] || null,
         })
         .select('id, username, full_name, role, class_id, created_at')
         .single()
@@ -113,6 +113,21 @@ serve(async (req: Request) => {
         // Rollback Auth user creation if profile insert fails
         await serviceRoleClient.auth.admin.deleteUser(studentId)
         return errorResponse(`Profile creation failed: ${profileError.message}`, 500)
+      }
+
+      // Link student classes
+      if (targetClassIds.length > 0) {
+        const joinInserts = targetClassIds.map((cid) => ({
+          student_id: studentId,
+          class_id: cid
+        }))
+        const { error: joinError } = await serviceRoleClient
+          .from('student_classes')
+          .insert(joinInserts)
+        
+        if (joinError) {
+          console.error('[create-student] Failed to insert student_classes:', joinError.message)
+        }
       }
 
       return jsonResponse(profile, 201)
@@ -126,13 +141,27 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { studentId, fullName, classId } = validation.data
+      const { studentId, fullName, classId, classIds, password } = validation.data
+
+      // Update password if provided
+      if (password) {
+        const { error: passError } = await serviceRoleClient.auth.admin.updateUserById(studentId, {
+          password: password
+        })
+        if (passError) {
+          return errorResponse(`Failed to update password: ${passError.message}`, 400)
+        }
+      }
 
       const updatePayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
       if (fullName) updatePayload.full_name = fullName
-      if (classId) updatePayload.class_id = classId
+      
+      const targetClassIds = classIds && classIds.length > 0 ? classIds : (classId ? [classId] : null)
+      if (targetClassIds && targetClassIds.length > 0) {
+        updatePayload.class_id = targetClassIds[0]
+      }
 
       const { data: updatedProfile, error: updateError } = await serviceRoleClient
         .from('profiles')
@@ -144,6 +173,27 @@ serve(async (req: Request) => {
 
       if (updateError || !updatedProfile) {
         return errorResponse('Student not found or update failed', 404)
+      }
+
+      // Update student classes
+      if (targetClassIds) {
+        await serviceRoleClient
+          .from('student_classes')
+          .delete()
+          .eq('student_id', studentId)
+
+        if (targetClassIds.length > 0) {
+          const joinInserts = targetClassIds.map((cid) => ({
+            student_id: studentId,
+            class_id: cid
+          }))
+          const { error: joinError } = await serviceRoleClient
+            .from('student_classes')
+            .insert(joinInserts)
+          if (joinError) {
+            return errorResponse(`Failed to associate classes: ${joinError.message}`, 500)
+          }
+        }
       }
 
       return jsonResponse(updatedProfile)

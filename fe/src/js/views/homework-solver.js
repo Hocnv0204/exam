@@ -32,6 +32,45 @@ export function renderHomeworkSolverView() {
     `
   }
 
+  const attemptsCount = state.currentHomework?.attemptsCount || 0
+  const maxAttempts = hw.maxAttempts || hw.max_attempts || 0
+  const deadline = hw.deadline || hw.deadline_at || null
+
+  const isExpired = deadline ? new Date() > new Date(deadline) : false
+  const isExceeded = (maxAttempts > 0 && attemptsCount >= maxAttempts)
+
+  if (isExpired || isExceeded) {
+    let warningTitle = "Bài tập đã bị khóa"
+    let warningMsg = ""
+    if (isExpired) {
+      warningTitle = "Bài tập đã quá hạn nộp"
+      const dateStr = new Date(deadline).toLocaleString('vi-VN')
+      warningMsg = `Hạn chót của bài tập này là <strong>${dateStr}</strong>. Bạn không thể tiếp tục thực hiện bài tập này.`
+    } else if (isExceeded) {
+      warningTitle = "Đạt giới hạn số lần làm bài"
+      warningMsg = `Bài tập này chỉ cho phép làm tối đa <strong>${maxAttempts}</strong> lần. Bạn đã thực hiện <strong>${attemptsCount}</strong> lần.`
+    }
+
+    return `
+      <div class="app-layout">
+        ${renderSidebar('homework-attempt')}
+        <div class="main-content">
+          ${renderNavbar('Nền tảng / Bảng điều khiển')}
+          <div class="content-body" style="padding:40px; text-align:center; color:#64748b;">
+            <div style="background:#ffffff; max-width:500px; margin: 40px auto; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid #cbd5e1;">
+              <i class="fa-solid fa-lock" style="font-size:56px; color:#ef4444; margin-bottom:20px;"></i>
+              <h2 style="font-weight:700; color:#0f172a; margin-bottom:12px; font-family:var(--font-heading);">${warningTitle}</h2>
+              <p style="font-size:14px; color:#475569; line-height:1.6; margin-bottom:24px;">${warningMsg}</p>
+              <button class="btn-primary" onclick="window.location.hash = '#my-classes'" style="padding:10px 24px; font-size:14px; cursor:pointer;">
+                <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách lớp học
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
   // Reset studentAnswers structure for this homework
   studentAnswers = {
     mc: {},
@@ -214,6 +253,15 @@ export function bindHomeworkSolverEvents() {
   const hw = state.currentHomework?.homework
   const questions = state.currentHomework?.questions || []
   if (!hw) return
+
+  const attemptsCount = state.currentHomework?.attemptsCount || 0
+  const maxAttempts = hw.maxAttempts || hw.max_attempts || 0
+  const deadline = hw.deadline || hw.deadline_at || null
+
+  const isExpired = deadline ? new Date() > new Date(deadline) : false
+  const isExceeded = (maxAttempts > 0 && attemptsCount >= maxAttempts)
+
+  if (isExpired || isExceeded) return
 
   // Shared submit helper
   const performSubmit = async () => {

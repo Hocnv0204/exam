@@ -210,7 +210,7 @@ CREATE POLICY "Student insert own submission_answers" ON public.submission_answe
 
 -- Storage bucket & policies
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('pdf-files', 'pdf-files', false, 52428800, ARRAY['application/pdf'])
+VALUES ('pdf-files', 'pdf-files', true, 52428800, ARRAY['application/pdf'])
 ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Admin full storage access pdf-files" ON storage.objects FOR ALL TO authenticated USING (bucket_id = 'pdf-files' AND public.is_admin()) WITH CHECK (bucket_id = 'pdf-files' AND public.is_admin());

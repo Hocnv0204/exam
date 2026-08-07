@@ -81,8 +81,8 @@ serve(async (req: Request) => {
 
       const { data: students, error: stErr } = await serviceRoleClient
         .from('profiles')
-        .select('id, username, full_name')
-        .eq('class_id', classId)
+        .select('id, username, full_name, student_classes!inner(class_id)')
+        .eq('student_classes.class_id', classId)
         .eq('role', 'STUDENT')
 
       if (stErr) return errorResponse(stErr.message, 500)
@@ -118,7 +118,15 @@ serve(async (req: Request) => {
     if (studentId) {
       const { data: student, error: stErr } = await serviceRoleClient
         .from('profiles')
-        .select('id, username, full_name, class_id, classes(name)')
+        .select(`
+          id,
+          username,
+          full_name,
+          student_classes (
+            class_id,
+            classes (name)
+          )
+        `)
         .eq('id', studentId)
         .single()
 
@@ -142,7 +150,7 @@ serve(async (req: Request) => {
           id: student.id,
           username: student.username,
           fullName: student.full_name,
-          className: (student.classes as unknown as { name: string })?.name || 'Unassigned',
+          className: ((student.student_classes || []) as unknown as Array<{ classes: { name: string } }>).map((sc) => sc.classes?.name).filter(Boolean).join(', ') || 'Unassigned',
         },
         totalSubmissions,
         averageScore,

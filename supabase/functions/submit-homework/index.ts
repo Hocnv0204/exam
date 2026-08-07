@@ -26,7 +26,7 @@ serve(async (req: Request) => {
     // 1. Fetch homework and verify student class assignment
     const { data: homework, error: homeworkError } = await serviceRoleClient
       .from('homeworks')
-      .select('id, title, max_score, pass_score, is_published, lesson_id')
+      .select('id, title, max_score, pass_score, is_published, lesson_id, deadline, max_attempts, pdf_path')
       .eq('id', homeworkId)
       .single()
 
@@ -34,8 +34,34 @@ serve(async (req: Request) => {
       return errorResponse('Homework not found or not published', 404)
     }
 
-    if (!user.classId) {
+    if (!user.classIds || user.classIds.length === 0) {
       return errorResponse('Student is not assigned to any class', 403)
+    }
+
+    // Check deadline
+    if (homework.deadline) {
+      const deadlineDate = new Date(homework.deadline)
+      const now = new Date()
+      if (now > deadlineDate) {
+        return errorResponse('Bài tập đã hết hạn nộp bài', 400)
+      }
+    }
+
+    // Check max attempts limit
+    if (homework.max_attempts && homework.max_attempts > 0) {
+      const { count, error: countError } = await serviceRoleClient
+        .from('submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('homework_id', homeworkId)
+        .eq('student_id', user.id)
+
+      if (countError) {
+        return errorResponse('Failed to verify submission attempts limit', 500)
+      }
+
+      if (count !== null && count >= homework.max_attempts) {
+        return errorResponse('Bạn đã đạt giới hạn tối đa số lần làm bài tập này', 400)
+      }
     }
 
     // Verify homework's lesson -> chapter -> class matches student's class
@@ -50,7 +76,7 @@ serve(async (req: Request) => {
     }
 
     const classIdOfHomework = (lesson.chapters as unknown as { class_id: string })?.class_id
-    if (classIdOfHomework !== user.classId) {
+    if (!user.classIds.includes(classIdOfHomework)) {
       return errorResponse('Forbidden: You are not enrolled in the class for this homework', 403)
     }
 
@@ -103,11 +129,8 @@ serve(async (req: Request) => {
       })
 
       totalScore += gradeResult.scoreEarned
-      if (gradeResult.isCorrect) {
-        correctCount += 1
-      } else {
-        wrongCount += 1
-      }
+      correctCount += gradeResult.correctCount ?? (gradeResult.isCorrect ? 1 : 0)
+      wrongCount += gradeResult.wrongCount ?? (gradeResult.isCorrect ? 0 : 1)
 
       questionReviews.push({
         questionNumber: q.question_number,
@@ -160,6 +183,17 @@ serve(async (req: Request) => {
       return errorResponse(`Failed to record submission answers: ${subAnsError.message}`, 500)
     }
 
+    // Generate Signed URL for PDF storage file
+    let pdfUrl = homework.pdf_path
+    if (pdfUrl && !pdfUrl.startsWith('http')) {
+      const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
+        .from('pdf-files')
+        .createSignedUrl(homework.pdf_path, 3600)
+      if (!storageErr && signedUrlData) {
+        pdfUrl = signedUrlData.signedUrl
+      }
+    }
+
     // 7. Return complete submission result
     return jsonResponse(
       {
@@ -174,6 +208,7 @@ serve(async (req: Request) => {
         correctCount,
         wrongCount,
         questionReview: questionReviews,
+        pdfUrl,
       },
       200
     )

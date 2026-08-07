@@ -13,7 +13,7 @@ export function renderSidebar(currentRoute) {
       ${role === 'ADMIN' ? `
         <div class="nav-section-title">Quản trị viên</div>
         <div class="nav-item ${currentRoute === 'admin-dashboard' ? 'active' : ''}" onclick="window.location.hash='#admin-dashboard'">
-          <i class="fa-solid fa-table-cells-large"></i> Bảng điều khiển
+          <i class="fa-solid fa-table-cells-large"></i> Dashboard
         </div>
         <div class="nav-item ${currentRoute === 'students' ? 'active' : ''}" onclick="window.location.hash='#students'">
           <i class="fa-solid fa-users"></i> Quản lý học sinh
