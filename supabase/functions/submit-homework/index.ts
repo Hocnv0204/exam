@@ -115,6 +115,12 @@ serve(async (req: Request) => {
     const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
     const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
 
+    let totalScore = 0
+    let correctCount = 0
+    let wrongCount = 0
+    const questionReviews = []
+    const submissionAnswersToInsert = []
+
     // 4. Grade each question
     for (const q of questions) {
       const key = keyMap.get(q.id)
