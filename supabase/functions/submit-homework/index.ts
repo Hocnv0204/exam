@@ -249,6 +249,14 @@ serve(async (req: Request) => {
     )
   } catch (err: unknown) {
     const error = err as Error
-    return errorResponse(error.message || 'Unauthorized / Error', 401)
+    const msg = error.message || ''
+    console.error('[submit-homework] Error during execution:', msg)
+    if (msg.includes('Unauthorized') || msg.includes('token') || msg.includes('Authorization')) {
+      return errorResponse(msg || 'Unauthorized / Error', 401)
+    }
+    if (msg.includes('Forbidden')) {
+      return errorResponse(msg || 'Forbidden', 403)
+    }
+    return errorResponse(msg || 'Internal Server Error', 500)
   }
 })
