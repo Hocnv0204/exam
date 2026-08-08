@@ -50,34 +50,36 @@ export function renderMyClassesView() {
         <div class="main-content">
           ${renderNavbar('Nền tảng / Bảng điều khiển')}
           <div class="content-body">
-            <!-- Back Button & Page Header -->
-            <div style="margin-bottom:16px;">
-              <button class="btn-secondary" id="back-to-classes-btn" style="padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
-                <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách lớp học
-              </button>
-            </div>
+            ${activeLesson ? '' : `
+              <!-- Back Button & Page Header -->
+              <div style="margin-bottom:16px;">
+                <button class="btn-secondary" id="back-to-classes-btn" style="padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
+                  <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách lớp học
+                </button>
+              </div>
 
-            <!-- Class Banner -->
-            <div class="card" style="background:linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); padding:24px; margin-bottom:24px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:20px;">
-                  <div style="width:60px; height:60px; background:#0066cc; color:#ffffff; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:28px;">
-                    <i class="fa-solid fa-graduation-cap"></i>
-                  </div>
-                  <div>
-                    <h1 class="page-title" style="font-size:24px; margin-top:2px;">${selectedClass ? selectedClass.name : 'Đang tải...'}</h1>
-                    <div style="font-size:13px; color:#64748b; margin-top:4px;">
-                      <i class="fa-solid fa-users"></i> ${selectedClass ? selectedClass.studentsCount : 0} Học sinh
+              <!-- Class Banner -->
+              <div class="card" style="background:linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); padding:24px; margin-bottom:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:20px;">
+                    <div style="width:60px; height:60px; background:#0066cc; color:#ffffff; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:28px;">
+                      <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <div>
+                      <h1 class="page-title" style="font-size:24px; margin-top:2px;">${selectedClass ? selectedClass.name : 'Đang tải...'}</h1>
+                      <div style="font-size:13px; color:#64748b; margin-top:4px;">
+                        <i class="fa-solid fa-users"></i> ${selectedClass ? selectedClass.studentsCount : 0} Học sinh
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div style="text-align:right;">
-                  <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Tiến độ môn học</div>
-                  <div style="font-family:var(--font-heading); font-size:28px; font-weight:700; color:#0066cc;">${selectedClass ? selectedClass.progress : 0}%</div>
+                  <div style="text-align:right;">
+                    <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Tiến độ môn học</div>
+                    <div style="font-family:var(--font-heading); font-size:28px; font-weight:700; color:#0066cc;">${selectedClass ? selectedClass.progress : 0}%</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            `}
 
             <!-- Main Content: Lessons & Assignments Split -->
             ${activeLesson ? (() => {
@@ -165,17 +167,33 @@ export function renderMyClassesView() {
                           </div>
                         ` : `
                           <div style="display:flex; flex-direction:column; gap:12px;">
-                            ${activeLessonHomeworks.map(hw => `
-                              <div style="padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                                <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:4px;">${hw.title}</div>
-                                <div style="font-size:11px; color:#64748b; margin-bottom:10px;">
-                                  <i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút
+                            ${activeLessonHomeworks.map(hw => {
+                              const isExpired = hw.deadline ? new Date() > new Date(hw.deadline) : false
+                              const deadlineHtml = hw.deadline
+                                ? `<div style="margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
+                                    <span style="color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; width: fit-content; font-size: 11px;">
+                                      <i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}
+                                    </span>
+                                    ${isExpired ? `
+                                      <span style="color: #ffffff; background: #dc2626; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 10px; width: fit-content; text-transform: uppercase;">
+                                        <i class="fa-solid fa-circle-exclamation"></i> Quá hạn
+                                      </span>
+                                    ` : ''}
+                                   </div>`
+                                : ''
+                              return `
+                                <div style="padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+                                  <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:4px;">${hw.title}</div>
+                                  <div style="font-size:11px; color:#64748b; margin-bottom:10px; display:flex; flex-direction:column; gap:4px;">
+                                    <span><i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút</span>
+                                    ${deadlineHtml}
+                                  </div>
+                                  <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px; background: ${isExpired ? '#94a3b8' : ''}; border-color: ${isExpired ? '#94a3b8' : ''}; pointer-events: ${isExpired ? 'none' : 'auto'}; opacity: ${isExpired ? '0.7' : '1'};">
+                                    ${isExpired ? 'Đã quá hạn nộp' : 'Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>'}
+                                  </button>
                                 </div>
-                                <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px;">
-                                  Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>
-                                </button>
-                              </div>
-                            `).join('')}
+                              `
+                            }).join('')}
                           </div>
                         `}
                       </div>
@@ -443,7 +461,9 @@ async function loadTodoHomeworks() {
     Object.values(groups).forEach(g => {
       const homeworksHtml = g.homeworks.map(hw => {
         const deadlineHtml = hw.deadline
-          ? `<span><i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}</span>`
+          ? `<span style="color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; width: fit-content; margin-top: 4px;">
+              <i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}
+             </span>`
           : ''
         return `
           <div style="padding:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; display:flex; flex-direction:column; justify-content:space-between; height:100%; box-sizing:border-box;">

@@ -88,9 +88,7 @@ export function renderAdminDashboardView() {
                 <tbody>
                   ${recentSubmissions.map((sub) => {
                     const totalQs = (sub.correctCount || 0) + (sub.wrongCount || 0)
-                    const scoreDisplay = sub.correctCount !== undefined && sub.correctCount !== null && totalQs > 0
-                      ? `${sub.correctCount}/${totalQs}`
-                      : `${sub.score}/${sub.maxScore}`
+                    const scoreDisplay = `${sub.score}/${sub.maxScore || 10}`
                     return `
                     <tr>
                       <td style="font-weight:700;">${sub.studentName} (@${sub.username})</td>

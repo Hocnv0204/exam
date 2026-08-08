@@ -88,9 +88,9 @@ export function renderHomeworkSolverView() {
     const qNum = q.question_number || q.questionNumber
     const type = q.question_type || q.questionType
     if (type === 'MULTIPLE_CHOICE') {
-      studentAnswers.mc[qNum] = 'A'
+      studentAnswers.mc[qNum] = null
     } else if (type === 'TRUE_FALSE') {
-      studentAnswers.tf[qNum] = { a: true, b: true, c: false, d: true }
+      studentAnswers.tf[qNum] = {}
     } else if (type === 'SHORT_ANSWER') {
       studentAnswers.sa[qNum] = ''
     }
@@ -143,7 +143,7 @@ export function renderHomeworkSolverView() {
                     <div style="display:flex; flex-direction:column; gap:8px;">
                       ${mcQuestions.map(q => {
                         const qNum = q.question_number
-                        const selected = studentAnswers.mc[qNum] || 'A'
+                        const selected = studentAnswers.mc[qNum] || null
                         return `
                           <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                             <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
@@ -277,21 +277,21 @@ export function bindHomeworkSolverEvents() {
             questionId: q.id,
             givenAnswer: {
               type: 'MULTIPLE_CHOICE',
-              value: studentAnswers.mc[qNum] || 'A'
+              value: studentAnswers.mc[qNum] || null
             }
           }
         } else if (type === 'TRUE_FALSE') {
-          const tfObj = studentAnswers.tf[qNum] || { a: true, b: true, c: false, d: true }
+          const tfObj = studentAnswers.tf[qNum] || {}
+          const valObj = {}
+          if (tfObj.a !== undefined) valObj.a = tfObj.a
+          if (tfObj.b !== undefined) valObj.b = tfObj.b
+          if (tfObj.c !== undefined) valObj.c = tfObj.c
+          if (tfObj.d !== undefined) valObj.d = tfObj.d
           return {
             questionId: q.id,
             givenAnswer: {
               type: 'TRUE_FALSE',
-              value: {
-                a: tfObj.a !== false,
-                b: tfObj.b !== false,
-                c: tfObj.c !== false,
-                d: tfObj.d !== false
-              }
+              value: valObj
             }
           }
         } else {
@@ -342,10 +342,19 @@ export function bindHomeworkSolverEvents() {
       }
 
       timeLeftSeconds--
+
+      if (timeLeftSeconds === 300) {
+        showToast('Thời gian làm bài của bạn còn lại 5 phút!', 'warning')
+      }
+
       const minutes = Math.floor(timeLeftSeconds / 60)
       const seconds = timeLeftSeconds % 60
       if (timerDisplay) {
         timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        if (timeLeftSeconds <= 300) {
+          timerDisplay.style.color = '#ef4444'
+          timerDisplay.style.fontWeight = '700'
+        }
       }
     }, 1000)
   }
@@ -369,10 +378,14 @@ export function bindHomeworkSolverEvents() {
       const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
       const opt = btn.getAttribute('data-option')
 
-      studentAnswers.mc[qNum] = opt
+      if (studentAnswers.mc[qNum] === opt) {
+        studentAnswers.mc[qNum] = null
+      } else {
+        studentAnswers.mc[qNum] = opt
+      }
 
       document.querySelectorAll(`.student-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
-        const isSel = b.getAttribute('data-option') === opt
+        const isSel = b.getAttribute('data-option') === studentAnswers.mc[qNum]
         b.style.background = isSel ? '#0066cc' : '#ffffff'
         b.style.color = isSel ? '#ffffff' : '#334155'
         b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
@@ -388,16 +401,23 @@ export function bindHomeworkSolverEvents() {
       const val = btn.getAttribute('data-val') === 'true'
 
       if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
-      studentAnswers.tf[qNum][sub] = val
+      
+      if (studentAnswers.tf[qNum][sub] === val) {
+        delete studentAnswers.tf[qNum][sub]
+      } else {
+        studentAnswers.tf[qNum][sub] = val
+      }
 
       const parent = btn.parentElement
       if (parent) {
         parent.querySelectorAll('.student-tf-btn').forEach(b => {
-          const isVal = b.getAttribute('data-val') === (val ? 'true' : 'false')
-          if (isVal) {
-            b.style.background = val ? '#16a34a' : '#dc2626'
+          const btnVal = b.getAttribute('data-val') === 'true'
+          const currentVal = studentAnswers.tf[qNum][sub]
+          const isSel = currentVal !== undefined && currentVal === btnVal
+          if (isSel) {
+            b.style.background = btnVal ? '#16a34a' : '#dc2626'
             b.style.color = '#ffffff'
-            b.style.borderColor = val ? '#16a34a' : '#dc2626'
+            b.style.borderColor = btnVal ? '#16a34a' : '#dc2626'
           } else {
             b.style.background = '#ffffff'
             b.style.color = '#475569'

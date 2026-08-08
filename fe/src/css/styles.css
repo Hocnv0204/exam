@@ -686,7 +686,7 @@ button, input, select, textarea {
 /* Homework Attempt Split Screen (Image 1 of batch 2) */
 .split-homework-layout {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 24px;
   height: calc(100vh - 120px);
 }

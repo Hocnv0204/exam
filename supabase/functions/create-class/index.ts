@@ -57,7 +57,7 @@ serve(async (req: Request) => {
         
         let query = serviceRoleClient
           .from('student_sessions')
-          .select('session_date')
+          .select('session_date, is_paid')
           .eq('student_id', studentId)
           .eq('class_id', classId)
           
@@ -71,7 +71,11 @@ serve(async (req: Request) => {
         const { data: sessions, error } = await query
         if (error) return errorResponse(error.message, 500)
         
-        return jsonResponse((sessions || []).map(s => s.session_date))
+        const formatted = (sessions || []).map(s => ({
+          sessionDate: s.session_date,
+          isPaid: s.is_paid
+        }))
+        return jsonResponse(formatted)
       }
 
       if (user.role === 'ADMIN') {
@@ -189,11 +193,22 @@ serve(async (req: Request) => {
         if (deleteError) return errorResponse(deleteError.message, 500)
         
         if (sessionDates.length > 0) {
-          const inserts = sessionDates.map(date => ({
-            student_id: studentId,
-            class_id: classId,
-            session_date: date
-          }))
+          const inserts = sessionDates.map((s: any) => {
+            if (typeof s === 'string') {
+              return {
+                student_id: studentId,
+                class_id: classId,
+                session_date: s,
+                is_paid: false
+              }
+            }
+            return {
+              student_id: studentId,
+              class_id: classId,
+              session_date: s.date,
+              is_paid: s.isPaid || false
+            }
+          })
           const { error: insertError } = await serviceRoleClient
             .from('student_sessions')
             .insert(inserts)

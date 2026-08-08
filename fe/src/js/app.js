@@ -126,7 +126,8 @@ async function router() {
                 pdfPath: h.pdf_path,
                 durationMinutes: h.duration_minutes,
                 passScore: h.pass_score,
-                maxScore: h.max_score
+                maxScore: h.max_score,
+                deadline: h.deadline
               }))
             } else {
               state.activeLessonHomeworks = []

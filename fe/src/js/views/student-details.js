@@ -4,7 +4,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 
-let selectedSessionDates = new Set()
+let selectedSessionDates = new Map()
 
 export function renderStudentDetailsView() {
   const hashUrl = window.location.hash.replace('#', '')
@@ -188,7 +188,16 @@ export function bindStudentDetailsEvents() {
       try {
         const month = monthPicker.value
         showToast('Đang lưu lịch học...', 'info')
-        await api.setStudentSessions(studentId, classId, Array.from(selectedSessionDates), month)
+        
+        // Filter payload to only save sessions of the current month
+        const payloadDates = Array.from(selectedSessionDates.entries())
+          .filter(([date]) => date.startsWith(month))
+          .map(([date, val]) => ({
+            date,
+            isPaid: val.isPaid
+          }))
+        
+        await api.setStudentSessions(studentId, classId, payloadDates, month)
         showToast('Đã cập nhật lịch học của học sinh thành công!', 'success')
         
         // Recalculate and reload UI
@@ -250,14 +259,17 @@ async function loadStudentSchedule(studentId, classId, month) {
   try {
     // 1. Fetch Student Sessions
     const sessions = await api.getStudentSessions(studentId, classId, month)
-    selectedSessionDates = new Set(sessions)
+    selectedSessionDates = new Map((sessions || []).map(s => [s.sessionDate, { isPaid: s.isPaid }]))
 
     const [year, m] = month.split('-').map(Number)
     const totalDays = new Date(year, m, 0).getDate()
 
     let daysHTML = `
-      <div style="font-size:12px; color:#64748b; margin-bottom:12px;">
-        <i class="fa-solid fa-circle-info"></i> Nhấp chuột vào các ô ngày để gán lịch học cá nhân cho học sinh (màu xanh).
+      <div style="font-size:12px; color:#64748b; margin-bottom:12px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <span><i class="fa-solid fa-circle-info"></i> Click để đổi trạng thái:</span>
+        <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:12px; height:12px; background:#ffffff; border:1px solid #e2e8f0; border-radius:3px;"></span> Trống</span>
+        <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:12px; height:12px; background:#fef3c7; border:1px solid #f59e0b; border-radius:3px;"></span> Chưa đóng tiền</span>
+        <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:12px; height:12px; background:#dcfce7; border:1px solid #10b981; border-radius:3px;"></span> Đã đóng tiền</span>
       </div>
       <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:8px;">
     `
@@ -276,10 +288,28 @@ async function loadStudentSchedule(studentId, classId, month) {
 
     for (let day = 1; day <= totalDays; day++) {
       const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      const isSelected = selectedSessionDates.has(dateStr)
-      const bgColor = isSelected ? '#0066cc' : '#ffffff'
-      const textColor = isSelected ? '#ffffff' : '#334155'
-      const border = isSelected ? '1px solid #0066cc' : '1px solid #e2e8f0'
+      const sessionData = selectedSessionDates.get(dateStr)
+      const isSelected = !!sessionData
+      const isPaid = sessionData ? sessionData.isPaid : false
+
+      let bgColor = '#ffffff'
+      let textColor = '#334155'
+      let border = '1px solid #e2e8f0'
+      let badgeHtml = ''
+
+      if (isSelected) {
+        if (isPaid) {
+          bgColor = '#dcfce7'
+          textColor = '#15803d'
+          border = '1px solid #10b981'
+          badgeHtml = '<span style="font-size: 9px; display: block; font-weight: 800; color: #16a34a; margin-top: 2px;"><i class="fa-solid fa-circle-check"></i> Đã đóng</span>'
+        } else {
+          bgColor = '#fef3c7'
+          textColor = '#b45309'
+          border = '1px solid #f59e0b'
+          badgeHtml = '<span style="font-size: 9px; display: block; font-weight: 800; color: #d97706; margin-top: 2px;"><i class="fa-regular fa-clock"></i> Chưa đóng</span>'
+        }
+      }
 
       daysHTML += `
         <button class="calendar-day-btn" data-date="${dateStr}" style="
@@ -287,16 +317,18 @@ async function loadStudentSchedule(studentId, classId, month) {
           color:${textColor};
           border:${border};
           border-radius:10px;
-          height:42px;
+          height:54px;
           font-weight:700;
           font-size:14px;
           cursor:pointer;
           display:flex;
+          flex-direction:column;
           align-items:center;
           justify-content:center;
           transition: all 0.15s ease;
         " onmouseover="this.style.filter='brightness(0.9)'" onmouseout="this.style.filter='none'">
-          ${day}
+          <span>${day}</span>
+          ${badgeHtml}
         </button>
       `
     }
@@ -308,17 +340,31 @@ async function loadStudentSchedule(studentId, classId, month) {
     document.querySelectorAll('.calendar-day-btn').forEach(btn => {
       btn.onclick = () => {
         const dateStr = btn.getAttribute('data-date')
+        const dayNum = dateStr.split('-')[2]
         const tuitionFee = currentClassTuitionFee()
-        if (selectedSessionDates.has(dateStr)) {
+        
+        const currentData = selectedSessionDates.get(dateStr)
+        if (!currentData) {
+          // Unselected -> Selected & Unpaid
+          selectedSessionDates.set(dateStr, { isPaid: false })
+          btn.style.background = '#fef3c7'
+          btn.style.color = '#b45309'
+          btn.style.border = '1px solid #f59e0b'
+          btn.innerHTML = `<span>${parseInt(dayNum, 10)}</span><span style="font-size: 9px; display: block; font-weight: 800; color: #d97706; margin-top: 2px;"><i class="fa-regular fa-clock"></i> Chưa đóng</span>`
+        } else if (currentData.isPaid === false) {
+          // Selected & Unpaid -> Selected & Paid
+          selectedSessionDates.set(dateStr, { isPaid: true })
+          btn.style.background = '#dcfce7'
+          btn.style.color = '#15803d'
+          btn.style.border = '1px solid #10b981'
+          btn.innerHTML = `<span>${parseInt(dayNum, 10)}</span><span style="font-size: 9px; display: block; font-weight: 800; color: #16a34a; margin-top: 2px;"><i class="fa-solid fa-circle-check"></i> Đã đóng</span>`
+        } else {
+          // Selected & Paid -> Unselected
           selectedSessionDates.delete(dateStr)
           btn.style.background = '#ffffff'
           btn.style.color = '#334155'
           btn.style.border = '1px solid #e2e8f0'
-        } else {
-          selectedSessionDates.add(dateStr)
-          btn.style.background = '#0066cc'
-          btn.style.color = '#ffffff'
-          btn.style.border = '1px solid #0066cc'
+          btn.innerHTML = `<span>${parseInt(dayNum, 10)}</span>`
         }
         updateSummaryMetrics(tuitionFee)
       }
@@ -378,39 +424,33 @@ async function loadStudentSchedule(studentId, classId, month) {
 }
 
 function renderHomeworkStats(container, completed, uncompleted, submissions) {
+  const completedCount = completed.length
+  const uncompletedCount = uncompleted.length
+
   container.innerHTML = `
-    <!-- Stats Cards Grid -->
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:20px;">
-      <!-- Total Homeworks -->
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; display:flex; align-items:center; gap:16px;">
-        <div style="width:48px; height:48px; background:#e2e8f0; color:#475569; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">
-          <i class="fa-solid fa-book"></i>
+    <!-- Charts Section -->
+    <div style="display:grid; grid-template-columns:1fr 2fr; gap:20px; margin-bottom:24px;">
+      <!-- Pie Chart Card -->
+      <div class="card" style="padding:20px; margin:0; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid #e2e8f0; border-radius:16px; background:#ffffff;">
+        <h4 style="font-family:var(--font-heading); font-size:13px; font-weight:700; color:#475569; margin:0 0 16px 0; text-align:center; width:100%; text-transform:uppercase; letter-spacing:0.5px;">
+          Tỷ lệ hoàn thành bài tập
+        </h4>
+        <div style="width:100%; max-width:180px; position:relative; display:flex; justify-content:center;">
+          <canvas id="homework-pie-chart" style="max-height:180px; max-width:180px;"></canvas>
         </div>
-        <div>
-          <div style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase;">Tổng số bài tập</div>
-          <strong style="font-size:20px; color:#1e293b;">${completed.length + uncompleted.length}</strong>
-        </div>
-      </div>
-
-      <!-- Completed -->
-      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px; display:flex; align-items:center; gap:16px;">
-        <div style="width:48px; height:48px; background:#dcfce7; color:#16a34a; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">
-          <i class="fa-solid fa-circle-check"></i>
-        </div>
-        <div>
-          <div style="font-size:12px; color:#16a34a; font-weight:600; text-transform:uppercase;">Bài tập đã làm</div>
-          <strong style="font-size:20px; color:#15803d;">${completed.length}</strong>
+        <div style="display:flex; justify-content:space-around; width:100%; margin-top:20px; font-size:12px; font-weight:700;">
+          <span style="color:#16a34a; background:#f0fdf4; padding:4px 10px; border-radius:8px; border:1px solid #dcfce7;"><i class="fa-solid fa-circle-check"></i> Đã làm: ${completedCount}</span>
+          <span style="color:#e11d48; background:#fff1f2; padding:4px 10px; border-radius:8px; border:1px solid #ffe4e6;"><i class="fa-solid fa-circle-xmark"></i> Chưa làm: ${uncompletedCount}</span>
         </div>
       </div>
 
-      <!-- Uncompleted -->
-      <div style="background:#fff1f2; border:1px solid #fecdd3; border-radius:12px; padding:16px; display:flex; align-items:center; gap:16px;">
-        <div style="width:48px; height:48px; background:#ffe4e6; color:#e11d48; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">
-          <i class="fa-solid fa-circle-xmark"></i>
-        </div>
-        <div>
-          <div style="font-size:12px; color:#e11d48; font-weight:600; text-transform:uppercase;">Bài tập chưa làm</div>
-          <strong style="font-size:20px; color:#be123c;">${uncompleted.length}</strong>
+      <!-- Score Trend Chart Card -->
+      <div class="card" style="padding:20px; margin:0; border:1px solid #e2e8f0; border-radius:16px; background:#ffffff; display:flex; flex-direction:column;">
+        <h4 style="font-family:var(--font-heading); font-size:13px; font-weight:700; color:#475569; margin:0 0 16px 0; text-transform:uppercase; letter-spacing:0.5px;">
+          Đồ thị điểm số qua từng bài làm
+        </h4>
+        <div style="flex-grow:1; min-height:200px; position:relative;">
+          <canvas id="homework-scores-chart" style="height:100%; width:100%;"></canvas>
         </div>
       </div>
     </div>
@@ -418,7 +458,7 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
     <!-- Toggle Action Buttons -->
     <div style="display:flex; gap:12px; margin-bottom:20px;">
       <button id="btn-show-completed" class="btn-secondary" style="padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-        <i class="fa-solid fa-list-check"></i> Xem chi tiết
+        <i class="fa-solid fa-list-check"></i> Xem chi tiết bài đã nộp
       </button>
       <button id="btn-show-uncompleted" class="btn-secondary" style="padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
         <i class="fa-solid fa-list-ol"></i> Xem bài tập chưa làm
@@ -432,6 +472,146 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
   const showCompletedBtn = container.querySelector('#btn-show-completed')
   const showUncompletedBtn = container.querySelector('#btn-show-uncompleted')
   const detailsDiv = container.querySelector('#homework-stats-details')
+
+  // Render Charts
+  setTimeout(() => {
+    // 1. Pie Chart
+    const pieCtx = document.getElementById('homework-pie-chart')?.getContext('2d')
+    if (pieCtx && window.Chart) {
+      new window.Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Đã làm', 'Chưa làm'],
+          datasets: [{
+            data: [completedCount, uncompletedCount],
+            backgroundColor: ['#10b981', '#f43f5e'],
+            borderColor: ['#ffffff', '#ffffff'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
+      })
+    }
+
+    // 2. Score Mixed Chart (Bar + Curve Line)
+    const scoresCtx = document.getElementById('homework-scores-chart')?.getContext('2d')
+    if (scoresCtx && window.Chart) {
+      const sortedSubs = [...submissions].sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt))
+      
+      const labels = sortedSubs.map(s => s.homeworkTitle || 'Bài tập')
+      const scores = sortedSubs.map(s => s.score)
+
+      new window.Chart(scoresCtx, {
+        type: 'bar',
+        data: {
+          labels: labels.length > 0 ? labels : ['Chưa nộp bài nào'],
+          datasets: [
+            {
+              type: 'line',
+              label: 'Đường xu hướng (Điểm)',
+              data: scores.length > 0 ? scores : [0],
+              borderColor: '#f43f5e',
+              borderWidth: 2.5,
+              tension: 0.4,
+              fill: false,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#f43f5e',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              order: 1
+            },
+            {
+              type: 'bar',
+              label: 'Điểm số đạt được',
+              data: scores.length > 0 ? scores : [0],
+              backgroundColor: 'rgba(14, 165, 233, 0.75)',
+              borderColor: '#0284c7',
+              borderWidth: 1,
+              borderRadius: 6,
+              barThickness: 32,
+              order: 2
+            }
+          ]
+        },
+        plugins: [
+          {
+            id: 'chart-value-labels',
+            afterDatasetsDraw(chart) {
+              const { ctx } = chart
+              ctx.save()
+              ctx.font = 'bold 11px sans-serif'
+              ctx.fillStyle = '#0f172a'
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'bottom'
+
+              chart.data.datasets.forEach((dataset, datasetIndex) => {
+                if (dataset.type !== 'line') return
+                const meta = chart.getDatasetMeta(datasetIndex)
+                meta.data.forEach((element, index) => {
+                  const dataValue = dataset.data[index]
+                  if (dataValue !== undefined && dataValue !== null) {
+                    const pos = element.tooltipPosition()
+                    ctx.fillText(dataValue, pos.x, pos.y - 8)
+                  }
+                })
+              })
+              ctx.restore()
+            }
+          }
+        ],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 10,
+              ticks: {
+                stepSize: 2,
+                font: {
+                  weight: '600'
+                }
+              },
+              grid: {
+                color: '#f1f5f9'
+              }
+            },
+            x: {
+              ticks: {
+                font: {
+                  weight: '600'
+                }
+              },
+              grid: {
+                display: false
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                boxWidth: 12,
+                usePointStyle: true,
+                font: {
+                  size: 11,
+                  weight: '600'
+                }
+              }
+            }
+          }
+        }
+      })
+    }
+  }, 50)
 
   let currentView = null
 
@@ -481,6 +661,7 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
                   <th style="padding:12px 16px; text-align:center;">Kết quả</th>
                   <th style="padding:12px 16px;">Thời gian làm bài</th>
                   <th style="padding:12px 16px;">Ngày nộp</th>
+                  <th style="padding:12px 16px; text-align:center;">Hành động</th>
                 </tr>
               </thead>
               <tbody>
@@ -500,6 +681,11 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
                       <td style="padding:12px 16px; text-align:center;">${passStatusHTML}</td>
                       <td style="padding:12px 16px; color:#475569;">${durationText}</td>
                       <td style="padding:12px 16px; color:#64748b;">${subDateStr}</td>
+                      <td style="padding:12px 16px; text-align:center;">
+                        <button class="btn-secondary" onclick="window.location.hash='#assignment-review?submissionId=${sub.submissionId}'" style="padding:4px 10px; font-size:12px; cursor:pointer;">
+                          <i class="fa-solid fa-eye"></i> Xem bài làm
+                        </button>
+                      </td>
                     </tr>
                   `
                 }).join('')}
@@ -562,14 +748,46 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
 }
 
 function updateSummaryMetrics(tuitionFee) {
-  const sessionsCount = selectedSessionDates.size
+  const monthPicker = document.getElementById('details-month-picker')
+  const currentMonth = monthPicker ? monthPicker.value : ''
+  
+  // Filter sessions to only count those belonging to the current month
+  const currentMonthSessions = Array.from(selectedSessionDates.entries())
+    .filter(([date]) => date.startsWith(currentMonth))
+
+  const sessionsCount = currentMonthSessions.length
+  
+  let paidCount = 0
+  for (const [date, val] of currentMonthSessions) {
+    if (val.isPaid) paidCount++
+  }
+  const unpaidCount = sessionsCount - paidCount
   const totalTuition = sessionsCount * tuitionFee
+  const unpaidTuition = unpaidCount * tuitionFee
+  const paidTuition = paidCount * tuitionFee
 
   const sessionsDisplay = document.getElementById('sessions-count-display')
   const tuitionDisplay = document.getElementById('tuition-amount-display')
   const formulaDisplay = document.getElementById('tuition-formula-display')
 
-  if (sessionsDisplay) sessionsDisplay.textContent = `${sessionsCount} Buổi`
-  if (tuitionDisplay) tuitionDisplay.textContent = `${totalTuition.toLocaleString('vi-VN')} VND`
-  if (formulaDisplay) formulaDisplay.textContent = `${sessionsCount} buổi học &times; ${tuitionFee.toLocaleString('vi-VN')} VND/buổi`
+  if (sessionsDisplay) {
+    sessionsDisplay.innerHTML = `
+      <strong>${sessionsCount} Buổi</strong>
+      <div style="font-size:12px; font-weight:600; color:#0369a1; margin-top:4px;">
+        <span style="color:#16a34a;"><i class="fa-solid fa-circle-check"></i> ${paidCount} Đã đóng</span> | 
+        <span style="color:#d97706;"><i class="fa-regular fa-clock"></i> ${unpaidCount} Chưa đóng</span>
+      </div>
+    `
+  }
+  if (tuitionDisplay) {
+    tuitionDisplay.innerHTML = `
+      <strong>${totalTuition.toLocaleString('vi-VN')} VND</strong>
+      <div style="font-size:12px; font-weight:600; color:#047857; margin-top:4px;">
+        Đã đóng: ${paidTuition.toLocaleString('vi-VN')} VND | Còn thiếu: <span style="color:#dc2626; font-weight:700;">${unpaidTuition.toLocaleString('vi-VN')} VND</span>
+      </div>
+    `
+  }
+  if (formulaDisplay) {
+    formulaDisplay.innerHTML = `${sessionsCount} buổi học &times; ${tuitionFee.toLocaleString('vi-VN')} VND/buổi`
+  }
 }

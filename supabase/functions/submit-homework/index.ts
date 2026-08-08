@@ -105,21 +105,38 @@ serve(async (req: Request) => {
     const keyMap = new Map(answerKeys.map((k) => [k.question_id, k]))
     const answerMap = new Map(answers.map((a) => [a.questionId, a.givenAnswer]))
 
-    let totalScore = 0
-    let correctCount = 0
-    let wrongCount = 0
-    const questionReviews: Array<QuestionGradeResult & { questionNumber: number; prompt: string }> = []
-    const submissionAnswersToInsert = []
+    // Determine active grading structure
+    const totalQuestions = questions.length
+    const mcCount = questions.filter(q => q.question_type === 'MULTIPLE_CHOICE').length
+    const tfCount = questions.filter(q => q.question_type === 'TRUE_FALSE').length
+    const saCount = questions.filter(q => q.question_type === 'SHORT_ANSWER').length
+
+    const isAllMC = mcCount === totalQuestions
+    const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
+    const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
 
     // 4. Grade each question
     for (const q of questions) {
       const key = keyMap.get(q.id)
       const given = answerMap.get(q.id) || { type: q.question_type, value: null }
 
+      let customPoints = q.points
+      if (isAllMC) {
+        customPoints = 10 / totalQuestions
+      } else if (isStructureB) {
+        if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
+        else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
+        else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.5
+      } else if (isStructureC) {
+        if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.5
+        else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
+        else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.25
+      }
+
       const gradeResult = gradeQuestion({
         questionId: q.id,
         questionType: q.question_type,
-        points: q.points,
+        points: customPoints,
         mcAnswer: key?.mc_answer || null,
         tfAnswers: (key?.tf_answers as unknown as TrueFalseStatementAnswer) || null,
         saAnswer: key?.sa_answer !== null && key?.sa_answer !== undefined ? key.sa_answer : null,
@@ -128,9 +145,22 @@ serve(async (req: Request) => {
         givenAnswer: given,
       })
 
+      // Custom non-linear grading for True/False questions under Structure B and C
+      if ((isStructureB || isStructureC) && q.question_type === 'TRUE_FALSE') {
+        const correctCountForTF = gradeResult.correctCount ?? 0
+        let customScoreEarned = 0
+        if (correctCountForTF === 1) customScoreEarned = 0.1
+        else if (correctCountForTF === 2) customScoreEarned = 0.25
+        else if (correctCountForTF === 3) customScoreEarned = 0.5
+        else if (correctCountForTF === 4) customScoreEarned = 1.0
+        
+        gradeResult.scoreEarned = customScoreEarned
+        gradeResult.isCorrect = correctCountForTF === 4
+      }
+
       totalScore += gradeResult.scoreEarned
-      correctCount += gradeResult.correctCount ?? (gradeResult.isCorrect ? 1 : 0)
-      wrongCount += gradeResult.wrongCount ?? (gradeResult.isCorrect ? 0 : 1)
+      correctCount += gradeResult.isCorrect ? 1 : 0
+      wrongCount += gradeResult.isCorrect ? 0 : 1
 
       questionReviews.push({
         questionNumber: q.question_number,
@@ -148,7 +178,12 @@ serve(async (req: Request) => {
       })
     }
 
-    const finalScore = Number(totalScore.toFixed(2))
+    let finalScore = totalScore
+    if (isAllMC) {
+      finalScore = Math.round((correctCount / totalQuestions) * 10 * 10) / 10
+    } else {
+      finalScore = Number(totalScore.toFixed(2))
+    }
 
     // 5. Save Submission record
     const { data: submission, error: subError } = await serviceRoleClient

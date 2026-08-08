@@ -153,7 +153,7 @@ export const submittedAnswerItemSchema = z.object({
   givenAnswer: z.discriminatedUnion('type', [
     z.object({
       type: z.literal('MULTIPLE_CHOICE'),
-      value: z.enum(['A', 'B', 'C', 'D']),
+      value: z.enum(['A', 'B', 'C', 'D']).or(z.literal('')).nullable().optional(),
     }),
     z.object({
       type: z.literal('TRUE_FALSE'),

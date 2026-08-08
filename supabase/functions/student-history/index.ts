@@ -142,6 +142,16 @@ serve(async (req: Request) => {
 
       if (ansErr) return errorResponse(ansErr.message, 500)
 
+      // Count types to determine the active grading structure for this homework
+      const totalQuestions = answers.length
+      const mcCount = (answers || []).filter(ans => (ans.questions as any)?.question_type === 'MULTIPLE_CHOICE').length
+      const tfCount = (answers || []).filter(ans => (ans.questions as any)?.question_type === 'TRUE_FALSE').length
+      const saCount = (answers || []).filter(ans => (ans.questions as any)?.question_type === 'SHORT_ANSWER').length
+
+      const isAllMC = mcCount === totalQuestions
+      const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
+      const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
+
       const formattedAnswers = (answers || []).map((ans) => {
         const q = ans.questions as unknown as {
           question_number: number
@@ -159,13 +169,26 @@ serve(async (req: Request) => {
         const qaRaw = q?.question_answers
         const qa = Array.isArray(qaRaw) ? qaRaw[0] : qaRaw
 
+        let customPoints = q?.points || 1.0
+        if (isAllMC) {
+          customPoints = 10 / totalQuestions
+        } else if (isStructureB) {
+          if (q?.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
+          else if (q?.question_type === 'TRUE_FALSE') customPoints = 1.0
+          else if (q?.question_type === 'SHORT_ANSWER') customPoints = 0.5
+        } else if (isStructureC) {
+          if (q?.question_type === 'MULTIPLE_CHOICE') customPoints = 0.5
+          else if (q?.question_type === 'TRUE_FALSE') customPoints = 1.0
+          else if (q?.question_type === 'SHORT_ANSWER') customPoints = 0.25
+        }
+
         // Run grading to retrieve statementGrades and detailed feedback
         let statementGrades: unknown = null
         if (q && qa) {
           const gradeResult = gradeQuestion({
             questionId: ans.question_id,
             questionType: q.question_type as any,
-            points: q.points || 1.0,
+            points: customPoints,
             mcAnswer: qa.mc_answer || null,
             tfAnswers: qa.tf_answers as any || null,
             saAnswer: qa.sa_answer || null,
@@ -194,7 +217,7 @@ serve(async (req: Request) => {
           givenAnswer: ans.given_answer,
           isCorrect: ans.is_correct,
           scoreEarned: Number(ans.score_earned),
-          pointsPossible: q?.points || 1.0,
+          pointsPossible: customPoints,
           correctAnswerSummary,
           feedback: ans.is_correct ? 'Correct' : 'Incorrect',
           statementGrades,
