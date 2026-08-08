@@ -62,7 +62,7 @@ export function bindLoginEvents() {
     try {
       showToast('Đang xác thực với hệ thống Supabase Auth...', 'info')
       const data = await api.login(username, password)
-      setSession(data.user, data.accessToken)
+      setSession(data.user, data.accessToken, data.refreshToken)
       showToast('Xin chào, đăng nhập thành công!', 'success')
       window.location.hash = data.user.role === 'ADMIN' ? '#admin-dashboard' : '#my-classes'
     } catch (err) {

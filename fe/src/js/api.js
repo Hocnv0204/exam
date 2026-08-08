@@ -1,4 +1,4 @@
-import { state, logout } from './state.js'
+import { state, logout, setSession } from './state.js'
 
 // Supabase URL from Vite environment variables (falls back to local dev URL)
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
@@ -7,6 +7,7 @@ const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 
 let activeRequests = 0
 let loadingOverlay = null
+let isRefreshing = false
 
 function showLoading() {
   activeRequests++
@@ -47,14 +48,50 @@ async function request(endpoint, options = {}) {
 
   showLoading()
   try {
-    const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
+    let response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
       ...options,
       headers
     })
 
     if (response.status === 401) {
-      logout()
-      throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+      // If we have a refresh token and we're not currently refreshing, try to refresh
+      if (state.refreshToken && !isRefreshing && endpoint !== 'refresh-token') {
+        isRefreshing = true
+        try {
+          console.log('[API] Access Token expired. Attempting silent token refresh...')
+          const refreshRes = await fetch(`${SUPABASE_FUNCTIONS_URL}/refresh-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: state.refreshToken })
+          })
+
+          if (refreshRes.ok) {
+            const refreshResult = await refreshRes.json()
+            if (refreshResult.success && refreshResult.data) {
+              const { accessToken, refreshToken } = refreshResult.data
+              setSession(state.user, accessToken, refreshToken)
+              console.log('[API] Silent token refresh successful!')
+
+              // Retry the original request with the new access token
+              headers['Authorization'] = `Bearer ${accessToken}`
+              response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
+                ...options,
+                headers
+              })
+            }
+          }
+        } catch (refreshErr) {
+          console.error('[API] Silent token refresh failed:', refreshErr)
+        } finally {
+          isRefreshing = false
+        }
+      }
+
+      // If we still get a 401, logout
+      if (response.status === 401) {
+        logout()
+        throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+      }
     }
 
     const result = await response.json()
