@@ -37,6 +37,134 @@ function hideLoading() {
 }
 
 async function request(endpoint, options = {}) {
+  // Mock mode interceptor for demo student account
+  if (state.token === 'mock_student_token') {
+    console.log(`[API Mock] Intercepting endpoint: ${endpoint}`)
+    if (endpoint.startsWith('create-homework?todoOnly=true')) {
+      return Promise.resolve([
+        {
+          id: 'mock-hw-1',
+          title: 'Bài tập Demo trắc nghiệm & tự luận',
+          deadline: new Date(Date.now() + 86400000).toISOString(),
+          durationMinutes: 45,
+          maxAttempts: 3,
+          lessonTitle: 'Bài học mẫu',
+          chapterTitle: 'Chương mẫu',
+          className: 'Lớp học mẫu 12A'
+        }
+      ])
+    }
+    if (endpoint.startsWith('create-class')) {
+      return Promise.resolve([
+        {
+          id: 'c1',
+          name: 'Lớp học mẫu 12A',
+          description: 'Lớp học demo cho học sinh'
+        }
+      ])
+    }
+    if (endpoint.startsWith('student-history')) {
+      return Promise.resolve({
+        studentId: 's1',
+        totalSubmissions: 1,
+        history: [
+          {
+            id: 'mock-sub-1',
+            homeworkTitle: 'Bài tập ôn tập số 1',
+            score: 8.5,
+            maxScore: 10,
+            passScore: 5,
+            isPassed: true,
+            correctCount: 8,
+            wrongCount: 2,
+            durationSecondsTaken: 150,
+            submittedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+            lessonTitle: 'Lý thuyết cơ bản',
+            chapterTitle: 'Chương 1',
+            className: 'Lớp học mẫu 12A'
+          }
+        ]
+      })
+    }
+    if (endpoint.startsWith('homework-detail')) {
+      return Promise.resolve({
+        id: 'mock-hw-1',
+        title: 'Bài tập Demo trắc nghiệm & tự luận',
+        durationMinutes: 45,
+        questions: [
+          {
+            id: 'q1',
+            question_number: 1,
+            question_type: 'MULTIPLE_CHOICE',
+            prompt: 'Đáp án nào đúng nhất?',
+            points: 1
+          },
+          {
+            id: 'q2',
+            question_number: 2,
+            question_type: 'TRUE_FALSE',
+            prompt: 'Chọn Đúng hoặc Sai cho các phát biểu sau:',
+            points: 1
+          },
+          {
+            id: 'q3',
+            question_number: 3,
+            question_type: 'SHORT_ANSWER',
+            prompt: 'Kết quả của 1 + 1 bằng bao nhiêu?',
+            points: 1
+          }
+        ]
+      })
+    }
+    if (endpoint.startsWith('submit-homework')) {
+      return Promise.resolve({
+        submission: {
+          id: "mock-submission-id",
+          homeworkTitle: "Bài tập Demo",
+          studentName: state.user?.fullName || "Nguyễn Văn An",
+          score: 8.5,
+          maxScore: 10,
+          passScore: 5,
+          correctCount: 2,
+          wrongCount: 1,
+          durationSecondsTaken: 120,
+          submittedAt: new Date().toISOString(),
+          pdfUrl: ""
+        },
+        questionReview: [
+          {
+            questionNumber: 1,
+            prompt: "Đáp án nào đúng nhất?",
+            questionType: "MULTIPLE_CHOICE",
+            givenAnswer: { type: "MULTIPLE_CHOICE", value: "A" },
+            isCorrect: true,
+            scoreEarned: 1.0,
+            pointsPossible: 1.0
+          },
+          {
+            questionNumber: 2,
+            prompt: "Chọn Đúng hoặc Sai cho các phát biểu sau:",
+            questionType: "TRUE_FALSE",
+            givenAnswer: { type: "TRUE_FALSE", value: { a: true, b: false, c: true, d: false } },
+            isCorrect: false,
+            scoreEarned: 0.5,
+            pointsPossible: 1.0
+          },
+          {
+            questionNumber: 3,
+            prompt: "Kết quả của 1 + 1 bằng bao nhiêu?",
+            questionType: "SHORT_ANSWER",
+            givenAnswer: { type: "SHORT_ANSWER", value: "2" },
+            isCorrect: true,
+            scoreEarned: 1.0,
+            pointsPossible: 1.0
+          }
+        ]
+      })
+    }
+    return Promise.resolve([])
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {})
