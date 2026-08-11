@@ -28,7 +28,7 @@ serve(async (req: Request) => {
           .eq('id', chapterId)
           .single()
 
-        if (chErr || !chapter || chapter.class_id !== user.classId) {
+        if (chErr || !chapter || !user.classIds.includes(chapter.class_id)) {
           return errorResponse('Forbidden: You can only view lessons under your enrolled class', 403)
         }
       }
@@ -57,7 +57,7 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { chapterId, title, orderIndex, content } = validation.data
+      const { chapterId, title, orderIndex, content, videoUrl, theoryFiles } = validation.data
 
       const { data: lesson, error } = await serviceRoleClient
         .from('lessons')
@@ -66,6 +66,8 @@ serve(async (req: Request) => {
           title,
           order_index: orderIndex,
           content: content || null,
+          video_url: videoUrl || null,
+          theory_files: theoryFiles || [],
         })
         .select()
         .single()
@@ -82,11 +84,13 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { lessonId, title, orderIndex, content } = validation.data
+      const { lessonId, title, orderIndex, content, videoUrl, theoryFiles } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (title) updateData.title = title
       if (orderIndex !== undefined) updateData.order_index = orderIndex
       if (content !== undefined) updateData.content = content
+      if (videoUrl !== undefined) updateData.video_url = videoUrl
+      if (theoryFiles !== undefined) updateData.theory_files = theoryFiles
 
       const { data: updatedLesson, error } = await serviceRoleClient
         .from('lessons')

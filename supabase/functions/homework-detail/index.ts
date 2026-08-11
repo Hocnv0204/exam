@@ -32,6 +32,8 @@ serve(async (req: Request) => {
         max_score,
         is_published,
         created_at,
+        deadline,
+        max_attempts,
         lessons (
           title,
           chapter_id,
@@ -57,12 +59,26 @@ serve(async (req: Request) => {
       if (!homework.is_published) {
         return errorResponse('Homework is not published', 403)
       }
-      if (user.classId !== homeworkClassId) {
+      if (!user.classIds || !user.classIds.includes(homeworkClassId)) {
         return errorResponse('Forbidden: You do not have access to this class homework', 403)
       }
     }
 
-    // 3. Generate Signed URL for PDF storage file
+    // 3. Count attempts for STUDENT
+    let attemptsCount = 0
+    if (user.role === 'STUDENT') {
+      const { count, error: countErr } = await serviceRoleClient
+        .from('submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('homework_id', homeworkId)
+        .eq('student_id', user.id)
+
+      if (!countErr && count !== null) {
+        attemptsCount = count
+      }
+    }
+
+    // 4. Generate Signed URL for PDF storage file
     let pdfUrl = homework.pdf_path
     if (!pdfUrl.startsWith('http')) {
       const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
@@ -74,7 +90,7 @@ serve(async (req: Request) => {
       }
     }
 
-    // 4. Fetch Questions
+    // 5. Fetch Questions
     const { data: questions, error: qErr } = await serviceRoleClient
       .from('questions')
       .select('id, question_number, question_type, prompt, points')
@@ -85,7 +101,7 @@ serve(async (req: Request) => {
       return errorResponse(qErr.message, 500)
     }
 
-    // 5. Security Enforcer: Answer keys inclusion based on Role
+    // 6. Security Enforcer: Answer keys inclusion based on Role
     let questionsResult = questions
 
     if (user.role === 'ADMIN') {
@@ -116,10 +132,16 @@ serve(async (req: Request) => {
         maxScore: homework.max_score,
         isPublished: homework.is_published,
         createdAt: homework.created_at,
+        deadline: homework.deadline,
+        maxAttempts: homework.max_attempts,
         lessonTitle: (homework.lessons as unknown as { title: string })?.title,
         chapterTitle: (homework.lessons as unknown as { chapters: { title: string } })?.chapters?.title,
+        lessonId: homework.lesson_id,
+        chapterId: (homework.lessons as unknown as { chapter_id: string })?.chapter_id,
+        classId: homeworkClassId,
       },
       questions: questionsResult,
+      attemptsCount,
     })
   } catch (err: unknown) {
     const error = err as Error

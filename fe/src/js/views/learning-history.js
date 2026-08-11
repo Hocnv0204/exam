@@ -2,11 +2,49 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 
+let selectedClassId = ''
+let selectedChapterId = ''
+let selectedLessonId = ''
+let searchQuery = ''
+
 export function renderLearningHistoryView() {
   const submissions = state.submissions
-  const totalSubmissions = submissions.length
+
+  // Unique Classes list extracted from history
+  const uniqueClasses = Array.from(
+    new Map(submissions.filter(s => s.classId).map(s => [s.classId, s.className])).entries()
+  ).map(([id, name]) => ({ id, name }))
+
+  // Unique Chapters list filtered by selectedClassId
+  const uniqueChapters = Array.from(
+    new Map(
+      submissions
+        .filter(s => s.chapterId && (!selectedClassId || s.classId === selectedClassId))
+        .map(s => [s.chapterId, s.chapterTitle])
+    ).entries()
+  ).map(([id, title]) => ({ id, title }))
+
+  // Unique Lessons list filtered by selectedClassId and selectedChapterId
+  const uniqueLessons = Array.from(
+    new Map(
+      submissions
+        .filter(s => s.lessonId && (!selectedClassId || s.classId === selectedClassId) && (!selectedChapterId || s.chapterId === selectedChapterId))
+        .map(s => [s.lessonId, s.lesson])
+    ).entries()
+  ).map(([id, title]) => ({ id, title }))
+
+  // Filter submissions list based on selections
+  const filteredSubmissions = submissions.filter(sub => {
+    const matchesClass = !selectedClassId || sub.classId === selectedClassId
+    const matchesChapter = !selectedChapterId || sub.chapterId === selectedChapterId
+    const matchesLesson = !selectedLessonId || sub.lessonId === selectedLessonId
+    const matchesSearch = !searchQuery || sub.homeworkTitle.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesClass && matchesChapter && matchesLesson && matchesSearch
+  })
+
+  const totalSubmissions = filteredSubmissions.length
   const avgProgress = totalSubmissions > 0
-    ? Math.round((submissions.reduce((acc, s) => acc + (s.score / (s.maxScore || 10)), 0) / totalSubmissions) * 100)
+    ? Math.round((filteredSubmissions.reduce((acc, s) => acc + (s.score / (s.maxScore || 10)), 0) / totalSubmissions) * 100)
     : 0
 
   return `
@@ -36,16 +74,32 @@ export function renderLearningHistoryView() {
           <!-- Table Container -->
           <div class="card">
             <!-- Filter Bar -->
-            <div style="display:flex; gap:16px; margin-bottom:20px; align-items:center;">
-              <div class="search-box" style="width:320px;">
+            <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; align-items:center;">
+              <div class="search-box" style="width:240px;">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" placeholder="Tìm tên bài tập...">
+                <input type="text" id="search-hw-input" placeholder="Tìm tên bài tập..." value="${searchQuery}">
               </div>
-              <button class="btn-primary" style="width:auto; padding:8px 16px;"><i class="fa-solid fa-check"></i> Đã hoàn thành</button>
-              <select style="padding:8px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:14px; outline:none; background:#ffffff;">
-                <option>Chương</option>
+              
+              <!-- Class Filter -->
+              <select id="filter-class-select" style="padding:8px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:13px; outline:none; background:#ffffff; font-weight:600; color:#475569; cursor:pointer;">
+                <option value="">Tất cả Lớp học</option>
+                ${uniqueClasses.map(c => `<option value="${c.id}" ${c.id === selectedClassId ? 'selected' : ''}>Lớp: ${c.name}</option>`).join('')}
               </select>
-              <button class="btn-secondary"><i class="fa-regular fa-calendar"></i> Khoảng thời gian</button>
+
+              <!-- Chapter Filter -->
+              <select id="filter-chapter-select" style="padding:8px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:13px; outline:none; background:#ffffff; font-weight:600; color:#475569; cursor:pointer;">
+                <option value="">Tất cả Chương</option>
+                ${uniqueChapters.map(ch => `<option value="${ch.id}" ${ch.id === selectedChapterId ? 'selected' : ''}>Chương: ${ch.title}</option>`).join('')}
+              </select>
+
+              <!-- Lesson Filter -->
+              <select id="filter-lesson-select" style="padding:8px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:13px; outline:none; background:#ffffff; font-weight:600; color:#475569; cursor:pointer;">
+                <option value="">Tất cả Bài học</option>
+                ${uniqueLessons.map(l => `<option value="${l.id}" ${l.id === selectedLessonId ? 'selected' : ''}>Bài: ${l.title}</option>`).join('')}
+              </select>
+
+              <!-- Completed Status (Visual indicator) -->
+              <button class="btn-primary" style="width:auto; padding:8px 16px; font-size:13px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Đã hoàn thành</button>
             </div>
 
             <!-- Table -->
@@ -62,7 +116,7 @@ export function renderLearningHistoryView() {
                   </tr>
                 </thead>
                 <tbody>
-                  ${submissions.map(sub => {
+                  ${filteredSubmissions.map(sub => {
                     const isPassed = sub.isPassed !== false
                     return `
                       <tr>
@@ -112,4 +166,53 @@ export function renderLearningHistoryView() {
 
 export function bindLearningHistoryEvents() {
   bindSidebarEvents()
+
+  const app = document.getElementById('app')
+
+  // Search input event
+  const searchInput = document.getElementById('search-hw-input')
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value
+      if (app) {
+        app.innerHTML = renderLearningHistoryView()
+        bindLearningHistoryEvents()
+        const newSearchInput = document.getElementById('search-hw-input')
+        if (newSearchInput) {
+          newSearchInput.focus()
+          newSearchInput.setSelectionRange(searchQuery.length, searchQuery.length)
+        }
+      }
+    })
+  }
+
+  // Class select event
+  document.getElementById('filter-class-select')?.addEventListener('change', (e) => {
+    selectedClassId = e.target.value
+    selectedChapterId = ''
+    selectedLessonId = ''
+    if (app) {
+      app.innerHTML = renderLearningHistoryView()
+      bindLearningHistoryEvents()
+    }
+  })
+
+  // Chapter select event
+  document.getElementById('filter-chapter-select')?.addEventListener('change', (e) => {
+    selectedChapterId = e.target.value
+    selectedLessonId = ''
+    if (app) {
+      app.innerHTML = renderLearningHistoryView()
+      bindLearningHistoryEvents()
+    }
+  })
+
+  // Lesson select event
+  document.getElementById('filter-lesson-select')?.addEventListener('change', (e) => {
+    selectedLessonId = e.target.value
+    if (app) {
+      app.innerHTML = renderLearningHistoryView()
+      bindLearningHistoryEvents()
+    }
+  })
 }

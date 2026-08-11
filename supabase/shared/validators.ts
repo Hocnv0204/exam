@@ -11,13 +11,16 @@ export const createStudentSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   fullName: z.string().min(1, 'Full name is required'),
-  classId: z.string().uuid('Invalid Class ID'),
+  classId: z.string().uuid('Invalid Class ID').optional(),
+  classIds: z.array(z.string().uuid('Invalid Class ID')).optional(),
 })
 
 export const updateStudentSchema = z.object({
   studentId: z.string().uuid('Invalid Student ID'),
   fullName: z.string().min(1).optional(),
   classId: z.string().uuid('Invalid Class ID').optional(),
+  classIds: z.array(z.string().uuid('Invalid Class ID')).optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional().nullable(),
 })
 
 export const deleteStudentSchema = z.object({
@@ -33,12 +36,14 @@ export const resetPasswordSchema = z.object({
 export const createClassSchema = z.object({
   name: z.string().min(1, 'Class name is required'),
   description: z.string().optional(),
+  tuitionFee: z.number().nonnegative().optional().default(0),
 })
 
 export const updateClassSchema = z.object({
   classId: z.string().uuid('Invalid Class ID'),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  tuitionFee: z.number().nonnegative().optional(),
 })
 
 export const deleteClassSchema = z.object({
@@ -68,6 +73,8 @@ export const createLessonSchema = z.object({
   title: z.string().min(1, 'Lesson title is required'),
   orderIndex: z.number().int().optional().default(0),
   content: z.string().optional(),
+  videoUrl: z.string().optional().nullable(),
+  theoryFiles: z.array(z.string()).optional().nullable(),
 })
 
 export const updateLessonSchema = z.object({
@@ -75,6 +82,8 @@ export const updateLessonSchema = z.object({
   title: z.string().min(1).optional(),
   orderIndex: z.number().int().optional(),
   content: z.string().optional(),
+  videoUrl: z.string().optional().nullable(),
+  theoryFiles: z.array(z.string()).optional().nullable(),
 })
 
 export const deleteLessonSchema = z.object({
@@ -116,6 +125,8 @@ export const createHomeworkSchema = z.object({
   maxScore: z.number().positive().optional().default(10),
   isPublished: z.boolean().optional().default(true),
   questions: z.array(questionInputSchema).min(1, 'At least one question is required'),
+  deadline: z.string().optional().nullable(),
+  maxAttempts: z.number().int().nonnegative().optional().nullable(),
 })
 
 export const updateHomeworkSchema = z.object({
@@ -128,6 +139,8 @@ export const updateHomeworkSchema = z.object({
   maxScore: z.number().positive().optional(),
   isPublished: z.boolean().optional(),
   questions: z.array(questionInputSchema).optional(),
+  deadline: z.string().optional().nullable(),
+  maxAttempts: z.number().int().nonnegative().optional().nullable(),
 })
 
 export const deleteHomeworkSchema = z.object({
@@ -140,7 +153,7 @@ export const submittedAnswerItemSchema = z.object({
   givenAnswer: z.discriminatedUnion('type', [
     z.object({
       type: z.literal('MULTIPLE_CHOICE'),
-      value: z.enum(['A', 'B', 'C', 'D']),
+      value: z.enum(['A', 'B', 'C', 'D']).or(z.literal('')).nullable().optional(),
     }),
     z.object({
       type: z.literal('TRUE_FALSE'),

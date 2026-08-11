@@ -3,7 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
-import { api } from '../api.js'
+import { api, SUPABASE_URL } from '../api.js'
 
 let activeClassId = state.classes[0]?.id || 'c1'
 let isLoadingCurriculum = false
@@ -196,6 +196,9 @@ function renderChapterCard(ch) {
         </div>
         <div style="display:flex; align-items:center; gap:12px;">
           <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="color:#64748b; font-size:14px;"></i>
+          <button class="btn-edit-chapter" data-id="${ch.id}" data-title="${ch.title}" title="Sửa tên chương" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;" onclick="event.stopPropagation();">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
           <button class="btn-delete-chapter" data-id="${ch.id}" title="Xóa chương" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;" onclick="event.stopPropagation();">
             <i class="fa-solid fa-trash"></i>
           </button>
@@ -222,8 +225,8 @@ function renderChapterCard(ch) {
                   <div>
                     <div style="font-weight:600; font-size:14px; color:#0f172a;">${l.title}</div>
                     <div style="font-size:12px; color:#64748b;">
-                      <i class="fa-regular fa-file"></i> ${l.homeworks ? `${l.homeworks.length} Bài tập` : 'Nhấp để hiển thị bài tập'} &nbsp;•&nbsp; 
-                      <i class="fa-solid fa-paperclip"></i> ${l.refCount || 0} Tài liệu
+                      <i class="fa-regular fa-file"></i> ${l.homeworks ? `${l.homeworks.length} Bài tập` : 'Nhấp để hiển thị chi tiết'} &nbsp;•&nbsp; 
+                      <i class="fa-solid fa-paperclip"></i> ${l.theoryFiles ? l.theoryFiles.length : 0} Tài liệu
                     </div>
                   </div>
                 </div>
@@ -233,25 +236,60 @@ function renderChapterCard(ch) {
                 </div>
               </div>
               
-              <!-- Homework list under this lesson -->
-              <div style="display: ${isLSelected ? 'flex' : 'none'}; flex-direction:column; gap:6px; margin-left:40px; padding-left:12px; border-left:2px solid #e2e8f0; margin-top:4px;">
-                ${isHwLoading ? `
-                  <div style="color:#64748b; font-size:13px; padding:4px 0;">
-                    <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc; margin-right:6px;"></i> Đang tải bài tập...
-                  </div>
-                ` : (lessonHomeworks.length > 0 ? lessonHomeworks.map(hw => `
-                  <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 12px; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px;">
-                    <div style="font-size:13px; font-weight:500; color:#475569;">
-                      <i class="fa-solid fa-file-signature" style="color:#64748b; font-size:11px; margin-right:4px;"></i>
-                      ${hw.title} <span style="font-size:11px; color:#94a3b8;">(${hw.durationMinutes || 45} phút)</span>
+              <!-- Lesson Details Expanded panel -->
+              <div style="display: ${isLSelected ? 'flex' : 'none'}; flex-direction:column; gap:10px; margin-left:40px; padding:10px 12px; border-left:2px solid #0066cc; background:#ffffff; border-radius:8px; margin-top:4px;">
+                <!-- Video Link -->
+                <div style="font-size:13px; color:#475569;">
+                  <strong style="color:#0f172a;"><i class="fa-solid fa-video" style="color:#0066cc;"></i> Video bài giảng:</strong> 
+                  ${l.videoUrl ? `<a href="${l.videoUrl}" target="_blank" style="color:#0066cc; text-decoration:underline; font-family:monospace; word-break:break-all;">${l.videoUrl}</a>` : '<span style="color:#94a3b8; font-style:italic;">Chưa gắn link video</span>'}
+                </div>
+
+                <!-- Theory Files List -->
+                <div style="font-size:13px; color:#475569;">
+                  <strong style="color:#0f172a;"><i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Tài liệu lý thuyết (${l.theoryFiles ? l.theoryFiles.length : 0}):</strong>
+                  ${(!l.theoryFiles || l.theoryFiles.length === 0) ? '<span style="color:#94a3b8; font-style:italic;">Chưa có tài liệu lý thuyết</span>' : `
+                    <div style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">
+                      ${l.theoryFiles.map(file => {
+                        const disp = file.split('_').slice(1).join('_') || file
+                        const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+                        const mappedUrl = fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+                        return `
+                          <div style="font-family:monospace; background:#f8fafc; border:1px solid #e2e8f0; padding:4px 8px; border-radius:6px; font-size:12px; display:inline-flex; align-items:center; gap:8px; width:fit-content;">
+                            <i class="fa-solid fa-paperclip"></i> 
+                            <span>${disp}</span>
+                            <span style="color:#0066cc; margin-left:4px; display:inline-flex; align-items:center; cursor:pointer;" title="Xem tài liệu" onclick="window.openModal('${disp}', '<iframe src=&quot;${mappedUrl}&quot; style=&quot;width:100%; height:70vh; border:none; border-radius:8px; background:#f8fafc;&quot;></iframe>'); const mc = document.querySelector('#modal-container .modal-content'); if (mc) mc.style.maxWidth = '900px';">
+                              <i class="fa-solid fa-eye"></i>
+                            </span>
+                          </div>
+                        `
+                      }).join('')}
                     </div>
-                    <button class="btn-secondary btn-edit-homework" data-id="${hw.id}" style="padding:2px 8px; font-size:11px; cursor:pointer; background:#f8fafc; border-color:#cbd5e1;">
-                      <i class="fa-solid fa-wrench"></i> Sửa
-                    </button>
+                  `}
+                </div>
+
+                <!-- Homework list -->
+                <div style="font-size:13px; color:#475569;">
+                  <strong style="color:#0f172a;"><i class="fa-solid fa-list-check" style="color:#10b981;"></i> Danh sách bài tập:</strong>
+                  <div style="display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+                    ${isHwLoading ? `
+                      <div style="color:#64748b; font-size:12px; padding:4px 0;">
+                        <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc; margin-right:6px;"></i> Đang tải bài tập...
+                      </div>
+                    ` : (lessonHomeworks.length > 0 ? lessonHomeworks.map(hw => `
+                      <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
+                        <div style="font-size:12px; font-weight:500; color:#475569;">
+                          <i class="fa-solid fa-file-signature" style="color:#64748b; font-size:11px; margin-right:4px;"></i>
+                          ${hw.title} <span style="font-size:11px; color:#94a3b8;">(${hw.durationMinutes || 45} phút)</span>
+                        </div>
+                        <button class="btn-secondary btn-edit-homework" data-id="${hw.id}" style="padding:2px 8px; font-size:11px; cursor:pointer; background:#ffffff; border-color:#cbd5e1;">
+                          <i class="fa-solid fa-wrench"></i> Sửa
+                        </button>
+                      </div>
+                    `).join('') : `
+                      <div style="color:#94a3b8; font-size:12px; padding:4px 0; font-style:italic;">Chưa có bài tập nào</div>
+                    `)}
                   </div>
-                `).join('') : `
-                  <div style="color:#94a3b8; font-size:13px; padding:4px 0;">Chưa có bài tập nào</div>
-                `)}
+                </div>
               </div>
             </div>
           `
@@ -351,17 +389,52 @@ export function bindCurriculumEvents() {
 
       if (!ch) return
 
+      let uploadedTheoryFiles = []
+
+      const renderFilesList = () => {
+        const listContainer = document.getElementById('modal-uploaded-files-list')
+        if (!listContainer) return
+        if (uploadedTheoryFiles.length === 0) {
+          listContainer.innerHTML = '<span style="font-size:12px; color:#64748b; font-style:italic;">Chưa tải lên tài liệu lý thuyết nào.</span>'
+          return
+        }
+        listContainer.innerHTML = uploadedTheoryFiles.map((file, idx) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:8px; font-size:13px; color:#334155; margin-bottom:6px;">
+            <span style="font-weight:500; font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:260px;"><i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> ${file.split('_').slice(1).join('_') || file}</span>
+            <button class="btn-remove-theory-file" data-index="${idx}" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i class="fa-solid fa-times"></i></button>
+          </div>
+        `).join('')
+        
+        listContainer.querySelectorAll('.btn-remove-theory-file').forEach(btnRem => {
+          btnRem.onclick = () => {
+            const index = parseInt(btnRem.getAttribute('data-index'), 10)
+            uploadedTheoryFiles.splice(index, 1)
+            renderFilesList()
+          }
+        })
+      }
+
       const modalHTML = `
-        <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; flex-direction:column; gap:14px; min-width:380px;">
           <div>
             <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài học <span style="color:#ef4444;">*</span></label>
             <input type="text" id="modal-lesson-title" class="form-input" placeholder="Ví dụ: Ôn tập đại số cơ bản" required>
+          </div>
+          <div>
+            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Link Video (Drive/Youtube)</label>
+            <input type="text" id="modal-lesson-video" class="form-input" placeholder="Dán link youtube hoặc drive vào đây">
+          </div>
+          <div>
+            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tài liệu lý thuyết (PDF)</label>
+            <input type="file" id="modal-lesson-file-input" class="form-input" accept=".pdf" style="padding:6px;">
+            <div id="modal-uploaded-files-list" style="margin-top:10px; max-height:120px; overflow-y:auto;"></div>
           </div>
         </div>
       `
 
       openModal(`Thêm Bài Học Vào ${ch.title}`, modalHTML, async () => {
         const title = document.getElementById('modal-lesson-title')?.value.trim()
+        const videoUrl = document.getElementById('modal-lesson-video')?.value.trim() || null
         if (!title) {
           showToast('Vui lòng nhập tên bài học!', 'error')
           return false
@@ -373,7 +446,9 @@ export function bindCurriculumEvents() {
           const createdLesson = await api.createLesson({
             chapterId: chId,
             title,
-            orderIndex
+            orderIndex,
+            videoUrl,
+            theoryFiles: uploadedTheoryFiles
           })
 
           const chNum = ch.code.replace('CHƯƠNG', '').trim() || '1'
@@ -381,6 +456,8 @@ export function bindCurriculumEvents() {
             id: createdLesson.id,
             code: `${chNum}.${orderIndex}`,
             title: createdLesson.title,
+            videoUrl: createdLesson.video_url || '',
+            theoryFiles: createdLesson.theory_files || [],
             homeworks: [],
             refCount: 0
           })
@@ -398,6 +475,27 @@ export function bindCurriculumEvents() {
           return false
         }
       })
+
+      setTimeout(() => {
+        renderFilesList()
+        const fileInput = document.getElementById('modal-lesson-file-input')
+        if (fileInput) {
+          fileInput.onchange = async (e) => {
+            const file = e.target.files[0]
+            if (!file) return
+            try {
+              showToast('Đang tải lên file tài liệu...', 'info')
+              const uploadedName = await api.uploadFile(file)
+              uploadedTheoryFiles.push(uploadedName)
+              renderFilesList()
+              showToast('Tải lên thành công!', 'success')
+              fileInput.value = ''
+            } catch (err) {
+              showToast(`Tải lên thất bại: ${err.message}`, 'error')
+            }
+          }
+        }
+      }, 50)
     })
   })
 
@@ -412,17 +510,52 @@ export function bindCurriculumEvents() {
 
       if (!lesson) return
 
+      let uploadedTheoryFiles = [...(lesson.theoryFiles || [])]
+
+      const renderFilesList = () => {
+        const listContainer = document.getElementById('modal-uploaded-files-list')
+        if (!listContainer) return
+        if (uploadedTheoryFiles.length === 0) {
+          listContainer.innerHTML = '<span style="font-size:12px; color:#64748b; font-style:italic;">Chưa tải lên tài liệu lý thuyết nào.</span>'
+          return
+        }
+        listContainer.innerHTML = uploadedTheoryFiles.map((file, idx) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:8px; font-size:13px; color:#334155; margin-bottom:6px;">
+            <span style="font-weight:500; font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;"><i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> ${file.split('_').slice(1).join('_') || file}</span>
+            <button class="btn-remove-theory-file" data-index="${idx}" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i class="fa-solid fa-times"></i></button>
+          </div>
+        `).join('')
+        
+        listContainer.querySelectorAll('.btn-remove-theory-file').forEach(btnRem => {
+          btnRem.onclick = () => {
+            const index = parseInt(btnRem.getAttribute('data-index'), 10)
+            uploadedTheoryFiles.splice(index, 1)
+            renderFilesList()
+          }
+        })
+      }
+
       const modalHTML = `
-        <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; flex-direction:column; gap:14px; min-width:380px;">
           <div>
             <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài học <span style="color:#ef4444;">*</span></label>
             <input type="text" id="modal-lesson-title" class="form-input" value="${lesson.title}" required>
+          </div>
+          <div>
+            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Link Video (Drive/Youtube)</label>
+            <input type="text" id="modal-lesson-video" class="form-input" value="${lesson.videoUrl || ''}" placeholder="Dán link youtube hoặc drive vào đây">
+          </div>
+          <div>
+            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tài liệu lý thuyết (PDF)</label>
+            <input type="file" id="modal-lesson-file-input" class="form-input" accept=".pdf" style="padding:6px;">
+            <div id="modal-uploaded-files-list" style="margin-top:10px; max-height:120px; overflow-y:auto;"></div>
           </div>
         </div>
       `
 
       openModal(`Sửa Bài Học`, modalHTML, async () => {
         const title = document.getElementById('modal-lesson-title')?.value.trim()
+        const videoUrl = document.getElementById('modal-lesson-video')?.value.trim() || null
         if (!title) {
           showToast('Vui lòng nhập tên bài học!', 'error')
           return false
@@ -434,10 +567,15 @@ export function bindCurriculumEvents() {
             lessonId,
             chapterId: chId,
             title,
-            orderIndex: parseInt(lesson.code.split('.')[1], 10) || 1
+            orderIndex: parseInt(lesson.code.split('.')[1], 10) || 1,
+            videoUrl,
+            theoryFiles: uploadedTheoryFiles
           })
 
           lesson.title = title
+          lesson.videoUrl = videoUrl || ''
+          lesson.theoryFiles = uploadedTheoryFiles
+
           showToast('Cập nhật bài học thành công!', 'success')
 
           const app = document.getElementById('app')
@@ -451,6 +589,27 @@ export function bindCurriculumEvents() {
           return false
         }
       })
+
+      setTimeout(() => {
+        renderFilesList()
+        const fileInput = document.getElementById('modal-lesson-file-input')
+        if (fileInput) {
+          fileInput.onchange = async (e) => {
+            const file = e.target.files[0]
+            if (!file) return
+            try {
+              showToast('Đang tải lên file tài liệu...', 'info')
+              const uploadedName = await api.uploadFile(file)
+              uploadedTheoryFiles.push(uploadedName)
+              renderFilesList()
+              showToast('Tải lên thành công!', 'success')
+              fileInput.value = ''
+            } catch (err) {
+              showToast(`Tải lên thất bại: ${err.message}`, 'error')
+            }
+          }
+        }
+      }, 50)
     })
   })
 
@@ -480,6 +639,54 @@ export function bindCurriculumEvents() {
     })
   })
 
+  // Edit Chapter Event
+  document.querySelectorAll('.btn-edit-chapter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const chId = btn.getAttribute('data-id')
+      const currentTitle = btn.getAttribute('data-title')
+      
+      const modalHTML = `
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Tên chương học mới</label>
+            <input type="text" id="modal-edit-chapter-title" class="form-input" value="${currentTitle}" required>
+          </div>
+        </div>
+      `
+      openModal('Sửa Tên Chương', modalHTML, async () => {
+        const newTitle = document.getElementById('modal-edit-chapter-title')?.value.trim()
+        if (!newTitle) {
+          showToast('Vui lòng nhập tên chương', 'error')
+          return false
+        }
+        try {
+          showToast('Đang cập nhật tên chương...', 'info')
+          const updatedChapter = await api.updateChapter({
+            chapterId: chId,
+            title: newTitle
+          })
+          const currObj = state.curriculums.find(c => c.classId === activeClassId)
+          if (currObj) {
+            const ch = currObj.chapters.find(c => c.id === chId)
+            if (ch) {
+              ch.title = updatedChapter.title
+              showToast('Cập nhật tên chương thành công', 'success')
+              const app = document.getElementById('app')
+              if (app) {
+                app.innerHTML = renderCurriculumView()
+                bindCurriculumEvents()
+              }
+            }
+          }
+          return true
+        } catch (err) {
+          showToast(`Cập nhật thất bại: ${err.message}`, 'error')
+          return false
+        }
+      })
+    })
+  })
+
   // Edit Homework Event
   document.querySelectorAll('.btn-edit-homework').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -493,8 +700,8 @@ export function bindCurriculumEvents() {
   // Toggle Chapter Accordion & Lazy Load Lessons
   document.querySelectorAll('.chapter-header').forEach(header => {
     header.addEventListener('click', async (e) => {
-      // Exclude delete button click
-      if (e.target.closest('.btn-delete-chapter')) return
+      // Exclude delete/edit button click
+      if (e.target.closest('.btn-delete-chapter') || e.target.closest('.btn-edit-chapter')) return
 
       const chId = header.getAttribute('data-id')
       if (!chId) return
@@ -526,6 +733,8 @@ export function bindCurriculumEvents() {
               id: l.id,
               code: `${chNum}.${l.order_index || 1}`,
               title: l.title,
+              videoUrl: l.video_url || '',
+              theoryFiles: l.theory_files || [],
               refCount: 0,
               homeworks: null
             }))

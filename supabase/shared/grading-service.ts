@@ -23,6 +23,9 @@ export interface QuestionGradeResult {
   pointsPossible: number
   correctAnswerSummary: unknown
   feedback: string
+  correctCount?: number
+  wrongCount?: number
+  statementGrades?: { a: boolean; b: boolean; c: boolean; d: boolean }
 }
 
 export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
@@ -32,6 +35,9 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
   let scoreEarned = 0
   let correctAnswerSummary: unknown = null
   let feedback = ''
+  let correctCount = 0
+  let wrongCount = 0
+  let statementGrades: { a: boolean; b: boolean; c: boolean; d: boolean } | undefined = undefined
 
   if (questionType === 'MULTIPLE_CHOICE') {
     correctAnswerSummary = mcAnswer
@@ -42,11 +48,17 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
         isCorrect = true
         scoreEarned = points
         feedback = 'Correct choice'
+        correctCount = 1
+        wrongCount = 0
       } else {
         feedback = `Incorrect choice. Selected: ${formattedGiven}, Correct: ${formattedCorrect}`
+        correctCount = 0
+        wrongCount = 1
       }
     } else {
       feedback = 'No or invalid answer provided for Multiple Choice question'
+      correctCount = 0
+      wrongCount = 1
     }
   } else if (questionType === 'TRUE_FALSE') {
     correctAnswerSummary = tfAnswers
@@ -54,6 +66,7 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
       const studentVal = givenAnswer.value as Record<string, boolean | undefined>
       const correctVal = tfAnswers as Record<string, boolean | undefined>
       let correctStatementsCount = 0
+      const stGrades = { a: false, b: false, c: false, d: false }
 
       const keysPairs = [
         ['a', 's1'],
@@ -66,10 +79,16 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
         const sVal = studentVal[k1] !== undefined ? studentVal[k1] : studentVal[k2]
         const cVal = correctVal[k1] !== undefined ? correctVal[k1] : correctVal[k2]
 
-        if (sVal !== undefined && cVal !== undefined && sVal === cVal) {
+        const isStmtCorrect = sVal !== undefined && cVal !== undefined && sVal === cVal
+        if (isStmtCorrect) {
           correctStatementsCount += 1
         }
+        stGrades[k1 as 'a' | 'b' | 'c' | 'd'] = isStmtCorrect
       }
+
+      statementGrades = stGrades
+      correctCount = correctStatementsCount
+      wrongCount = 4 - correctStatementsCount
 
       if (correctStatementsCount === 4) {
         isCorrect = true
@@ -81,6 +100,8 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
       }
     } else {
       feedback = 'No or invalid answer provided for True/False question'
+      correctCount = 0
+      wrongCount = 4
     }
   } else if (questionType === 'SHORT_ANSWER') {
     correctAnswerSummary = { answer: saAnswer, tolerance: saTolerance || 0 }
@@ -97,18 +118,28 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
           isCorrect = true
           scoreEarned = points
           feedback = 'Short answer correct within tolerance'
+          correctCount = 1
+          wrongCount = 0
         } else {
           feedback = `Incorrect. Given: ${givenStr}, Expected: ${expectedStr}`
+          correctCount = 0
+          wrongCount = 1
         }
       } else if (givenStr === expectedStr && expectedStr.length > 0) {
         isCorrect = true
         scoreEarned = points
         feedback = 'Short answer text matched'
+        correctCount = 1
+        wrongCount = 0
       } else {
         feedback = `Incorrect. Given: ${givenStr}, Expected: ${expectedStr}`
+        correctCount = 0
+        wrongCount = 1
       }
     } else {
       feedback = 'No or invalid answer provided for Short Answer question'
+      correctCount = 0
+      wrongCount = 1
     }
   }
 
@@ -119,5 +150,8 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
     pointsPossible: points,
     correctAnswerSummary,
     feedback,
+    correctCount,
+    wrongCount,
+    statementGrades,
   }
 }

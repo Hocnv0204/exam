@@ -4,13 +4,15 @@ import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
 import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
 import { renderStudentMgmtView, bindStudentMgmtEvents } from './views/student-mgmt.js'
-import { renderCreateHwView, bindCreateHwEvents } from './views/create-hw.js'
+import { renderCreateHwView, bindCreateHwEvents, resetCreateForm } from './views/create-hw.js'
 import { renderCurriculumView, bindCurriculumEvents } from './views/curriculum.js'
 import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/homework-solver.js'
 import { renderAssignmentReviewView, bindAssignmentReviewEvents } from './views/assignment-review.js'
 import { renderLearningHistoryView, bindLearningHistoryEvents } from './views/learning-history.js'
 import { renderAdminDashboardView, bindAdminDashboardEvents } from './views/admin-dashboard.js'
 import { renderAdminHistoryView, bindAdminHistoryEvents } from './views/admin-history.js'
+import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
+import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
@@ -23,7 +25,9 @@ const routes = {
   'assignment-review': { render: renderAssignmentReviewView, bind: bindAssignmentReviewEvents },
   history: { render: renderLearningHistoryView, bind: bindLearningHistoryEvents },
   'admin-dashboard': { render: renderAdminDashboardView, bind: bindAdminDashboardEvents },
-  'admin-history': { render: renderAdminHistoryView, bind: bindAdminHistoryEvents }
+  'admin-history': { render: renderAdminHistoryView, bind: bindAdminHistoryEvents },
+  'class-details': { render: renderClassDetailsView, bind: bindClassDetailsEvents },
+  'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents }
 }
 
 async function router() {
@@ -71,30 +75,78 @@ async function router() {
           state.editHomeworkData = hwData
         } else {
           state.editHomeworkData = null
+          resetCreateForm()
         }
       }
 
       // 1. Fetch Classes (for Class Management, Students dropdown, Curriculum, Homework Creation, My Classes)
-      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history'].includes(hash)) {
+      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history', 'class-details', 'student-details'].includes(hash)) {
         const rawClasses = await api.getClasses()
         state.classes = (rawClasses || []).map(c => {
           return {
             id: c.id,
             name: c.name,
-            studentsCount: 0,
+            studentsCount: c.studentsCount || 0,
+            tuitionFee: c.tuitionFee || 0,
             progress: 0
           }
         })
+
+        // Eager load class details for students on My Classes page
+        if (hash === 'my-classes') {
+          const classId = params.get('classId')
+          const lessonId = params.get('lessonId')
+          if (classId) {
+            const rawChapters = await api.getChapters(classId)
+            const chapters = []
+            for (const ch of (rawChapters || [])) {
+              const rawLessons = await api.getLessons(ch.id)
+              chapters.push({
+                id: ch.id,
+                code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+                title: ch.title,
+                lessons: (rawLessons || []).map(l => ({
+                  id: l.id,
+                  code: `${ch.order_index || 1}.${l.order_index || 1}`,
+                  title: l.title,
+                  videoUrl: l.video_url || '',
+                  theoryFiles: l.theory_files || [],
+                  content: l.content
+                }))
+              })
+            }
+            state.classChapters = chapters
+
+            if (lessonId) {
+              const rawHomeworks = await api.getHomeworks(lessonId)
+              state.activeLessonHomeworks = (rawHomeworks || []).map(h => ({
+                id: h.id,
+                title: h.title,
+                lessonId: h.lesson_id,
+                pdfPath: h.pdf_path,
+                durationMinutes: h.duration_minutes,
+                passScore: h.pass_score,
+                maxScore: h.max_score,
+                deadline: h.deadline
+              }))
+            } else {
+              state.activeLessonHomeworks = []
+            }
+          } else {
+            state.classChapters = []
+            state.activeLessonHomeworks = []
+          }
+        }
       }
 
-      // 2. Fetch Students (for Student Management, Admin Dashboard)
-      if (['students', 'admin-dashboard'].includes(hash)) {
+      // 2. Fetch Students (for Student Management, Admin Dashboard, Class Management)
+      if (['students', 'admin-dashboard', 'classes-admin', 'class-details', 'student-details'].includes(hash)) {
         const students = await api.getStudents()
         state.students = students || []
         
         // Count student profiles associated with each class to populate studentsCount
         state.classes.forEach(c => {
-          c.studentsCount = state.students.filter(s => s.classId === c.id).length
+          c.studentsCount = state.students.filter(s => s.classIds ? s.classIds.includes(c.id) : (s.classId === c.id)).length
         })
       }
 
@@ -123,7 +175,12 @@ async function router() {
           return {
             id: s.submissionId,
             homeworkTitle: s.homeworkTitle || 'Bài tập',
-            lesson: 'Bài tập chủ đề',
+            lesson: s.lessonTitle || 'Bài tập chủ đề',
+            lessonId: s.lessonId,
+            chapterTitle: s.chapterTitle || 'Chương học',
+            chapterId: s.chapterId,
+            className: s.className || 'Lớp học',
+            classId: s.classId,
             submittedAt: new Date(s.submittedAt).toLocaleString('vi-VN'),
             score: s.score,
             maxScore: s.maxScore,

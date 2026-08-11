@@ -2,7 +2,7 @@
 
 -- Ensure bucket exists
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('pdf-files', 'pdf-files', false, 52428800, ARRAY['application/pdf'])
+VALUES ('pdf-files', 'pdf-files', true, 52428800, ARRAY['application/pdf'])
 ON CONFLICT (id) DO NOTHING;
 
 -- Policies

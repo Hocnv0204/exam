@@ -62,16 +62,11 @@ export function bindLoginEvents() {
     try {
       showToast('Đang xác thực với hệ thống Supabase Auth...', 'info')
       const data = await api.login(username, password)
-      setSession(data.user, data.accessToken)
+      setSession(data.user, data.accessToken, data.refreshToken)
       showToast('Xin chào, đăng nhập thành công!', 'success')
       window.location.hash = data.user.role === 'ADMIN' ? '#admin-dashboard' : '#my-classes'
     } catch (err) {
-      if (username === 'admin' && password === 'admin') {
-        const adminUser = { id: '00000000-0000-0000-0000-000000000001', username: 'admin', fullName: 'Quản trị viên hệ thống', role: 'ADMIN', classId: null }
-        setSession(adminUser, 'mock_admin_token')
-        showToast('Đăng nhập thành công với quyền Quản trị viên (Chế độ Demo)', 'success')
-        window.location.hash = '#admin-dashboard'
-      } else if (username === 'student' || username.startsWith('student')) {
+      if (username === 'student' || username.startsWith('student')) {
         const studentUser = { id: 's1', username, fullName: 'Nguyễn Văn An', role: 'STUDENT', classId: 'c1' }
         setSession(studentUser, 'mock_student_token')
         showToast('Đăng nhập thành công với quyền Học sinh (Chế độ Demo)', 'success')
