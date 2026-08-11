@@ -78,6 +78,23 @@ serve(async (req: Request) => {
         return jsonResponse(formatted)
       }
 
+      if (action === 'get-telegram-config') {
+        const classId = url.searchParams.get('classId')
+        if (!classId) return errorResponse('Class ID is required', 400)
+        
+        const { data, error } = await serviceRoleClient
+          .from('telegram_configs')
+          .select('*')
+          .eq('class_id', classId)
+          .single()
+
+        if (error && error.code !== 'PGRST116') {
+          return errorResponse(error.message, 500)
+        }
+
+        return jsonResponse(data || null)
+      }
+
       if (user.role === 'ADMIN') {
         const { data: classes, error } = await serviceRoleClient
           .from('classes')
@@ -219,6 +236,8 @@ serve(async (req: Request) => {
         return jsonResponse({ message: 'Student sessions updated successfully' })
       }
 
+
+
       // Create Class
       if (!action || action === 'create') {
         const body = await req.json()
@@ -247,8 +266,33 @@ serve(async (req: Request) => {
       }
     }
 
-    // PUT / PATCH: Update Class
-    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update') {
+    // PUT / PATCH: Update Class or Telegram Config
+    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update' || action === 'update-telegram-config') {
+      if (action === 'update-telegram-config') {
+        const body = await req.json()
+        const { classId, chatId, chatTitle, isEnabled } = body
+        if (!classId || !chatId) {
+          return errorResponse('classId and chatId are required', 400)
+        }
+
+        const { data, error } = await serviceRoleClient
+          .from('telegram_configs')
+          .upsert(
+            {
+              class_id: classId,
+              chat_id: chatId,
+              chat_title: chatTitle || null,
+              is_enabled: isEnabled ?? true,
+            },
+            { onConflict: 'class_id' }
+          )
+          .select()
+          .single()
+
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse(data)
+      }
+
       const body = await req.json()
       const validation = updateClassSchema.safeParse(body)
       if (!validation.success) {
@@ -275,8 +319,21 @@ serve(async (req: Request) => {
       })
     }
 
-    // DELETE: Delete Class
-    if (req.method === 'DELETE' || action === 'delete') {
+    // DELETE: Delete Class or Telegram Config
+    if (req.method === 'DELETE' || action === 'delete' || action === 'delete-telegram-config') {
+      if (action === 'delete-telegram-config') {
+        const classId = url.searchParams.get('classId')
+        if (!classId) return errorResponse('Class ID is required', 400)
+
+        const { error } = await serviceRoleClient
+          .from('telegram_configs')
+          .delete()
+          .eq('class_id', classId)
+
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse({ message: 'Telegram config deleted successfully' })
+      }
+
       const body = await req.json().catch(() => ({}))
       const classIdQuery = url.searchParams.get('classId') || body.classId
 

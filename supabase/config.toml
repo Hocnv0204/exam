@@ -50,3 +50,6 @@ verify_jwt = true
 
 [functions.homework-detail]
 verify_jwt = true
+
+[functions.telegram-bot]
+verify_jwt = false
