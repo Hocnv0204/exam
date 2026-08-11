@@ -235,7 +235,60 @@ serve(async (req: Request) => {
       }
     }
 
-    // 7. Return complete submission result
+    // 7. Send Telegram notification (fire-and-forget)
+    try {
+      const telegramConfig = await serviceRoleClient
+        .from('telegram_configs')
+        .select('chat_id, chat_title, is_enabled')
+        .eq('class_id', classIdOfHomework)
+        .eq('is_enabled', true)
+        .single()
+
+      if (telegramConfig.data) {
+        const { data: studentProfile } = await serviceRoleClient
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single()
+
+        const { data: classData } = await serviceRoleClient
+          .from('classes')
+          .select('name')
+          .eq('id', classIdOfHomework)
+          .single()
+
+        const submissionTime = new Date(submission.submitted_at).toLocaleString('vi-VN', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+
+        const isPassed = finalScore >= homework.pass_score
+        const statusText = isPassed ? 'Đạt' : 'Không đạt'
+        const correctAnswers = questionReviews.filter((q) => q.isCorrect).length
+        const wrongAnswers = questionReviews.length - correctAnswers
+
+        const message = `📣 <b>THÔNG BÁO NỘP BÀI</b>
+🎓 <b>Học sinh:</b> ${studentProfile?.full_name || 'N/A'}
+🏫 <b>Lớp:</b> ${classData?.name || 'N/A'}
+📝 <b>Bài tập:</b> ${homework.title}
+⏱ <b>Thời gian nộp:</b> ${submissionTime}
+📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})
+✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}`
+
+        // Fire-and-forget: don't block the response
+        sendTelegramNotification(telegramConfig.data.chat_id, message).catch((notifyErr) => {
+          console.error('[submit-homework] Telegram notification failed:', notifyErr.message)
+        })
+      }
+    } catch (notifyErr) {
+      console.error('[submit-homework] Error sending notification:', notifyErr.message)
+    }
+
+    // 8. Return complete submission result
     return jsonResponse(
       {
         submissionId: submission.id,
@@ -266,3 +319,26 @@ serve(async (req: Request) => {
     return errorResponse(msg || 'Internal Server Error', 500)
   }
 })
+
+async function sendTelegramNotification(chatId: string, text: string): Promise<void> {
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
+  if (!botToken) {
+    console.warn('[submit-homework] TELEGRAM_BOT_TOKEN not set, skip notification')
+    return
+  }
+
+  const resp = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+    }),
+  })
+
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => '')
+    console.error('[submit-homework] Telegram sendMessage failed:', resp.status, errText)
+  }
+}

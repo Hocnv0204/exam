@@ -268,6 +268,9 @@ export const api = {
   getHomeworkDetail: (homeworkId) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET' }),
   getStudents: () => request('create-student', { method: 'GET' }),
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
+  getTelegramConfig: (classId) => request(`create-class?action=get-telegram-config&classId=${classId}`, { method: 'GET' }),
+  updateTelegramConfig: (data) => request('create-class?action=update-telegram-config', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTelegramConfig: (classId) => request(`create-class?action=delete-telegram-config&classId=${classId}`, { method: 'DELETE' }),
   uploadFile: async (file) => {
     const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
     showLoading()

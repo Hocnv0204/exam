@@ -132,10 +132,141 @@ export function renderClassDetailsView() {
               </table>
             </div>
           </div>
+
+          ${renderTelegramSection(currentClass)}
         </div>
       </div>
     </div>
   `
+}
+
+async function loadTelegramConfig(classId) {
+  try {
+    const config = await api.getTelegramConfig(classId)
+    return config
+  } catch (e) {
+    console.error('Failed to load telegram config:', e)
+    return null
+  }
+}
+
+function renderTelegramSection(currentClass) {
+  return `
+    <div class="card" id="telegram-config-card" style="padding:20px; margin-top:24px;">
+      <h2 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a; margin:0 0 16px 0; display:flex; align-items:center; gap:8px;">
+        <i class="fa-brands fa-telegram" style="color:#0088cc;"></i> Cấu hình Bot Telegram
+      </h2>
+      <div id="telegram-config-body">
+        <div style="color:#64748b;">Đang tải cấu hình...</div>
+      </div>
+    </div>
+  `
+}
+
+async function bindTelegramConfigEvents(classId) {
+  const bodyEl = document.getElementById('telegram-config-body')
+  if (!bodyEl) return
+
+  const config = await loadTelegramConfig(classId)
+  renderTelegramConfigUI(classId, config, bodyEl)
+
+  // Bind copy button events
+  bodyEl.querySelectorAll('.btn-copy-link').forEach(btn => {
+    btn.onclick = () => {
+      const text = btn.getAttribute('data-copy') || ''
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Đã sao chép lệnh vào clipboard', 'success')
+      }).catch(() => {
+        showToast('Sao chép thất bại', 'error')
+      })
+    }
+  })
+}
+
+function renderTelegramConfigUI(classId, config, container) {
+  const botUsername = (window.TELEGRAM_BOT_USERNAME || 'MyExamSystemBot').startsWith('@')
+    ? window.TELEGRAM_BOT_USERNAME || 'MyExamSystemBot'
+    : `@${window.TELEGRAM_BOT_USERNAME || 'MyExamSystemBot'}`
+
+  if (!config) {
+    container.innerHTML = `
+      <div style="background:#f8fafc; border:1px dashed #cbd5e1; padding:16px; border-radius:12px;">
+        <p style="margin:0 0 8px 0; color:#334155; font-weight:600;">Chưa liên kết Telegram</p>
+        <p style="margin:0 0 12px 0; color:#64748b; font-size:13px;">
+          Để nhận thông báo nộp bài, mời bot <strong>${botUsername}</strong> vào nhóm/kênh và gõ lệnh:
+        </p>
+        <div style="display:flex; align-items:center; gap:8px; background:#ffffff; border:1px solid #e2e8f0; padding:8px 12px; border-radius:8px;">
+          <code style="flex:1; font-family:monospace; color:#0f172a;">/link ${classId}</code>
+          <button class="btn-copy-link" data-copy="/link ${classId}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; background:#0066cc; border:none; color:#ffffff; font-weight:600;">Copy</button>
+        </div>
+        <p style="margin:12px 0 0 0; color:#94a3b8; font-size:12px;">
+          ID lớp học: <span style="font-family:monospace;">${classId}</span>
+        </p>
+      </div>
+    `
+    return
+  }
+
+  const statusLabel = config.is_enabled ? 'Đang bật' : 'Đã tắt'
+  const statusColor = config.is_enabled ? '#10b981' : '#94a3b8'
+  container.innerHTML = `
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:16px; border-radius:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="color:#334155; font-weight:600;">Nhóm/kênh: <span style="color:#0f172a;">${escapeHtml(config.chat_title || 'N/A')}</span></div>
+          <div style="color:#64748b; font-size:13px; margin-top:4px;">Chat ID: <span style="font-family:monospace;">${escapeHtml(config.chat_id)}</span></div>
+          <div style="color:#64748b; font-size:13px; margin-top:4px;">Trạng thái: <span style="color:${statusColor}; font-weight:600;">${statusLabel}</span></div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-toggle-telegram" data-enabled="true" style="padding:8px 12px; font-size:13px; border-radius:8px; cursor:pointer; background:#e2e8f0; border:none; color:#0f172a; font-weight:600;">Bật thông báo</button>
+          <button class="btn-toggle-telegram" data-enabled="false" style="padding:8px 12px; font-size:13px; border-radius:8px; cursor:pointer; background:#e2e8f0; border:none; color:#0f172a; font-weight:600;">Tắt thông báo</button>
+          <button class="btn-unlink-telegram" style="padding:8px 12px; font-size:13px; border-radius:8px; cursor:pointer; background:#ef4444; border:none; color:#ffffff; font-weight:600;">Hủy liên kết</button>
+        </div>
+      </div>
+    </div>
+  `
+
+  container.querySelectorAll('.btn-toggle-telegram').forEach(btn => {
+    btn.onclick = async () => {
+      const enabled = btn.getAttribute('data-enabled') === 'true'
+      showToast('Đang cập nhật cấu hình Telegram...', 'info')
+      try {
+        const updated = await api.updateTelegramConfig({
+          classId,
+          chatId: config.chat_id,
+          chatTitle: config.chat_title,
+          isEnabled: enabled,
+        })
+        showToast('Đã cập nhật trạng thái thông báo', 'success')
+        renderTelegramConfigUI(classId, updated, container)
+      } catch (e) {
+        showToast(`Cập nhật thất bại: ${e.message}`, 'error')
+      }
+    }
+  })
+
+  const unlinkBtn = container.querySelector('.btn-unlink-telegram')
+  if (unlinkBtn) {
+    unlinkBtn.onclick = async () => {
+      if (!confirm('Bạn có chắc muốn hủy liên kết Telegram của lớp học này?')) return
+      showToast('Đang hủy liên kết...', 'info')
+      try {
+        await api.deleteTelegramConfig(classId)
+        showToast('Đã hủy liên kết Telegram', 'success')
+        renderTelegramConfigUI(classId, null, container)
+      } catch (e) {
+        showToast(`Hủy liên kết thất bại: ${e.message}`, 'error')
+      }
+    }
+  }
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
 }
 
 export function bindClassDetailsEvents() {
@@ -145,6 +276,11 @@ export function bindClassDetailsEvents() {
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const classId = params.get('classId')
+
+  // Telegram config bindings
+  if (classId) {
+    bindTelegramConfigEvents(classId)
+  }
 
   document.querySelectorAll('.btn-remove-from-class').forEach(btn => {
     btn.onclick = async () => {
