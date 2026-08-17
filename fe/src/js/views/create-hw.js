@@ -1,6 +1,7 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
+import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 
@@ -223,6 +224,21 @@ export function renderCreateHwView() {
                 <button class="btn-primary" id="update-config-btn" style="width:100%; padding:8px 12px; font-size:12px; background:#0066cc; cursor:pointer;">
                   <i class="fa-solid fa-arrows-rotate"></i> Cập nhật số lượng câu hỏi
                 </button>
+              </div>
+
+              <!-- JSON Import/Export Answers Card -->
+              <div class="card" style="border:2px solid #cbd5e1; background:#f8fafc; margin:0; padding:12px 16px;">
+                <h3 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-file-import"></i> Nhập / Xuất đáp án nhanh
+                </h3>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                  <button class="btn-secondary" id="copy-sample-btn" type="button" style="padding:8px 12px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; border:1px solid #cbd5e1; background:#ffffff;">
+                    <i class="fa-regular fa-copy"></i> Sao chép JSON mẫu
+                  </button>
+                  <button class="btn-primary" id="import-answers-btn" type="button" style="padding:8px 12px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; background:#059669;">
+                    <i class="fa-solid fa-keyboard"></i> Nhập đáp án (JSON)
+                  </button>
+                </div>
               </div>
 
               <!-- Answer Key Matrix Section -->
@@ -571,6 +587,210 @@ export function bindCreateHwEvents() {
     updateConfig()
     showToast('Đã cập nhật số lượng câu hỏi và bảng đáp án!', 'info')
   })
+
+  // Handle Copy Sample JSON
+  document.getElementById('copy-sample-btn')?.addEventListener('click', () => {
+    const sampleQuestions = [];
+    
+    // Part I: MC (12 questions)
+    for (let i = 1; i <= 12; i++) {
+      sampleQuestions.push({
+        questionNumber: i,
+        questionType: "MULTIPLE_CHOICE",
+        mcAnswer: i % 4 === 1 ? "A" : i % 4 === 2 ? "B" : i % 4 === 3 ? "C" : "D"
+      });
+    }
+    
+    // Part II: TF (4 questions)
+    for (let i = 1; i <= 4; i++) {
+      sampleQuestions.push({
+        questionNumber: 12 + i,
+        questionType: "TRUE_FALSE",
+        tfAnswers: {
+          a: i % 2 === 1,
+          b: i % 2 === 0,
+          c: i % 3 === 1,
+          d: i % 3 !== 1
+        }
+      });
+    }
+    
+    // Part III: SA (6 questions)
+    const saSamples = ["10.5", "42", "Hà Nội", "3.14", "2026", "Bài tập"];
+    for (let i = 1; i <= 6; i++) {
+      sampleQuestions.push({
+        questionNumber: 16 + i,
+        questionType: "SHORT_ANSWER",
+        saAnswer: saSamples[i - 1]
+      });
+    }
+    
+    const jsonStr = JSON.stringify(sampleQuestions, null, 2);
+    navigator.clipboard.writeText(jsonStr)
+      .then(() => {
+        showToast("Đã sao chép JSON mẫu vào bộ nhớ tạm!", "success");
+      })
+      .catch(err => {
+        showToast("Lỗi sao chép: " + err.message, "error");
+      });
+  });
+
+  // Handle Import JSON Text Dialog
+  document.getElementById('import-answers-btn')?.addEventListener('click', () => {
+    const bodyHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:12px; color:#64748b; line-height:1.4;">
+          Dán chuỗi JSON danh sách đáp án của bạn vào khung bên dưới. Định dạng dữ liệu phải khớp với cấu trúc mẫu (mảng gồm các câu hỏi liên tục bắt đầu từ câu 1).
+        </div>
+        <textarea id="import-json-textarea" class="form-input" placeholder="[\n  {\n    &quot;questionNumber&quot;: 1,\n    &quot;questionType&quot;: &quot;MULTIPLE_CHOICE&quot;,\n    &quot;mcAnswer&quot;: &quot;A&quot;\n  }\n]" style="width:100%; height:250px; font-family:monospace; font-size:12px; padding:10px; line-height:1.5; resize:vertical; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px;"></textarea>
+        <div id="modal-error-msg" style="color:#ef4444; font-size:12px; display:none; font-weight:600;"></div>
+      </div>
+    `;
+
+    openModal("Nhập đáp án JSON", bodyHTML, () => {
+      const textarea = document.getElementById('import-json-textarea');
+      const errorMsgDiv = document.getElementById('modal-error-msg');
+      if (!textarea) return false;
+      
+      const text = textarea.value.trim();
+      if (!text) {
+        if (errorMsgDiv) {
+          errorMsgDiv.textContent = "Vui lòng nhập dữ liệu JSON!";
+          errorMsgDiv.style.display = "block";
+        }
+        return false;
+      }
+
+      try {
+        const parsed = JSON.parse(text);
+        
+        if (!Array.isArray(parsed)) {
+          throw new Error("Dữ liệu JSON phải là một danh sách các câu hỏi (mảng).");
+        }
+        
+        if (parsed.length === 0) {
+          throw new Error("Danh sách câu hỏi trống.");
+        }
+        
+        // 1. Validate structure and numbers
+        const sorted = [...parsed].sort((a, b) => a.questionNumber - b.questionNumber);
+        
+        for (let i = 0; i < sorted.length; i++) {
+          const q = sorted[i];
+          const expectedNum = i + 1;
+          if (q.questionNumber !== expectedNum) {
+            throw new Error(`Số câu không liên tục hoặc không hợp lệ. Mong đợi Câu ${expectedNum} nhưng nhận được Câu ${q.questionNumber}.`);
+          }
+          if (!q.questionType || !['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER'].includes(q.questionType)) {
+            throw new Error(`Câu ${q.questionNumber} có loại câu hỏi không hợp lệ hoặc bị thiếu.`);
+          }
+          
+          if (q.questionType === 'MULTIPLE_CHOICE') {
+            if (!q.mcAnswer || !['A', 'B', 'C', 'D'].includes(q.mcAnswer)) {
+              throw new Error(`Câu ${q.questionNumber} (Trắc nghiệm) phải có đáp án 'mcAnswer' là A, B, C hoặc D.`);
+            }
+          } else if (q.questionType === 'TRUE_FALSE') {
+            if (!q.tfAnswers || typeof q.tfAnswers !== 'object') {
+              throw new Error(`Câu ${q.questionNumber} (Đúng/Sai) thiếu cấu trúc đáp án 'tfAnswers'.`);
+            }
+            const keys = ['a', 'b', 'c', 'd'];
+            for (const key of keys) {
+              if (q.tfAnswers[key] === undefined || typeof q.tfAnswers[key] !== 'boolean') {
+                throw new Error(`Câu ${q.questionNumber} (Đúng/Sai) phải chứa ý phụ '${key}' có giá trị true hoặc false.`);
+              }
+            }
+          } else if (q.questionType === 'SHORT_ANSWER') {
+            if (q.saAnswer === undefined || q.saAnswer === null || String(q.saAnswer).trim() === '') {
+              throw new Error(`Câu ${q.questionNumber} (Trả lời ngắn) phải có đáp án 'saAnswer' không được để trống.`);
+            }
+          }
+        }
+        
+        // 2. Validate ordering partition (MULTIPLE_CHOICE -> TRUE_FALSE -> SHORT_ANSWER)
+        let lastType = 'MULTIPLE_CHOICE';
+        for (let i = 0; i < sorted.length; i++) {
+          const q = sorted[i];
+          const type = q.questionType;
+          if (type === 'MULTIPLE_CHOICE') {
+            if (lastType !== 'MULTIPLE_CHOICE') {
+              throw new Error(`Lỗi thứ tự: Câu trắc nghiệm (Câu ${q.questionNumber}) không được phép đứng sau câu loại khác.`);
+            }
+          } else if (type === 'TRUE_FALSE') {
+            if (lastType === 'SHORT_ANSWER') {
+              throw new Error(`Lỗi thứ tự: Câu Đúng/Sai (Câu ${q.questionNumber}) không được phép đứng sau câu tự luận/ngắn.`);
+            }
+            lastType = 'TRUE_FALSE';
+          } else if (type === 'SHORT_ANSWER') {
+            lastType = 'SHORT_ANSWER';
+          }
+        }
+        
+        // 3. Count types
+        const mcQ = sorted.filter(q => q.questionType === 'MULTIPLE_CHOICE');
+        const tfQ = sorted.filter(q => q.questionType === 'TRUE_FALSE');
+        const saQ = sorted.filter(q => q.questionType === 'SHORT_ANSWER');
+        
+        const mcCount = mcQ.length;
+        const tfCount = tfQ.length;
+        const saCount = saQ.length;
+        
+        // 4. Update in-memory answer maps
+        const newMcAnswers = {};
+        const newTfAnswers = {};
+        const newSaAnswers = {};
+        
+        mcQ.forEach((q, idx) => {
+          newMcAnswers[idx + 1] = q.mcAnswer;
+        });
+        
+        tfQ.forEach((q, idx) => {
+          newTfAnswers[idx + 1] = {
+            a: q.tfAnswers.a,
+            b: q.tfAnswers.b,
+            c: q.tfAnswers.c,
+            d: q.tfAnswers.d
+          };
+        });
+        
+        saQ.forEach((q, idx) => {
+          newSaAnswers[idx + 1] = String(q.saAnswer);
+        });
+        
+        // Apply updates
+        currentConfig.mcCount = mcCount;
+        currentConfig.tfCount = tfCount;
+        currentConfig.saCount = saCount;
+        
+        mcAnswers = newMcAnswers;
+        tfAnswers = newTfAnswers;
+        saAnswers = newSaAnswers;
+        
+        // Update input element values in HTML if they exist
+        const mcInput = document.getElementById('cfg-mc-count');
+        const tfInput = document.getElementById('cfg-tf-count');
+        const saInput = document.getElementById('cfg-sa-count');
+        if (mcInput) mcInput.value = mcCount;
+        if (tfInput) tfInput.value = tfCount;
+        if (saInput) saInput.value = saCount;
+        
+        // Re-render UI matrix
+        const container = document.getElementById('answer-matrix-container');
+        if (container) {
+          container.innerHTML = renderAnswerMatrix();
+          bindMatrixEvents();
+        }
+        
+        showToast(`Nhập thành công ${sorted.length} câu hỏi từ chuỗi JSON!`, "success");
+        return true; // Closes modal
+      } catch (err) {
+        if (errorMsgDiv) {
+          errorMsgDiv.textContent = `Lỗi: ${err.message}`;
+          errorMsgDiv.style.display = "block";
+        }
+        return false; // Keep modal open
+      }
+    });
+  });
 
   bindMatrixEvents()
 

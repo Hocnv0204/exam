@@ -98,6 +98,9 @@ export function renderAssignmentReviewView() {
                 <button id="toggle-pdf-btn" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#0066cc; color:#ffffff; font-weight:600; cursor:pointer; border:none; white-space:nowrap;">
                   <i class="fa-solid fa-file-pdf"></i> Xem đề bài (PDF)
                 </button>
+                <a id="download-pdf-btn" href="${pdfUrl}" download target="_blank" class="btn-secondary" style="display:none; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#334155; font-weight:600; cursor:pointer; text-decoration:none; white-space:nowrap;">
+                  <i class="fa-solid fa-download"></i> Tải file PDF
+                </a>
               ` : ''}
               <button class="btn-secondary" onclick="window.location.hash='${state.user?.role === 'ADMIN' ? '#admin-history' : '#history'}'" style="cursor:pointer; white-space:nowrap;">
                 <i class="fa-solid fa-arrow-left"></i> Quay lại lịch sử
@@ -394,6 +397,7 @@ export function bindAssignmentReviewEvents() {
   bindSidebarEvents()
 
   const togglePdfBtn = document.getElementById('toggle-pdf-btn')
+  const downloadPdfBtn = document.getElementById('download-pdf-btn')
   const pdfPane = document.getElementById('pdf-preview-pane')
   const pdfIframe = document.getElementById('pdf-preview-iframe')
   const wrapper = document.getElementById('review-layout-wrapper')
@@ -411,6 +415,7 @@ export function bindAssignmentReviewEvents() {
         pdfIframe.src = `${pdfUrl}#toolbar=0`
         pdfPane.style.display = 'block'
         if (overviewBanner) overviewBanner.style.display = 'none'
+        if (downloadPdfBtn) downloadPdfBtn.style.display = 'inline-flex'
         
         // Split page to 1.3fr (PDF) and 1fr (Questions & Navigation stacked)
         wrapper.style.gridTemplateColumns = '1.3fr 1fr'
@@ -428,6 +433,7 @@ export function bindAssignmentReviewEvents() {
         pdfPane.style.display = 'none'
         pdfIframe.src = ''
         if (overviewBanner) overviewBanner.style.display = 'flex'
+        if (downloadPdfBtn) downloadPdfBtn.style.display = 'none'
         
         // Restore layout
         wrapper.style.gridTemplateColumns = '1fr'

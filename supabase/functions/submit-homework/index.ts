@@ -184,12 +184,8 @@ serve(async (req: Request) => {
       })
     }
 
-    let finalScore = totalScore
-    if (isAllMC) {
-      finalScore = Math.round((correctCount / totalQuestions) * 10 * 10) / 10
-    } else {
-      finalScore = Number(totalScore.toFixed(2))
-    }
+    // Round score to 1 decimal place (if the 2nd decimal digit < 5, round down; >= 5, round up)
+    const finalScore = Math.round(totalScore * 10) / 10
 
     // 5. Save Submission record
     const { data: submission, error: subError } = await serviceRoleClient
