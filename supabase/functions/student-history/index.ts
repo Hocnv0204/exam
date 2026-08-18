@@ -43,7 +43,31 @@ serve(async (req: Request) => {
 
       if (classSubErr) return errorResponse(classSubErr.message, 500)
 
-      const formattedList = (classSubmissions || []).map((sub) => {
+      // Filter to keep only the highest score submission per student per homework
+      const bestClassSubMap = new Map<string, typeof classSubmissions[0]>()
+      for (const sub of (classSubmissions || [])) {
+        const prof = sub.profiles as unknown as { username: string; full_name: string }
+        const key = `${prof?.username || sub.id}_${sub.homework_id}`
+        const existing = bestClassSubMap.get(key)
+        if (!existing) {
+          bestClassSubMap.set(key, sub)
+        } else {
+          const score = Number(sub.total_score)
+          const existingScore = Number(existing.total_score)
+          if (score > existingScore) {
+            bestClassSubMap.set(key, sub)
+          } else if (score === existingScore) {
+            if (new Date(sub.submitted_at).getTime() > new Date(existing.submitted_at).getTime()) {
+              bestClassSubMap.set(key, sub)
+            }
+          }
+        }
+      }
+
+      const filteredClassSubmissions = Array.from(bestClassSubMap.values())
+        .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+
+      const formattedList = filteredClassSubmissions.map((sub) => {
         const passScore = Number((sub.homeworks as unknown as { pass_score: number })?.pass_score || 5)
         const prof = (sub.profiles as unknown as { username: string; full_name: string })
         return {
@@ -277,7 +301,30 @@ serve(async (req: Request) => {
 
     if (error) return errorResponse(error.message, 500)
 
-    const formattedList = submissions.map((sub) => {
+    // Filter to keep only the highest score submission for each homework
+    const bestSubmissionsMap = new Map<string, typeof submissions[0]>()
+    for (const sub of (submissions || [])) {
+      const hwId = sub.homework_id
+      const existing = bestSubmissionsMap.get(hwId)
+      if (!existing) {
+        bestSubmissionsMap.set(hwId, sub)
+      } else {
+        const score = Number(sub.total_score)
+        const existingScore = Number(existing.total_score)
+        if (score > existingScore) {
+          bestSubmissionsMap.set(hwId, sub)
+        } else if (score === existingScore) {
+          if (new Date(sub.submitted_at).getTime() > new Date(existing.submitted_at).getTime()) {
+            bestSubmissionsMap.set(hwId, sub)
+          }
+        }
+      }
+    }
+
+    const filteredSubmissions = Array.from(bestSubmissionsMap.values())
+      .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+
+    const formattedList = filteredSubmissions.map((sub) => {
       const homework = sub.homeworks as any
       const passScore = Number(homework?.pass_score || 5)
       const lesson = homework?.lessons
