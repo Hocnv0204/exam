@@ -259,7 +259,7 @@ export const api = {
   deleteLesson: (lessonId) => request(`create-lesson?lessonId=${lessonId}`, { method: 'DELETE' }),
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),
-  getHomeworks: (lessonId = '') => request(`create-homework${lessonId ? `?lessonId=${lessonId}` : ''}`, { method: 'GET' }),
+  getHomeworks: (lessonId = '', classId = '') => request(`create-homework${classId ? `?classId=${classId}` : (lessonId ? `?lessonId=${lessonId}` : '')}`, { method: 'GET' }),
   getTodoHomeworks: () => request('create-homework?todoOnly=true', { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
   getDashboard: () => request('dashboard', { method: 'GET' }),

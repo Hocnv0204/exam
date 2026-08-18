@@ -84,6 +84,57 @@ serve(async (req: Request) => {
         return jsonResponse(formatted)
       }
 
+      const classIdQuery = url.searchParams.get('classId')
+      if (classIdQuery) {
+        const { data: homeworks, error } = await serviceRoleClient
+          .from('homeworks')
+          .select(`
+            id,
+            lesson_id,
+            title,
+            pdf_path,
+            duration_minutes,
+            pass_score,
+            max_score,
+            is_published,
+            created_at,
+            deadline,
+            max_attempts,
+            lessons!inner (
+              id,
+              title,
+              chapter_id,
+              chapters!inner (
+                id,
+                title,
+                class_id
+              )
+            )
+          `)
+          .eq('lessons.chapters.class_id', classIdQuery)
+          .order('created_at', { ascending: false })
+
+        if (error) return errorResponse(error.message, 500)
+
+        const formatted = (homeworks || []).map((hw: any) => ({
+          id: hw.id,
+          lessonId: hw.lesson_id,
+          title: hw.title,
+          pdfPath: hw.pdf_path,
+          durationMinutes: hw.duration_minutes,
+          passScore: hw.pass_score,
+          maxScore: hw.max_score,
+          isPublished: hw.is_published,
+          createdAt: hw.created_at,
+          deadline: hw.deadline,
+          maxAttempts: hw.max_attempts,
+          lessonTitle: hw.lessons?.title || '',
+          chapterTitle: hw.lessons?.chapters?.title || ''
+        }))
+
+        return jsonResponse(formatted)
+      }
+
       const lessonId = url.searchParams.get('lessonId')
       let query = serviceRoleClient.from('homeworks').select('*')
       if (lessonId) {

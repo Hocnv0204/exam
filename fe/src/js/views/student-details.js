@@ -373,28 +373,8 @@ async function loadStudentSchedule(studentId, classId, month) {
     // Update Summary Metrics
     updateSummaryMetrics(currentClassTuitionFee())
 
-    // 2. Fetch homeworks under this class
-    const chapters = await api.getChapters(classId) || []
-    const lessonsPromises = chapters.map(ch => api.getLessons(ch.id))
-    const lessonsLists = await Promise.all(lessonsPromises)
-    const lessons = lessonsLists.flat()
-
-    const homeworksPromises = lessons.map(l => api.getHomeworks(l.id))
-    const homeworksLists = await Promise.all(homeworksPromises)
-    
-    const homeworksWithMeta = []
-    for (let i = 0; i < lessons.length; i++) {
-      const lesson = lessons[i]
-      const chapter = chapters.find(ch => ch.id === lesson.chapter_id)
-      const hwList = homeworksLists[i] || []
-      hwList.forEach(hw => {
-        homeworksWithMeta.push({
-          ...hw,
-          lessonTitle: lesson.title,
-          chapterTitle: chapter?.title || ''
-        })
-      })
-    }
+    // 2. Fetch homeworks under this class in a single request
+    const homeworksWithMeta = await api.getHomeworks('', classId) || []
 
     // 3. Fetch Student Submissions History
     const historyResult = await api.getStudentHistory(`studentId=${studentId}`)
