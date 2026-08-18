@@ -81,16 +81,18 @@ async function router() {
 
       // 1. Fetch Classes (for Class Management, Students dropdown, Curriculum, Homework Creation, My Classes)
       if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history', 'class-details', 'student-details'].includes(hash)) {
-        const rawClasses = await api.getClasses()
-        state.classes = (rawClasses || []).map(c => {
-          return {
-            id: c.id,
-            name: c.name,
-            studentsCount: c.studentsCount || 0,
-            tuitionFee: c.tuitionFee || 0,
-            progress: 0
-          }
-        })
+        if (!state.classes || state.classes.length === 0) {
+          const rawClasses = await api.getClasses()
+          state.classes = (rawClasses || []).map(c => {
+            return {
+              id: c.id,
+              name: c.name,
+              studentsCount: c.studentsCount || 0,
+              tuitionFee: c.tuitionFee || 0,
+              progress: 0
+            }
+          })
+        }
 
         // Eager load class details for students on My Classes page
         if (hash === 'my-classes') {
@@ -141,9 +143,11 @@ async function router() {
 
       // 2. Fetch Students (for Student Management, Admin Dashboard, Class Management)
       if (['students', 'admin-dashboard', 'classes-admin', 'class-details', 'student-details'].includes(hash)) {
-        const students = await api.getStudents()
-        state.students = students || []
-        
+        if (!state.students || state.students.length === 0) {
+          const students = await api.getStudents()
+          state.students = students || []
+        }
+
         // Count student profiles associated with each class to populate studentsCount
         state.classes.forEach(c => {
           c.studentsCount = state.students.filter(s => s.classIds ? s.classIds.includes(c.id) : (s.classId === c.id)).length
