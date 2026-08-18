@@ -64,8 +64,18 @@ serve(async (req: Request) => {
 
     let averageScore = 0
     if (submissions && submissions.length > 0) {
-      const sum = submissions.reduce((acc, curr) => acc + Number(curr.total_score), 0)
-      averageScore = Number((sum / submissions.length).toFixed(2))
+      const bestScoreMap = new Map<string, number>()
+      for (const s of submissions) {
+        const key = `${s.student_id}_${s.homework_id}`
+        const score = Number(s.total_score)
+        const currentBest = bestScoreMap.get(key)
+        if (currentBest === undefined || score > currentBest) {
+          bestScoreMap.set(key, score)
+        }
+      }
+      const bestScores = Array.from(bestScoreMap.values())
+      const sum = bestScores.reduce((acc, curr) => acc + curr, 0)
+      averageScore = Number((sum / bestScores.length).toFixed(2))
     }
 
     // 6. Recent Submissions List (Top 10)
