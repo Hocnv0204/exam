@@ -67,7 +67,13 @@ export function renderAssignmentReviewView() {
   sortedAnswers.forEach(ans => {
     const qType = ans.questions?.question_type
     const score = ans.score_earned !== undefined ? ans.score_earned : (ans.scoreEarned || 0)
-    const points = ans.questions?.points !== undefined ? ans.questions.points : 1
+    let points = ans.pointsPossible
+    if (points === undefined || points === null) {
+      if (qType === 'MULTIPLE_CHOICE') points = 0.25
+      else if (qType === 'TRUE_FALSE') points = 1.0
+      else if (qType === 'SHORT_ANSWER') points = 0.5
+      else points = ans.questions?.points || 1
+    }
 
     if (qType === 'MULTIPLE_CHOICE') {
       mcEarned += score
@@ -138,19 +144,19 @@ export function renderAssignmentReviewView() {
               <div style="display:flex; gap:16px; flex-wrap:wrap;">
                 ${mcPossible > 0 ? `
                   <div style="background:#f8fafc; padding:8px 16px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px; min-width:140px;">
-                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Trắc nghiệm</span>
+                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Trắc nghiệm (0.25đ/câu)</span>
                     <strong style="font-size:15px; color:#1e293b;">${formatScore(mcEarned)} / ${formatScore(mcPossible)}đ</strong>
                   </div>
                 ` : ''}
                 ${tfPossible > 0 ? `
                   <div style="background:#f8fafc; padding:8px 16px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px; min-width:140px;">
-                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Đúng / Sai</span>
+                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Đúng / Sai (1đ/câu)</span>
                     <strong style="font-size:15px; color:#1e293b;">${formatScore(tfEarned)} / ${formatScore(tfPossible)}đ</strong>
                   </div>
                 ` : ''}
                 ${saPossible > 0 ? `
                   <div style="background:#f8fafc; padding:8px 16px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px; min-width:140px;">
-                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Trả lời ngắn</span>
+                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Trả lời ngắn (0.5đ/câu)</span>
                     <strong style="font-size:15px; color:#1e293b;">${formatScore(saEarned)} / ${formatScore(saPossible)}đ</strong>
                   </div>
                 ` : ''}
@@ -186,18 +192,26 @@ export function renderAssignmentReviewView() {
               ${sortedAnswers.map(ans => {
                 const qNum = ans.questions?.question_number || 1
                 const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
-                const qTypeStr = ans.questions?.question_type === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (ans.questions?.question_type === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
-                const scoreEarned = ans.score_earned !== undefined ? ans.score_earned : ans.scoreEarned
-                const pointsPossible = ans.questions?.points || 1
+                const qType = ans.questions?.question_type || ans.questionType
+                const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (qType === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
+                const scoreEarned = ans.score_earned !== undefined ? ans.score_earned : (ans.scoreEarned || 0)
+                
+                let pointsPossible = ans.pointsPossible
+                if (pointsPossible === undefined || pointsPossible === null) {
+                  if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
+                  else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
+                  else if (qType === 'SHORT_ANSWER') pointsPossible = 0.5
+                  else pointsPossible = ans.questions?.points || 1
+                }
+
                 const givenAnswer = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer
-                const qType = ans.questions?.question_type
 
                 let cardBorderColor = '#ef4444'
                 let badgeBg = '#fee2e2'
                 let badgeColor = '#dc2626'
                 let badgeIcon = 'fa-xmark'
 
-                if (isCorrect) {
+                if (isCorrect || scoreEarned >= pointsPossible) {
                   cardBorderColor = '#10b981'
                   badgeBg = '#dcfce7'
                   badgeColor = '#16a34a'
@@ -219,22 +233,24 @@ export function renderAssignmentReviewView() {
                 }
 
                 let correctStr = ''
-                const corrKey = ans.correct_answer || ans.questions?.question_answers
+                const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.questions?.question_answers
                 
                 if (qType === 'MULTIPLE_CHOICE') {
-                  correctStr = corrKey?.mc_answer || corrKey || 'A'
+                  correctStr = corrKey?.mc_answer || corrKey || ''
                 } else if (qType === 'TRUE_FALSE') {
                   const val = corrKey?.tf_answers || corrKey || {}
                   const a = val.a !== undefined ? val.a : val.s1
                   const b = val.b !== undefined ? val.b : val.s2
                   const c = val.c !== undefined ? val.c : val.s3
                   const d = val.d !== undefined ? val.d : val.s4
-                  correctStr = `a: ${a ? 'Đ' : 'S'}, b: ${b ? 'Đ' : 'S'}, c: ${c ? 'Đ' : 'S'}, d: ${d ? 'Đ' : 'S'}`
+                  if (a !== undefined || b !== undefined || c !== undefined || d !== undefined) {
+                    correctStr = `a: ${a ? 'Đ' : 'S'}, b: ${b ? 'Đ' : 'S'}, c: ${c ? 'Đ' : 'S'}, d: ${d ? 'Đ' : 'S'}`
+                  }
                 } else {
                   const val = corrKey?.sa_answer !== undefined && corrKey?.sa_answer !== null 
                     ? corrKey.sa_answer 
                     : (corrKey?.answer !== undefined && corrKey?.answer !== null ? corrKey.answer : corrKey)
-                  correctStr = val !== undefined && val !== null ? String(val) : 'Chưa có'
+                  correctStr = val !== undefined && val !== null ? String(val) : ''
                 }
 
                 let reviewBody = ''
@@ -257,12 +273,16 @@ export function renderAssignmentReviewView() {
                     }
                   }
                   if (!statementGrades) {
-                    statementGrades = {}
+                    if (isCorrect || scoreEarned >= pointsPossible) {
+                      statementGrades = { a: true, b: true, c: true, d: true }
+                    } else {
+                      statementGrades = {}
+                    }
                   }
 
                   const tfReviewHtml = ['a', 'b', 'c', 'd'].map(sub => {
                     const studentVal = tfObj[sub]
-                    const isStmtCorrect = statementGrades[sub] === true
+                    const isStmtCorrect = statementGrades[sub] === true || (isCorrect && studentVal !== undefined)
                     const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
                     const correctValText = correctMap[sub] !== undefined ? (correctMap[sub] ? 'Đ' : 'S') : ''
 
@@ -297,7 +317,7 @@ export function renderAssignmentReviewView() {
                           <i class="fa-solid ${isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> Đáp án của bạn: ${givenStr}
                         </div>
                       </div>
-                      ${(!isCorrect && state.user?.role === 'ADMIN') ? `
+                      ${(!isCorrect && (state.user?.role === 'ADMIN' || correctStr)) ? `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#f0fdf4; border:1px solid #10b981; border-radius:10px;">
                           <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:#15803d; font-size:14px;">
                             <i class="fa-solid fa-circle-check"></i> Đáp án đúng: ${correctStr}
@@ -315,11 +335,9 @@ export function renderAssignmentReviewView() {
                         <span class="question-badge" style="background:${cardBorderColor}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
                         <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">${qTypeStr}</span>
                       </div>
-                      ${qType === 'TRUE_FALSE' ? `
-                        <span class="badge" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
-                          <i class="fa-solid ${badgeIcon}"></i> ${scoreEarned} / ${pointsPossible} điểm
-                        </span>
-                      ` : ''}
+                      <span class="badge" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
+                        <i class="fa-solid ${badgeIcon}"></i> ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm
+                      </span>
                     </div>
 
                     <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">

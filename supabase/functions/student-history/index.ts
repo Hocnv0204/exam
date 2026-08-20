@@ -87,6 +87,15 @@ serve(async (req: Request) => {
         return errorResponse(ansErr.message, 500)
       }
 
+      // Fetch answer keys for questions
+      const questionIds = (answers || []).map((a: any) => a.question_id)
+      const { data: answerKeys } = await serviceRoleClient
+        .from('question_answers')
+        .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance')
+        .in('question_id', questionIds)
+
+      const keyMap = new Map((answerKeys || []).map((k: any) => [k.question_id, k]))
+
       // Generate signed URL for PDF if exists
       const hwObj = sub.homeworks as any
       let pdfUrl = hwObj?.pdf_path || ''
@@ -103,17 +112,69 @@ serve(async (req: Request) => {
       const score = Number(sub.total_score)
       const isPassed = score >= passScore
 
-      const formattedAnswers = (answers || []).map((ans: any) => ({
-        is_correct: ans.is_correct,
-        score_earned: ans.score_earned,
-        given_answer: ans.given_answer,
-        questions: {
-          question_number: ans.questions?.question_number,
-          question_type: ans.questions?.question_type,
-          prompt: ans.questions?.prompt,
-          points: ans.questions?.points,
-        },
-      }))
+      const formattedAnswers = (answers || []).map((ans: any) => {
+        const qType = ans.questions?.question_type
+        const key = keyMap.get(ans.question_id)
+
+        let points = 1
+        if (qType === 'MULTIPLE_CHOICE') points = 0.25
+        else if (qType === 'TRUE_FALSE') points = 1.0
+        else if (qType === 'SHORT_ANSWER') points = 0.5
+
+        let correctAnswerSummary: any = null
+        let statementGrades: any = undefined
+
+        if (qType === 'MULTIPLE_CHOICE') {
+          correctAnswerSummary = key?.mc_answer || null
+        } else if (qType === 'TRUE_FALSE') {
+          correctAnswerSummary = key?.tf_answers || null
+          const studentVal = ans.given_answer?.value || {}
+          const correctVal = (key?.tf_answers as any) || {}
+
+          const correctA = correctVal.a !== undefined ? correctVal.a : correctVal.s1
+          const correctB = correctVal.b !== undefined ? correctVal.b : correctVal.s2
+          const correctC = correctVal.c !== undefined ? correctVal.c : correctVal.s3
+          const correctD = correctVal.d !== undefined ? correctVal.d : correctVal.s4
+
+          if (correctA !== undefined) {
+            statementGrades = {
+              a: studentVal.a !== undefined ? studentVal.a === correctA : false,
+              b: studentVal.b !== undefined ? studentVal.b === correctB : false,
+              c: studentVal.c !== undefined ? studentVal.c === correctC : false,
+              d: studentVal.d !== undefined ? studentVal.d === correctD : false,
+            }
+          } else if (ans.is_correct || ans.score_earned === 1) {
+            statementGrades = { a: true, b: true, c: true, d: true }
+          }
+        } else if (qType === 'SHORT_ANSWER') {
+          correctAnswerSummary = {
+            answer: key?.sa_answer,
+            tolerance: key?.sa_tolerance || 0,
+          }
+        }
+
+        return {
+          questionId: ans.question_id,
+          questionNumber: ans.questions?.question_number,
+          questionType: qType,
+          is_correct: ans.is_correct,
+          isCorrect: ans.is_correct,
+          score_earned: ans.score_earned,
+          scoreEarned: ans.score_earned,
+          pointsPossible: points,
+          given_answer: ans.given_answer,
+          givenAnswer: ans.given_answer,
+          correct_answer: correctAnswerSummary,
+          correctAnswerSummary,
+          statementGrades,
+          questions: {
+            question_number: ans.questions?.question_number,
+            question_type: ans.questions?.question_type,
+            prompt: ans.questions?.prompt,
+            points,
+          },
+        }
+      })
 
       return jsonResponse({
         submissionId: sub.id,
