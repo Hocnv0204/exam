@@ -84,7 +84,14 @@ export function renderAdminHistoryView() {
     return `
                         <tr class="history-row">
                           <td style="font-weight:700; color:#0f172a;" class="row-student-name">${sub.studentName}</td>
-                          <td style="color:#475569;" class="row-hw-title">${sub.homeworkTitle}</td>
+                          <td style="color:#475569;" class="row-hw-title">
+                            ${sub.homeworkTitle}
+                            ${(sub.isLate || sub.is_late) ? `
+                              <span style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn
+                              </span>
+                            ` : ''}
+                          </td>
                           <td style="color:#64748b;">${submittedDate}</td>
                           <td style="font-family:var(--font-heading); font-weight:700; font-size:16px; color:${isPassed ? '#16a34a' : '#dc2626'};">
                             ${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)}

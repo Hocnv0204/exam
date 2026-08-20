@@ -390,7 +390,9 @@ async function loadStudentSchedule(studentId, classId, month) {
     )
 
     if (statsContainer) {
-      renderHomeworkStats(statsContainer, completedHomeworks, uncompletedHomeworks, submissions)
+      const classHwIds = new Set(homeworksWithMeta.map(hw => hw.id))
+      const classSubmissions = submissions.filter(sub => classHwIds.has(sub.homeworkId))
+      renderHomeworkStats(statsContainer, completedHomeworks, uncompletedHomeworks, classSubmissions)
     }
 
   } catch (e) {
@@ -404,7 +406,23 @@ async function loadStudentSchedule(studentId, classId, month) {
 }
 
 function renderHomeworkStats(container, completed, uncompleted, submissions) {
-  const completedCount = completed.length
+  let onTimeCount = 0
+  let lateCount = 0
+  for (const hw of completed) {
+    const matchingSubs = (submissions || []).filter(sub => sub.homeworkId === hw.id)
+    const isLate = matchingSubs.some(sub => {
+      if (sub.isLate === true || sub.is_late === true || sub.isLate === 'true' || sub.is_late === 'true') return true
+      if (hw.deadline && sub.submittedAt) {
+        return new Date(sub.submittedAt) > new Date(hw.deadline)
+      }
+      return false
+    })
+    if (isLate) {
+      lateCount++
+    } else {
+      onTimeCount++
+    }
+  }
   const uncompletedCount = uncompleted.length
 
   container.innerHTML = `
@@ -418,9 +436,10 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
         <div style="width:100%; max-width:180px; position:relative; display:flex; justify-content:center;">
           <canvas id="homework-pie-chart" style="max-height:180px; max-width:180px;"></canvas>
         </div>
-        <div style="display:flex; justify-content:space-around; width:100%; margin-top:20px; font-size:12px; font-weight:700;">
-          <span style="color:#16a34a; background:#f0fdf4; padding:4px 10px; border-radius:8px; border:1px solid #dcfce7;"><i class="fa-solid fa-circle-check"></i> Đã làm: ${completedCount}</span>
-          <span style="color:#e11d48; background:#fff1f2; padding:4px 10px; border-radius:8px; border:1px solid #ffe4e6;"><i class="fa-solid fa-circle-xmark"></i> Chưa làm: ${uncompletedCount}</span>
+        <div style="display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; width:100%; margin-top:16px; font-size:11px; font-weight:700;">
+          <span style="color:#16a34a; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #dcfce7; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Đúng hạn: ${onTimeCount}</span>
+          <span style="color:#d97706; background:#fef3c7; padding:4px 8px; border-radius:8px; border:1px solid #fde68a; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn: ${lateCount}</span>
+          <span style="color:#e11d48; background:#fff1f2; padding:4px 8px; border-radius:8px; border:1px solid #ffe4e6; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-xmark"></i> Chưa làm: ${uncompletedCount}</span>
         </div>
       </div>
 
@@ -458,14 +477,17 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
     // 1. Pie Chart
     const pieCtx = document.getElementById('homework-pie-chart')?.getContext('2d')
     if (pieCtx && window.Chart) {
+      const existingPie = window.Chart.getChart(pieCtx.canvas)
+      if (existingPie) existingPie.destroy()
+
       new window.Chart(pieCtx, {
         type: 'pie',
         data: {
-          labels: ['Đã làm', 'Chưa làm'],
+          labels: ['Đúng hạn', 'Nộp muộn', 'Chưa làm'],
           datasets: [{
-            data: [completedCount, uncompletedCount],
-            backgroundColor: ['#10b981', '#f43f5e'],
-            borderColor: ['#ffffff', '#ffffff'],
+            data: [onTimeCount, lateCount, uncompletedCount],
+            backgroundColor: ['#10b981', '#f59e0b', '#f43f5e'],
+            borderColor: ['#ffffff', '#ffffff', '#ffffff'],
             borderWidth: 2
           }]
         },
@@ -484,7 +506,24 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
     // 2. Score Mixed Chart (Bar + Curve Line)
     const scoresCtx = document.getElementById('homework-scores-chart')?.getContext('2d')
     if (scoresCtx && window.Chart) {
-      const sortedSubs = [...submissions].sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt))
+      const existingScores = window.Chart.getChart(scoresCtx.canvas)
+      if (existingScores) existingScores.destroy()
+
+      // Group by homework and pick the best score per homework
+      const bestSubsMap = new Map()
+      for (const sub of submissions) {
+        const hwId = sub.homeworkId || sub.id
+        const existing = bestSubsMap.get(hwId)
+        if (!existing || Number(sub.score) > Number(existing.score)) {
+          bestSubsMap.set(hwId, sub)
+        } else if (Number(sub.score) === Number(existing.score) && new Date(sub.submittedAt) > new Date(existing.submittedAt)) {
+          bestSubsMap.set(hwId, sub)
+        }
+      }
+
+      const sortedSubs = Array.from(bestSubsMap.values()).sort(
+        (a, b) => new Date(a.submittedAt) - new Date(b.submittedAt)
+      )
       
       const labels = sortedSubs.map(s => s.homeworkTitle || 'Bài tập')
       const scores = sortedSubs.map(s => s.score)
@@ -656,7 +695,14 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
 
                   return `
                     <tr style="border-bottom:1px solid #f1f5f9;">
-                      <td style="padding:12px 16px; font-weight:700; color:#1e293b;">${sub.homeworkTitle}</td>
+                      <td style="padding:12px 16px; font-weight:700; color:#1e293b;">
+                        ${sub.homeworkTitle}
+                        ${(sub.isLate || sub.is_late) ? `
+                          <span style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn
+                          </span>
+                        ` : ''}
+                      </td>
                       <td style="padding:12px 16px; text-align:center; font-weight:700; color:#0f172a;">${sub.score}/${sub.maxScore}</td>
                       <td style="padding:12px 16px; text-align:center;">${passStatusHTML}</td>
                       <td style="padding:12px 16px; color:#475569;">${durationText}</td>

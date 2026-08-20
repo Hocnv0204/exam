@@ -175,8 +175,8 @@ export function renderMyClassesView() {
                                       <i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}
                                     </span>
                                     ${isExpired ? `
-                                      <span style="color: #ffffff; background: #dc2626; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 10px; width: fit-content; text-transform: uppercase;">
-                                        <i class="fa-solid fa-circle-exclamation"></i> Quá hạn
+                                      <span style="color: #d97706; background: #fef3c7; border: 1px solid #fde68a; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 10px; width: fit-content; text-transform: uppercase;">
+                                        <i class="fa-solid fa-clock-rotate-left"></i> Quá hạn (Nộp muộn)
                                       </span>
                                     ` : ''}
                                    </div>`
@@ -188,8 +188,8 @@ export function renderMyClassesView() {
                                     <span><i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút</span>
                                     ${deadlineHtml}
                                   </div>
-                                  <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px; background: ${isExpired ? '#94a3b8' : ''}; border-color: ${isExpired ? '#94a3b8' : ''}; pointer-events: ${isExpired ? 'none' : 'auto'}; opacity: ${isExpired ? '0.7' : '1'};">
-                                    ${isExpired ? 'Đã quá hạn nộp' : 'Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>'}
+                                  <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px; background: ${isExpired ? '#d97706' : ''}; border-color: ${isExpired ? '#d97706' : ''};">
+                                    ${isExpired ? 'Vào làm bài (Nộp muộn) <i class="fa-solid fa-arrow-right"></i>' : 'Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>'}
                                   </button>
                                 </div>
                               `

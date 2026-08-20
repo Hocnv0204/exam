@@ -167,6 +167,7 @@ async function request(endpoint, options = {}) {
 
   const headers = {
     'Content-Type': 'application/json',
+    ...(import.meta.env.VITE_SUPABASE_ANON_KEY ? { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY } : {}),
     ...(options.headers || {})
   }
 

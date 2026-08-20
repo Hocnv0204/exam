@@ -29,6 +29,7 @@ export function renderAssignmentReviewView() {
     correctCount: result.correctCount,
     wrongCount: result.wrongCount,
     submittedAt: result.submittedAt,
+    isLate: result.isLate,
     pdfUrl: result.pdfUrl
   }
 
@@ -111,10 +112,15 @@ export function renderAssignmentReviewView() {
           <!-- Top Overview Banner -->
           <div id="overview-banner-card" class="card" style="display:flex; flex-direction:column; gap:20px; background:linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border:1px solid #e2e8f0; border-radius:16px; padding:24px;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-              <div style="display:flex; align-items:center; gap:16px;">
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                 <div class="badge ${isPassed ? 'badge-graded' : 'badge-failed'}" style="font-size:13px; background:${isPassed ? '#dcfce7' : '#fee2e2'}; color:${isPassed ? '#15803d' : '#b91c1c'}; border:none; padding:8px 16px; border-radius:8px; font-weight:700;">
                   <i class="fa-solid ${isPassed ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${isPassed ? 'Đã Đạt! Chúc mừng bạn đã hoàn thành bài tập.' : 'Chưa Đạt. Hãy cố gắng luyện tập thêm.'}
                 </div>
+                ${(sub.isLate || sub.is_late || result.isLate) ? `
+                  <div style="font-size:13px; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:8px 16px; border-radius:8px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn
+                  </div>
+                ` : ''}
               </div>
               
               <!-- Total Score prominently displayed -->

@@ -87,26 +87,32 @@ serve(async (req: Request) => {
         max_score,
         correct_count,
         wrong_count,
+        is_late,
         submitted_at,
         profiles (username, full_name),
-        homeworks (title)
+        homeworks (title, deadline)
       `)
       .order('submitted_at', { ascending: false })
       .limit(10)
 
     if (recErr) return errorResponse(recErr.message, 500)
 
-    const recentSubmissions = recentSubmissionsRaw.map((sub) => ({
-      submissionId: sub.id,
-      studentName: (sub.profiles as unknown as { full_name: string })?.full_name || 'Unknown',
-      username: (sub.profiles as unknown as { username: string })?.username || 'Unknown',
-      homeworkTitle: (sub.homeworks as unknown as { title: string })?.title || 'Unknown',
-      score: sub.total_score,
-      maxScore: sub.max_score,
-      correctCount: sub.correct_count,
-      wrongCount: sub.wrong_count,
-      submittedAt: sub.submitted_at,
-    }))
+    const recentSubmissions = recentSubmissionsRaw.map((sub) => {
+      const hwObj = sub.homeworks as unknown as { title: string; deadline?: string }
+      const isLate = sub.is_late || (hwObj?.deadline ? new Date(sub.submitted_at) > new Date(hwObj.deadline) : false)
+      return {
+        submissionId: sub.id,
+        studentName: (sub.profiles as unknown as { full_name: string })?.full_name || 'Unknown',
+        username: (sub.profiles as unknown as { username: string })?.username || 'Unknown',
+        homeworkTitle: hwObj?.title || 'Unknown',
+        score: sub.total_score,
+        maxScore: sub.max_score,
+        correctCount: sub.correct_count,
+        wrongCount: sub.wrong_count,
+        isLate,
+        submittedAt: sub.submitted_at,
+      }
+    })
 
     return jsonResponse({
       overview: {

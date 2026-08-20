@@ -92,7 +92,14 @@ export function renderAdminDashboardView() {
                     return `
                     <tr>
                       <td style="font-weight:700;">${sub.studentName} (@${sub.username})</td>
-                      <td style="color:#64748b;">${sub.homeworkTitle}</td>
+                      <td style="color:#64748b;">
+                        ${sub.homeworkTitle}
+                        ${(sub.isLate || sub.is_late) ? `
+                          <span style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn
+                          </span>
+                        ` : ''}
+                      </td>
                       <td>
                         <span style="font-family:var(--font-heading); font-weight:700; color:${Number(sub.score) >= 5 ? '#0066cc' : '#ef4444'};">
                           ${scoreDisplay}

@@ -43,6 +43,7 @@ export function renderLearningHistoryView() {
   })
 
   const totalSubmissions = filteredSubmissions.length
+  const lateCount = filteredSubmissions.filter(s => s.isLate === true || s.is_late === true || s.isLate === 'true' || s.is_late === 'true').length
   const avgProgress = totalSubmissions > 0
     ? Math.round((filteredSubmissions.reduce((acc, s) => acc + (s.score / (s.maxScore || 10)), 0) / totalSubmissions) * 100)
     : 0
@@ -67,6 +68,10 @@ export function renderLearningHistoryView() {
               <div style="background:#e0f2fe; padding:10px 20px; border-radius:12px; text-align:center;">
                 <div style="font-size:11px; font-weight:700; color:#0369a1; text-transform:uppercase;">TỔNG BÀI TẬP</div>
                 <div style="font-family:var(--font-heading); font-size:22px; font-weight:700; color:#0284c7;">${totalSubmissions}</div>
+              </div>
+              <div style="background:#fef3c7; padding:10px 20px; border-radius:12px; text-align:center;">
+                <div style="font-size:11px; font-weight:700; color:#b45309; text-transform:uppercase;">NỘP MUỘN</div>
+                <div style="font-family:var(--font-heading); font-size:22px; font-weight:700; color:#d97706;">${lateCount}</div>
               </div>
             </div>
           </div>
@@ -120,7 +125,14 @@ export function renderLearningHistoryView() {
                     const isPassed = sub.isPassed !== false
                     return `
                       <tr>
-                        <td style="font-weight:700; color:#0f172a;">${sub.homeworkTitle}</td>
+                        <td style="font-weight:700; color:#0f172a;">
+                          ${sub.homeworkTitle}
+                          ${(sub.isLate || sub.is_late) ? `
+                            <span style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">
+                              <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn
+                            </span>
+                          ` : ''}
+                        </td>
                         <td style="color:#64748b;">${sub.lesson}</td>
                         <td style="color:#64748b;">${sub.submittedAt}</td>
                         <td style="font-family:var(--font-heading); font-weight:700; font-size:16px; color:${isPassed ? '#16a34a' : '#dc2626'};">

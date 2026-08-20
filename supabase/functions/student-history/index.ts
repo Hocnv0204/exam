@@ -1,7 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
-import { gradeQuestion } from '../../shared/grading-service.ts'
+import { requireAuth } from '../../shared/auth-middleware.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -14,101 +13,13 @@ serve(async (req: Request) => {
 
     const { user, serviceRoleClient } = await requireAuth(req)
     const url = new URL(req.url)
-    const queryStudentId = url.searchParams.get('studentId')
+    const studentId = url.searchParams.get('studentId')
+    const classId = url.searchParams.get('classId')
     const submissionId = url.searchParams.get('submissionId')
-    const queryClassId = url.searchParams.get('classId')
 
-    // ADMIN class-wide history list view
-    if (user.role === 'ADMIN' && queryClassId) {
-      const { data: classSubmissions, error: classSubErr } = await serviceRoleClient
-        .from('submissions')
-        .select(`
-          id,
-          homework_id,
-          total_score,
-          max_score,
-          correct_count,
-          wrong_count,
-          submitted_at,
-          duration_seconds_taken,
-          homeworks (title, pass_score),
-          profiles!inner (
-            username,
-            full_name,
-            student_classes!inner (class_id)
-          )
-        `)
-        .eq('profiles.student_classes.class_id', queryClassId)
-        .order('submitted_at', { ascending: false })
-
-      if (classSubErr) return errorResponse(classSubErr.message, 500)
-
-      // Filter to keep only the highest score submission per student per homework
-      const bestClassSubMap = new Map<string, typeof classSubmissions[0]>()
-      for (const sub of (classSubmissions || [])) {
-        const prof = sub.profiles as unknown as { username: string; full_name: string }
-        const key = `${prof?.username || sub.id}_${sub.homework_id}`
-        const existing = bestClassSubMap.get(key)
-        if (!existing) {
-          bestClassSubMap.set(key, sub)
-        } else {
-          const score = Number(sub.total_score)
-          const existingScore = Number(existing.total_score)
-          if (score > existingScore) {
-            bestClassSubMap.set(key, sub)
-          } else if (score === existingScore) {
-            if (new Date(sub.submitted_at).getTime() > new Date(existing.submitted_at).getTime()) {
-              bestClassSubMap.set(key, sub)
-            }
-          }
-        }
-      }
-
-      const filteredClassSubmissions = Array.from(bestClassSubMap.values())
-        .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
-
-      const formattedList = filteredClassSubmissions.map((sub) => {
-        const passScore = Number((sub.homeworks as unknown as { pass_score: number })?.pass_score || 5)
-        const prof = (sub.profiles as unknown as { username: string; full_name: string })
-        return {
-          submissionId: sub.id,
-          homeworkId: sub.homework_id,
-          homeworkTitle: (sub.homeworks as unknown as { title: string })?.title || 'Unknown Homework',
-          score: sub.total_score,
-          maxScore: sub.max_score,
-          passScore,
-          isPassed: Number(sub.total_score) >= passScore,
-          correctCount: sub.correct_count,
-          wrongCount: sub.wrong_count,
-          durationSecondsTaken: sub.duration_seconds_taken || 0,
-          submittedAt: sub.submitted_at,
-          studentName: prof?.full_name || prof?.username || 'Học sinh'
-        }
-      })
-
-      return jsonResponse({
-        classId: queryClassId,
-        totalSubmissions: formattedList.length,
-        history: formattedList,
-      })
-    }
-
-    let targetStudentId = user.id
-
-    if (user.role === 'ADMIN') {
-      if (queryStudentId) {
-        targetStudentId = queryStudentId
-      }
-    } else {
-      // Student can only query own history
-      if (queryStudentId && queryStudentId !== user.id) {
-        return errorResponse('Forbidden: Students cannot access history of other students', 403)
-      }
-    }
-
-    // Detail view for a specific submission
+    // 1. Single Submission Details (for assignment review)
     if (submissionId) {
-      const { data: submission, error: subErr } = await serviceRoleClient
+      const { data: sub, error: subErr } = await serviceRoleClient
         .from('submissions')
         .select(`
           id,
@@ -118,34 +29,42 @@ serve(async (req: Request) => {
           max_score,
           correct_count,
           wrong_count,
-          submitted_at,
           duration_seconds_taken,
-          homeworks (title, pdf_path, pass_score),
-          profiles (username, full_name)
+          is_late,
+          submitted_at,
+          profiles (id, username, full_name),
+          homeworks (
+            id,
+            title,
+            pass_score,
+            max_score,
+            pdf_path,
+            deadline,
+            lessons (
+              id,
+              title,
+              chapters (
+                id,
+                title,
+                class_id,
+                classes (id, name)
+              )
+            )
+          )
         `)
         .eq('id', submissionId)
         .single()
 
-      if (subErr || !submission) return errorResponse('Submission not found', 404)
-
-      // RLS Check for Student
-      if (user.role === 'STUDENT' && submission.student_id !== user.id) {
-        return errorResponse('Forbidden: Submission belongs to another student', 403)
+      if (subErr || !sub) {
+        return errorResponse('Submission not found', 404)
       }
 
-      // Generate Signed URL for PDF storage file
-      const hwObj = submission.homeworks as unknown as { title: string; pdf_path: string; pass_score: number }
-      let pdfUrl = hwObj?.pdf_path || ''
-      if (pdfUrl && !pdfUrl.startsWith('http')) {
-        const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
-          .from('pdf-files')
-          .createSignedUrl(hwObj.pdf_path, 3600)
-        if (!storageErr && signedUrlData) {
-          pdfUrl = signedUrlData.signedUrl
-        }
+      // Security check: if student, must own the submission
+      if (user.role === 'STUDENT' && sub.student_id !== user.id) {
+        return errorResponse('Forbidden: You can only view your own submission', 403)
       }
 
-      // Fetch submission answer details
+      // Fetch submission answers with questions
       const { data: answers, error: ansErr } = await serviceRoleClient
         .from('submission_answers')
         .select(`
@@ -155,207 +74,179 @@ serve(async (req: Request) => {
           is_correct,
           score_earned,
           questions (
+            id,
             question_number,
             question_type,
             prompt,
-            points,
-            question_answers (mc_answer, tf_answers, sa_answer, sa_tolerance)
+            points
           )
         `)
         .eq('submission_id', submissionId)
 
-      if (ansErr) return errorResponse(ansErr.message, 500)
+      if (ansErr) {
+        return errorResponse(ansErr.message, 500)
+      }
 
-      // Count types to determine the active grading structure for this homework
-      const totalQuestions = answers.length
-      const mcCount = (answers || []).filter(ans => (ans.questions as any)?.question_type === 'MULTIPLE_CHOICE').length
-      const tfCount = (answers || []).filter(ans => (ans.questions as any)?.question_type === 'TRUE_FALSE').length
-      const saCount = (answers || []).filter(ans => (ans.questions as any)?.question_type === 'SHORT_ANSWER').length
-
-      const isAllMC = mcCount === totalQuestions
-      const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
-      const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
-
-      const formattedAnswers = (answers || []).map((ans) => {
-        const q = ans.questions as unknown as {
-          question_number: number
-          question_type: string
-          prompt: string
-          points: number
-          question_answers: {
-            mc_answer: string | null
-            tf_answers: unknown
-            sa_answer: string | null
-            sa_tolerance: number | null
-          } | null
+      // Generate signed URL for PDF if exists
+      const hwObj = sub.homeworks as any
+      let pdfUrl = hwObj?.pdf_path || ''
+      if (pdfUrl && !pdfUrl.startsWith('http')) {
+        const { data: signedUrlData } = await serviceRoleClient.storage
+          .from('pdf-files')
+          .createSignedUrl(pdfUrl, 3600)
+        if (signedUrlData?.signedUrl) {
+          pdfUrl = signedUrlData.signedUrl
         }
+      }
 
-        const qaRaw = q?.question_answers
-        const qa = Array.isArray(qaRaw) ? qaRaw[0] : qaRaw
+      const passScore = Number(hwObj?.pass_score ?? 5)
+      const score = Number(sub.total_score)
+      const isPassed = score >= passScore
 
-        let customPoints = q?.points || 1.0
-        if (isAllMC) {
-          customPoints = 10 / totalQuestions
-        } else if (isStructureB) {
-          if (q?.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
-          else if (q?.question_type === 'TRUE_FALSE') customPoints = 1.0
-          else if (q?.question_type === 'SHORT_ANSWER') customPoints = 0.5
-        } else if (isStructureC) {
-          if (q?.question_type === 'MULTIPLE_CHOICE') customPoints = 0.5
-          else if (q?.question_type === 'TRUE_FALSE') customPoints = 1.0
-          else if (q?.question_type === 'SHORT_ANSWER') customPoints = 0.25
-        }
-
-        // Run grading to retrieve statementGrades and detailed feedback
-        let statementGrades: unknown = null
-        if (q && qa) {
-          const gradeResult = gradeQuestion({
-            questionId: ans.question_id,
-            questionType: q.question_type as any,
-            points: customPoints,
-            mcAnswer: qa.mc_answer || null,
-            tfAnswers: qa.tf_answers as any || null,
-            saAnswer: qa.sa_answer || null,
-            saTolerance: qa.sa_tolerance !== null && qa.sa_tolerance !== undefined ? Number(qa.sa_tolerance) : 0,
-            givenAnswer: ans.given_answer as any,
-          })
-          statementGrades = gradeResult.statementGrades || null
-        }
-
-        // Extract correct answer summary (Only for ADMIN)
-        let correctAnswerSummary: unknown = null
-        if (user.role === 'ADMIN' && q) {
-          if (q.question_type === 'MULTIPLE_CHOICE') {
-            correctAnswerSummary = qa?.mc_answer || null
-          } else if (q.question_type === 'TRUE_FALSE') {
-            correctAnswerSummary = qa?.tf_answers || null
-          } else if (q.question_type === 'SHORT_ANSWER') {
-            correctAnswerSummary = qa?.sa_answer || null
-          }
-        }
-
-        return {
-          questionNumber: q?.question_number || 1,
-          prompt: q?.prompt || '',
-          questionType: q?.question_type,
-          givenAnswer: ans.given_answer,
-          isCorrect: ans.is_correct,
-          scoreEarned: Number(ans.score_earned),
-          pointsPossible: customPoints,
-          correctAnswerSummary,
-          feedback: ans.is_correct ? 'Correct' : 'Incorrect',
-          statementGrades,
-        }
-      })
+      const formattedAnswers = (answers || []).map((ans: any) => ({
+        is_correct: ans.is_correct,
+        score_earned: ans.score_earned,
+        given_answer: ans.given_answer,
+        questions: {
+          question_number: ans.questions?.question_number,
+          question_type: ans.questions?.question_type,
+          prompt: ans.questions?.prompt,
+          points: ans.questions?.points,
+        },
+      }))
 
       return jsonResponse({
+        submissionId: sub.id,
+        homeworkId: sub.homework_id,
+        homeworkTitle: hwObj?.title || 'Bài tập',
+        submittedAt: sub.submitted_at,
+        score,
+        maxScore: Number(sub.max_score || hwObj?.max_score || 10),
+        passScore,
+        isPassed,
+        isLate: sub.is_late,
+        correctCount: sub.correct_count,
+        wrongCount: sub.wrong_count,
+        pdfUrl,
+        answers: formattedAnswers,
         submission: {
-          id: submission.id,
-          homeworkTitle: (submission.homeworks as unknown as { title: string })?.title,
-          studentName: (submission.profiles as unknown as { full_name: string })?.full_name,
-          score: submission.total_score,
-          maxScore: submission.max_score,
-          passScore: (submission.homeworks as unknown as { pass_score: number })?.pass_score,
-          correctCount: submission.correct_count,
-          wrongCount: submission.wrong_count,
-          durationSecondsTaken: submission.duration_seconds_taken || 0,
-          submittedAt: submission.submitted_at,
+          id: sub.id,
+          homeworkTitle: hwObj?.title || 'Bài tập',
+          score,
+          maxScore: Number(sub.max_score || hwObj?.max_score || 10),
+          passScore,
+          isPassed,
+          correctCount: sub.correct_count,
+          wrongCount: sub.wrong_count,
+          submittedAt: sub.submitted_at,
+          isLate: sub.is_late,
           pdfUrl,
         },
-        questionReview: formattedAnswers,
-        answers: answers || [], // fallback for backward compatibility
       })
     }
 
-    // List view of student's submissions
-    const { data: submissions, error } = await serviceRoleClient
+    // 2. Query Submissions List
+    let query = serviceRoleClient
       .from('submissions')
       .select(`
         id,
         homework_id,
+        student_id,
         total_score,
         max_score,
         correct_count,
         wrong_count,
-        submitted_at,
         duration_seconds_taken,
-        homeworks (
+        is_late,
+        submitted_at,
+        profiles!inner (id, username, full_name),
+        homeworks!inner (
+          id,
           title,
+          max_score,
           pass_score,
-          lessons (
+          deadline,
+          pdf_path,
+          lessons!inner (
             id,
             title,
-            chapters (
+            chapters!inner (
               id,
               title,
-              classes (
-                id,
-                name
-              )
+              class_id,
+              classes!inner (id, name)
             )
           )
         )
       `)
-      .eq('student_id', targetStudentId)
       .order('submitted_at', { ascending: false })
 
-    if (error) return errorResponse(error.message, 500)
-
-    // Filter to keep only the highest score submission for each homework
-    const bestSubmissionsMap = new Map<string, typeof submissions[0]>()
-    for (const sub of (submissions || [])) {
-      const hwId = sub.homework_id
-      const existing = bestSubmissionsMap.get(hwId)
-      if (!existing) {
-        bestSubmissionsMap.set(hwId, sub)
-      } else {
-        const score = Number(sub.total_score)
-        const existingScore = Number(existing.total_score)
-        if (score > existingScore) {
-          bestSubmissionsMap.set(hwId, sub)
-        } else if (score === existingScore) {
-          if (new Date(sub.submitted_at).getTime() > new Date(existing.submitted_at).getTime()) {
-            bestSubmissionsMap.set(hwId, sub)
-          }
-        }
+    // If target student is specified
+    if (studentId) {
+      if (user.role === 'STUDENT' && studentId !== user.id) {
+        return errorResponse('Forbidden: You can only view your own history', 403)
       }
+      query = query.eq('student_id', studentId)
+    } else if (user.role === 'STUDENT') {
+      // Default student to their own id
+      query = query.eq('student_id', user.id)
     }
 
-    const filteredSubmissions = Array.from(bestSubmissionsMap.values())
-      .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+    // If target class is specified
+    if (classId) {
+      query = query.eq('homeworks.lessons.chapters.class_id', classId)
+    }
 
-    const formattedList = filteredSubmissions.map((sub) => {
-      const homework = sub.homeworks as any
-      const passScore = Number(homework?.pass_score || 5)
-      const lesson = homework?.lessons
-      const chapter = lesson?.chapters
-      const cls = chapter?.classes
+    const { data: rawSubmissions, error: fetchErr } = await query
+
+    if (fetchErr) {
+      return errorResponse(fetchErr.message, 500)
+    }
+
+    const history = (rawSubmissions || []).map((sub: any) => {
+      const hw = sub.homeworks || {}
+      const lesson = hw.lessons || {}
+      const chapter = lesson.chapters || {}
+      const cls = chapter.classes || {}
+      const profile = sub.profiles || {}
+
+      const score = Number(sub.total_score)
+      const passScore = Number(hw.pass_score ?? 5)
+      const maxScore = Number(sub.max_score || hw.max_score || 10)
+      const isPassed = score >= passScore
+      const isLate = sub.is_late || (hw.deadline ? new Date(sub.submitted_at) > new Date(hw.deadline) : false)
 
       return {
+        id: sub.id,
         submissionId: sub.id,
         homeworkId: sub.homework_id,
-        homeworkTitle: homework?.title || 'Unknown Homework',
-        score: sub.total_score,
-        maxScore: sub.max_score,
+        homeworkTitle: hw.title || 'Bài tập',
+        score,
+        maxScore,
         passScore,
-        isPassed: Number(sub.total_score) >= passScore,
+        isPassed,
         correctCount: sub.correct_count,
         wrongCount: sub.wrong_count,
         durationSecondsTaken: sub.duration_seconds_taken || 0,
+        isLate,
         submittedAt: sub.submitted_at,
-        lessonId: lesson?.id || null,
-        lessonTitle: lesson?.title || 'Unknown Lesson',
-        chapterId: chapter?.id || null,
-        chapterTitle: chapter?.title || 'Unknown Chapter',
-        classId: cls?.id || null,
-        className: cls?.name || 'Unknown Class'
+        lessonId: lesson.id,
+        lessonTitle: lesson.title || '',
+        chapterId: chapter.id,
+        chapterTitle: chapter.title || '',
+        classId: cls.id,
+        className: cls.name || '',
+        studentId: sub.student_id,
+        studentName: profile.full_name || 'Học sinh',
+        username: profile.username || '',
       }
     })
 
     return jsonResponse({
-      studentId: targetStudentId,
-      totalSubmissions: formattedList.length,
-      history: formattedList,
+      studentId: studentId || (user.role === 'STUDENT' ? user.id : undefined),
+      classId: classId || undefined,
+      totalSubmissions: history.length,
+      history,
     })
   } catch (err: unknown) {
     const error = err as Error

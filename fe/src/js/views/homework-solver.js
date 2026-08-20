@@ -39,17 +39,9 @@ export function renderHomeworkSolverView() {
   const isExpired = deadline ? new Date() > new Date(deadline) : false
   const isExceeded = (maxAttempts > 0 && attemptsCount >= maxAttempts)
 
-  if (isExpired || isExceeded) {
-    let warningTitle = "Bài tập đã bị khóa"
-    let warningMsg = ""
-    if (isExpired) {
-      warningTitle = "Bài tập đã quá hạn nộp"
-      const dateStr = new Date(deadline).toLocaleString('vi-VN')
-      warningMsg = `Hạn chót của bài tập này là <strong>${dateStr}</strong>. Bạn không thể tiếp tục thực hiện bài tập này.`
-    } else if (isExceeded) {
-      warningTitle = "Đạt giới hạn số lần làm bài"
-      warningMsg = `Bài tập này chỉ cho phép làm tối đa <strong>${maxAttempts}</strong> lần. Bạn đã thực hiện <strong>${attemptsCount}</strong> lần.`
-    }
+  if (isExceeded) {
+    const warningTitle = "Đạt giới hạn số lần làm bài"
+    const warningMsg = `Bài tập này chỉ cho phép làm tối đa <strong>${maxAttempts}</strong> lần. Bạn đã thực hiện <strong>${attemptsCount}</strong> lần.`
 
     return `
       <div class="app-layout">
@@ -102,6 +94,14 @@ export function renderHomeworkSolverView() {
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
         <div class="content-body" style="padding:16px 24px;">
+          ${isExpired ? `
+            <div style="background:#fef3c7; border:1px solid #fde68a; color:#92400e; padding:12px 16px; border-radius:10px; margin-bottom:16px; font-size:13px; display:flex; align-items:center; gap:10px; font-weight:600;">
+              <i class="fa-solid fa-clock-rotate-left" style="font-size:18px; color:#d97706;"></i>
+              <div>
+                Bài tập này đã quá hạn nộp bài (${deadline ? new Date(deadline).toLocaleString('vi-VN') : ''}). Bài làm của bạn vẫn có thể nộp và sẽ được ghi nhận là <strong style="color:#b45309;">Nộp muộn</strong>.
+              </div>
+            </div>
+          ` : ''}
           <div class="split-homework-layout">
             
             <!-- LEFT COLUMN: PDF VIEWER (LARGER PORTION ~60%) -->
@@ -261,7 +261,7 @@ export function bindHomeworkSolverEvents() {
   const isExpired = deadline ? new Date() > new Date(deadline) : false
   const isExceeded = (maxAttempts > 0 && attemptsCount >= maxAttempts)
 
-  if (isExpired || isExceeded) return
+  if (isExceeded) return
 
   // Shared submit helper
   const performSubmit = async () => {

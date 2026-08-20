@@ -38,12 +38,13 @@ serve(async (req: Request) => {
       return errorResponse('Student is not assigned to any class', 403)
     }
 
-    // Check deadline
+    // Check deadline (mark as late if past deadline instead of blocking)
+    let isLate = false
     if (homework.deadline) {
       const deadlineDate = new Date(homework.deadline)
       const now = new Date()
       if (now > deadlineDate) {
-        return errorResponse('Bài tập đã hết hạn nộp bài', 400)
+        isLate = true
       }
     }
 
@@ -198,6 +199,7 @@ serve(async (req: Request) => {
         correct_count: correctCount,
         wrong_count: wrongCount,
         duration_seconds_taken: durationSecondsTaken || 0,
+        is_late: isLate,
       })
       .select('id, submitted_at')
       .single()
@@ -295,6 +297,7 @@ serve(async (req: Request) => {
         maxScore: homework.max_score,
         passScore: homework.pass_score,
         isPassed: finalScore >= homework.pass_score,
+        isLate,
         correctCount,
         wrongCount,
         questionReview: questionReviews,
