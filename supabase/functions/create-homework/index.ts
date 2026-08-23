@@ -469,7 +469,7 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
       else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
       else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.5
     } else if (isStructureC) {
-      if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.5
+      if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
       else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
       else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.25
     }
@@ -536,6 +536,10 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
           score_earned: gradeResult.scoreEarned,
         })
         .eq('id', ans.id)
+    }
+
+    if (isAllMC && totalQuestions > 0) {
+      totalScore = (correctCount / totalQuestions) * 10
     }
 
     const finalScore = Math.round(totalScore * 10) / 10

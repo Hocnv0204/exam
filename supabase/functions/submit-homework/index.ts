@@ -135,7 +135,7 @@ serve(async (req: Request) => {
         else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
         else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.5
       } else if (isStructureC) {
-        if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.5
+        if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
         else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
         else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.25
       }
@@ -183,6 +183,10 @@ serve(async (req: Request) => {
         is_correct: gradeResult.isCorrect,
         score_earned: gradeResult.scoreEarned,
       })
+    }
+
+    if (isAllMC && totalQuestions > 0) {
+      totalScore = (correctCount / totalQuestions) * 10
     }
 
     // Round score to 1 decimal place (if the 2nd decimal digit < 5, round down; >= 5, round up)

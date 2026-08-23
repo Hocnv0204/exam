@@ -56,38 +56,84 @@ export function renderAssignmentReviewView() {
     return numA - numB
   })
 
-  const percentage = Math.round((sub.score / (sub.maxScore || 10)) * 100)
-  const isPassed = sub.score >= (sub.passScore || 5)
+  // Determine active structure
+  const totalQuestions = sortedAnswers.length
+  const mcCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'MULTIPLE_CHOICE').length
+  const tfCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'TRUE_FALSE').length
+  const saCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'SHORT_ANSWER').length
+
+  const isAllMC = mcCount === totalQuestions && totalQuestions > 0
+  const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
+  const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
+
+  let calculatedScore = Number(sub.score)
+  if (isAllMC && totalQuestions > 0 && sub.correctCount !== undefined) {
+    calculatedScore = Math.round((Number(sub.correctCount) / totalQuestions) * 10 * 10) / 10
+  }
+
+  const maxScore = Number(sub.maxScore || 10)
+  const isPassed = calculatedScore >= (sub.passScore || 5)
 
   // Calculate scores for each section (multiple choice, true/false, short answer)
   let mcEarned = 0, mcPossible = 0
   let tfEarned = 0, tfPossible = 0
   let saEarned = 0, saPossible = 0
 
-  sortedAnswers.forEach(ans => {
-    const qType = ans.questions?.question_type
-    const score = ans.score_earned !== undefined ? ans.score_earned : (ans.scoreEarned || 0)
-    let points = ans.pointsPossible
-    if (points === undefined || points === null) {
-      if (qType === 'MULTIPLE_CHOICE') points = 0.25
-      else if (qType === 'TRUE_FALSE') points = 1.0
-      else if (qType === 'SHORT_ANSWER') points = 0.5
-      else points = ans.questions?.points || 1
-    }
-
-    if (qType === 'MULTIPLE_CHOICE') {
-      mcEarned += score
-      mcPossible += points
-    } else if (qType === 'TRUE_FALSE') {
-      tfEarned += score
-      tfPossible += points
-    } else if (qType === 'SHORT_ANSWER') {
-      saEarned += score
-      saPossible += points
-    }
-  })
+  if (isAllMC) {
+    mcEarned = calculatedScore
+    mcPossible = maxScore
+  } else if (isStructureB) {
+    sortedAnswers.forEach(ans => {
+      const qType = ans.questions?.question_type || ans.questionType
+      const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+      if (qType === 'MULTIPLE_CHOICE') mcEarned += score
+      else if (qType === 'TRUE_FALSE') tfEarned += score
+      else if (qType === 'SHORT_ANSWER') saEarned += score
+    })
+    mcPossible = 3.0
+    tfPossible = 4.0
+    saPossible = 3.0
+  } else if (isStructureC) {
+    sortedAnswers.forEach(ans => {
+      const qType = ans.questions?.question_type || ans.questionType
+      const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+      if (qType === 'MULTIPLE_CHOICE') mcEarned += score
+      else if (qType === 'TRUE_FALSE') tfEarned += score
+      else if (qType === 'SHORT_ANSWER') saEarned += score
+    })
+    mcPossible = 4.5
+    tfPossible = 4.0
+    saPossible = 1.5
+  } else {
+    sortedAnswers.forEach(ans => {
+      const qType = ans.questions?.question_type || ans.questionType
+      const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+      let points = ans.pointsPossible !== undefined && ans.pointsPossible !== null ? Number(ans.pointsPossible) : (ans.questions?.points || 1)
+      if (qType === 'MULTIPLE_CHOICE') {
+        mcEarned += score
+        mcPossible += points
+      } else if (qType === 'TRUE_FALSE') {
+        tfEarned += score
+        tfPossible += points
+      } else if (qType === 'SHORT_ANSWER') {
+        saEarned += score
+        saPossible += points
+      }
+    })
+  }
 
   const formatScore = (val) => Number(Number(val).toFixed(2))
+
+  let mcLabel = 'Trắc nghiệm'
+  if (isAllMC) {
+    const ptPerQ = totalQuestions > 0 ? (10 / totalQuestions) : 0.25
+    mcLabel = `Trắc nghiệm (${formatScore(ptPerQ)}đ/câu)`
+  } else if (isStructureB || isStructureC) {
+    mcLabel = 'Trắc nghiệm (0.25đ/câu)'
+  }
+
+  let tfLabel = 'Đúng / Sai (1đ/câu)'
+  let saLabel = isStructureC ? 'Trả lời ngắn (0.25đ/câu)' : 'Trả lời ngắn (0.5đ/câu)'
 
   return `
     <div class="app-layout">
@@ -132,7 +178,7 @@ export function renderAssignmentReviewView() {
               <!-- Total Score prominently displayed -->
               <div style="display:flex; align-items:center; gap:12px; background:#f0f9ff; border:1px solid #bae6fd; padding:8px 18px; border-radius:10px;">
                 <span style="font-size:13px; color:#0369a1; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Tổng Điểm Số:</span>
-                <strong style="font-size:24px; color:#0284c7; font-family:var(--font-heading);">${formatScore(sub.score)} <span style="font-size:15px; color:#0284c7; font-weight:600;">/ ${formatScore(sub.maxScore || 10)}</span></strong>
+                <strong style="font-size:24px; color:#0284c7; font-family:var(--font-heading);">${formatScore(calculatedScore)} <span style="font-size:15px; color:#0284c7; font-weight:600;">/ ${formatScore(maxScore)}</span></strong>
               </div>
             </div>
 
@@ -144,19 +190,19 @@ export function renderAssignmentReviewView() {
               <div style="display:flex; gap:16px; flex-wrap:wrap;">
                 ${mcPossible > 0 ? `
                   <div style="background:#f8fafc; padding:8px 16px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px; min-width:140px;">
-                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Trắc nghiệm (0.25đ/câu)</span>
+                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">${mcLabel}</span>
                     <strong style="font-size:15px; color:#1e293b;">${formatScore(mcEarned)} / ${formatScore(mcPossible)}đ</strong>
                   </div>
                 ` : ''}
                 ${tfPossible > 0 ? `
                   <div style="background:#f8fafc; padding:8px 16px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px; min-width:140px;">
-                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Đúng / Sai (1đ/câu)</span>
+                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">${tfLabel}</span>
                     <strong style="font-size:15px; color:#1e293b;">${formatScore(tfEarned)} / ${formatScore(tfPossible)}đ</strong>
                   </div>
                 ` : ''}
                 ${saPossible > 0 ? `
                   <div style="background:#f8fafc; padding:8px 16px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px; min-width:140px;">
-                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Trả lời ngắn (0.5đ/câu)</span>
+                    <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">${saLabel}</span>
                     <strong style="font-size:15px; color:#1e293b;">${formatScore(saEarned)} / ${formatScore(saPossible)}đ</strong>
                   </div>
                 ` : ''}
@@ -194,14 +240,24 @@ export function renderAssignmentReviewView() {
                 const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
                 const qType = ans.questions?.question_type || ans.questionType
                 const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (qType === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
-                const scoreEarned = ans.score_earned !== undefined ? ans.score_earned : (ans.scoreEarned || 0)
-                
                 let pointsPossible = ans.pointsPossible
-                if (pointsPossible === undefined || pointsPossible === null) {
+                if (isAllMC) {
+                  pointsPossible = totalQuestions > 0 ? (10 / totalQuestions) : 0.25
+                } else if (isStructureB) {
                   if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
                   else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
                   else if (qType === 'SHORT_ANSWER') pointsPossible = 0.5
-                  else pointsPossible = ans.questions?.points || 1
+                } else if (isStructureC) {
+                  if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
+                  else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
+                  else if (qType === 'SHORT_ANSWER') pointsPossible = 0.25
+                } else if (pointsPossible === undefined || pointsPossible === null) {
+                  pointsPossible = ans.questions?.points || 1
+                }
+
+                let scoreEarned = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+                if (isAllMC) {
+                  scoreEarned = isCorrect ? pointsPossible : 0
                 }
 
                 const givenAnswer = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer

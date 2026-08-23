@@ -108,18 +108,48 @@ serve(async (req: Request) => {
         }
       }
 
+      // Determine active grading structure
+      const totalQuestions = (answers || []).length
+      const mcCount = (answers || []).filter((a: any) => a.questions?.question_type === 'MULTIPLE_CHOICE').length
+      const tfCount = (answers || []).filter((a: any) => a.questions?.question_type === 'TRUE_FALSE').length
+      const saCount = (answers || []).filter((a: any) => a.questions?.question_type === 'SHORT_ANSWER').length
+
+      const isAllMC = mcCount === totalQuestions && totalQuestions > 0
+      const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
+      const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
+
+      let calculatedScore = Number(sub.total_score)
+      if (isAllMC && totalQuestions > 0 && sub.correct_count !== undefined && sub.correct_count !== null) {
+        calculatedScore = Math.round((Number(sub.correct_count) / totalQuestions) * 10 * 10) / 10
+      }
+
       const passScore = Number(hwObj?.pass_score ?? 5)
-      const score = Number(sub.total_score)
+      const score = calculatedScore
       const isPassed = score >= passScore
 
       const formattedAnswers = (answers || []).map((ans: any) => {
         const qType = ans.questions?.question_type
         const key = keyMap.get(ans.question_id)
 
-        let points = 1
-        if (qType === 'MULTIPLE_CHOICE') points = 0.25
-        else if (qType === 'TRUE_FALSE') points = 1.0
-        else if (qType === 'SHORT_ANSWER') points = 0.5
+        let points = 1.0
+        if (isAllMC) {
+          points = totalQuestions > 0 ? (10.0 / totalQuestions) : 1.0
+        } else if (isStructureB) {
+          if (qType === 'MULTIPLE_CHOICE') points = 0.25
+          else if (qType === 'TRUE_FALSE') points = 1.0
+          else if (qType === 'SHORT_ANSWER') points = 0.5
+        } else if (isStructureC) {
+          if (qType === 'MULTIPLE_CHOICE') points = 0.25
+          else if (qType === 'TRUE_FALSE') points = 1.0
+          else if (qType === 'SHORT_ANSWER') points = 0.25
+        } else {
+          points = ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : 1.0
+        }
+
+        let scoreEarned = ans.score_earned !== undefined && ans.score_earned !== null ? Number(ans.score_earned) : 0
+        if (isAllMC) {
+          scoreEarned = ans.is_correct ? points : 0
+        }
 
         let correctAnswerSummary: any = null
         let statementGrades: any = undefined
@@ -159,8 +189,8 @@ serve(async (req: Request) => {
           questionType: qType,
           is_correct: ans.is_correct,
           isCorrect: ans.is_correct,
-          score_earned: ans.score_earned,
-          scoreEarned: ans.score_earned,
+          score_earned: scoreEarned,
+          scoreEarned: scoreEarned,
           pointsPossible: points,
           given_answer: ans.given_answer,
           givenAnswer: ans.given_answer,
