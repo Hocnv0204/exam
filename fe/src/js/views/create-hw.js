@@ -143,7 +143,8 @@ export function renderCreateHwView() {
                 <div style="display:flex; flex-direction:column; gap:12px;">
                   <div>
                     <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
-                    <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: Kiểm tra Chương 3..." value="${isEdit ? hw.title : ''}" style="padding:8px 12px; font-size:13px;">
+                    <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: BTVN số 1, Đề kiểm tra 15 phút..." value="${isEdit ? hw.title : ''}" style="padding:8px 12px; font-size:13px;">
+                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tiền tố tên bài học sẽ tự động được thêm vào trước tên bài tập</div>
                   </div>
 
                   <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
@@ -167,13 +168,24 @@ export function renderCreateHwView() {
                     </div>
                   </div>
 
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                  <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px;">
                     <div>
-                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian làm bài (Phút)</label>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Loại bài tập <span style="color:#ef4444;">*</span></label>
+                      <select id="hw-type" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
+                        <option value="PRACTICE" ${isEdit && hw.type === 'PRACTICE' ? 'selected' : ''}>Luyện tập</option>
+                        <option value="EXAM" ${isEdit && hw.type === 'EXAM' ? 'selected' : ''}>Bài thi</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian (Phút)</label>
                       <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 45 : 45}" min="5" style="padding:8px 12px; font-size:13px;">
                     </div>
                     <div>
-                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần làm tối đa (0 = Không giới hạn)</label>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Giới hạn vi phạm</label>
+                      <input type="number" id="hw-max-violations" class="form-input" value="${isEdit && hw.maxViolations !== undefined ? hw.maxViolations : 3}" min="1" max="10" style="padding:8px 12px; font-size:13px;">
+                    </div>
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần (0 = K.G.Hạn)</label>
                       <input type="number" id="hw-max-attempts" class="form-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.max_attempts !== undefined && hw.max_attempts !== null ? hw.max_attempts : 0)}" min="0" style="padding:8px 12px; font-size:13px;">
                     </div>
                   </div>
@@ -421,6 +433,76 @@ export function bindCreateHwEvents() {
   const classSelect = document.getElementById('hw-class-select')
   const chapterSelect = document.getElementById('hw-chapter-select')
   const lessonSelect = document.getElementById('hw-lesson-select')
+  const typeSelect = document.getElementById('hw-type')
+  const maxAttemptsInput = document.getElementById('hw-max-attempts')
+
+  let previousLessonTitle = ''
+
+  const getSelectedLessonTitle = () => {
+    if (!lessonSelect || lessonSelect.selectedIndex < 0) return ''
+    const opt = lessonSelect.options[lessonSelect.selectedIndex]
+    if (!opt || !opt.value) return ''
+    return opt.textContent.trim()
+  }
+
+  const applyLessonPrefixToTitle = (newLessonTitle) => {
+    const titleInput = document.getElementById('hw-title')
+    if (!titleInput || !newLessonTitle) return
+    const currentVal = titleInput.value.trim()
+
+    // If input is empty
+    if (!currentVal) {
+      titleInput.value = `${newLessonTitle} - `
+      previousLessonTitle = newLessonTitle
+      return
+    }
+
+    // If title currently starts with previousLessonTitle, replace old prefix with new prefix
+    if (previousLessonTitle && currentVal.startsWith(previousLessonTitle)) {
+      const suffix = currentVal.substring(previousLessonTitle.length).replace(/^[\s\-–—:]+/, '').trim()
+      titleInput.value = suffix ? `${newLessonTitle} - ${suffix}` : `${newLessonTitle} - `
+      previousLessonTitle = newLessonTitle
+      return
+    }
+
+    // If title already starts with newLessonTitle, don't duplicate
+    if (currentVal.startsWith(newLessonTitle)) {
+      previousLessonTitle = newLessonTitle
+      return
+    }
+
+    // If title already has some custom name, prepend newLessonTitle
+    titleInput.value = `${newLessonTitle} - ${currentVal}`
+    previousLessonTitle = newLessonTitle
+  }
+
+  // Disable max attempts if Exam
+  const maxViolationsInput = document.getElementById('hw-max-violations')
+  if (typeSelect && maxAttemptsInput) {
+    const handleTypeChange = () => {
+      if (typeSelect.value === 'EXAM') {
+        maxAttemptsInput.value = 1;
+        maxAttemptsInput.disabled = true;
+        maxAttemptsInput.style.backgroundColor = '#f1f5f9';
+        
+        if (maxViolationsInput) {
+          maxViolationsInput.disabled = false;
+          maxViolationsInput.style.backgroundColor = '#ffffff';
+        }
+      } else {
+        maxAttemptsInput.disabled = false;
+        maxAttemptsInput.style.backgroundColor = '#ffffff';
+        
+        if (maxViolationsInput) {
+          maxViolationsInput.disabled = true;
+          maxViolationsInput.style.backgroundColor = '#f1f5f9';
+        }
+      }
+    };
+    typeSelect.addEventListener('change', handleTypeChange);
+    // Init state
+    handleTypeChange();
+  }
 
   const updateChaptersDropdown = async (targetChapterId = null, targetLessonId = null) => {
     const classId = classSelect?.value
@@ -494,6 +576,15 @@ export function bindCreateHwEvents() {
 
       if (lessonSelect) {
         lessonSelect.innerHTML = lOptions || '<option value="">Chưa có bài học nào</option>'
+        if (!isEdit && lessons && lessons.length === 1) {
+          lessonSelect.value = lessons[0].id
+          applyLessonPrefixToTitle(lessons[0].title)
+        } else if (isEdit && editLessonId) {
+          const currentOpt = lessonSelect.options[lessonSelect.selectedIndex]
+          if (currentOpt && currentOpt.value) {
+            previousLessonTitle = currentOpt.textContent.trim()
+          }
+        }
       }
     } catch (e) {
       if (lessonSelect) {
@@ -510,6 +601,13 @@ export function bindCreateHwEvents() {
     updateLessonsDropdown(e.target.value)
   })
 
+  lessonSelect?.addEventListener('change', () => {
+    const selectedTitle = getSelectedLessonTitle()
+    if (selectedTitle) {
+      applyLessonPrefixToTitle(selectedTitle)
+    }
+  })
+
   // Trigger initial dropdown load
   const isEdit = !!state.editHomeworkData
   const hw = isEdit ? state.editHomeworkData.homework : null
@@ -519,36 +617,14 @@ export function bindCreateHwEvents() {
     let initialLessonId = hw ? (hw.lessonId || hw.lesson_id) : null
     let initialClassId = hw ? (hw.classId || hw.class_id) : null
 
-    // Fallback lookup: resolve IDs via matching names if they are not provided by edge function response
-    if (isEdit && hw && (!initialChapterId || !initialLessonId || !initialClassId)) {
-      for (const cls of state.classes) {
-        try {
-          const chapters = await api.getChapters(cls.id)
-          for (const ch of (chapters || [])) {
-            if (ch.title === hw.chapterTitle) {
-              const lessons = await api.getLessons(ch.id)
-              for (const l of (lessons || [])) {
-                if (l.title === hw.lessonTitle) {
-                  initialClassId = cls.id
-                  initialChapterId = ch.id
-                  initialLessonId = l.id
-                  break
-                }
-              }
-            }
-            if (initialLessonId) break
-          }
-        } catch (e) {
-          console.error('[CreateHW] Fallback matching failed:', e)
-        }
-        if (initialLessonId) break
-      }
-    }
-
     if (initialClassId && classSelect) {
       classSelect.value = initialClassId
     }
     await updateChaptersDropdown(initialChapterId, initialLessonId)
+
+    if (isEdit && hw) {
+      previousLessonTitle = hw.lessonTitle || getSelectedLessonTitle()
+    }
   }
 
   initDropdowns()
@@ -796,15 +872,19 @@ export function bindCreateHwEvents() {
 
   // Save Homework Event
   document.getElementById('save-homework-btn')?.addEventListener('click', async () => {
-    const title = document.getElementById('hw-title')?.value.trim()
+    let title = document.getElementById('hw-title')?.value.trim()
     const classId = document.getElementById('hw-class-select')?.value
     const lessonId = document.getElementById('hw-lesson-select')?.value
+    const selectedLessonTitle = getSelectedLessonTitle()
     const duration = parseInt(document.getElementById('hw-duration')?.value || '45', 10)
     const deadlineRaw = document.getElementById('hw-deadline')?.value
     const maxAttemptsVal = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
+    const maxViolationsVal = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
+    const typeVal = document.getElementById('hw-type')?.value || 'PRACTICE'
 
     const deadline = deadlineRaw ? new Date(deadlineRaw).toISOString() : null
     const maxAttempts = maxAttemptsVal > 0 ? maxAttemptsVal : null
+    const maxViolations = typeVal === 'EXAM' ? (maxViolationsVal > 0 ? maxViolationsVal : 3) : null
 
     if (!title) {
       showToast('Vui lòng nhập tên bài tập!', 'error')
@@ -814,6 +894,22 @@ export function bindCreateHwEvents() {
     if (!lessonId) {
       showToast('Vui lòng chọn bài học cho bài tập này!', 'error')
       return
+    }
+
+    if (selectedLessonTitle) {
+      let customPart = title
+      if (title.startsWith(selectedLessonTitle)) {
+        customPart = title.substring(selectedLessonTitle.length).replace(/^[\s\-–—:]+/, '').trim()
+      }
+      if (!customPart) {
+        showToast('Vui lòng nhập tên bài tập!', 'error')
+        return
+      }
+      if (!title.startsWith(selectedLessonTitle)) {
+        title = `${selectedLessonTitle} - ${title}`
+        const titleInput = document.getElementById('hw-title')
+        if (titleInput) titleInput.value = title
+      }
     }
 
     const totalQuestions = currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount
@@ -909,10 +1005,12 @@ export function bindCreateHwEvents() {
           isPublished: hw.isPublished !== false,
           questions,
           deadline,
-          maxAttempts
+          maxAttempts,
+          type: typeVal,
+          maxViolations
         })
         showToast(`Đã cập nhật bài tập "${title}" thành công!`, 'success')
-        window.location.hash = '#curriculum'
+        window.location.hash = '#homework-mgmt'
       } else {
         showToast('Đang lưu cấu hình bài tập...', 'info')
         await api.createHomework({
@@ -925,10 +1023,12 @@ export function bindCreateHwEvents() {
           isPublished: true,
           questions,
           deadline,
-          maxAttempts
+          maxAttempts,
+          type: typeVal,
+          maxViolations
         })
         showToast(`Đã xuất bản bài tập "${title}" thành công!`, 'success')
-        window.location.hash = '#curriculum'
+        window.location.hash = '#homework-mgmt'
       }
     } catch (err) {
       showToast(`Lưu bài tập thất bại: ${err.message}`, 'error')

@@ -24,8 +24,8 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'curriculum' ? 'active' : ''}" onclick="window.location.hash='#curriculum'">
           <i class="fa-solid fa-book-open"></i> Chương & Bài học
         </div>
-        <div class="nav-item ${currentRoute === 'create-homework' ? 'active' : ''}" onclick="window.location.hash='#create-homework'">
-          <i class="fa-solid fa-file-signature"></i> Tạo bài tập
+        <div class="nav-item ${currentRoute === 'homework-mgmt' || currentRoute === 'create-homework' ? 'active' : ''}" onclick="window.location.hash='#homework-mgmt'">
+          <i class="fa-solid fa-list-check"></i> Quản lý bài tập
         </div>
         <div class="nav-item ${currentRoute === 'admin-history' ? 'active' : ''}" onclick="window.location.hash='#admin-history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài

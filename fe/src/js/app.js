@@ -13,6 +13,7 @@ import { renderAdminDashboardView, bindAdminDashboardEvents } from './views/admi
 import { renderAdminHistoryView, bindAdminHistoryEvents } from './views/admin-history.js'
 import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
+import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
@@ -27,7 +28,8 @@ const routes = {
   'admin-dashboard': { render: renderAdminDashboardView, bind: bindAdminDashboardEvents },
   'admin-history': { render: renderAdminHistoryView, bind: bindAdminHistoryEvents },
   'class-details': { render: renderClassDetailsView, bind: bindClassDetailsEvents },
-  'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents }
+  'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents },
+  'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents }
 }
 
 async function router() {
@@ -40,7 +42,7 @@ async function router() {
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'classes-admin', 'curriculum', 'create-homework', 'admin-history']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt']
     const studentOnlyRoutes = ['my-classes', 'homework-attempt', 'history']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
@@ -80,7 +82,7 @@ async function router() {
       }
 
       // 1. Fetch Classes (for Class Management, Students dropdown, Curriculum, Homework Creation, My Classes)
-      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history', 'class-details', 'student-details'].includes(hash)) {
+      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history', 'class-details', 'student-details', 'homework-mgmt'].includes(hash)) {
         if (!state.classes || state.classes.length === 0) {
           const rawClasses = await api.getClasses()
           state.classes = (rawClasses || []).map(c => {
@@ -99,25 +101,20 @@ async function router() {
           const classId = params.get('classId')
           const lessonId = params.get('lessonId')
           if (classId) {
-            const rawChapters = await api.getChapters(classId)
-            const chapters = []
-            for (const ch of (rawChapters || [])) {
-              const rawLessons = await api.getLessons(ch.id)
-              chapters.push({
-                id: ch.id,
-                code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
-                title: ch.title,
-                lessons: (rawLessons || []).map(l => ({
-                  id: l.id,
-                  code: `${ch.order_index || 1}.${l.order_index || 1}`,
-                  title: l.title,
-                  videoUrl: l.video_url || '',
-                  theoryFiles: l.theory_files || [],
-                  content: l.content
-                }))
-              })
-            }
-            state.classChapters = chapters
+            const rawChapters = await api.getChapters(classId, true)
+            state.classChapters = (rawChapters || []).map(ch => ({
+              id: ch.id,
+              code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+              title: ch.title,
+              lessons: (ch.lessons || []).map(l => ({
+                id: l.id,
+                code: `${ch.order_index || 1}.${l.order_index || 1}`,
+                title: l.title,
+                videoUrl: l.video_url || '',
+                theoryFiles: l.theory_files || [],
+                content: l.content
+              }))
+            }))
 
             if (lessonId) {
               const rawHomeworks = await api.getHomeworks(lessonId)

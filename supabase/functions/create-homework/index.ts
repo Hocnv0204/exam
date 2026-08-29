@@ -35,6 +35,7 @@ serve(async (req: Request) => {
             duration_minutes,
             deadline,
             max_attempts,
+            type,
             created_at,
             lessons!inner (
               id,
@@ -75,6 +76,7 @@ serve(async (req: Request) => {
             durationMinutes: hw.duration_minutes,
             deadline: hw.deadline,
             maxAttempts: hw.max_attempts,
+            type: hw.type,
             createdAt: hw.created_at,
             classId: classInfo?.id || null,
             className: classInfo?.name || 'Lớp học'
@@ -100,6 +102,7 @@ serve(async (req: Request) => {
             created_at,
             deadline,
             max_attempts,
+            type,
             lessons!inner (
               id,
               title,
@@ -128,6 +131,7 @@ serve(async (req: Request) => {
           createdAt: hw.created_at,
           deadline: hw.deadline,
           maxAttempts: hw.max_attempts,
+          type: hw.type,
           lessonTitle: hw.lessons?.title || '',
           chapterTitle: hw.lessons?.chapters?.title || ''
         }))
@@ -136,13 +140,71 @@ serve(async (req: Request) => {
       }
 
       const lessonId = url.searchParams.get('lessonId')
-      let query = serviceRoleClient.from('homeworks').select('*')
+      let query = serviceRoleClient
+        .from('homeworks')
+        .select(`
+          id,
+          lesson_id,
+          title,
+          pdf_path,
+          duration_minutes,
+          pass_score,
+          max_score,
+          is_published,
+          created_at,
+          deadline,
+          max_attempts,
+          type,
+          max_violations,
+          lessons (
+            id,
+            title,
+            chapter_id,
+            chapters (
+              id,
+              title,
+              class_id,
+              classes (
+                id,
+                name
+              )
+            )
+          )
+        `)
       if (lessonId) {
         query = query.eq('lesson_id', lessonId)
       }
       const { data: homeworks, error } = await query.order('created_at', { ascending: false })
       if (error) return errorResponse(error.message, 500)
-      return jsonResponse(homeworks)
+
+      const formatted = (homeworks || []).map((hw: any) => {
+        const lessonInfo = hw.lessons
+        const chapterInfo = lessonInfo?.chapters
+        const classInfo = chapterInfo?.classes
+
+        return {
+          id: hw.id,
+          lessonId: hw.lesson_id,
+          title: hw.title,
+          pdfPath: hw.pdf_path,
+          durationMinutes: hw.duration_minutes,
+          passScore: hw.pass_score,
+          maxScore: hw.max_score,
+          isPublished: hw.is_published,
+          createdAt: hw.created_at,
+          deadline: hw.deadline,
+          maxAttempts: hw.max_attempts,
+          type: hw.type || 'PRACTICE',
+          maxViolations: hw.max_violations,
+          lessonTitle: lessonInfo?.title || '',
+          chapterId: chapterInfo?.id || lessonInfo?.chapter_id || null,
+          chapterTitle: chapterInfo?.title || '',
+          classId: classInfo?.id || chapterInfo?.class_id || null,
+          className: classInfo?.name || ''
+        }
+      })
+
+      return jsonResponse(formatted)
     }
 
     // Role Guard: POST, PUT, PATCH, DELETE are Admin-only
@@ -169,7 +231,13 @@ serve(async (req: Request) => {
         questions,
         deadline,
         maxAttempts,
+        type,
+        maxViolations,
       } = validation.data
+
+      // Automatically enforce max_attempts = 1 if it's an EXAM
+      const finalMaxAttempts = type === 'EXAM' ? 1 : (maxAttempts || null);
+      const finalMaxViolations = type === 'EXAM' ? (maxViolations || 3) : null;
 
       // Create Homework Record
       const { data: homework, error: homeworkError } = await serviceRoleClient
@@ -183,7 +251,9 @@ serve(async (req: Request) => {
           max_score: maxScore,
           is_published: isPublished,
           deadline: deadline || null,
-          max_attempts: maxAttempts || null,
+          max_attempts: finalMaxAttempts,
+          type: type || 'PRACTICE',
+          max_violations: finalMaxViolations,
         })
         .select()
         .single()
@@ -249,7 +319,7 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts } = validation.data
+      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts, type, maxViolations } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
       if (lessonId !== undefined) updateData.lesson_id = lessonId
@@ -261,6 +331,20 @@ serve(async (req: Request) => {
       if (isPublished !== undefined) updateData.is_published = isPublished
       if (deadline !== undefined) updateData.deadline = deadline || null
       if (maxAttempts !== undefined) updateData.max_attempts = maxAttempts || null
+      if (type !== undefined) updateData.type = type
+      if (maxViolations !== undefined) updateData.max_violations = maxViolations || null
+      
+      // Enforce max_attempts and max_violations if EXAM
+      if (updateData.type === 'EXAM' || (type === undefined && (maxAttempts !== undefined || maxViolations !== undefined))) {
+         if (updateData.type === 'EXAM') {
+            updateData.max_attempts = 1;
+            if (updateData.max_violations === undefined || updateData.max_violations === null) {
+              updateData.max_violations = 3;
+            }
+         }
+      } else if (updateData.type === 'PRACTICE') {
+         updateData.max_violations = null;
+      }
 
       const { data: updatedHomework, error } = await serviceRoleClient
         .from('homeworks')

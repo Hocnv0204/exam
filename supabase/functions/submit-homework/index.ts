@@ -26,7 +26,7 @@ serve(async (req: Request) => {
     // 1. Fetch homework and verify student class assignment
     const { data: homework, error: homeworkError } = await serviceRoleClient
       .from('homeworks')
-      .select('id, title, max_score, pass_score, is_published, lesson_id, deadline, max_attempts, pdf_path')
+      .select('id, title, max_score, pass_score, is_published, lesson_id, deadline, max_attempts, pdf_path, type')
       .eq('id', homeworkId)
       .single()
 
@@ -36,6 +36,34 @@ serve(async (req: Request) => {
 
     if (!user.classIds || user.classIds.length === 0) {
       return errorResponse('Student is not assigned to any class', 403)
+    }
+
+    // Check session for EXAM
+    let examSessionId = null
+    if (homework.type === 'EXAM') {
+      const { sessionToken } = validation.data
+      if (!sessionToken) {
+        return errorResponse('sessionToken is required for EXAM', 400)
+      }
+
+      const { data: session } = await serviceRoleClient
+        .from('exam_sessions')
+        .select('id, session_token')
+        .eq('homework_id', homeworkId)
+        .eq('student_id', user.id)
+        .eq('status', 'ACTIVE')
+        .maybeSingle()
+
+      if (!session) {
+        return errorResponse('No active exam session found', 404)
+      }
+      if (session.session_token !== sessionToken) {
+        return jsonResponse({
+          error: 'INVALID_TOKEN',
+          message: 'Phiên làm bài không hợp lệ hoặc đã bị ghi đè.'
+        }, { status: 403 })
+      }
+      examSessionId = session.id
     }
 
     // Check deadline (mark as late if past deadline instead of blocking)
@@ -210,6 +238,14 @@ serve(async (req: Request) => {
 
     if (subError || !submission) {
       return errorResponse(`Failed to record submission: ${subError?.message}`, 500)
+    }
+
+    // Update exam_sessions status if EXAM
+    if (examSessionId) {
+      await serviceRoleClient
+        .from('exam_sessions')
+        .update({ status: 'SUBMITTED' })
+        .eq('id', examSessionId)
     }
 
     // 6. Save Submission Answers

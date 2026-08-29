@@ -40,6 +40,7 @@ serve(async (req: Request) => {
             max_score,
             pdf_path,
             deadline,
+            type,
             lessons (
               id,
               title,
@@ -216,6 +217,7 @@ serve(async (req: Request) => {
         passScore,
         isPassed,
         isLate: sub.is_late,
+        type: hwObj?.type || 'PRACTICE',
         correctCount: sub.correct_count,
         wrongCount: sub.wrong_count,
         pdfUrl,
@@ -231,6 +233,7 @@ serve(async (req: Request) => {
           wrongCount: sub.wrong_count,
           submittedAt: sub.submitted_at,
           isLate: sub.is_late,
+          type: hwObj?.type || 'PRACTICE',
           pdfUrl,
         },
       })
@@ -258,6 +261,7 @@ serve(async (req: Request) => {
           pass_score,
           deadline,
           pdf_path,
+          type,
           lessons!inner (
             id,
             title,
@@ -316,6 +320,7 @@ serve(async (req: Request) => {
         maxScore,
         passScore,
         isPassed,
+        type: hw.type || 'PRACTICE',
         correctCount: sub.correct_count,
         wrongCount: sub.wrong_count,
         durationSecondsTaken: sub.duration_seconds_taken || 0,

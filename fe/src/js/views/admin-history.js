@@ -85,7 +85,16 @@ export function renderAdminHistoryView() {
                         <tr class="history-row">
                           <td style="font-weight:700; color:#0f172a;" class="row-student-name">${sub.studentName}</td>
                           <td style="color:#475569;" class="row-hw-title">
-                            ${sub.homeworkTitle}
+                            <div style="margin-bottom: 4px;">${sub.homeworkTitle}</div>
+                            ${sub.type === 'EXAM' ? `
+                              <span style="background:#fef2f2; color:#ef4444; border:1px solid #fecaca; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-file-contract"></i> Bài thi
+                              </span>
+                            ` : `
+                              <span style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-dumbbell"></i> Luyện tập
+                              </span>
+                            `}
                             ${(sub.isLate || sub.is_late) ? `
                               <span style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">
                                 <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn

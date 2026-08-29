@@ -125,8 +125,10 @@ export const createHomeworkSchema = z.object({
   maxScore: z.number().positive().optional().default(10),
   isPublished: z.boolean().optional().default(true),
   questions: z.array(questionInputSchema).min(1, 'At least one question is required'),
-  deadline: z.string().optional().nullable(),
-  maxAttempts: z.number().int().nonnegative().optional().nullable(),
+  deadline: z.string().nullable().optional(),
+  maxAttempts: z.number().int().nonnegative().optional(),
+  type: z.enum(['PRACTICE', 'EXAM']).optional().default('PRACTICE'),
+  maxViolations: z.number().int().positive().optional(),
 })
 
 export const updateHomeworkSchema = z.object({
@@ -139,8 +141,10 @@ export const updateHomeworkSchema = z.object({
   maxScore: z.number().positive().optional(),
   isPublished: z.boolean().optional(),
   questions: z.array(questionInputSchema).optional(),
-  deadline: z.string().optional().nullable(),
-  maxAttempts: z.number().int().nonnegative().optional().nullable(),
+  deadline: z.string().nullable().optional(),
+  maxAttempts: z.number().int().nonnegative().optional(),
+  type: z.enum(['PRACTICE', 'EXAM']).optional(),
+  maxViolations: z.number().int().positive().optional(),
 })
 
 export const deleteHomeworkSchema = z.object({
@@ -179,4 +183,5 @@ export const submitHomeworkSchema = z.object({
   homeworkId: z.string().uuid('Invalid Homework ID'),
   answers: z.array(submittedAnswerItemSchema),
   durationSecondsTaken: z.number().int().nonnegative().optional(),
+  sessionToken: z.string().optional(),
 })

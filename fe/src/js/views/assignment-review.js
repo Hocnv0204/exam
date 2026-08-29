@@ -147,6 +147,11 @@ export function renderAssignmentReviewView() {
               <p class="page-description">${sub.homeworkTitle}</p>
             </div>
             <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
+              ${state.user?.role === 'ADMIN' && sub.homeworkTitle ? `
+                <button id="reopen-submission-btn" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#f59e0b; color:#ffffff; font-weight:600; cursor:pointer; border:none; white-space:nowrap;">
+                  <i class="fa-solid fa-rotate-left"></i> Khôi phục bài thi
+                </button>
+              ` : ''}
               ${pdfUrl ? `
                 <button id="toggle-pdf-btn" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#0066cc; color:#ffffff; font-weight:600; cursor:pointer; border:none; white-space:nowrap;">
                   <i class="fa-solid fa-file-pdf"></i> Xem đề bài (PDF)
@@ -222,6 +227,7 @@ export function renderAssignmentReviewView() {
               </div>
             </div>
           </div>
+          <div id="exam-logs-container" style="margin-bottom: 24px;"></div>
 
           <!-- Main Layout Wrapper with transition -->
           <div id="review-layout-wrapper" style="display: grid; grid-template-columns: 1fr; gap: 24px; transition: all 0.3s ease;">
@@ -475,6 +481,83 @@ export function renderAssignmentReviewView() {
 
 export function bindAssignmentReviewEvents() {
   bindSidebarEvents()
+
+  // Fetch and display exam logs if user is admin
+  const logsContainer = document.getElementById('exam-logs-container')
+  if (logsContainer && state.user?.role === 'ADMIN' && state.lastSubmissionResult?.submission) {
+    const hwId = state.lastSubmissionResult.submission.homeworkId || state.lastSubmissionResult.homeworkId
+    const studentId = state.lastSubmissionResult.studentId
+    if (hwId && studentId) {
+      import('../api.js').then(({ api }) => {
+        api.getExamLogs(hwId).then(logs => {
+           const studentLogs = logs.filter(l => l.student_id === studentId)
+           if (studentLogs.length > 0) {
+             const cheatAttempts = studentLogs.filter(l => l.action === 'LEAVE_TAB').length
+             logsContainer.innerHTML = `
+               <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:16px; margin-top:16px;">
+                 <h4 style="color:#ef4444; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+                   <i class="fa-solid fa-triangle-exclamation"></i> Cảnh báo gian lận (${cheatAttempts} lần rời tab)
+                 </h4>
+                 <ul style="margin:0; padding-left:20px; color:#b91c1c; font-size:13px; max-height: 150px; overflow-y: auto;">
+                   ${studentLogs.map(l => `<li>${new Date(l.created_at).toLocaleString('vi-VN')} - Hành động: <strong>${l.action === 'LEAVE_TAB' ? 'Rời khỏi trang' : 'Quay lại trang'}</strong></li>`).join('')}
+                 </ul>
+               </div>
+             `
+           }
+        }).catch(err => console.error("Failed to fetch exam logs", err))
+      })
+    }
+  }
+
+  // Admin Reopen Submission feature
+  const reopenBtn = document.getElementById('reopen-submission-btn')
+  if (reopenBtn && state.user?.role === 'ADMIN' && state.lastSubmissionResult?.submission) {
+    reopenBtn.onclick = () => {
+      import('../components/modal.js').then(({ openModal }) => {
+        const bodyHtml = `
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <p style="font-size:14px; color:#475569; margin:0; line-height:1.5;">
+              Hành động này sẽ đưa bài thi về trạng thái "Đang làm" và học sinh có thể tiếp tục làm bài. 
+              Bài nộp cũ sẽ được lưu trữ lại.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:14px; color:#1e293b; cursor:pointer;">
+                <input type="checkbox" id="reopen-reset-timer" style="width:16px; height:16px;" checked>
+                Thiết lập lại thời gian làm bài (đếm lại từ đầu)
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; font-size:14px; color:#1e293b; cursor:pointer;">
+                <input type="checkbox" id="reopen-reset-answers" style="width:16px; height:16px;" checked>
+                Xóa các đáp án đã chọn (làm lại từ đầu)
+              </label>
+            </div>
+          </div>
+        `
+        openModal('Khôi phục bài thi', bodyHtml, async () => {
+          const resetTimer = document.getElementById('reopen-reset-timer')?.checked || false
+          const resetAnswers = document.getElementById('reopen-reset-answers')?.checked || false
+          const hwId = state.lastSubmissionResult.submission.homeworkId || state.lastSubmissionResult.homeworkId
+          const studentId = state.lastSubmissionResult.studentId
+          
+          if (!hwId || !studentId) {
+             import('../components/toast.js').then(({ showToast }) => showToast('Không tìm thấy thông tin bài thi.', 'error'))
+             return true
+          }
+          
+          try {
+             const { api } = await import('../api.js')
+             await api.reopenSubmission(hwId, studentId, resetTimer, resetAnswers)
+             import('../components/toast.js').then(({ showToast }) => showToast('Đã khôi phục bài thi thành công.', 'success'))
+             setTimeout(() => {
+                window.location.hash = '#admin-history'
+             }, 1000)
+          } catch(e) {
+             import('../components/toast.js').then(({ showToast }) => showToast(e.message || 'Lỗi khi khôi phục bài thi', 'error'))
+          }
+          return true
+        })
+      })
+    }
+  }
 
   const togglePdfBtn = document.getElementById('toggle-pdf-btn')
   const downloadPdfBtn = document.getElementById('download-pdf-btn')

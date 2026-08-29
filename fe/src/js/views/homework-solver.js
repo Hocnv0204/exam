@@ -263,56 +263,66 @@ export function bindHomeworkSolverEvents() {
 
   if (isExceeded) return
 
+  // Shared helper to build answers array
+  const buildSubmissionAnswers = () => {
+    return questions.map(q => {
+      const qNum = q.question_number || q.questionNumber
+      const type = q.question_type || q.questionType
+      if (type === 'MULTIPLE_CHOICE') {
+        return {
+          questionId: q.id,
+          givenAnswer: {
+            type: 'MULTIPLE_CHOICE',
+            value: studentAnswers.mc[qNum] || null
+          }
+        }
+      } else if (type === 'TRUE_FALSE') {
+        const tfObj = studentAnswers.tf[qNum] || {}
+        const valObj = {}
+        if (tfObj.a !== undefined) valObj.a = tfObj.a
+        if (tfObj.b !== undefined) valObj.b = tfObj.b
+        if (tfObj.c !== undefined) valObj.c = tfObj.c
+        if (tfObj.d !== undefined) valObj.d = tfObj.d
+        return {
+          questionId: q.id,
+          givenAnswer: {
+            type: 'TRUE_FALSE',
+            value: valObj
+          }
+        }
+      } else {
+        return {
+          questionId: q.id,
+          givenAnswer: {
+            type: 'SHORT_ANSWER',
+            value: studentAnswers.sa[qNum] || ''
+          }
+        }
+      }
+    })
+  }
+
   // Shared submit helper
   const performSubmit = async () => {
     try {
       showToast('Đang gửi bài làm lên máy chủ chấm điểm...', 'info')
       
-      // Build answers array in format expected by backend validator submittedAnswerItemSchema
-      const submissionAnswers = questions.map(q => {
-        const qNum = q.question_number || q.questionNumber
-        const type = q.question_type || q.questionType
-        if (type === 'MULTIPLE_CHOICE') {
-          return {
-            questionId: q.id,
-            givenAnswer: {
-              type: 'MULTIPLE_CHOICE',
-              value: studentAnswers.mc[qNum] || null
-            }
-          }
-        } else if (type === 'TRUE_FALSE') {
-          const tfObj = studentAnswers.tf[qNum] || {}
-          const valObj = {}
-          if (tfObj.a !== undefined) valObj.a = tfObj.a
-          if (tfObj.b !== undefined) valObj.b = tfObj.b
-          if (tfObj.c !== undefined) valObj.c = tfObj.c
-          if (tfObj.d !== undefined) valObj.d = tfObj.d
-          return {
-            questionId: q.id,
-            givenAnswer: {
-              type: 'TRUE_FALSE',
-              value: valObj
-            }
-          }
-        } else {
-          return {
-            questionId: q.id,
-            givenAnswer: {
-              type: 'SHORT_ANSWER',
-              value: studentAnswers.sa[qNum] || ''
-            }
-          }
-        }
-      })
+      const submissionAnswers = buildSubmissionAnswers()
+
 
       const totalDurationSeconds = (hw.durationMinutes || 45) * 60
       const durationSecondsTaken = Math.max(0, totalDurationSeconds - timeLeftSeconds)
 
-      const result = await api.submitHomework({
+      const payload = {
         homeworkId: hw.id,
         answers: submissionAnswers,
         durationSecondsTaken
-      })
+      }
+      if (hw.type === 'EXAM' && examSessionToken) {
+        payload.sessionToken = examSessionToken
+      }
+
+      const result = await api.submitHomework(payload)
       
       showToast('Nộp bài thành công! Đang tải kết quả chấm điểm...', 'success')
       
@@ -359,17 +369,200 @@ export function bindHomeworkSolverEvents() {
     }, 1000)
   }
 
-  // Cleanup handler for route changes to clear interval
+  let heartbeatInterval = null
+  let autosaveInterval = null
+  let examSessionToken = null
+
+  // Cleanup handler for route changes to clear intervals
   const hashChangeListener = () => {
-    if (timerInterval) {
-      clearInterval(timerInterval)
-    }
+    if (timerInterval) clearInterval(timerInterval)
+    if (heartbeatInterval) clearInterval(heartbeatInterval)
+    if (autosaveInterval) clearInterval(autosaveInterval)
     window.removeEventListener('hashchange', hashChangeListener)
   }
   window.addEventListener('hashchange', hashChangeListener)
 
-  // Start the timer countdown automatically on page load
-  startTimer()
+  // EXAM MODE tracking & instructions popup
+  if (hw.type === 'EXAM') {
+    let examStarted = false
+
+    const handleVisibilityChange = async () => {
+      if (!examStarted) return
+      if (document.hidden) {
+        // Log leaving tab
+        logCheatAttempt('LEAVE_TAB')
+      } else {
+        // Return to tab -> Log and warn
+        logCheatAttempt('RETURN_TAB')
+        openModal(
+          'CẢNH BÁO GIAN LẬN',
+          `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
+             <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
+             Hệ thống phát hiện bạn vừa chuyển thẻ (tab) hoặc thu nhỏ cửa sổ.<br>
+             Hành động này đã được ghi lại trong nhật ký giám sát. Vui lòng tập trung làm bài!
+           </p>`,
+          () => true
+        )
+      }
+    }
+
+    const handleCopy = (e) => {
+      if (!examStarted) return
+      e.preventDefault()
+      showToast('Không được phép sao chép nội dung trong phòng thi!', 'error')
+      logCheatAttempt('COPY')
+    }
+
+    const handlePaste = () => {
+      if (!examStarted) return
+      logCheatAttempt('PASTE')
+    }
+
+    const handleContextMenu = (e) => {
+      if (!examStarted) return
+      e.preventDefault()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    document.addEventListener('copy', handleCopy)
+    document.addEventListener('paste', handlePaste)
+    document.addEventListener('contextmenu', handleContextMenu)
+
+    // Add cleanup to hashchange
+    const cleanupTracking = () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      document.removeEventListener('copy', handleCopy)
+      document.removeEventListener('paste', handlePaste)
+      document.removeEventListener('contextmenu', handleContextMenu)
+      window.removeEventListener('hashchange', cleanupTracking)
+    }
+    window.addEventListener('hashchange', cleanupTracking)
+
+    const logCheatAttempt = async (actionText) => {
+      try {
+        const res = await api.submitExamLog({ homeworkId: hw.id, action: actionText })
+        if (res && res.autoSubmitted) {
+          if (timerInterval) clearInterval(timerInterval)
+          if (heartbeatInterval) clearInterval(heartbeatInterval)
+          if (autosaveInterval) clearInterval(autosaveInterval)
+          
+          openModal(
+            'ĐÌNH CHỈ THI',
+            `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
+               <i class="fa-solid fa-ban" style="font-size:48px; margin-bottom:16px;"></i><br>
+               Hệ thống đã tự động thu bài của bạn do <strong>vi phạm quy chế thi quá số lần cho phép</strong>.
+             </p>`,
+            () => {
+              window.location.hash = '#assignment-review'
+              return true
+            }
+          )
+        }
+      } catch(e) {}
+    }
+
+    const startHeartbeat = () => {
+      heartbeatInterval = setInterval(async () => {
+        try {
+          await api.heartbeatExamSession(hw.id, examSessionToken)
+        } catch(e) {
+          console.warn('Heartbeat failed:', e)
+        }
+      }, 30000)
+    }
+
+    const startAutosave = () => {
+      autosaveInterval = setInterval(async () => {
+        try {
+          const draftAnswers = buildSubmissionAnswers()
+          await api.autosaveExamSession(hw.id, examSessionToken, draftAnswers)
+        } catch(e) {
+          console.warn('Autosave failed:', e)
+        }
+      }, 15000)
+    }
+
+    // Show initial Exam Rules Modal before starting
+    const examRulesBody = `
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div style="display:flex; align-items:center; gap:12px; background:#fef2f2; border:1px solid #fee2e2; padding:14px; border-radius:10px; color:#991b1b;">
+          <i class="fa-solid fa-triangle-exclamation" style="font-size:28px; color:#ef4444; flex-shrink:0;"></i>
+          <div style="font-size:13px; line-height:1.5;">
+            Đây là <strong>Bài thi chính thức</strong> có hệ thống giám sát chống gian lận tự động. Vui lòng đọc kỹ quy chế phòng thi trước khi bắt đầu:
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; color:#334155; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <i class="fa-solid fa-ban" style="color:#ef4444; margin-top:2px; font-size:16px;"></i>
+            <div><strong>Không chuyển tab / không mở tab khác / không thu nhỏ cửa sổ:</strong> Mọi hành động rời khỏi màn hình bài thi đều bị hệ thống phát hiện, ghi lại vào nhật ký giám sát và gửi cho giáo viên.</div>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <i class="fa-solid fa-ban" style="color:#ef4444; margin-top:2px; font-size:16px;"></i>
+            <div><strong>Không sao chép (copy / paste):</strong> Chức năng sao chép nội dung đề thi và chuột phải bị vô hiệu hóa trong suốt bài thi.</div>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <i class="fa-solid fa-stopwatch" style="color:#0284c7; margin-top:2px; font-size:16px;"></i>
+            <div><strong>Thời gian làm bài:</strong> Đếm ngược <strong>${hw.durationMinutes || 45} phút</strong>. Hệ thống sẽ tự động thu bài khi hết giờ.</div>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <i class="fa-solid fa-lock" style="color:#d97706; margin-top:2px; font-size:16px;"></i>
+            <div><strong>Số lần nộp bài:</strong> Bài thi chỉ cho phép làm và nộp <strong>01 lần duy nhất</strong>.</div>
+          </div>
+        </div>
+
+        <div style="font-size:12px; color:#64748b; text-align:center;">
+          Nhấn nút <strong>"Bắt đầu làm bài"</strong> để đồng ý tuân thủ quy chế và kích hoạt thời gian thi.
+        </div>
+      </div>
+    `
+
+    openModal(
+      'QUY CHẾ PHÒNG THI TRỰC TUYẾN',
+      examRulesBody,
+      async () => {
+        try {
+          // Generate a session token or grab from crypto
+          const token = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2)
+          await api.initExamSession(hw.id, token)
+          examSessionToken = token
+        } catch(e) {
+          showToast(e.message || 'Không thể bắt đầu phiên thi', 'error')
+          return false
+        }
+        
+        examStarted = true
+        startTimer()
+        startHeartbeat()
+        startAutosave()
+        showToast('Bài thi đã bắt đầu! Chúc bạn làm bài tốt.', 'info')
+        return true
+      }
+    )
+
+    // Customize modal buttons for exam start
+    const confirmBtn = document.getElementById('modal-confirm-btn')
+    const cancelBtn = document.getElementById('modal-cancel-btn')
+    const closeBtn = document.getElementById('modal-close-btn')
+    if (confirmBtn) {
+      confirmBtn.innerHTML = '<i class="fa-solid fa-play"></i> Bắt đầu làm bài'
+      confirmBtn.style.background = '#059669'
+    }
+    if (cancelBtn) {
+      cancelBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Quay lại'
+      cancelBtn.addEventListener('click', () => {
+        window.location.hash = '#my-classes'
+      }, { once: true })
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        window.location.hash = '#my-classes'
+      }, { once: true })
+    }
+  } else {
+    // Normal Practice homework: start timer immediately
+    startTimer()
+  }
 
 
   // Student MC click

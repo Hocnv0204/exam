@@ -34,6 +34,8 @@ serve(async (req: Request) => {
         created_at,
         deadline,
         max_attempts,
+        type,
+        max_violations,
         lessons (
           title,
           chapter_id,
@@ -134,6 +136,8 @@ serve(async (req: Request) => {
         createdAt: homework.created_at,
         deadline: homework.deadline,
         maxAttempts: homework.max_attempts,
+        type: homework.type || 'PRACTICE',
+        maxViolations: homework.max_violations !== undefined ? homework.max_violations : 3,
         lessonTitle: (homework.lessons as unknown as { title: string })?.title,
         chapterTitle: (homework.lessons as unknown as { chapters: { title: string } })?.chapters?.title,
         lessonId: homework.lesson_id,

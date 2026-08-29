@@ -19,13 +19,17 @@ serve(async (req: Request) => {
     // GET: List chapters (filter by classId if provided)
     if (req.method === 'GET') {
       const classId = url.searchParams.get('classId')
+      const includeLessons = url.searchParams.get('includeLessons') === 'true'
       
       // Student RLS: Can only view chapters of their enrolled class
       if (user.role === 'STUDENT' && (!classId || !user.classIds.includes(classId))) {
         return errorResponse('Forbidden: You can only view chapters of your enrolled class', 403)
       }
 
-      let query = serviceRoleClient.from('chapters').select('*').order('order_index', { ascending: true })
+      let query = serviceRoleClient
+        .from('chapters')
+        .select(includeLessons ? '*, lessons(*)' : '*')
+        .order('order_index', { ascending: true })
 
       if (classId) {
         query = query.eq('class_id', classId)
@@ -33,6 +37,15 @@ serve(async (req: Request) => {
 
       const { data: chapters, error } = await query
       if (error) return errorResponse(error.message, 500)
+
+      if (includeLessons && Array.isArray(chapters)) {
+        chapters.forEach((ch: any) => {
+          if (Array.isArray(ch.lessons)) {
+            ch.lessons.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+          }
+        })
+      }
+
       return jsonResponse(chapters)
     }
 
