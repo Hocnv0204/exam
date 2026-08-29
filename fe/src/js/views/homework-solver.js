@@ -385,24 +385,60 @@ export function bindHomeworkSolverEvents() {
   // EXAM MODE tracking & instructions popup
   if (hw.type === 'EXAM') {
     let examStarted = false
+    let isLeavingOrFocusLost = false
 
     const handleVisibilityChange = async () => {
       if (!examStarted) return
       if (document.hidden) {
-        // Log leaving tab
+        isLeavingOrFocusLost = true
         logCheatAttempt('LEAVE_TAB')
       } else {
-        // Return to tab -> Log and warn
+        if (isLeavingOrFocusLost) {
+          isLeavingOrFocusLost = false
+          logCheatAttempt('RETURN_TAB')
+          openModal(
+            'CẢNH BÁO GIAN LẬN',
+            `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
+               <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
+               Hệ thống phát hiện bạn vừa chuyển thẻ (tab) hoặc thu nhỏ cửa sổ.<br>
+               Hành động này đã được ghi lại trong nhật ký giám sát. Vui lòng tập trung làm bài!
+             </p>`,
+            () => true
+          )
+        }
+      }
+    }
+
+    const handleBlur = () => {
+      if (!examStarted) return
+      if (!isLeavingOrFocusLost) {
+        isLeavingOrFocusLost = true
+        logCheatAttempt('LEAVE_TAB')
+      }
+    }
+
+    const handleFocus = () => {
+      if (!examStarted) return
+      if (isLeavingOrFocusLost && !document.hidden) {
+        isLeavingOrFocusLost = false
         logCheatAttempt('RETURN_TAB')
         openModal(
           'CẢNH BÁO GIAN LẬN',
           `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
              <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
-             Hệ thống phát hiện bạn vừa chuyển thẻ (tab) hoặc thu nhỏ cửa sổ.<br>
+             Hệ thống phát hiện bạn vừa rời khỏi màn hình làm bài (mở ứng dụng khác / thu nhỏ trình duyệt).<br>
              Hành động này đã được ghi lại trong nhật ký giám sát. Vui lòng tập trung làm bài!
            </p>`,
           () => true
         )
+      }
+    }
+
+    const handleBeforeUnload = (e) => {
+      if (examStarted) {
+        e.preventDefault()
+        e.returnValue = 'Bạn đang trong phòng thi chính thức. Bạn có chắc chắn muốn rời đi?'
+        return e.returnValue
       }
     }
 
@@ -423,17 +459,58 @@ export function bindHomeworkSolverEvents() {
       e.preventDefault()
     }
 
+    // Intercept Sidebar & Navbar navigation clicks during active exam
+    const handleNavClick = (e) => {
+      if (!examStarted) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+
+      const targetHash = e.currentTarget.getAttribute('onclick')?.match(/hash=['"]?([^'"]+)['"]?/)?.[1] || '#my-classes'
+
+      openModal(
+        'CẢNH BÁO RỜI PHÒNG THI',
+        `<p style="font-size:14px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
+           <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
+           Bạn đang trong bài thi chính thức! Rời khỏi phòng thi lúc này sẽ <strong>ghi nhận 01 lần vi phạm (Rời phòng thi)</strong>.<br>
+           Bạn có chắc chắn muốn thoát ra không?
+         </p>`,
+        async () => {
+          examStarted = false
+          await logCheatAttempt('LEAVE_EXAM')
+          window.removeEventListener('beforeunload', handleBeforeUnload)
+          window.location.hash = targetHash
+          return true
+        }
+      )
+    }
+
+    // Bind event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('beforeunload', handleBeforeUnload)
     document.addEventListener('copy', handleCopy)
     document.addEventListener('paste', handlePaste)
     document.addEventListener('contextmenu', handleContextMenu)
 
-    // Add cleanup to hashchange
+    // Attach capture-phase listener to all sidebar and navigation items
+    const navItems = document.querySelectorAll('.sidebar .nav-item, .brand-logo, #sidebar-logout-btn')
+    navItems.forEach(item => {
+      item.addEventListener('click', handleNavClick, true)
+    })
+
     const cleanupTracking = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
       document.removeEventListener('copy', handleCopy)
       document.removeEventListener('paste', handlePaste)
       document.removeEventListener('contextmenu', handleContextMenu)
+      navItems.forEach(item => {
+        item.removeEventListener('click', handleNavClick, true)
+      })
       window.removeEventListener('hashchange', cleanupTracking)
     }
     window.addEventListener('hashchange', cleanupTracking)
