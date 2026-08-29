@@ -386,6 +386,8 @@ export function bindHomeworkSolverEvents() {
   if (hw.type === 'EXAM') {
     let examStarted = false
     let isLeavingOrFocusLost = false
+    let currentViolationsCount = 0
+    let maxViolationsAllowed = hw.maxViolations || hw.max_violations || 3
 
     const handleVisibilityChange = async () => {
       if (!examStarted) return
@@ -395,13 +397,16 @@ export function bindHomeworkSolverEvents() {
       } else {
         if (isLeavingOrFocusLost) {
           isLeavingOrFocusLost = false
-          logCheatAttempt('RETURN_TAB')
+          await logCheatAttempt('RETURN_TAB')
           openModal(
             'CẢNH BÁO GIAN LẬN',
             `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
                <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
                Hệ thống phát hiện bạn vừa chuyển thẻ (tab) hoặc thu nhỏ cửa sổ.<br>
-               Hành động này đã được ghi lại trong nhật ký giám sát. Vui lòng tập trung làm bài!
+               Hành động này đã được ghi lại trong nhật ký giám sát.<br><br>
+               <span style="background:#fee2e2; border:1px solid #fecaca; padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700; color:#991b1b; display:inline-block;">
+                 Số lần vi phạm: <strong style="font-size:16px; color:#dc2626;">${currentViolationsCount}</strong> / ${maxViolationsAllowed} lần
+               </span>
              </p>`,
             () => true
           )
@@ -421,16 +426,20 @@ export function bindHomeworkSolverEvents() {
       if (!examStarted) return
       if (isLeavingOrFocusLost && !document.hidden) {
         isLeavingOrFocusLost = false
-        logCheatAttempt('RETURN_TAB')
-        openModal(
-          'CẢNH BÁO GIAN LẬN',
-          `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
-             <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
-             Hệ thống phát hiện bạn vừa rời khỏi màn hình làm bài (mở ứng dụng khác / thu nhỏ trình duyệt).<br>
-             Hành động này đã được ghi lại trong nhật ký giám sát. Vui lòng tập trung làm bài!
-           </p>`,
-          () => true
-        )
+        logCheatAttempt('RETURN_TAB').then(() => {
+          openModal(
+            'CẢNH BÁO GIAN LẬN',
+            `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
+               <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
+               Hệ thống phát hiện bạn vừa rời khỏi màn hình làm bài (mở ứng dụng khác / thu nhỏ trình duyệt).<br>
+               Hành động này đã được ghi lại trong nhật ký giám sát.<br><br>
+               <span style="background:#fee2e2; border:1px solid #fecaca; padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700; color:#991b1b; display:inline-block;">
+                 Số lần vi phạm: <strong style="font-size:16px; color:#dc2626;">${currentViolationsCount}</strong> / ${maxViolationsAllowed} lần
+               </span>
+             </p>`,
+            () => true
+          )
+        })
       }
     }
 
@@ -518,22 +527,27 @@ export function bindHomeworkSolverEvents() {
     const logCheatAttempt = async (actionText) => {
       try {
         const res = await api.submitExamLog({ homeworkId: hw.id, action: actionText })
-        if (res && res.autoSubmitted) {
-          if (timerInterval) clearInterval(timerInterval)
-          if (heartbeatInterval) clearInterval(heartbeatInterval)
-          if (autosaveInterval) clearInterval(autosaveInterval)
-          
-          openModal(
-            'ĐÌNH CHỈ THI',
-            `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
-               <i class="fa-solid fa-ban" style="font-size:48px; margin-bottom:16px;"></i><br>
-               Hệ thống đã tự động thu bài của bạn do <strong>vi phạm quy chế thi quá số lần cho phép</strong>.
-             </p>`,
-            () => {
-              window.location.hash = '#assignment-review'
-              return true
-            }
-          )
+        if (res) {
+          if (res.currentViolations !== undefined) currentViolationsCount = res.currentViolations
+          if (res.maxViolations !== undefined) maxViolationsAllowed = res.maxViolations
+
+          if (res.autoSubmitted) {
+            if (timerInterval) clearInterval(timerInterval)
+            if (heartbeatInterval) clearInterval(heartbeatInterval)
+            if (autosaveInterval) clearInterval(autosaveInterval)
+            
+            openModal(
+              'ĐÌNH CHỈ THI',
+              `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
+                 <i class="fa-solid fa-ban" style="font-size:48px; margin-bottom:16px;"></i><br>
+                 Hệ thống đã tự động thu bài của bạn do <strong>vi phạm quy chế thi quá số lần cho phép (${currentViolationsCount}/${maxViolationsAllowed} lần)</strong>.
+               </p>`,
+              () => {
+                window.location.hash = '#assignment-review'
+                return true
+              }
+            )
+          }
         }
       } catch(e) {}
     }

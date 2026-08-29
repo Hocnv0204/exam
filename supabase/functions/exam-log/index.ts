@@ -63,61 +63,60 @@ serve(async (req: Request) => {
 
       if (error) return errorResponse(error.message, 500)
 
-      // Only check violations for specific penalized actions
-      const penalizedActions = ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM']
-      if (penalizedActions.includes(action)) {
-        // Get max_violations from homework
-        const { data: hw } = await serviceRoleClient
-          .from('homeworks')
-          .select('max_violations')
-          .eq('id', homeworkId)
-          .single()
-        
-        const maxV = hw?.max_violations ?? 3
+      // Get max_violations from homework
+      const { data: hw } = await serviceRoleClient
+        .from('homeworks')
+        .select('max_violations')
+        .eq('id', homeworkId)
+        .single()
+      
+      const maxV = hw?.max_violations ?? 3
 
-        // Count current violations
-        const { count, error: countErr } = await serviceRoleClient
-          .from('exam_logs')
-          .select('*', { count: 'exact', head: true })
+      // Count current violations
+      const penalizedActions = ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM']
+      const { count } = await serviceRoleClient
+        .from('exam_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('homework_id', homeworkId)
+        .eq('student_id', user.id)
+        .in('action', penalizedActions)
+
+      const currentViolations = count || 0
+
+      if (penalizedActions.includes(action) && currentViolations >= maxV) {
+        // Trigger server-side auto-submit
+        const { data: session } = await serviceRoleClient
+          .from('exam_sessions')
+          .select('session_token, draft_answers, status')
           .eq('homework_id', homeworkId)
           .eq('student_id', user.id)
-          .in('action', penalizedActions)
-
-        if (!countErr && count !== null && count >= maxV) {
-          // Trigger server-side auto-submit
-          const { data: session } = await serviceRoleClient
-            .from('exam_sessions')
-            .select('session_token, draft_answers, status')
-            .eq('homework_id', homeworkId)
-            .eq('student_id', user.id)
-            .eq('status', 'ACTIVE')
-            .maybeSingle()
-            
-          if (session) {
-            const authHeader = req.headers.get('Authorization')
-            const draftAnswers = Array.isArray(session.draft_answers) ? session.draft_answers : []
-            
-            // Invoke submit-homework
-            const { error: invokeErr } = await serviceRoleClient.functions.invoke('submit-homework', {
-              body: {
-                homeworkId,
-                answers: draftAnswers,
-                durationSecondsTaken: 0,
-                sessionToken: session.session_token
-              },
-              headers: {
-                Authorization: authHeader || ''
-              }
-            })
-
-            if (!invokeErr) {
-              return jsonResponse({ success: true, log: data, autoSubmitted: true })
+          .eq('status', 'ACTIVE')
+          .maybeSingle()
+          
+        if (session) {
+          const authHeader = req.headers.get('Authorization')
+          const draftAnswers = Array.isArray(session.draft_answers) ? session.draft_answers : []
+          
+          // Invoke submit-homework
+          const { error: invokeErr } = await serviceRoleClient.functions.invoke('submit-homework', {
+            body: {
+              homeworkId,
+              answers: draftAnswers,
+              durationSecondsTaken: 0,
+              sessionToken: session.session_token
+            },
+            headers: {
+              Authorization: authHeader || ''
             }
+          })
+
+          if (!invokeErr) {
+            return jsonResponse({ success: true, log: data, autoSubmitted: true, currentViolations, maxViolations: maxV })
           }
         }
       }
 
-      return jsonResponse({ success: true, log: data, autoSubmitted: false })
+      return jsonResponse({ success: true, log: data, autoSubmitted: false, currentViolations, maxViolations: maxV })
     }
 
     return errorResponse('Method not allowed', 405)

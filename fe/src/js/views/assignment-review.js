@@ -494,6 +494,7 @@ export function bindAssignmentReviewEvents() {
   const studentId = state.lastSubmissionResult?.studentId || subData.studentId || subData.student_id || subData.student?.id
 
   if (state.user?.role === 'ADMIN' && hwId) {
+    const maxV = subData.maxViolations || subData.max_violations || subData.homework?.maxViolations || subData.homework?.max_violations || 3
     import('../api.js').then(({ api }) => {
       api.getExamLogs(hwId).then(logs => {
         const studentLogs = (logs || []).filter(l => l.student_id === studentId || l.studentId === studentId)
@@ -504,10 +505,10 @@ export function bindAssignmentReviewEvents() {
             <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:16px; margin-top:16px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                 <h4 style="color:#dc2626; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; font-size:14px;">
-                  <i class="fa-solid fa-shield-cat" style="font-size:18px;"></i> NHẬT KÝ GIÁM SÁT VI PHẠM (Phát hiện ${violationCount} lượt vi phạm)
+                  <i class="fa-solid fa-shield-cat" style="font-size:18px;"></i> NHẬT KÝ GIÁM SÁT VI PHẠM (Phát hiện ${violationCount}/${maxV} lượt vi phạm)
                 </h4>
                 <span style="font-size:12px; font-weight:600; color:#991b1b; background:#fee2e2; padding:3px 10px; border-radius:20px;">
-                  ${violationCount} lượt vi phạm
+                  ${violationCount} / ${maxV} vi phạm
                 </span>
               </div>
               <div style="display:flex; flex-direction:column; gap:8px; max-height:180px; overflow-y:auto; padding-right:4px;">
@@ -560,7 +561,7 @@ export function bindAssignmentReviewEvents() {
                     <i class="fa-solid fa-shield-cat" style="font-size:28px; color:#ef4444;"></i>
                     <div>
                       <div style="font-weight:700; font-size:14px; color:#991b1b;">Nhật ký giám sát bài thi chính thức</div>
-                      <div style="font-size:12px; color:#b91c1c;">Tổng số lượt vi phạm ghi nhận: <strong>${violationCount} lần</strong></div>
+                      <div style="font-size:12px; color:#b91c1c;">Tổng số lượt vi phạm ghi nhận: <strong>${violationCount} / ${maxV} lần</strong></div>
                     </div>
                   </div>
                 </div>
