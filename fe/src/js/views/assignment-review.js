@@ -148,6 +148,9 @@ export function renderAssignmentReviewView() {
             </div>
             <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
               ${state.user?.role === 'ADMIN' && sub.homeworkTitle ? `
+                <button id="view-exam-logs-btn" class="btn-secondary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-weight:600; cursor:pointer; white-space:nowrap;">
+                  <i class="fa-solid fa-shield-cat"></i> Xem nhật ký vi phạm
+                </button>
                 <button id="reopen-submission-btn" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#f59e0b; color:#ffffff; font-weight:600; cursor:pointer; border:none; white-space:nowrap;">
                   <i class="fa-solid fa-rotate-left"></i> Khôi phục bài thi
                 </button>
@@ -484,29 +487,113 @@ export function bindAssignmentReviewEvents() {
 
   // Fetch and display exam logs if user is admin
   const logsContainer = document.getElementById('exam-logs-container')
-  if (logsContainer && state.user?.role === 'ADMIN' && state.lastSubmissionResult?.submission) {
-    const hwId = state.lastSubmissionResult.submission.homeworkId || state.lastSubmissionResult.homeworkId
-    const studentId = state.lastSubmissionResult.studentId
-    if (hwId && studentId) {
-      import('../api.js').then(({ api }) => {
-        api.getExamLogs(hwId).then(logs => {
-           const studentLogs = logs.filter(l => l.student_id === studentId)
-           if (studentLogs.length > 0) {
-             const cheatAttempts = studentLogs.filter(l => l.action === 'LEAVE_TAB').length
-             logsContainer.innerHTML = `
-               <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:16px; margin-top:16px;">
-                 <h4 style="color:#ef4444; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
-                   <i class="fa-solid fa-triangle-exclamation"></i> Cảnh báo gian lận (${cheatAttempts} lần rời tab)
-                 </h4>
-                 <ul style="margin:0; padding-left:20px; color:#b91c1c; font-size:13px; max-height: 150px; overflow-y: auto;">
-                   ${studentLogs.map(l => `<li>${new Date(l.created_at).toLocaleString('vi-VN')} - Hành động: <strong>${l.action === 'LEAVE_TAB' ? 'Rời khỏi trang' : 'Quay lại trang'}</strong></li>`).join('')}
-                 </ul>
-               </div>
-             `
-           }
-        }).catch(err => console.error("Failed to fetch exam logs", err))
-      })
-    }
+  const viewLogsBtn = document.getElementById('view-exam-logs-btn')
+
+  const subData = state.lastSubmissionResult?.submission || {}
+  const hwId = state.lastSubmissionResult?.homeworkId || subData.homeworkId || subData.homework_id
+  const studentId = state.lastSubmissionResult?.studentId || subData.studentId || subData.student_id || subData.student?.id
+
+  if (state.user?.role === 'ADMIN' && hwId) {
+    import('../api.js').then(({ api }) => {
+      api.getExamLogs(hwId).then(logs => {
+        const studentLogs = (logs || []).filter(l => l.student_id === studentId || l.studentId === studentId)
+        
+        if (logsContainer && studentLogs.length > 0) {
+          const violationCount = studentLogs.filter(l => l.action !== 'RETURN_TAB').length
+          logsContainer.innerHTML = `
+            <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:16px; margin-top:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h4 style="color:#dc2626; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; font-size:14px;">
+                  <i class="fa-solid fa-shield-cat" style="font-size:18px;"></i> NHẬT KÝ GIÁM SÁT VI PHẠM (Phát hiện ${violationCount} lượt vi phạm)
+                </h4>
+                <span style="font-size:12px; font-weight:600; color:#991b1b; background:#fee2e2; padding:3px 10px; border-radius:20px;">
+                  ${violationCount} lượt vi phạm
+                </span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px; max-height:180px; overflow-y:auto; padding-right:4px;">
+                ${studentLogs.map((l, idx) => {
+                  const timeStr = new Date(l.created_at).toLocaleString('vi-VN')
+                  let actionBadge = ''
+                  if (l.action === 'LEAVE_TAB') actionBadge = '<span style="color:#ef4444; font-weight:700;"><i class="fa-solid fa-up-right-from-square"></i> Rời khỏi màn hình làm bài</span>'
+                  else if (l.action === 'RETURN_TAB') actionBadge = '<span style="color:#059669; font-weight:600;"><i class="fa-solid fa-rotate-left"></i> Quay lại màn hình làm bài</span>'
+                  else if (l.action === 'LEAVE_EXAM') actionBadge = '<span style="color:#991b1b; font-weight:700;"><i class="fa-solid fa-door-open"></i> Bấm thoát phòng thi</span>'
+                  else if (l.action === 'COPY') actionBadge = '<span style="color:#d97706; font-weight:600;"><i class="fa-solid fa-copy"></i> Cố gắng sao chép đề thi</span>'
+                  else if (l.action === 'PASTE') actionBadge = '<span style="color:#d97706; font-weight:600;"><i class="fa-solid fa-paste"></i> Thao tác dán nội dung</span>'
+                  else actionBadge = `<span style="font-weight:600;">${l.action}</span>`
+
+                  return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #fecaca; padding:8px 12px; border-radius:8px; font-size:12px;">
+                      <div>
+                        <span style="color:#94a3b8; font-weight:700; margin-right:8px;">#${studentLogs.length - idx}</span>
+                        ${actionBadge}
+                      </div>
+                      <div style="color:#64748b; font-size:11px;"><i class="fa-regular fa-clock"></i> ${timeStr}</div>
+                    </div>
+                  `
+                }).join('')}
+              </div>
+            </div>
+          `
+        }
+
+        if (viewLogsBtn) {
+          viewLogsBtn.onclick = async () => {
+            const { openModal } = await import('../components/modal.js')
+            if (!studentLogs || studentLogs.length === 0) {
+              openModal(
+                'NHẬT KÝ GIÁM SÁT VI PHẠM',
+                `<div style="text-align:center; padding:24px;">
+                   <i class="fa-solid fa-circle-check" style="font-size:48px; color:#16a34a; margin-bottom:16px;"></i>
+                   <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin-bottom:8px;">Học sinh làm bài nghiêm túc!</h3>
+                   <p style="font-size:13px; color:#64748b; margin:0;">Quá trình làm bài thi không phát hiện bất kỳ hành vi vi phạm quy chế nào (rời tab, sao chép,...).</p>
+                 </div>`
+              )
+              return
+            }
+
+            const violationCount = studentLogs.filter(l => l.action !== 'RETURN_TAB').length
+
+            const modalBody = `
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#fef2f2; border:1px solid #fee2e2; padding:14px 16px; border-radius:12px;">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <i class="fa-solid fa-shield-cat" style="font-size:28px; color:#ef4444;"></i>
+                    <div>
+                      <div style="font-weight:700; font-size:14px; color:#991b1b;">Nhật ký giám sát bài thi chính thức</div>
+                      <div style="font-size:12px; color:#b91c1c;">Tổng số lượt vi phạm ghi nhận: <strong>${violationCount} lần</strong></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:8px; max-height:360px; overflow-y:auto; padding-right:4px;">
+                  ${studentLogs.map((l, idx) => {
+                    const timeStr = new Date(l.created_at).toLocaleString('vi-VN')
+                    let actionBadge = ''
+                    if (l.action === 'LEAVE_TAB') actionBadge = '<span style="color:#ef4444; font-weight:700;"><i class="fa-solid fa-up-right-from-square"></i> Rời khỏi màn hình thi (Chuyển tab / Cửa sổ)</span>'
+                    else if (l.action === 'RETURN_TAB') actionBadge = '<span style="color:#059669; font-weight:600;"><i class="fa-solid fa-rotate-left"></i> Quay lại màn hình thi</span>'
+                    else if (l.action === 'LEAVE_EXAM') actionBadge = '<span style="color:#991b1b; font-weight:700;"><i class="fa-solid fa-door-open"></i> Bấm thoát phòng thi</span>'
+                    else if (l.action === 'COPY') actionBadge = '<span style="color:#d97706; font-weight:600;"><i class="fa-solid fa-copy"></i> Cố gắng sao chép đề thi</span>'
+                    else if (l.action === 'PASTE') actionBadge = '<span style="color:#d97706; font-weight:600;"><i class="fa-solid fa-paste"></i> Thao tác dán nội dung</span>'
+                    else actionBadge = `<span style="font-weight:600;">${l.action}</span>`
+
+                    return `
+                      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:13px;">
+                        <div>
+                          <span style="color:#94a3b8; font-weight:700; margin-right:8px;">#${studentLogs.length - idx}</span>
+                          ${actionBadge}
+                        </div>
+                        <div style="color:#64748b; font-size:12px; white-space:nowrap;"><i class="fa-regular fa-clock"></i> ${timeStr}</div>
+                      </div>
+                    `
+                  }).join('')}
+                </div>
+              </div>
+            `
+            openModal('Chi tiết nhật ký vi phạm', modalBody)
+          }
+        }
+      }).catch(err => console.error("Failed to fetch exam logs", err))
+    })
   }
 
   // Admin Reopen Submission feature
