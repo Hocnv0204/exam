@@ -83,7 +83,7 @@ async function router() {
 
       // 1. Fetch Classes (for Class Management, Students dropdown, Curriculum, Homework Creation, My Classes)
       if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history', 'class-details', 'student-details', 'homework-mgmt'].includes(hash)) {
-        if (!state.classes || state.classes.length === 0) {
+        if (!state.classes || state.classes.length === 0 || hash === 'my-classes' || hash === 'classes-admin') {
           const rawClasses = await api.getClasses()
           state.classes = (rawClasses || []).map(c => {
             return {
