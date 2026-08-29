@@ -74,6 +74,7 @@ serve(async (req: Request) => {
         .select('*', { count: 'exact', head: true })
         .eq('homework_id', homeworkId)
         .eq('student_id', user.id)
+        .eq('status', 'SUBMITTED')
 
       if (!countErr && count !== null) {
         attemptsCount = count

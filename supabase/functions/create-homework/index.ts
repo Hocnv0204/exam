@@ -62,6 +62,7 @@ serve(async (req: Request) => {
           .from('submissions')
           .select('homework_id')
           .eq('student_id', user.id)
+          .eq('status', 'SUBMITTED')
 
         if (subError) return errorResponse(subError.message, 500)
 

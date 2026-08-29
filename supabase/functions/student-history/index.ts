@@ -274,6 +274,7 @@ serve(async (req: Request) => {
           )
         )
       `)
+      .eq('status', 'SUBMITTED')
       .order('submitted_at', { ascending: false })
 
     // If target student is specified
