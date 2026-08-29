@@ -96,6 +96,14 @@ export function renderCreateHwView() {
     return `<option value="${c.id}" ${isSel ? 'selected' : ''}>${c.name}</option>`
   }).join('')
 
+  let displayTitle = isEdit ? (hw?.title || '') : ''
+  if (isEdit && hw?.title && hw?.lessonTitle) {
+    const prefix = `${hw.lessonTitle} - `
+    if (displayTitle.startsWith(prefix)) {
+      displayTitle = displayTitle.substring(prefix.length)
+    }
+  }
+
   return `
     <div class="app-layout">
       ${renderSidebar('create-homework')}
@@ -143,8 +151,8 @@ export function renderCreateHwView() {
                 <div style="display:flex; flex-direction:column; gap:12px;">
                   <div>
                     <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
-                    <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: BTVN số 1, Đề kiểm tra 15 phút..." value="${isEdit ? hw.title : ''}" style="padding:8px 12px; font-size:13px;">
-                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tiền tố tên bài học sẽ tự động được thêm vào trước tên bài tập</div>
+                    <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: TN - 1, Bài tập 1..." value="${displayTitle}" style="padding:8px 12px; font-size:13px;">
+                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tiền tố tên bài học sẽ tự động được thêm vào trước tên bài tập khi gửi dữ liệu</div>
                   </div>
 
                   <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
@@ -185,7 +193,7 @@ export function renderCreateHwView() {
                       <input type="number" id="hw-max-violations" class="form-input" value="${isEdit && hw.maxViolations !== undefined ? hw.maxViolations : 3}" min="1" max="10" style="padding:8px 12px; font-size:13px;">
                     </div>
                     <div>
-                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần (0 = K.G.Hạn)</label>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần</label>
                       <input type="number" id="hw-max-attempts" class="form-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.max_attempts !== undefined && hw.max_attempts !== null ? hw.max_attempts : 0)}" min="0" style="padding:8px 12px; font-size:13px;">
                     </div>
                   </div>
@@ -282,8 +290,8 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.mcCount }, (_, i) => i + 1).map(qNum => {
-            const selected = mcAnswers[qNum]
-            return `
+    const selected = mcAnswers[qNum]
+    return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                 <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
                 <div style="display:flex; gap:6px;">
@@ -298,7 +306,7 @@ function renderAnswerMatrix() {
                 </div>
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -317,16 +325,16 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:flex; flex-direction:column; gap:12px;">
           ${Array.from({ length: currentConfig.tfCount }, (_, i) => i + 1).map(index => {
-            const actualQNum = currentConfig.mcCount + index
-            const tfObj = tfAnswers[index] || {}
-            return `
+    const actualQNum = currentConfig.mcCount + index
+    const tfObj = tfAnswers[index] || {}
+    return `
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
                 <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${actualQNum}</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
                   ${['a', 'b', 'c', 'd'].map(sub => {
-                    const isTrue = tfObj[sub] === true
-                    const isFalse = tfObj[sub] === false
-                    return `
+      const isTrue = tfObj[sub] === true
+      const isFalse = tfObj[sub] === false
+      return `
                       <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
                         <span style="font-weight:700; color:#475569;">${sub})</span>
                         <div style="display:flex; gap:4px;">
@@ -345,11 +353,11 @@ function renderAnswerMatrix() {
                         </div>
                       </div>
                     `
-                  }).join('')}
+    }).join('')}
                 </div>
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -368,15 +376,15 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.saCount }, (_, i) => i + 1).map(index => {
-            const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
-            const val = saAnswers[index] || ''
-            return `
+    const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
+    const val = saAnswers[index] || ''
+    return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                 <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${actualQNum}</span>
                 <input type="text" class="form-input sa-input" data-index="${index}" value="${val}" placeholder="Nhập đáp án chuẩn..." style="padding:6px 10px; font-size:13px; background:#ffffff;">
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -394,7 +402,7 @@ export function bindCreateHwEvents() {
     const container = document.getElementById('pdf-preview-container')
     const placeholder = document.getElementById('pdf-placeholder')
     const titleSpan = document.getElementById('pdf-viewer-title')
-    
+
     if (iframe && container) {
       const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       if (!iframe.src || iframe.src === 'about:blank' || iframe.src === window.location.href) {
@@ -484,7 +492,7 @@ export function bindCreateHwEvents() {
         maxAttemptsInput.value = 1;
         maxAttemptsInput.disabled = true;
         maxAttemptsInput.style.backgroundColor = '#f1f5f9';
-        
+
         if (maxViolationsInput) {
           maxViolationsInput.disabled = false;
           maxViolationsInput.style.backgroundColor = '#ffffff';
@@ -492,7 +500,7 @@ export function bindCreateHwEvents() {
       } else {
         maxAttemptsInput.disabled = false;
         maxAttemptsInput.style.backgroundColor = '#ffffff';
-        
+
         if (maxViolationsInput) {
           maxViolationsInput.disabled = true;
           maxViolationsInput.style.backgroundColor = '#f1f5f9';
@@ -518,7 +526,7 @@ export function bindCreateHwEvents() {
     try {
       const chapters = await api.getChapters(classId)
       let chOptions = '<option value="">-- Chọn chương --</option>'
-      
+
       const isEdit = !!state.editHomeworkData
       const hw = isEdit ? state.editHomeworkData.homework : null
       const editChapterId = targetChapterId || (hw ? (hw.chapterId || hw.chapter_id) : null)
@@ -601,13 +609,6 @@ export function bindCreateHwEvents() {
     updateLessonsDropdown(e.target.value)
   })
 
-  lessonSelect?.addEventListener('change', () => {
-    const selectedTitle = getSelectedLessonTitle()
-    if (selectedTitle) {
-      applyLessonPrefixToTitle(selectedTitle)
-    }
-  })
-
   // Trigger initial dropdown load
   const isEdit = !!state.editHomeworkData
   const hw = isEdit ? state.editHomeworkData.homework : null
@@ -667,7 +668,7 @@ export function bindCreateHwEvents() {
   // Handle Copy Sample JSON
   document.getElementById('copy-sample-btn')?.addEventListener('click', () => {
     const sampleQuestions = [];
-    
+
     // Part I: MC (12 questions)
     for (let i = 1; i <= 12; i++) {
       sampleQuestions.push({
@@ -676,7 +677,7 @@ export function bindCreateHwEvents() {
         mcAnswer: i % 4 === 1 ? "A" : i % 4 === 2 ? "B" : i % 4 === 3 ? "C" : "D"
       });
     }
-    
+
     // Part II: TF (4 questions)
     for (let i = 1; i <= 4; i++) {
       sampleQuestions.push({
@@ -690,7 +691,7 @@ export function bindCreateHwEvents() {
         }
       });
     }
-    
+
     // Part III: SA (6 questions)
     const saSamples = ["10.5", "42", "Hà Nội", "3.14", "2026", "Bài tập"];
     for (let i = 1; i <= 6; i++) {
@@ -700,7 +701,7 @@ export function bindCreateHwEvents() {
         saAnswer: saSamples[i - 1]
       });
     }
-    
+
     const jsonStr = JSON.stringify(sampleQuestions, null, 2);
     navigator.clipboard.writeText(jsonStr)
       .then(() => {
@@ -727,7 +728,7 @@ export function bindCreateHwEvents() {
       const textarea = document.getElementById('import-json-textarea');
       const errorMsgDiv = document.getElementById('modal-error-msg');
       if (!textarea) return false;
-      
+
       const text = textarea.value.trim();
       if (!text) {
         if (errorMsgDiv) {
@@ -739,18 +740,18 @@ export function bindCreateHwEvents() {
 
       try {
         const parsed = JSON.parse(text);
-        
+
         if (!Array.isArray(parsed)) {
           throw new Error("Dữ liệu JSON phải là một danh sách các câu hỏi (mảng).");
         }
-        
+
         if (parsed.length === 0) {
           throw new Error("Danh sách câu hỏi trống.");
         }
-        
+
         // 1. Validate structure and numbers
         const sorted = [...parsed].sort((a, b) => a.questionNumber - b.questionNumber);
-        
+
         for (let i = 0; i < sorted.length; i++) {
           const q = sorted[i];
           const expectedNum = i + 1;
@@ -760,7 +761,7 @@ export function bindCreateHwEvents() {
           if (!q.questionType || !['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER'].includes(q.questionType)) {
             throw new Error(`Câu ${q.questionNumber} có loại câu hỏi không hợp lệ hoặc bị thiếu.`);
           }
-          
+
           if (q.questionType === 'MULTIPLE_CHOICE') {
             if (!q.mcAnswer || !['A', 'B', 'C', 'D'].includes(q.mcAnswer)) {
               throw new Error(`Câu ${q.questionNumber} (Trắc nghiệm) phải có đáp án 'mcAnswer' là A, B, C hoặc D.`);
@@ -781,7 +782,7 @@ export function bindCreateHwEvents() {
             }
           }
         }
-        
+
         // 2. Validate ordering partition (MULTIPLE_CHOICE -> TRUE_FALSE -> SHORT_ANSWER)
         let lastType = 'MULTIPLE_CHOICE';
         for (let i = 0; i < sorted.length; i++) {
@@ -800,25 +801,25 @@ export function bindCreateHwEvents() {
             lastType = 'SHORT_ANSWER';
           }
         }
-        
+
         // 3. Count types
         const mcQ = sorted.filter(q => q.questionType === 'MULTIPLE_CHOICE');
         const tfQ = sorted.filter(q => q.questionType === 'TRUE_FALSE');
         const saQ = sorted.filter(q => q.questionType === 'SHORT_ANSWER');
-        
+
         const mcCount = mcQ.length;
         const tfCount = tfQ.length;
         const saCount = saQ.length;
-        
+
         // 4. Update in-memory answer maps
         const newMcAnswers = {};
         const newTfAnswers = {};
         const newSaAnswers = {};
-        
+
         mcQ.forEach((q, idx) => {
           newMcAnswers[idx + 1] = q.mcAnswer;
         });
-        
+
         tfQ.forEach((q, idx) => {
           newTfAnswers[idx + 1] = {
             a: q.tfAnswers.a,
@@ -827,20 +828,20 @@ export function bindCreateHwEvents() {
             d: q.tfAnswers.d
           };
         });
-        
+
         saQ.forEach((q, idx) => {
           newSaAnswers[idx + 1] = String(q.saAnswer);
         });
-        
+
         // Apply updates
         currentConfig.mcCount = mcCount;
         currentConfig.tfCount = tfCount;
         currentConfig.saCount = saCount;
-        
+
         mcAnswers = newMcAnswers;
         tfAnswers = newTfAnswers;
         saAnswers = newSaAnswers;
-        
+
         // Update input element values in HTML if they exist
         const mcInput = document.getElementById('cfg-mc-count');
         const tfInput = document.getElementById('cfg-tf-count');
@@ -848,14 +849,14 @@ export function bindCreateHwEvents() {
         if (mcInput) mcInput.value = mcCount;
         if (tfInput) tfInput.value = tfCount;
         if (saInput) saInput.value = saCount;
-        
+
         // Re-render UI matrix
         const container = document.getElementById('answer-matrix-container');
         if (container) {
           container.innerHTML = renderAnswerMatrix();
           bindMatrixEvents();
         }
-        
+
         showToast(`Nhập thành công ${sorted.length} câu hỏi từ chuỗi JSON!`, "success");
         return true; // Closes modal
       } catch (err) {
@@ -896,19 +897,11 @@ export function bindCreateHwEvents() {
       return
     }
 
+    let finalTitle = title
     if (selectedLessonTitle) {
-      let customPart = title
-      if (title.startsWith(selectedLessonTitle)) {
-        customPart = title.substring(selectedLessonTitle.length).replace(/^[\s\-–—:]+/, '').trim()
-      }
-      if (!customPart) {
-        showToast('Vui lòng nhập tên bài tập!', 'error')
-        return
-      }
-      if (!title.startsWith(selectedLessonTitle)) {
-        title = `${selectedLessonTitle} - ${title}`
-        const titleInput = document.getElementById('hw-title')
-        if (titleInput) titleInput.value = title
+      const prefix = `${selectedLessonTitle} - `
+      if (!title.startsWith(prefix)) {
+        finalTitle = `${prefix}${title}`
       }
     }
 
@@ -997,7 +990,7 @@ export function bindCreateHwEvents() {
         await api.updateHomework({
           homeworkId: hw.id,
           lessonId,
-          title,
+          title: finalTitle,
           pdfPath,
           durationMinutes: duration,
           passScore: hw.passScore || hw.pass_score || 5.0,
@@ -1009,13 +1002,13 @@ export function bindCreateHwEvents() {
           type: typeVal,
           maxViolations
         })
-        showToast(`Đã cập nhật bài tập "${title}" thành công!`, 'success')
+        showToast(`Đã cập nhật bài tập "${finalTitle}" thành công!`, 'success')
         window.location.hash = '#homework-mgmt'
       } else {
         showToast('Đang lưu cấu hình bài tập...', 'info')
         await api.createHomework({
           lessonId,
-          title,
+          title: finalTitle,
           pdfPath,
           durationMinutes: duration,
           passScore: 5.0,
@@ -1027,7 +1020,7 @@ export function bindCreateHwEvents() {
           type: typeVal,
           maxViolations
         })
-        showToast(`Đã xuất bản bài tập "${title}" thành công!`, 'success')
+        showToast(`Đã xuất bản bài tập "${finalTitle}" thành công!`, 'success')
         window.location.hash = '#homework-mgmt'
       }
     } catch (err) {
