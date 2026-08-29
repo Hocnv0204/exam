@@ -61,7 +61,7 @@ serve(async (req: Request) => {
         return jsonResponse({
           error: 'INVALID_TOKEN',
           message: 'Phiên làm bài không hợp lệ hoặc đã bị ghi đè.'
-        }, { status: 403 })
+        }, 403)
       }
       examSessionId = session.id
     }

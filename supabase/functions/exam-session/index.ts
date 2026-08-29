@@ -35,7 +35,7 @@ serve(async (req: Request) => {
           return jsonResponse({
             error: 'CONFLICT',
             message: 'Bài thi đang mở ở thiết bị/tab khác. Vui lòng đóng tab cũ hoặc chờ 90 giây để tiếp tục.'
-          }, { status: 409 })
+          }, 409)
         } else {
           // Takeover: Update the session token
           const { error: updateErr } = await serviceRoleClient
@@ -66,7 +66,7 @@ serve(async (req: Request) => {
         return jsonResponse({
           error: 'CONFLICT',
           message: 'Lỗi đồng bộ phiên. Vui lòng thử lại.'
-        }, { status: 409 })
+        }, 409)
       }
 
       return jsonResponse({ success: true })
@@ -88,7 +88,7 @@ serve(async (req: Request) => {
         return jsonResponse({
           error: 'INVALID_TOKEN',
           message: 'Phiên không hợp lệ hoặc đã bị ghi đè.'
-        }, { status: 403 })
+        }, 403)
       }
 
       const { error } = await serviceRoleClient
@@ -119,7 +119,7 @@ serve(async (req: Request) => {
         return jsonResponse({
           error: 'INVALID_TOKEN',
           message: 'Phiên không hợp lệ hoặc đã bị ghi đè.'
-        }, { status: 403 })
+        }, 403)
       }
 
       const { error } = await serviceRoleClient
