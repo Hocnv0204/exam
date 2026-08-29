@@ -118,10 +118,18 @@ serve(async (req: Request) => {
         })
         return jsonResponse(formatted)
       } else {
-        // STUDENT
-        if (!user.classIds || user.classIds.length === 0) {
+        // STUDENT: Query student_classes table directly for user.id
+        const { data: stClasses, error: stErr } = await serviceRoleClient
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', user.id)
+
+        if (stErr || !stClasses || stClasses.length === 0) {
           return jsonResponse([])
         }
+
+        const enrolledClassIds = stClasses.map(sc => sc.class_id)
+
         const { data: studentClasses, error } = await serviceRoleClient
           .from('classes')
           .select(`
@@ -130,7 +138,7 @@ serve(async (req: Request) => {
               student_id
             )
           `)
-          .in('id', user.classIds)
+          .in('id', enrolledClassIds)
 
         if (error) return jsonResponse([])
         

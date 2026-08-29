@@ -25,7 +25,10 @@ export function renderMyClassesView() {
   const classId = params.get('classId')
   const lessonId = params.get('lessonId')
 
-  const classes = state.classes || []
+  let classes = state.classes || []
+  if (state.user?.role === 'STUDENT' && Array.isArray(state.user?.classIds)) {
+    classes = classes.filter(c => state.user.classIds.includes(c.id))
+  }
   const classChapters = state.classChapters || []
   const activeLessonHomeworks = state.activeLessonHomeworks || []
 
