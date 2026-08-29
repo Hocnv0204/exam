@@ -483,36 +483,50 @@ export function bindHomeworkSolverEvents() {
     }
 
     // Show initial Exam Rules Modal before starting
+    const maxVio = hw.maxViolations || hw.max_violations || 3
     const examRulesBody = `
       <div style="display:flex; flex-direction:column; gap:16px;">
-        <div style="display:flex; align-items:center; gap:12px; background:#fef2f2; border:1px solid #fee2e2; padding:14px; border-radius:10px; color:#991b1b;">
-          <i class="fa-solid fa-triangle-exclamation" style="font-size:28px; color:#ef4444; flex-shrink:0;"></i>
+        <div style="display:flex; align-items:center; gap:12px; background:#fef2f2; border:1px solid #fee2e2; padding:14px 16px; border-radius:12px; color:#991b1b;">
+          <i class="fa-solid fa-shield-cat" style="font-size:32px; color:#ef4444; flex-shrink:0;"></i>
           <div style="font-size:13px; line-height:1.5;">
-            Đây là <strong>Bài thi chính thức</strong> có hệ thống giám sát chống gian lận tự động. Vui lòng đọc kỹ quy chế phòng thi trước khi bắt đầu:
+            Đây là <strong>Bài thi chính thức</strong> được giám sát bằng hệ thống chống gian lận tự động. Vui lòng đọc kỹ các quy định dưới đây trước khi bắt đầu:
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; color:#334155; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; color:#334155; background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0;">
           <div style="display:flex; align-items:flex-start; gap:10px;">
-            <i class="fa-solid fa-ban" style="color:#ef4444; margin-top:2px; font-size:16px;"></i>
-            <div><strong>Không chuyển tab / không mở tab khác / không thu nhỏ cửa sổ:</strong> Mọi hành động rời khỏi màn hình bài thi đều bị hệ thống phát hiện, ghi lại vào nhật ký giám sát và gửi cho giáo viên.</div>
+            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
+            <div><strong>Cảnh báo rời khỏi màn hình thi:</strong> Không chuyển tab, không mở ứng dụng khác, không thu nhỏ trình duyệt. Vi phạm quá <strong>${maxVio} lần</strong> hệ thống sẽ <strong>tự động thu bài & đình chỉ thi</strong>.</div>
           </div>
+          
           <div style="display:flex; align-items:flex-start; gap:10px;">
-            <i class="fa-solid fa-ban" style="color:#ef4444; margin-top:2px; font-size:16px;"></i>
-            <div><strong>Không sao chép (copy / paste):</strong> Chức năng sao chép nội dung đề thi và chuột phải bị vô hiệu hóa trong suốt bài thi.</div>
+            <i class="fa-solid fa-ban" style="color:#ef4444; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
+            <div><strong>Cấm Sao chép & Dán (Copy / Paste):</strong> Thao tác copy, paste và chuột phải đều bị vô hiệu hóa và ghi lại nhật ký vi phạm.</div>
           </div>
+
           <div style="display:flex; align-items:flex-start; gap:10px;">
-            <i class="fa-solid fa-stopwatch" style="color:#0284c7; margin-top:2px; font-size:16px;"></i>
-            <div><strong>Thời gian làm bài:</strong> Đếm ngược <strong>${hw.durationMinutes || 45} phút</strong>. Hệ thống sẽ tự động thu bài khi hết giờ.</div>
+            <i class="fa-solid fa-desktop" style="color:#d97706; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
+            <div><strong>Giám sát phiên làm bài (Single Session):</strong> Không mở bài thi trên 2 thiết bị hoặc 2 tab cùng lúc. Hệ thống sẽ vô hiệu hóa phiên cũ nếu phát hiện đăng nhập trùng lặp.</div>
           </div>
+
           <div style="display:flex; align-items:flex-start; gap:10px;">
-            <i class="fa-solid fa-lock" style="color:#d97706; margin-top:2px; font-size:16px;"></i>
-            <div><strong>Số lần nộp bài:</strong> Bài thi chỉ cho phép làm và nộp <strong>01 lần duy nhất</strong>.</div>
+            <i class="fa-solid fa-cloud-arrow-up" style="color:#059669; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
+            <div><strong>Tự động lưu bài làm (Autosave):</strong> Đáp án bài làm sẽ được hệ thống lưu tự động ngầm định kỳ 15 giây/lần.</div>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <i class="fa-solid fa-stopwatch" style="color:#0284c7; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
+            <div><strong>Thời gian thi:</strong> Đếm ngược <strong>${hw.durationMinutes || 45} phút</strong>. Hệ thống tự động thu bài ngay khi hết giờ.</div>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <i class="fa-solid fa-lock" style="color:#7c3aed; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
+            <div><strong>Số lần nộp bài:</strong> Mỗi học sinh chỉ có <strong>01 lần làm bài duy nhất</strong>.</div>
           </div>
         </div>
 
-        <div style="font-size:12px; color:#64748b; text-align:center;">
-          Nhấn nút <strong>"Bắt đầu làm bài"</strong> để đồng ý tuân thủ quy chế và kích hoạt thời gian thi.
+        <div style="font-size:12px; color:#64748b; text-align:center; font-weight:600;">
+          Nhấn nút <strong style="color:#059669;">"Bắt đầu làm bài"</strong> để đồng ý tuân thủ quy chế phòng thi và tính giờ.
         </div>
       </div>
     `

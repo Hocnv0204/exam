@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { requireStudent } from '../../shared/auth-middleware.ts'
+import { requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 
 serve(async (req: Request) => {
@@ -9,7 +9,7 @@ serve(async (req: Request) => {
   try {
     if (req.method !== 'POST') return errorResponse('Method not allowed', 405)
 
-    const { user, serviceRoleClient } = await requireStudent(req)
+    const { user, serviceRoleClient } = await requireAuth(req)
     const body = await req.json()
     const { action, homeworkId, sessionToken } = body
 
@@ -139,6 +139,8 @@ serve(async (req: Request) => {
 
   } catch (err: unknown) {
     const error = err as Error
-    return errorResponse(error.message || 'Unauthorized / Error', 401)
+    const msg = error.message || 'Unauthorized / Error'
+    const status = msg.includes('Forbidden') ? 403 : 401
+    return errorResponse(msg, status)
   }
 })
