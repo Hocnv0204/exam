@@ -233,6 +233,7 @@ serve(async (req: Request) => {
         wrong_count: wrongCount,
         duration_seconds_taken: durationSecondsTaken || 0,
         is_late: isLate,
+        status: 'SUBMITTED'
       })
       .select('id, submitted_at')
       .single()

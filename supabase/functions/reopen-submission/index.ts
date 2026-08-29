@@ -17,19 +17,23 @@ serve(async (req: Request) => {
       return errorResponse('homeworkId and studentId are required', 400)
     }
 
-    // 1. Soft delete the submission
-    const { data: submission, error: subErr } = await serviceRoleClient
+    // 1. Soft delete/archive any active submissions for this student & homework
+    const { data: submissions } = await serviceRoleClient
       .from('submissions')
       .update({ status: 'REOPENED_ARCHIVED' })
       .eq('homework_id', homeworkId)
       .eq('student_id', studentId)
-      .eq('status', 'SUBMITTED')
+      .neq('status', 'REOPENED_ARCHIVED')
       .select('id')
-      .maybeSingle()
       
-    // Even if no submission found (e.g. crashed before submit), we can still reopen the session
+    // 2. Clear old violation logs so student gets fresh violation quota
+    await serviceRoleClient
+      .from('exam_logs')
+      .delete()
+      .eq('homework_id', homeworkId)
+      .eq('student_id', studentId)
 
-    // 2. Reactivate the exam_session
+    // 3. Reactivate the exam_session
     const { data: session } = await serviceRoleClient
       .from('exam_sessions')
       .select('id, draft_answers, created_at')
@@ -61,7 +65,7 @@ serve(async (req: Request) => {
       if (sessionErr) return errorResponse('Failed to reactivate session', 500)
     }
 
-    // 3. Log the reopen action
+    // 4. Log the reopen action
     await serviceRoleClient
       .from('exam_logs')
       .insert({
@@ -70,7 +74,7 @@ serve(async (req: Request) => {
         action: 'ADMIN_REOPENED'
       })
 
-    return jsonResponse({ success: true, submissionArchived: !!submission })
+    return jsonResponse({ success: true, submissionArchived: !!(submissions && submissions.length > 0) })
   } catch (err: unknown) {
     const error = err as Error
     return errorResponse(error.message || 'Unauthorized / Error', 401)
