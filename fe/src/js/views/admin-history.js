@@ -113,10 +113,15 @@ export function renderAdminHistoryView() {
                               return `${mins}m ${remainingSecs}s`
                             })()}
                           </td>
-                          <td>
-                            <button class="btn-secondary view-detail-btn" data-id="${sub.submissionId}" style="padding:4px 10px; font-size:12px; cursor:pointer;">
-                              Xem chi tiết
-                            </button>
+                          <td style="white-space:nowrap;">
+                            <div style="display:flex; gap:6px;">
+                              <button class="btn-secondary view-detail-btn" data-id="${sub.submissionId}" style="padding:4px 10px; font-size:12px; cursor:pointer;">
+                                <i class="fa-solid fa-eye"></i> Xem chi tiết
+                              </button>
+                              <button class="btn-secondary reopen-sub-btn" data-hwid="${sub.homeworkId}" data-stuid="${sub.studentId}" data-name="${sub.studentName}" style="padding:4px 10px; font-size:12px; cursor:pointer; color:#b45309; border-color:#fde68a; background:#fffbeb;">
+                                <i class="fa-solid fa-rotate-left"></i> Khôi phục
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       `
@@ -185,6 +190,59 @@ export function bindAdminHistoryEvents() {
       if (subId) {
         window.location.hash = `#assignment-review?submissionId=${subId}`
       }
+    })
+  })
+
+  // Reopen submission button click
+  document.querySelectorAll('.reopen-sub-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const hwId = btn.getAttribute('data-hwid')
+      const studentId = btn.getAttribute('data-stuid')
+      const studentName = btn.getAttribute('data-name') || 'học sinh'
+
+      if (!hwId || !studentId) return
+
+      import('../components/modal.js').then(({ openModal }) => {
+        const bodyHtml = `
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <p style="font-size:14px; color:#475569; margin:0; line-height:1.5;">
+              Hành động này sẽ khôi phục bài thi của học sinh <strong>${studentName}</strong> về trạng thái "Đang làm".
+              Bài nộp cũ sẽ được lưu trữ lại.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:14px; color:#1e293b; cursor:pointer;">
+                <input type="checkbox" id="reopen-reset-timer" style="width:16px; height:16px;" checked>
+                Thiết lập lại thời gian làm bài (đếm lại từ đầu)
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; font-size:14px; color:#1e293b; cursor:pointer;">
+                <input type="checkbox" id="reopen-reset-answers" style="width:16px; height:16px;" checked>
+                Xóa các đáp án đã chọn (làm lại từ đầu)
+              </label>
+            </div>
+          </div>
+        `
+        openModal('Khôi phục bài thi', bodyHtml, async () => {
+          const resetTimer = document.getElementById('reopen-reset-timer')?.checked || false
+          const resetAnswers = document.getElementById('reopen-reset-answers')?.checked || false
+          try {
+            showToast('Đang khôi phục bài thi...', 'info')
+            await api.reopenSubmission(hwId, studentId, resetTimer, resetAnswers)
+            showToast('Đã khôi phục bài thi thành công!', 'success')
+            // Refresh table
+            const result = await api.getStudentHistory(`classId=${selectedClassId}`)
+            submissions = result?.history || []
+            const app = document.getElementById('app')
+            if (app) {
+              app.innerHTML = renderAdminHistoryView()
+              bindAdminHistoryEvents()
+            }
+          } catch(err) {
+            showToast(`Khôi phục bài thi thất bại: ${err.message}`, 'error')
+          }
+          return true
+        })
+      })
     })
   })
 }
