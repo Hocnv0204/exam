@@ -106,15 +106,20 @@ export function renderHomeworkSolverView() {
             
             <!-- LEFT COLUMN: PDF VIEWER (LARGER PORTION ~60%) -->
             <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
-              <div class="pdf-toolbar">
-                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px;">
-                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px;"></i>
-                  <span>${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}</span>
+              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
+                  <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}</span>
                 </div>
+                ${hw.pdfUrl ? `
+                  <a href="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" download="${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}" target="_blank" class="btn-secondary" style="padding:6px 14px; font-size:13px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; flex-shrink:0; cursor:pointer;" title="Tải file PDF bài tập về máy">
+                    <i class="fa-solid fa-download"></i> Tải PDF
+                  </a>
+                ` : ''}
               </div>
 
               <!-- PDF Iframe Preview -->
-              <div style="flex-grow: 1; display: flex; height: calc(100vh - 180px);">
+              <div class="pdf-iframe-wrapper" style="flex-grow: 1; display: flex; height: calc(100vh - 180px);">
                 <iframe src="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" style="width: 100%; height: 100%; border: none; background:#f8fafc;"></iframe>
               </div>
             </div>

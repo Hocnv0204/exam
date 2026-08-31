@@ -6,6 +6,8 @@ export function openModal(title, bodyHTML, onConfirm = null) {
     document.body.appendChild(container)
   }
 
+  document.body.classList.add('modal-open')
+
   container.innerHTML = `
     <div class="modal-backdrop" id="active-modal-backdrop">
       <div class="modal-content" onclick="event.stopPropagation()">
@@ -24,7 +26,10 @@ export function openModal(title, bodyHTML, onConfirm = null) {
     </div>
   `
 
-  const closeModal = () => { container.innerHTML = '' }
+  const closeModal = () => {
+    container.innerHTML = ''
+    document.body.classList.remove('modal-open')
+  }
 
   document.getElementById('modal-close-btn')?.addEventListener('click', closeModal)
   document.getElementById('modal-cancel-btn')?.addEventListener('click', closeModal)

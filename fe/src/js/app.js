@@ -203,16 +203,10 @@ async function router() {
     app.innerHTML = route.render()
     route.bind()
 
-    // Auto-hide / apply sidebar collapsed state when entering page
+    // Auto-hide sidebar on entering all pages
     const layout = app.querySelector('.app-layout')
     if (layout) {
-      // Default to collapsed ('true') when entering page unless user explicitly set to 'false'
-      const isCollapsed = localStorage.getItem('edu_sidebar_collapsed') !== 'false'
-      if (isCollapsed) {
-        layout.classList.add('sidebar-collapsed')
-      } else {
-        layout.classList.remove('sidebar-collapsed')
-      }
+      layout.classList.add('sidebar-collapsed')
     }
   }
 }
@@ -220,14 +214,35 @@ async function router() {
 window.addEventListener('hashchange', router)
 window.addEventListener('DOMContentLoaded', router)
 
-// Global event delegation for Collapsible Sidebar Toggle Button
+// Global event delegation for Collapsible Sidebar Toggle Button & Navigation auto-hide
 document.addEventListener('click', (e) => {
   const toggleBtn = e.target.closest('#sidebar-toggle-btn')
   if (toggleBtn) {
     const layout = document.querySelector('.app-layout')
     if (layout) {
-      const isNowCollapsed = layout.classList.toggle('sidebar-collapsed')
-      localStorage.setItem('edu_sidebar_collapsed', isNowCollapsed ? 'true' : 'false')
+      layout.classList.toggle('sidebar-collapsed')
+    }
+    return
+  }
+
+  // Auto-hide sidebar when clicking any navigation link in sidebar
+  const navItem = e.target.closest('.sidebar .nav-item')
+  if (navItem && !navItem.id?.includes('logout')) {
+    const layout = document.querySelector('.app-layout')
+    if (layout) {
+      layout.classList.add('sidebar-collapsed')
+    }
+    return
+  }
+
+  // Mobile / iPad backdrop click outside sidebar to close sidebar
+  if (window.innerWidth <= 1024) {
+    const layout = document.querySelector('.app-layout')
+    const sidebar = document.querySelector('.sidebar')
+    if (layout && !layout.classList.contains('sidebar-collapsed') && sidebar) {
+      if (!sidebar.contains(e.target) && !e.target.closest('#sidebar-toggle-btn')) {
+        layout.classList.add('sidebar-collapsed')
+      }
     }
   }
 })
