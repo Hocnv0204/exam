@@ -165,6 +165,38 @@ async function request(endpoint, options = {}) {
     return Promise.resolve([])
   }
 
+  const isPublicEndpoint = endpoint.startsWith('login') || endpoint.startsWith('refresh-token')
+
+  // If access token is missing but refresh token exists, attempt refresh before sending request
+  if (!state.token && !isPublicEndpoint && state.refreshToken && !isRefreshing) {
+    isRefreshing = true
+    try {
+      console.log('[API] Access Token missing. Attempting silent token refresh before request...')
+      const refreshRes = await fetch(`${SUPABASE_FUNCTIONS_URL}/refresh-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: state.refreshToken })
+      })
+      if (refreshRes.ok) {
+        const refreshResult = await refreshRes.json()
+        if (refreshResult.success && refreshResult.data) {
+          const { accessToken, refreshToken } = refreshResult.data
+          setSession(state.user, accessToken, refreshToken)
+        }
+      }
+    } catch (e) {
+      console.error('[API] Pre-request token refresh failed:', e)
+    } finally {
+      isRefreshing = false
+    }
+  }
+
+  // If still no token for protected endpoint, logout cleanly
+  if (!state.token && !isPublicEndpoint) {
+    logout()
+    throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     ...(import.meta.env.VITE_SUPABASE_ANON_KEY ? { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY } : {}),
@@ -225,12 +257,17 @@ async function request(endpoint, options = {}) {
 
     const result = await response.json()
     if (!response.ok || result.success === false) {
-      throw new Error(result.error || `HTTP ${response.status}`)
+      const errMsg = result.error || `HTTP ${response.status}`
+      if (response.status === 401 || errMsg.includes('Authorization') || errMsg.includes('Unauthorized')) {
+        logout()
+        throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+      }
+      throw new Error(errMsg)
     }
 
     return result.data
   } catch (err) {
-    console.warn(`[API] Edge Function call ${endpoint} failed, falling back to local state mode:`, err.message)
+    console.warn(`[API] Edge Function call ${endpoint} failed:`, err.message)
     throw err
   } finally {
     hideLoading()
@@ -261,7 +298,13 @@ export const api = {
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),
   deleteHomework: (homeworkId) => request(`create-homework?homeworkId=${homeworkId}`, { method: 'DELETE' }),
-  getHomeworks: (lessonId = '', classId = '') => request(`create-homework${classId ? `?classId=${classId}` : (lessonId ? `?lessonId=${lessonId}` : '')}`, { method: 'GET' }),
+  getHomeworks: (lessonIdOrQuery = '', classId = '') => {
+    if (typeof lessonIdOrQuery === 'string' && lessonIdOrQuery.includes('=')) {
+      const q = lessonIdOrQuery.startsWith('?') ? lessonIdOrQuery : `?${lessonIdOrQuery}`
+      return request(`create-homework${q}`, { method: 'GET' })
+    }
+    return request(`create-homework${classId ? `?classId=${classId}` : (lessonIdOrQuery ? `?lessonId=${lessonIdOrQuery}` : '')}`, { method: 'GET' })
+  },
   getTodoHomeworks: () => request('create-homework?todoOnly=true', { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
   submitExamLog: (data) => request('exam-log', { method: 'POST', body: JSON.stringify(data) }),

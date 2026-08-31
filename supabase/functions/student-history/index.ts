@@ -16,6 +16,7 @@ serve(async (req: Request) => {
     const studentId = url.searchParams.get('studentId')
     const classId = url.searchParams.get('classId')
     const submissionId = url.searchParams.get('submissionId')
+    const homeworkId = url.searchParams.get('homeworkId')
 
     // 1. Single Submission Details (for assignment review)
     if (submissionId) {
@@ -295,10 +296,146 @@ serve(async (req: Request) => {
       query = query.eq('homeworks.lessons.chapters.class_id', classId)
     }
 
+    // If target homework is specified
+    if (homeworkId) {
+      query = query.eq('homework_id', homeworkId)
+    }
+
     const { data: rawSubmissions, error: fetchErr } = await query
 
     if (fetchErr) {
       return errorResponse(fetchErr.message, 500)
+    }
+
+    const subIds = (rawSubmissions || []).map((s: any) => s.id)
+    const wrongAnswersMap = new Map<string, any[]>()
+    const wrongQuestionsSummaryMap = new Map<number, any>()
+
+    if (user.role === 'ADMIN' && subIds.length > 0) {
+      const { data: subAns } = await serviceRoleClient
+        .from('submission_answers')
+        .select(`
+          submission_id,
+          question_id,
+          given_answer,
+          is_correct,
+          score_earned,
+          questions!inner (
+            id,
+            question_number,
+            question_type,
+            prompt,
+            points,
+            question_answers (
+              mc_answer,
+              tf_answers,
+              sa_answer,
+              sa_tolerance
+            )
+          )
+        `)
+        .in('submission_id', subIds)
+        .eq('is_correct', false)
+
+      if (subAns) {
+        const studentProfileMap = new Map(
+          (rawSubmissions || []).map((s: any) => [s.id, { id: s.student_id, name: s.profiles?.full_name || 'Học sinh' }])
+        )
+
+        for (const sa of subAns) {
+          const q = sa.questions
+          if (!q) continue
+          const qAnswersRaw = q.question_answers
+          const qAnswers = Array.isArray(qAnswersRaw) ? qAnswersRaw[0] : qAnswersRaw
+          const qNum = q.question_number
+          const qType = q.question_type
+
+          // Determine if question was completely unanswered / left blank
+          let isUnanswered = false
+          const gVal = sa.given_answer
+          if (qType === 'MULTIPLE_CHOICE') {
+            isUnanswered = !gVal?.value || String(gVal.value).trim() === ''
+          } else if (qType === 'SHORT_ANSWER') {
+            isUnanswered = gVal?.value === null || gVal?.value === undefined || String(gVal.value).trim() === ''
+          } else if (qType === 'TRUE_FALSE') {
+            const val = gVal?.value || {}
+            isUnanswered = val.a === undefined && val.b === undefined && val.c === undefined && val.d === undefined
+          }
+
+          // Format given answer text
+          let givenStr = ''
+          if (isUnanswered) {
+            givenStr = 'Bỏ trống (Chưa làm)'
+          } else if (qType === 'TRUE_FALSE') {
+            const val = gVal?.value || {}
+            const renderVal = (v: any) => v === true ? 'Đ' : (v === false ? 'S' : '_')
+            givenStr = `a: ${renderVal(val.a)}, b: ${renderVal(val.b)}, c: ${renderVal(val.c)}, d: ${renderVal(val.d)}`
+          } else {
+            givenStr = String(gVal.value)
+          }
+
+          // Format correct answer text
+          let correctStr = ''
+          if (qType === 'MULTIPLE_CHOICE') {
+            correctStr = qAnswers?.mc_answer || ''
+          } else if (qType === 'TRUE_FALSE') {
+            const val = qAnswers?.tf_answers || {}
+            const a = val.a !== undefined ? val.a : val.s1
+            const b = val.b !== undefined ? val.b : val.s2
+            const c = val.c !== undefined ? val.c : val.s3
+            const d = val.d !== undefined ? val.d : val.s4
+            if (a !== undefined || b !== undefined || c !== undefined || d !== undefined) {
+              correctStr = `a: ${a ? 'Đ' : 'S'}, b: ${b ? 'Đ' : 'S'}, c: ${c ? 'Đ' : 'S'}, d: ${d ? 'Đ' : 'S'}`
+            }
+          } else if (qType === 'SHORT_ANSWER') {
+            correctStr = qAnswers?.sa_answer !== null && qAnswers?.sa_answer !== undefined ? String(qAnswers.sa_answer) : ''
+          }
+
+          const wrongItem = {
+            questionId: q.id,
+            questionNumber: qNum,
+            questionType: qType,
+            prompt: q.prompt || '',
+            givenAnswer: givenStr,
+            correctAnswer: correctStr,
+            isUnanswered,
+            scoreEarned: sa.score_earned || 0
+          }
+
+          if (!wrongAnswersMap.has(sa.submission_id)) {
+            wrongAnswersMap.set(sa.submission_id, [])
+          }
+          wrongAnswersMap.get(sa.submission_id)!.push(wrongItem)
+
+          const studentInfo = studentProfileMap.get(sa.submission_id) || { id: '', name: 'Học sinh' }
+          if (!wrongQuestionsSummaryMap.has(qNum)) {
+            wrongQuestionsSummaryMap.set(qNum, {
+              questionNumber: qNum,
+              questionType: qType,
+              prompt: q.prompt || '',
+              correctAnswer: correctStr,
+              totalFailed: 0,
+              wrongCount: 0,
+              unansweredCount: 0,
+              students: []
+            })
+          }
+          const summaryObj = wrongQuestionsSummaryMap.get(qNum)!
+          summaryObj.totalFailed += 1
+          if (isUnanswered) {
+            summaryObj.unansweredCount += 1
+          } else {
+            summaryObj.wrongCount += 1
+          }
+          summaryObj.students.push({
+            studentId: studentInfo.id,
+            studentName: studentInfo.name,
+            givenAnswer: givenStr,
+            isUnanswered,
+            scoreEarned: sa.score_earned || 0
+          })
+        }
+      }
     }
 
     const history = (rawSubmissions || []).map((sub: any) => {
@@ -313,6 +450,9 @@ serve(async (req: Request) => {
       const maxScore = Number(sub.max_score || hw.max_score || 10)
       const isPassed = score >= passScore
       const isLate = sub.is_late || (hw.deadline ? new Date(sub.submitted_at) > new Date(hw.deadline) : false)
+
+      const wrongAnswers = wrongAnswersMap.get(sub.id) || []
+      wrongAnswers.sort((a: any, b: any) => a.questionNumber - b.questionNumber)
 
       return {
         id: sub.id,
@@ -338,14 +478,20 @@ serve(async (req: Request) => {
         studentId: sub.student_id,
         studentName: profile.full_name || 'Học sinh',
         username: profile.username || '',
+        wrongAnswers: user.role === 'ADMIN' ? wrongAnswers : undefined,
       }
     })
+
+    const wrongQuestionsSummary = Array.from(wrongQuestionsSummaryMap.values())
+      .sort((a: any, b: any) => a.questionNumber - b.questionNumber)
 
     return jsonResponse({
       studentId: studentId || (user.role === 'STUDENT' ? user.id : undefined),
       classId: classId || undefined,
+      homeworkId: homeworkId || undefined,
       totalSubmissions: history.length,
       history,
+      wrongQuestionsSummary: user.role === 'ADMIN' ? wrongQuestionsSummary : undefined,
     })
   } catch (err: unknown) {
     const error = err as Error

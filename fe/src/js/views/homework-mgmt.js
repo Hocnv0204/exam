@@ -578,6 +578,9 @@ function renderFilteredHomeworks() {
         </td>
         <td style="padding:12px 16px; text-align:center;">
           <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+            <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem lịch sử & câu sai" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
+              <i class="fa-solid fa-chart-pie"></i>
+            </button>
             <button class="btn-secondary btn-edit-hw" data-id="${hw.id}" title="Sửa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #cbd5e1; color:#0066cc;">
               <i class="fa-solid fa-pen-to-square"></i>
             </button>
@@ -591,6 +594,21 @@ function renderFilteredHomeworks() {
   })
 
   tableBody.innerHTML = html
+
+  // Attach History buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...
+  tableBody.querySelectorAll('.btn-history-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hwId = btn.getAttribute('data-id')
+      const classId = btn.getAttribute('data-classid')
+      let hash = '#admin-history'
+      if (classId && hwId) {
+        hash += `?classId=${classId}&homeworkId=${hwId}`
+      } else if (hwId) {
+        hash += `?homeworkId=${hwId}`
+      }
+      window.location.hash = hash
+    })
+  })
 
   // Attach Edit buttons listeners -> Redirect to /create-homework?homeworkId=...
   tableBody.querySelectorAll('.btn-edit-hw').forEach(btn => {

@@ -202,6 +202,18 @@ async function router() {
   if (app) {
     app.innerHTML = route.render()
     route.bind()
+
+    // Auto-hide / apply sidebar collapsed state when entering page
+    const layout = app.querySelector('.app-layout')
+    if (layout) {
+      // Default to collapsed ('true') when entering page unless user explicitly set to 'false'
+      const isCollapsed = localStorage.getItem('edu_sidebar_collapsed') !== 'false'
+      if (isCollapsed) {
+        layout.classList.add('sidebar-collapsed')
+      } else {
+        layout.classList.remove('sidebar-collapsed')
+      }
+    }
   }
 }
 
@@ -214,7 +226,8 @@ document.addEventListener('click', (e) => {
   if (toggleBtn) {
     const layout = document.querySelector('.app-layout')
     if (layout) {
-      layout.classList.toggle('sidebar-collapsed')
+      const isNowCollapsed = layout.classList.toggle('sidebar-collapsed')
+      localStorage.setItem('edu_sidebar_collapsed', isNowCollapsed ? 'true' : 'false')
     }
   }
 })
