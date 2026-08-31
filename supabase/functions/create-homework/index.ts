@@ -238,7 +238,7 @@ serve(async (req: Request) => {
 
       // Automatically enforce max_attempts = 1 if it's an EXAM
       const finalMaxAttempts = type === 'EXAM' ? 1 : (maxAttempts || null);
-      const finalMaxViolations = type === 'EXAM' ? (maxViolations || 3) : null;
+      const finalMaxViolations = maxViolations || 3;
 
       // Create Homework Record
       const { data: homework, error: homeworkError } = await serviceRoleClient
@@ -333,7 +333,7 @@ serve(async (req: Request) => {
       if (deadline !== undefined) updateData.deadline = deadline || null
       if (maxAttempts !== undefined) updateData.max_attempts = maxAttempts || null
       if (type !== undefined) updateData.type = type
-      if (maxViolations !== undefined) updateData.max_violations = maxViolations || null
+      if (maxViolations !== undefined) updateData.max_violations = maxViolations || 3
       
       // Enforce max_attempts and max_violations if EXAM
       if (updateData.type === 'EXAM' || (type === undefined && (maxAttempts !== undefined || maxViolations !== undefined))) {
@@ -343,8 +343,6 @@ serve(async (req: Request) => {
               updateData.max_violations = 3;
             }
          }
-      } else if (updateData.type === 'PRACTICE') {
-         updateData.max_violations = null;
       }
 
       const { data: updatedHomework, error } = await serviceRoleClient

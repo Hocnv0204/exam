@@ -108,16 +108,16 @@ export const questionInputSchema = z.object({
   prompt: z.string().optional().default(''),
   points: z.number().positive().default(1),
   // Answer keys (Restricted from students)
-  mcAnswer: z.enum(['A', 'B', 'C', 'D']).optional(),
-  tfAnswers: tfAnswerSchema.optional(),
-  saAnswer: z.union([z.number(), z.string()]).optional(),
-  saTolerance: z.number().nonnegative().optional().default(0),
+  mcAnswer: z.enum(['A', 'B', 'C', 'D']).nullable().optional(),
+  tfAnswers: tfAnswerSchema.nullable().optional(),
+  saAnswer: z.union([z.number(), z.string()]).nullable().optional(),
+  saTolerance: z.number().nonnegative().nullable().optional().default(0),
 })
 
 // Homework Management Validators
 export const createHomeworkSchema = z.object({
   lessonId: z.string().optional().default('00000000-0000-0000-0000-000000000000'),
-  classId: z.string().optional(),
+  classId: z.string().optional().nullable(),
   title: z.string().min(1, 'Homework title is required'),
   pdfPath: z.string().optional().default('Homework_Attachment.pdf'),
   durationMinutes: z.number().int().positive().optional().default(60),
@@ -126,14 +126,14 @@ export const createHomeworkSchema = z.object({
   isPublished: z.boolean().optional().default(true),
   questions: z.array(questionInputSchema).min(1, 'At least one question is required'),
   deadline: z.string().nullable().optional(),
-  maxAttempts: z.number().int().nonnegative().optional(),
+  maxAttempts: z.number().int().nonnegative().nullable().optional(),
   type: z.enum(['PRACTICE', 'EXAM']).optional().default('PRACTICE'),
-  maxViolations: z.number().int().positive().optional(),
+  maxViolations: z.number().int().positive().nullable().optional(),
 })
 
 export const updateHomeworkSchema = z.object({
   homeworkId: z.string().uuid('Invalid Homework ID'),
-  lessonId: z.string().uuid('Invalid Lesson ID').optional(),
+  lessonId: z.string().uuid('Invalid Lesson ID').optional().nullable(),
   title: z.string().min(1).optional(),
   pdfPath: z.string().optional(),
   durationMinutes: z.number().int().positive().optional(),
@@ -142,9 +142,9 @@ export const updateHomeworkSchema = z.object({
   isPublished: z.boolean().optional(),
   questions: z.array(questionInputSchema).optional(),
   deadline: z.string().nullable().optional(),
-  maxAttempts: z.number().int().nonnegative().optional(),
+  maxAttempts: z.number().int().nonnegative().nullable().optional(),
   type: z.enum(['PRACTICE', 'EXAM']).optional(),
-  maxViolations: z.number().int().positive().optional(),
+  maxViolations: z.number().int().positive().nullable().optional(),
 })
 
 export const deleteHomeworkSchema = z.object({

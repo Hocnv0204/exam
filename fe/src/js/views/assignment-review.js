@@ -382,7 +382,7 @@ export function renderAssignmentReviewView() {
                           <i class="fa-solid ${isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> Đáp án của bạn: ${givenStr}
                         </div>
                       </div>
-                      ${(!isCorrect && correctStr && (qType !== 'SHORT_ANSWER' || state.user?.role === 'ADMIN')) ? `
+                      ${(state.user?.role === 'ADMIN' && !isCorrect && correctStr) ? `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#f0fdf4; border:1px solid #10b981; border-radius:10px;">
                           <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:#15803d; font-size:14px;">
                             <i class="fa-solid fa-circle-check"></i> Đáp án đúng: ${correctStr}

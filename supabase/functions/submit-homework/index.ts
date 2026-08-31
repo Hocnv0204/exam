@@ -204,6 +204,7 @@ serve(async (req: Request) => {
         questionType: q.question_type,
         givenAnswer: given,
         ...gradeResult,
+        correctAnswerSummary: null,
       })
 
       submissionAnswersToInsert.push({

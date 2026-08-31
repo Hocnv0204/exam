@@ -885,7 +885,7 @@ export function bindCreateHwEvents() {
 
     const deadline = deadlineRaw ? new Date(deadlineRaw).toISOString() : null
     const maxAttempts = maxAttemptsVal > 0 ? maxAttemptsVal : null
-    const maxViolations = typeVal === 'EXAM' ? (maxViolationsVal > 0 ? maxViolationsVal : 3) : null
+    const maxViolations = maxViolationsVal > 0 ? maxViolationsVal : 3
 
     if (!title) {
       showToast('Vui lòng nhập tên bài tập!', 'error')

@@ -156,9 +156,9 @@ serve(async (req: Request) => {
         let statementGrades: any = undefined
 
         if (qType === 'MULTIPLE_CHOICE') {
-          correctAnswerSummary = key?.mc_answer || null
+          if (user.role === 'ADMIN') correctAnswerSummary = key?.mc_answer || null
         } else if (qType === 'TRUE_FALSE') {
-          correctAnswerSummary = key?.tf_answers || null
+          if (user.role === 'ADMIN') correctAnswerSummary = key?.tf_answers || null
           const studentVal = ans.given_answer?.value || {}
           const correctVal = (key?.tf_answers as any) || {}
 
@@ -178,9 +178,11 @@ serve(async (req: Request) => {
             statementGrades = { a: true, b: true, c: true, d: true }
           }
         } else if (qType === 'SHORT_ANSWER') {
-          correctAnswerSummary = {
-            answer: key?.sa_answer,
-            tolerance: key?.sa_tolerance || 0,
+          if (user.role === 'ADMIN') {
+            correctAnswerSummary = {
+              answer: key?.sa_answer,
+              tolerance: key?.sa_tolerance || 0,
+            }
           }
         }
 
@@ -195,8 +197,8 @@ serve(async (req: Request) => {
           pointsPossible: points,
           given_answer: ans.given_answer,
           givenAnswer: ans.given_answer,
-          correct_answer: correctAnswerSummary,
-          correctAnswerSummary,
+          correct_answer: user.role === 'ADMIN' ? correctAnswerSummary : null,
+          correctAnswerSummary: user.role === 'ADMIN' ? correctAnswerSummary : null,
           statementGrades,
           questions: {
             question_number: ans.questions?.question_number,
