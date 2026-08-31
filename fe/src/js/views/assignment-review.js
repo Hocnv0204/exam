@@ -1,6 +1,7 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
+import { renderPdfViewer } from '../components/pdf-viewer.js'
 
 export function renderAssignmentReviewView() {
   const result = state.lastSubmissionResult
@@ -663,8 +664,8 @@ export function bindAssignmentReviewEvents() {
       const isHidden = pdfPane.style.display === 'none'
       if (isHidden) {
         // Show PDF side-by-side
-        pdfIframe.src = `${pdfUrl}#toolbar=0`
         pdfPane.style.display = 'block'
+        renderPdfViewer(pdfPane, pdfUrl)
         if (overviewBanner) overviewBanner.style.display = 'none'
         if (downloadPdfBtn) downloadPdfBtn.style.display = 'inline-flex'
         

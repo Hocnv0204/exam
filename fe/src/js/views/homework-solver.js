@@ -4,6 +4,7 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal } from '../components/modal.js'
+import { renderPdfViewer } from '../components/pdf-viewer.js'
 
 // Student's current answers state
 let studentAnswers = {
@@ -258,6 +259,13 @@ export function bindHomeworkSolverEvents() {
   const hw = state.currentHomework?.homework
   const questions = state.currentHomework?.questions || []
   if (!hw) return
+
+  // Render PDF using PDF.js for 100% smooth touch scrolling on Real Mobile/iPad
+  const pdfContainer = document.querySelector('.pdf-iframe-wrapper')
+  if (pdfContainer && hw.pdfUrl) {
+    const mappedUrl = (hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+    renderPdfViewer(pdfContainer, mappedUrl)
+  }
 
   const attemptsCount = state.currentHomework?.attemptsCount || 0
   const maxAttempts = hw.maxAttempts || hw.max_attempts || 0

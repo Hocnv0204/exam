@@ -4,6 +4,25 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api, SUPABASE_URL } from '../api.js'
+import { renderPdfViewer } from '../components/pdf-viewer.js'
+
+window.previewTheoryPdf = (disp, mappedUrl) => {
+  openModal(
+    disp,
+    `<div id="modal-pdf-container" style="width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;"></div>
+     <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+       <a href="${mappedUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px;">
+         <i class="fa-solid fa-up-right-from-square"></i> Mở file PDF trong tab mới
+       </a>
+     </div>`
+  )
+  const mc = document.querySelector('#modal-container .modal-content')
+  if (mc) mc.style.maxWidth = '900px'
+  const container = document.getElementById('modal-pdf-container')
+  if (container) {
+    renderPdfViewer(container, mappedUrl)
+  }
+}
 
 let activeClassId = state.classes[0]?.id || 'c1'
 let isLoadingCurriculum = false
@@ -257,7 +276,7 @@ function renderChapterCard(ch) {
                           <div style="font-family:monospace; background:#f8fafc; border:1px solid #e2e8f0; padding:4px 8px; border-radius:6px; font-size:12px; display:inline-flex; align-items:center; gap:8px; width:fit-content;">
                             <i class="fa-solid fa-paperclip"></i> 
                             <span>${disp}</span>
-                            <span style="color:#0066cc; margin-left:4px; display:inline-flex; align-items:center; cursor:pointer;" title="Xem tài liệu" onclick="window.openModal('${disp}', '<div class=&quot;pdf-iframe-wrapper&quot; style=&quot;width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;&quot;><iframe src=&quot;${mappedUrl}&quot; style=&quot;width:100%; height:100%; min-height:100%; border:none; background:#f8fafc;&quot;></iframe></div><div style=&quot;margin-top:12px; display:flex; justify-content:flex-end;&quot;><a href=&quot;${mappedUrl}&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; class=&quot;btn-secondary&quot; style=&quot;font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px;&quot;><i class=&quot;fa-solid fa-up-right-from-square&quot;></i> Mở file PDF trong tab mới</a></div>'); const mc = document.querySelector('#modal-container .modal-content'); if (mc) mc.style.maxWidth = '900px';">
+                            <span style="color:#0066cc; margin-left:4px; display:inline-flex; align-items:center; cursor:pointer;" title="Xem tài liệu" onclick="window.previewTheoryPdf('${disp}', '${mappedUrl}')">
                               <i class="fa-solid fa-eye"></i>
                             </span>
                           </div>

@@ -4,6 +4,7 @@ import { showToast } from '../components/toast.js'
 import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { renderPdfViewer } from '../components/pdf-viewer.js'
 
 // In-memory state for building the answer matrix
 let currentConfig = {
@@ -398,18 +399,12 @@ export function bindCreateHwEvents() {
   const isEditMode = !!state.editHomeworkData
   const hwData = state.editHomeworkData
   if (isEditMode && hwData?.homework?.pdfUrl) {
-    const iframe = document.getElementById('pdf-preview-iframe')
     const container = document.getElementById('pdf-preview-container')
-    const placeholder = document.getElementById('pdf-placeholder')
     const titleSpan = document.getElementById('pdf-viewer-title')
 
-    if (iframe && container) {
+    if (container) {
       const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
-      if (!iframe.src || iframe.src === 'about:blank' || iframe.src === window.location.href) {
-        iframe.src = mappedUrl
-      }
-      iframe.style.display = 'block'
-      if (placeholder) placeholder.style.display = 'none'
+      renderPdfViewer(container, mappedUrl)
       if (titleSpan) titleSpan.textContent = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
     }
   }
@@ -418,21 +413,24 @@ export function bindCreateHwEvents() {
   const fileInput = document.getElementById('hw-pdf-file')
   fileInput?.addEventListener('change', (e) => {
     const file = e.target.files[0]
-    const iframe = document.getElementById('pdf-preview-iframe')
-    const placeholder = document.getElementById('pdf-placeholder')
+    const container = document.getElementById('pdf-preview-container')
     const titleSpan = document.getElementById('pdf-viewer-title')
 
     if (file && file.type === 'application/pdf') {
       const fileURL = URL.createObjectURL(file)
-      if (iframe) {
-        iframe.src = fileURL
-        iframe.style.display = 'block'
+      if (container) {
+        renderPdfViewer(container, fileURL)
       }
-      if (placeholder) placeholder.style.display = 'none'
       if (titleSpan) titleSpan.textContent = file.name
     } else {
-      if (iframe) iframe.style.display = 'none'
-      if (placeholder) placeholder.style.display = 'block'
+      if (container) {
+        container.innerHTML = `
+          <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
+            <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
+            <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
+          </div>
+        `
+      }
       if (titleSpan) titleSpan.textContent = 'Chưa chọn file PDF'
     }
   })

@@ -1,6 +1,7 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
+import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { openModal } from '../components/modal.js'
 import { api, SUPABASE_URL } from '../api.js'
 
@@ -379,15 +380,17 @@ export function bindMyClassesEvents() {
       const mappedUrl = fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       openModal(
         displayName,
-        `<div class="pdf-iframe-wrapper" style="width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;">
-           <iframe src="${mappedUrl}" style="width:100%; height:100%; min-height:100%; border:none; background:#f8fafc;"></iframe>
-         </div>
+        `<div id="modal-pdf-container" style="width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;"></div>
          <div style="margin-top:12px; display:flex; justify-content:flex-end;">
            <a href="${mappedUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px;">
              <i class="fa-solid fa-up-right-from-square"></i> Mở file PDF trong tab mới
            </a>
          </div>`
       )
+      const modalPdfContainer = document.getElementById('modal-pdf-container')
+      if (modalPdfContainer) {
+        renderPdfViewer(modalPdfContainer, mappedUrl)
+      }
       const modalContent = document.querySelector('#modal-container .modal-content')
       if (modalContent) {
         modalContent.style.maxWidth = '900px'
