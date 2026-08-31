@@ -671,7 +671,7 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
         `
       } else {
         detailsDiv.innerHTML = `
-          <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+          <div class="table-responsive" style="border:1px solid #e2e8f0; border-radius:12px; overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
               <thead>
                 <tr style="background:#f1f5f9; border-bottom:1px solid #e2e8f0;">
@@ -737,7 +737,7 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
         `
       } else {
         detailsDiv.innerHTML = `
-          <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+          <div class="table-responsive" style="border:1px solid #e2e8f0; border-radius:12px; overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
               <thead>
                 <tr style="background:#f1f5f9; border-bottom:1px solid #e2e8f0;">

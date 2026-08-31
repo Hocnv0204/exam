@@ -257,7 +257,7 @@ function renderChapterCard(ch) {
                           <div style="font-family:monospace; background:#f8fafc; border:1px solid #e2e8f0; padding:4px 8px; border-radius:6px; font-size:12px; display:inline-flex; align-items:center; gap:8px; width:fit-content;">
                             <i class="fa-solid fa-paperclip"></i> 
                             <span>${disp}</span>
-                            <span style="color:#0066cc; margin-left:4px; display:inline-flex; align-items:center; cursor:pointer;" title="Xem tài liệu" onclick="window.openModal('${disp}', '<iframe src=&quot;${mappedUrl}&quot; style=&quot;width:100%; height:70vh; border:none; border-radius:8px; background:#f8fafc;&quot;></iframe>'); const mc = document.querySelector('#modal-container .modal-content'); if (mc) mc.style.maxWidth = '900px';">
+                            <span style="color:#0066cc; margin-left:4px; display:inline-flex; align-items:center; cursor:pointer;" title="Xem tài liệu" onclick="window.openModal('${disp}', '<div class=&quot;pdf-iframe-wrapper&quot; style=&quot;width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;&quot;><iframe src=&quot;${mappedUrl}&quot; style=&quot;width:100%; height:100%; min-height:100%; border:none; background:#f8fafc;&quot;></iframe></div><div style=&quot;margin-top:12px; display:flex; justify-content:flex-end;&quot;><a href=&quot;${mappedUrl}&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; class=&quot;btn-secondary&quot; style=&quot;font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px;&quot;><i class=&quot;fa-solid fa-up-right-from-square&quot;></i> Mở file PDF trong tab mới</a></div>'); const mc = document.querySelector('#modal-container .modal-content'); if (mc) mc.style.maxWidth = '900px';">
                               <i class="fa-solid fa-eye"></i>
                             </span>
                           </div>
@@ -415,7 +415,7 @@ export function bindCurriculumEvents() {
       }
 
       const modalHTML = `
-        <div style="display:flex; flex-direction:column; gap:14px; min-width:380px;">
+        <div class="full-width-mobile" style="display:flex; flex-direction:column; gap:14px; width:380px; max-width: 100%;">
           <div>
             <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài học <span style="color:#ef4444;">*</span></label>
             <input type="text" id="modal-lesson-title" class="form-input" placeholder="Ví dụ: Ôn tập đại số cơ bản" required>
@@ -536,7 +536,7 @@ export function bindCurriculumEvents() {
       }
 
       const modalHTML = `
-        <div style="display:flex; flex-direction:column; gap:14px; min-width:380px;">
+        <div class="full-width-mobile" style="display:flex; flex-direction:column; gap:14px; width:380px; max-width: 100%;">
           <div>
             <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên bài học <span style="color:#ef4444;">*</span></label>
             <input type="text" id="modal-lesson-title" class="form-input" value="${lesson.title}" required>

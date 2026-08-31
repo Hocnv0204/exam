@@ -236,8 +236,8 @@ export function renderAssignmentReviewView() {
           <div id="review-layout-wrapper" style="display: grid; grid-template-columns: 1fr; gap: 24px; transition: all 0.3s ease;">
             
             <!-- PDF Preview Pane (Initially hidden) -->
-            <div id="pdf-preview-pane" style="display: none; height: calc(100vh - 240px); position: sticky; top: 90px; z-index: 10;">
-              <iframe id="pdf-preview-iframe" src="" style="width:100%; height:100%; border:1px solid #cbd5e1; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);"></iframe>
+            <div id="pdf-preview-pane" class="pdf-iframe-wrapper" style="display: none; height: calc(100vh - 240px); position: sticky; top: 90px; z-index: 10; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y;">
+              <iframe id="pdf-preview-iframe" src="" style="width:100%; height:100%; min-height:100%; border:1px solid #cbd5e1; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); -webkit-overflow-scrolling:touch;"></iframe>
             </div>
 
             <!-- Content Pane -->

@@ -26,8 +26,8 @@ export function renderStudentMgmtView() {
 
           <div class="card">
             <!-- Filter Bar -->
-            <div style="display:flex; gap:16px; margin-bottom:20px; align-items:center;">
-              <div class="search-box" style="width:320px;">
+            <div class="flex-wrap-mobile" style="display:flex; gap:16px; margin-bottom:20px; align-items:center;">
+              <div class="search-box full-width-mobile" style="width: 100%; max-width: 320px;">
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" id="student-search-input" placeholder="Tìm theo tên hoặc mã học sinh...">
               </div>
@@ -58,7 +58,7 @@ export function renderStudentMgmtView() {
             </div>
 
             <!-- Pagination Bar -->
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:20px; font-size:13px; color:#64748b;">
+            <div class="flex-wrap-mobile" style="display:flex; align-items:center; justify-content:space-between; margin-top:20px; font-size:13px; color:#64748b; gap: 10px;">
               <div id="student-count-summary">Hiển thị 1 đến ${students.length} trong tổng số ${students.length} học sinh</div>
               <div style="display:flex; gap:6px; align-items:center;">
                 <button class="btn-secondary" style="padding:4px 10px;">&lt;</button>

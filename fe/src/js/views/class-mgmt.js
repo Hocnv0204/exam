@@ -26,8 +26,8 @@ export function renderClassMgmtView() {
 
           <div class="card">
             <!-- Filter Bar -->
-            <div style="display:flex; gap:16px; margin-bottom:20px; align-items:center;">
-              <div class="search-box" style="width:320px;">
+            <div class="flex-wrap-mobile" style="display:flex; gap:16px; margin-bottom:20px; align-items:center;">
+              <div class="search-box full-width-mobile" style="width: 100%; max-width: 320px;">
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" id="class-search-input" placeholder="Tìm tên lớp...">
               </div>
@@ -297,7 +297,7 @@ export async function showClassDetailsModal(classId, className) {
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   
   const modalHTML = `
-    <div style="display:flex; flex-direction:column; gap:20px; min-width: 500px; max-width:100%;">
+    <div class="full-width-mobile" style="display:flex; flex-direction:column; gap:20px; width: 500px; max-width:100%;">
       <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
         <div>
           <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">${className}</h3>

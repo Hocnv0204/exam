@@ -89,7 +89,7 @@ export function renderHomeworkMgmtView() {
 
           <!-- Search & Filter Controls Toolbar -->
           <div class="card" style="margin-bottom:24px; padding:20px; border:1px solid #e2e8f0; border-radius:14px; background:#ffffff;">
-            <div style="display:grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap:12px; align-items:end; margin-bottom:14px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:12px; align-items:end; margin-bottom:14px;">
               
               <!-- Search Bar -->
               <div>
@@ -170,7 +170,7 @@ export function renderHomeworkMgmtView() {
 
           <!-- Homework Data Table Container -->
           <div class="card" style="padding:0; overflow:hidden; border:1px solid #e2e8f0; border-radius:14px; background:#ffffff; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
-            <div style="overflow-x:auto;">
+            <div class="table-responsive">
               <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
                 <thead>
                   <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#475569; font-weight:700; font-size:12px; text-transform:uppercase;">

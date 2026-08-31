@@ -113,7 +113,7 @@ export function renderCreateHwView() {
           <div class="split-homework-layout">
             
             <!-- LEFT COLUMN: PDF VIEWER & UPLOAD (60%) -->
-            <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
+            <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:visible;">
               <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px;">
                   <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px;"></i>
@@ -128,8 +128,8 @@ export function renderCreateHwView() {
               </div>
 
               <!-- PDF Iframe Preview / Placeholder -->
-              <div id="pdf-preview-container" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow:hidden; position:relative;">
-                <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; border:none; background:#f8fafc; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
+              <div id="pdf-preview-container" class="pdf-iframe-wrapper" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; position:relative;">
+                <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; min-height:100%; border:none; background:#f8fafc; -webkit-overflow-scrolling:touch; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
                 ${!(isEdit && hw?.pdfUrl) ? `
                   <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
                     <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
