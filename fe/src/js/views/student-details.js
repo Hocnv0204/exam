@@ -259,7 +259,7 @@ async function loadStudentSchedule(studentId, classId, month) {
   try {
     // 1. Fetch Student Sessions
     const sessions = await api.getStudentSessions(studentId, classId, month)
-    selectedSessionDates = new Map((sessions || []).map(s => [s.sessionDate, { isPaid: s.isPaid }]))
+    selectedSessionDates = new Map((sessions || []).map(s => [s.sessionDate, { isPaid: s.isPaid === true || s.isPaid === 'true' }]))
 
     const [year, m] = month.split('-').map(Number)
     const totalDays = new Date(year, m, 0).getDate()

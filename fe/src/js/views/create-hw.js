@@ -114,13 +114,14 @@ export function renderCreateHwView() {
           <div class="split-homework-layout">
             
             <!-- LEFT COLUMN: PDF VIEWER & UPLOAD (60%) -->
-            <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:visible;">
-              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
+              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                 <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px;">
                   <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px;"></i>
                   <span id="pdf-viewer-title">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
                 </div>
-                <div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <div class="pdf-controls-slot"></div>
                   <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
                   <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="padding:6px 12px; font-size:12px; height:auto; line-height:1; display:flex; align-items:center; gap:4px; cursor:pointer;">
                     <i class="fa-solid fa-upload"></i> Chọn file PDF

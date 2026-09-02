@@ -227,11 +227,12 @@ serve(async (req: Request) => {
                 is_paid: false
               }
             }
+            const isPaidVal = s.isPaid === true || s.isPaid === 'true' || s.is_paid === true || s.is_paid === 'true'
             return {
               student_id: studentId,
               class_id: classId,
               session_date: s.date,
-              is_paid: s.isPaid || false
+              is_paid: isPaidVal
             }
           })
           const { error: insertError } = await serviceRoleClient
