@@ -96,7 +96,7 @@ export async function renderPdfViewer(containerElement, pdfUrl) {
 
     // Toolbar HTML string
     const toolbarHTML = `
-      <div class="pdf-utility-bar" style="display:flex; align-items:center; gap:6px; background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 10px; border-radius:8px; color:#1e293b; user-select:none; font-size:13px;">
+      <div class="pdf-utility-bar" style="display:flex; align-items:center; gap:6px; background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 10px; border-radius:8px; color:#1e293b; user-select:none; font-size:13px; flex-shrink:0; white-space:nowrap;">
         <!-- Page Nav -->
         <div style="display:flex; align-items:center; gap:2px;">
           <button id="pdf-prev-page" type="button" style="background:none; border:none; color:#475569; font-size:12px; cursor:pointer; padding:3px 5px; border-radius:4px; display:flex; align-items:center;" title="Trang trước">

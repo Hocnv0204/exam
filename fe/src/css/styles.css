@@ -776,6 +776,8 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 10px;
   background: #ffffff;
   padding: 8px 16px;
   border-radius: 8px;

@@ -43,6 +43,9 @@ export function renderCreateHwView() {
   const hw = isEdit ? state.editHomeworkData.homework : null
   const questions = isEdit ? (state.editHomeworkData.questions || []) : []
 
+  const pdfDownloadUrl = (isEdit && hw?.pdfUrl) ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''
+  const pdfDownloadName = hw?.pdfPath || 'Homework_Attachment.pdf'
+
   let deadlineVal = ''
   if (isEdit && hw && (hw.deadline || hw.deadline_at)) {
     const d = new Date(hw.deadline || hw.deadline_at)
@@ -115,17 +118,20 @@ export function renderCreateHwView() {
             
             <!-- LEFT COLUMN: PDF VIEWER & UPLOAD (60%) -->
             <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
-              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px;">
-                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px;"></i>
-                  <span id="pdf-viewer-title">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
+              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:10px; margin-bottom:12px; padding:8px 14px; box-sizing:border-box;">
+                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden;">
+                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
+                  <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <div class="pdf-controls-slot"></div>
+                <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
+                  <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
                   <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
-                  <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="padding:6px 12px; font-size:12px; height:auto; line-height:1; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; line-height:1; display:inline-flex; align-items:center; gap:5px; cursor:pointer; box-shadow:none; border-radius:6px;">
                     <i class="fa-solid fa-upload"></i> Chọn file PDF
                   </button>
+                  <a id="download-hw-pdf-btn" href="${pdfDownloadUrl || '#'}" download="${pdfDownloadName}" target="_blank" rel="noopener noreferrer" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; box-sizing:border-box; line-height:1; display:inline-flex; align-items:center; gap:5px; text-decoration:none; ${pdfDownloadUrl ? 'background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer;' : 'background:#f8fafc; color:#94a3b8; border:1px solid #e2e8f0; cursor:not-allowed; opacity:0.7;'} border-radius:6px; font-weight:600; transition:all 0.2s;" title="${pdfDownloadUrl ? `Tải file PDF: ${pdfDownloadName}` : 'Chưa có file PDF để tải xuống'}">
+                    <i class="fa-solid fa-download"></i> Tải file PDF
+                  </a>
                 </div>
               </div>
 
@@ -253,11 +259,14 @@ export function renderCreateHwView() {
                 <h3 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
                   <i class="fa-solid fa-file-import"></i> Nhập / Xuất đáp án nhanh
                 </h3>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                  <button class="btn-secondary" id="copy-sample-btn" type="button" style="padding:8px 12px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; border:1px solid #cbd5e1; background:#ffffff;">
-                    <i class="fa-regular fa-copy"></i> Sao chép JSON mẫu
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button class="btn-secondary" id="copy-sample-btn" type="button" style="flex:1 1 130px; padding:8px 10px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; border:1px solid #cbd5e1; background:#ffffff; border-radius:8px; font-weight:600; white-space:nowrap;" title="Sao chép cấu trúc JSON mẫu gồm 12 câu TN, 4 câu Đ/S, 6 câu TLN">
+                    <i class="fa-regular fa-file-code"></i> Sao chép JSON mẫu
                   </button>
-                  <button class="btn-primary" id="import-answers-btn" type="button" style="padding:8px 12px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; background:#059669;">
+                  <button class="btn-secondary" id="copy-answers-btn" type="button" style="flex:1 1 130px; padding:8px 10px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; border:1px solid #0066cc; background:#eff6ff; color:#0066cc; border-radius:8px; font-weight:600; white-space:nowrap;" title="Sao chép toàn bộ đáp án hiện tại của bảng dưới dạng JSON">
+                    <i class="fa-regular fa-copy"></i> Sao chép đáp án JSON
+                  </button>
+                  <button class="btn-primary" id="import-answers-btn" type="button" style="flex:1 1 130px; padding:8px 10px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; background:#059669; border-radius:8px; font-weight:600; white-space:nowrap; width:auto;" title="Nhập danh sách đáp án từ chuỗi JSON">
                     <i class="fa-solid fa-keyboard"></i> Nhập đáp án (JSON)
                   </button>
                 </div>
@@ -399,6 +408,8 @@ export function bindCreateHwEvents() {
   // PDF Preview pre-load if in Edit Mode
   const isEditMode = !!state.editHomeworkData
   const hwData = state.editHomeworkData
+  const downloadBtn = document.getElementById('download-hw-pdf-btn')
+
   if (isEditMode && hwData?.homework?.pdfUrl) {
     const container = document.getElementById('pdf-preview-container')
     const titleSpan = document.getElementById('pdf-viewer-title')
@@ -406,7 +417,18 @@ export function bindCreateHwEvents() {
     if (container) {
       const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       renderPdfViewer(container, mappedUrl)
-      if (titleSpan) titleSpan.textContent = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
+      const fileName = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
+      if (titleSpan) titleSpan.textContent = fileName
+      if (downloadBtn) {
+        downloadBtn.href = mappedUrl
+        downloadBtn.download = fileName
+        downloadBtn.style.background = '#eff6ff'
+        downloadBtn.style.color = '#0066cc'
+        downloadBtn.style.borderColor = '#bfdbfe'
+        downloadBtn.style.cursor = 'pointer'
+        downloadBtn.style.opacity = '1'
+        downloadBtn.title = `Tải file PDF: ${fileName}`
+      }
     }
   }
 
@@ -423,6 +445,16 @@ export function bindCreateHwEvents() {
         renderPdfViewer(container, fileURL)
       }
       if (titleSpan) titleSpan.textContent = file.name
+      if (downloadBtn) {
+        downloadBtn.href = fileURL
+        downloadBtn.download = file.name
+        downloadBtn.style.background = '#eff6ff'
+        downloadBtn.style.color = '#0066cc'
+        downloadBtn.style.borderColor = '#bfdbfe'
+        downloadBtn.style.cursor = 'pointer'
+        downloadBtn.style.opacity = '1'
+        downloadBtn.title = `Tải file PDF: ${file.name}`
+      }
     } else {
       if (container) {
         container.innerHTML = `
@@ -433,6 +465,47 @@ export function bindCreateHwEvents() {
         `
       }
       if (titleSpan) titleSpan.textContent = 'Chưa chọn file PDF'
+      if (downloadBtn) {
+        downloadBtn.href = '#'
+        downloadBtn.removeAttribute('download')
+        downloadBtn.style.background = '#f8fafc'
+        downloadBtn.style.color = '#94a3b8'
+        downloadBtn.style.borderColor = '#e2e8f0'
+        downloadBtn.style.cursor = 'not-allowed'
+        downloadBtn.style.opacity = '0.7'
+        downloadBtn.title = 'Chưa có file PDF để tải xuống'
+      }
+    }
+  })
+
+  // Download PDF button click listener
+  downloadBtn?.addEventListener('click', async (e) => {
+    const href = downloadBtn.getAttribute('href')
+    if (!href || href === '#' || downloadBtn.style.cursor === 'not-allowed') {
+      e.preventDefault()
+      showToast('Chưa có file PDF nào để tải xuống!', 'warning')
+      return
+    }
+    if (href.startsWith('blob:')) {
+      return
+    }
+    e.preventDefault()
+    try {
+      showToast('Đang tải file PDF...', 'info')
+      const res = await fetch(href)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = downloadBtn.getAttribute('download') || 'De_Bai.pdf'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000)
+    } catch (err) {
+      console.warn('Direct blob download failed, falling back to window.open:', err)
+      window.open(href, '_blank')
     }
   })
 
@@ -644,12 +717,10 @@ export function bindCreateHwEvents() {
       if (!mcAnswers[i]) mcAnswers[i] = 'A'
     }
     for (let i = 1; i <= currentConfig.tfCount; i++) {
-      const actualQNum = currentConfig.mcCount + i
-      if (!tfAnswers[actualQNum]) tfAnswers[actualQNum] = { a: true, b: true, c: false, d: true }
+      if (!tfAnswers[i]) tfAnswers[i] = { a: true, b: true, c: false, d: true }
     }
     for (let i = 1; i <= currentConfig.saCount; i++) {
-      const actualQNum = currentConfig.mcCount + currentConfig.tfCount + i
-      if (saAnswers[actualQNum] === undefined) saAnswers[actualQNum] = ''
+      if (saAnswers[i] === undefined) saAnswers[i] = ''
     }
 
     const container = document.getElementById('answer-matrix-container')
@@ -664,8 +735,36 @@ export function bindCreateHwEvents() {
     showToast('Đã cập nhật số lượng câu hỏi và bảng đáp án!', 'info')
   })
 
+  // Universal clipboard copy helper
+  const copyTextToClipboard = async (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (e) {
+        // fallback below
+      }
+    }
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    textArea.style.top = '-999999px'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    try {
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      return successful
+    } catch (err) {
+      document.body.removeChild(textArea)
+      return false
+    }
+  }
+
   // Handle Copy Sample JSON
-  document.getElementById('copy-sample-btn')?.addEventListener('click', () => {
+  document.getElementById('copy-sample-btn')?.addEventListener('click', async () => {
     const sampleQuestions = [];
 
     // Part I: MC (12 questions)
@@ -702,13 +801,66 @@ export function bindCreateHwEvents() {
     }
 
     const jsonStr = JSON.stringify(sampleQuestions, null, 2);
-    navigator.clipboard.writeText(jsonStr)
-      .then(() => {
-        showToast("Đã sao chép JSON mẫu vào bộ nhớ tạm!", "success");
-      })
-      .catch(err => {
-        showToast("Lỗi sao chép: " + err.message, "error");
+    const success = await copyTextToClipboard(jsonStr);
+    if (success) {
+      showToast("Đã sao chép JSON mẫu vào bộ nhớ tạm!", "success");
+    } else {
+      showToast("Không thể tự động sao chép vào bộ nhớ tạm!", "error");
+    }
+  });
+
+  // Handle Copy Current Answers JSON
+  document.getElementById('copy-answers-btn')?.addEventListener('click', async () => {
+    const totalQuestions = currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount;
+    if (totalQuestions === 0) {
+      showToast('Chưa có câu hỏi nào để sao chép đáp án!', 'warning');
+      return;
+    }
+
+    const currentQuestions = [];
+    let globalIndex = 1;
+
+    // Part I: MC
+    for (let i = 1; i <= currentConfig.mcCount; i++) {
+      currentQuestions.push({
+        questionNumber: globalIndex++,
+        questionType: 'MULTIPLE_CHOICE',
+        mcAnswer: mcAnswers[i] || 'A'
       });
+    }
+
+    // Part II: TF
+    for (let i = 1; i <= currentConfig.tfCount; i++) {
+      const tf = tfAnswers[i] || {};
+      currentQuestions.push({
+        questionNumber: globalIndex++,
+        questionType: 'TRUE_FALSE',
+        tfAnswers: {
+          a: tf.a !== undefined ? tf.a : true,
+          b: tf.b !== undefined ? tf.b : true,
+          c: tf.c !== undefined ? tf.c : false,
+          d: tf.d !== undefined ? tf.d : true
+        }
+      });
+    }
+
+    // Part III: SA
+    for (let i = 1; i <= currentConfig.saCount; i++) {
+      const ans = saAnswers[i] !== undefined && saAnswers[i] !== null ? String(saAnswers[i]) : '';
+      currentQuestions.push({
+        questionNumber: globalIndex++,
+        questionType: 'SHORT_ANSWER',
+        saAnswer: ans
+      });
+    }
+
+    const jsonStr = JSON.stringify(currentQuestions, null, 2);
+    const success = await copyTextToClipboard(jsonStr);
+    if (success) {
+      showToast(`Đã sao chép đáp án JSON (${currentQuestions.length} câu) vào bộ nhớ tạm!`, 'success');
+    } else {
+      showToast('Không thể tự động sao chép vào bộ nhớ tạm!', 'error');
+    }
   });
 
   // Handle Import JSON Text Dialog
