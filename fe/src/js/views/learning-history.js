@@ -1,11 +1,14 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
+import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 let selectedClassId = ''
 let selectedChapterId = ''
 let selectedLessonId = ''
 let searchQuery = ''
+let currentPage = 1
+let pageSize = 10
 
 export function renderLearningHistoryView() {
   const submissions = state.submissions
@@ -47,6 +50,11 @@ export function renderLearningHistoryView() {
   const avgProgress = totalSubmissions > 0
     ? Math.round((filteredSubmissions.reduce((acc, s) => acc + (s.score / (s.maxScore || 10)), 0) / totalSubmissions) * 100)
     : 0
+
+  const totalPages = Math.max(1, Math.ceil(totalSubmissions / pageSize))
+  if (currentPage > totalPages) currentPage = totalPages
+  const from = (currentPage - 1) * pageSize
+  const pagedSubmissions = filteredSubmissions.slice(from, from + pageSize)
 
   return `
     <div class="app-layout">
@@ -121,7 +129,11 @@ export function renderLearningHistoryView() {
                   </tr>
                 </thead>
                 <tbody>
-                  ${filteredSubmissions.map(sub => {
+                  ${pagedSubmissions.length === 0 ? `
+                    <tr>
+                      <td colspan="6" style="text-align:center; padding:30px; color:#64748b;">Chưa có bài tập nào phù hợp với bộ lọc.</td>
+                    </tr>
+                  ` : pagedSubmissions.map(sub => {
                     const isPassed = sub.isPassed !== false
                     return `
                       <tr>
@@ -147,7 +159,7 @@ export function renderLearningHistoryView() {
                           })()}
                         </td>
                         <td>
-                          <button class="btn-secondary" onclick="window.location.hash='#assignment-review?submissionId=${sub.id}'" style="padding:4px 10px; font-size:12px;">
+                          <button class="btn-secondary" onclick="window.location.hash='#assignment-review?submissionId=${sub.id}'" style="padding:4px 10px; font-size:12px; cursor:pointer;">
                             Xem kết quả
                           </button>
                         </td>
@@ -158,16 +170,15 @@ export function renderLearningHistoryView() {
               </table>
             </div>
 
-            <!-- Pagination -->
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:20px; font-size:13px; color:#64748b;">
-              <div>Hiển thị 1 đến ${totalSubmissions} trong tổng số ${totalSubmissions} bài tập</div>
-              <div style="display:flex; gap:6px; align-items:center;">
-                <button class="btn-secondary" style="padding:4px 10px;">&lt;</button>
-                <button class="btn-primary" style="width:auto; padding:4px 12px; border-radius:6px;">1</button>
-                <button class="btn-secondary" style="padding:4px 10px;">2</button>
-                <button class="btn-secondary" style="padding:4px 10px;">3</button>
-                <button class="btn-secondary" style="padding:4px 10px;">&gt;</button>
-              </div>
+            <!-- Dynamic Pagination Bar -->
+            <div id="history-pagination-wrapper">
+              ${renderPaginationBar({
+                currentPage,
+                totalItems: totalSubmissions,
+                pageSize,
+                containerId: 'history-pagination-container',
+                pageSizeOptions: [10, 20, 50]
+              })}
             </div>
           </div>
         </div>
@@ -181,11 +192,32 @@ export function bindLearningHistoryEvents() {
 
   const app = document.getElementById('app')
 
+  // Bind pagination events
+  bindPaginationEvents({
+    containerId: 'history-pagination-container',
+    onPageChange: (newPage) => {
+      currentPage = newPage
+      if (app) {
+        app.innerHTML = renderLearningHistoryView()
+        bindLearningHistoryEvents()
+      }
+    },
+    onPageSizeChange: (newSize) => {
+      pageSize = newSize
+      currentPage = 1
+      if (app) {
+        app.innerHTML = renderLearningHistoryView()
+        bindLearningHistoryEvents()
+      }
+    }
+  })
+
   // Search input event
   const searchInput = document.getElementById('search-hw-input')
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       searchQuery = e.target.value
+      currentPage = 1
       if (app) {
         app.innerHTML = renderLearningHistoryView()
         bindLearningHistoryEvents()
@@ -203,6 +235,7 @@ export function bindLearningHistoryEvents() {
     selectedClassId = e.target.value
     selectedChapterId = ''
     selectedLessonId = ''
+    currentPage = 1
     if (app) {
       app.innerHTML = renderLearningHistoryView()
       bindLearningHistoryEvents()
@@ -213,6 +246,7 @@ export function bindLearningHistoryEvents() {
   document.getElementById('filter-chapter-select')?.addEventListener('change', (e) => {
     selectedChapterId = e.target.value
     selectedLessonId = ''
+    currentPage = 1
     if (app) {
       app.innerHTML = renderLearningHistoryView()
       bindLearningHistoryEvents()
@@ -222,6 +256,7 @@ export function bindLearningHistoryEvents() {
   // Lesson select event
   document.getElementById('filter-lesson-select')?.addEventListener('change', (e) => {
     selectedLessonId = e.target.value
+    currentPage = 1
     if (app) {
       app.innerHTML = renderLearningHistoryView()
       bindLearningHistoryEvents()

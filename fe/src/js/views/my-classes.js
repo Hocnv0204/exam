@@ -31,7 +31,6 @@ export function renderMyClassesView() {
     classes = classes.filter(c => state.user.classIds.includes(c.id))
   }
   const classChapters = state.classChapters || []
-  const activeLessonHomeworks = state.activeLessonHomeworks || []
 
   let activeLesson = null
   if (lessonId) {
@@ -43,6 +42,10 @@ export function renderMyClassesView() {
       }
     }
   }
+
+  const activeLessonHomeworks = (activeLesson && Array.isArray(activeLesson.homeworks))
+    ? activeLesson.homeworks
+    : (state.activeLessonHomeworks || [])
 
   // Case 1: Viewing Specific Class Details (Lessons & Assignments)
   if (classId) {

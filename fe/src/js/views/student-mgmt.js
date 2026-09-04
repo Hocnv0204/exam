@@ -4,9 +4,32 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+
+let currentPage = 1
+let pageSize = 10
+let searchQuery = ''
+let selectedClass = ''
+
+function getFilteredStudents() {
+  const q = searchQuery.toLowerCase().trim()
+  return (state.students || []).filter(s => {
+    const matchQuery = !q || (s.fullName && s.fullName.toLowerCase().includes(q)) || 
+      (s.studentCode && s.studentCode.toLowerCase().includes(q)) || 
+      (s.username && s.username.toLowerCase().includes(q))
+    const matchClass = !selectedClass || s.classId === selectedClass || (s.classIds && s.classIds.includes(selectedClass))
+    return matchQuery && matchClass
+  })
+}
 
 export function renderStudentMgmtView() {
-  const students = state.students
+  const filtered = getFilteredStudents()
+  const totalItems = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  if (currentPage > totalPages) currentPage = totalPages
+
+  const from = (currentPage - 1) * pageSize
+  const pagedStudents = filtered.slice(from, from + pageSize)
 
   return `
     <div class="app-layout">
@@ -29,13 +52,12 @@ export function renderStudentMgmtView() {
             <div class="flex-wrap-mobile" style="display:flex; gap:16px; margin-bottom:20px; align-items:center;">
               <div class="search-box full-width-mobile" style="width: 100%; max-width: 320px;">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="student-search-input" placeholder="Tìm theo tên hoặc mã học sinh...">
+                <input type="text" id="student-search-input" placeholder="Tìm theo tên hoặc mã học sinh..." value="${searchQuery}">
               </div>
               <select id="class-filter-select" style="padding:10px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:14px; outline:none; background:#ffffff;">
                 <option value="">Tất cả các lớp</option>
-                ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                ${state.classes.map(c => `<option value="${c.id}" ${c.id === selectedClass ? 'selected' : ''}>${c.name}</option>`).join('')}
               </select>
-              <button class="btn-secondary" style="margin-left:auto;"><i class="fa-solid fa-sliders"></i> Bộ lọc khác</button>
             </div>
 
             <!-- Student Data Table -->
@@ -52,23 +74,23 @@ export function renderStudentMgmtView() {
                   </tr>
                 </thead>
                 <tbody id="students-table-body">
-                  ${students.map(s => renderStudentRow(s)).join('')}
+                  ${pagedStudents.length === 0 
+                    ? `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`
+                    : pagedStudents.map(s => renderStudentRow(s)).join('')
+                  }
                 </tbody>
               </table>
             </div>
 
-            <!-- Pagination Bar -->
-            <div class="flex-wrap-mobile" style="display:flex; align-items:center; justify-content:space-between; margin-top:20px; font-size:13px; color:#64748b; gap: 10px;">
-              <div id="student-count-summary">Hiển thị 1 đến ${students.length} trong tổng số ${students.length} học sinh</div>
-              <div style="display:flex; gap:6px; align-items:center;">
-                <button class="btn-secondary" style="padding:4px 10px;">&lt;</button>
-                <button class="btn-primary" style="width:auto; padding:4px 12px; border-radius:6px;">1</button>
-                <button class="btn-secondary" style="padding:4px 10px;">2</button>
-                <button class="btn-secondary" style="padding:4px 10px;">3</button>
-                <span>...</span>
-                <button class="btn-secondary" style="padding:4px 10px;">12</button>
-                <button class="btn-secondary" style="padding:4px 10px;">&gt;</button>
-              </div>
+            <!-- Pagination Bar Wrapper -->
+            <div id="student-pagination-wrapper">
+              ${renderPaginationBar({
+                currentPage,
+                totalItems,
+                pageSize,
+                containerId: 'student-pagination-container',
+                pageSizeOptions: [10, 20, 50]
+              })}
             </div>
           </div>
         </div>
@@ -335,49 +357,72 @@ export function bindStudentMgmtEvents() {
   const searchInput = document.getElementById('student-search-input')
   const filterSelect = document.getElementById('class-filter-select')
 
-  const filterStudents = () => {
-    const query = searchInput?.value.toLowerCase().trim() || ''
-    const selectedClass = filterSelect?.value || ''
+  const refreshTable = () => {
+    const filtered = getFilteredStudents()
+    const totalItems = filtered.length
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+    if (currentPage > totalPages) currentPage = Math.max(1, totalPages)
 
-    const filtered = state.students.filter(s => {
-      const matchQuery = !query || s.fullName.toLowerCase().includes(query) || (s.studentCode && s.studentCode.toLowerCase().includes(query)) || (s.username && s.username.toLowerCase().includes(query))
-      const matchClass = !selectedClass || s.classId === selectedClass || (s.classIds && s.classIds.includes(selectedClass))
-      return matchQuery && matchClass
-    })
+    const from = (currentPage - 1) * pageSize
+    const pagedStudents = filtered.slice(from, from + pageSize)
 
     const tbody = document.getElementById('students-table-body')
     if (tbody) {
-      tbody.innerHTML = filtered.map(s => renderStudentRow(s)).join('')
+      tbody.innerHTML = pagedStudents.length === 0
+        ? `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`
+        : pagedStudents.map(s => renderStudentRow(s)).join('')
     }
 
-    const summary = document.getElementById('student-count-summary')
-    if (summary) {
-      summary.textContent = `Hiển thị 1 đến ${filtered.length} trong tổng số ${state.students.length} học sinh`
+    const paginationWrapper = document.getElementById('student-pagination-wrapper')
+    if (paginationWrapper) {
+      paginationWrapper.innerHTML = renderPaginationBar({
+        currentPage,
+        totalItems,
+        pageSize,
+        containerId: 'student-pagination-container',
+        pageSizeOptions: [10, 20, 50]
+      })
+      bindPagination()
     }
 
     bindTableActionEvents()
   }
 
-  searchInput?.addEventListener('input', filterStudents)
-  filterSelect?.addEventListener('change', filterStudents)
+  const bindPagination = () => {
+    bindPaginationEvents({
+      containerId: 'student-pagination-container',
+      onPageChange: (newPage) => {
+        currentPage = newPage
+        refreshTable()
+      },
+      onPageSizeChange: (newSize) => {
+        pageSize = newSize
+        currentPage = 1
+        refreshTable()
+      }
+    })
+  }
+
+  // Initial pagination bind
+  bindPagination()
+
+  searchInput?.addEventListener('input', (e) => {
+    searchQuery = e.target.value.trim()
+    currentPage = 1
+    refreshTable()
+  })
+
+  filterSelect?.addEventListener('change', (e) => {
+    selectedClass = e.target.value
+    currentPage = 1
+    refreshTable()
+  })
 }
 
 function updateTable(newStudent) {
-  const tbody = document.getElementById('students-table-body')
-  if (tbody) {
-    const tempDiv = document.createElement('tbody')
-    tempDiv.innerHTML = renderStudentRow(newStudent)
-    if (tempDiv.firstElementChild) {
-      tbody.prepend(tempDiv.firstElementChild)
-    }
-  }
-
-  const summary = document.getElementById('student-count-summary')
-  if (summary) {
-    summary.textContent = `Hiển thị 1 đến ${state.students.length} trong tổng số ${state.students.length} học sinh`
-  }
-
-  bindTableActionEvents()
+  currentPage = 1
+  const searchInput = document.getElementById('student-search-input')
+  searchInput?.dispatchEvent(new Event('input'))
 }
 
 function bindTableActionEvents() {

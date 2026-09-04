@@ -10,7 +10,7 @@ import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/home
 import { renderAssignmentReviewView, bindAssignmentReviewEvents } from './views/assignment-review.js'
 import { renderLearningHistoryView, bindLearningHistoryEvents } from './views/learning-history.js'
 import { renderAdminDashboardView, bindAdminDashboardEvents } from './views/admin-dashboard.js'
-import { renderAdminHistoryView, bindAdminHistoryEvents } from './views/admin-history.js'
+import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData } from './views/admin-history.js'
 import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
@@ -81,28 +81,67 @@ async function router() {
         }
       }
 
-      // 1. Fetch Classes (for Class Management, Students dropdown, Curriculum, Homework Creation, My Classes)
-      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history', 'class-details', 'student-details', 'homework-mgmt'].includes(hash)) {
-        if (!state.classes || state.classes.length === 0 || hash === 'my-classes' || hash === 'classes-admin') {
-          const rawClasses = await api.getClasses()
-          state.classes = (rawClasses || []).map(c => {
-            return {
+      // 1. Fetch Classes & Chapters for My Classes and Admin pages
+      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details'].includes(hash)) {
+        const classId = hash === 'my-classes' ? params.get('classId') : null
+        const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
+
+        state.classChaptersCache = state.classChaptersCache || {}
+        const needClasses = (!state.classes || state.classes.length === 0 || hash === 'classes-admin')
+        const needChapters = classId ? !state.classChaptersCache[classId] : false
+
+        if (needClasses && needChapters) {
+          // Parallel fetch on cold reload!
+          const [rawClasses, rawChapters] = await Promise.all([
+            api.getClasses(),
+            api.getChapters(classId, true)
+          ])
+          state.classes = (rawClasses || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            studentsCount: c.studentsCount || 0,
+            tuitionFee: c.tuitionFee || 0,
+            progress: 0
+          }))
+          state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
+            id: ch.id,
+            code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+            title: ch.title,
+            lessons: (ch.lessons || []).map(l => ({
+              id: l.id,
+              code: `${ch.order_index || 1}.${l.order_index || 1}`,
+              title: l.title,
+              videoUrl: l.video_url || '',
+              theoryFiles: l.theory_files || [],
+              content: l.content,
+              homeworks: (l.homeworks || []).map(h => ({
+                id: h.id,
+                title: h.title,
+                lessonId: h.lesson_id || l.id,
+                pdfPath: h.pdf_path,
+                durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : 45,
+                passScore: h.pass_score !== undefined ? h.pass_score : 5,
+                maxScore: h.max_score !== undefined ? h.max_score : 10,
+                deadline: h.deadline,
+                maxAttempts: h.max_attempts,
+                type: h.type
+              }))
+            }))
+          }))
+        } else {
+          if (needClasses) {
+            const rawClasses = await api.getClasses()
+            state.classes = (rawClasses || []).map(c => ({
               id: c.id,
               name: c.name,
               studentsCount: c.studentsCount || 0,
               tuitionFee: c.tuitionFee || 0,
               progress: 0
-            }
-          })
-        }
-
-        // Eager load class details for students on My Classes page
-        if (hash === 'my-classes') {
-          const classId = params.get('classId')
-          const lessonId = params.get('lessonId')
-          if (classId) {
+            }))
+          }
+          if (needChapters) {
             const rawChapters = await api.getChapters(classId, true)
-            state.classChapters = (rawChapters || []).map(ch => ({
+            state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
               id: ch.id,
               code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
               title: ch.title,
@@ -112,22 +151,56 @@ async function router() {
                 title: l.title,
                 videoUrl: l.video_url || '',
                 theoryFiles: l.theory_files || [],
-                content: l.content
+                content: l.content,
+                homeworks: (l.homeworks || []).map(h => ({
+                  id: h.id,
+                  title: h.title,
+                  lessonId: h.lesson_id || l.id,
+                  pdfPath: h.pdf_path,
+                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : 45,
+                  passScore: h.pass_score !== undefined ? h.pass_score : 5,
+                  maxScore: h.max_score !== undefined ? h.max_score : 10,
+                  deadline: h.deadline,
+                  maxAttempts: h.max_attempts,
+                  type: h.type
+                }))
               }))
             }))
+          }
+        }
+
+        // Active class & lesson handling for My Classes page
+        if (hash === 'my-classes') {
+          if (classId) {
+            state.classChapters = state.classChaptersCache[classId] || []
 
             if (lessonId) {
-              const rawHomeworks = await api.getHomeworks(lessonId)
-              state.activeLessonHomeworks = (rawHomeworks || []).map(h => ({
-                id: h.id,
-                title: h.title,
-                lessonId: h.lesson_id,
-                pdfPath: h.pdf_path,
-                durationMinutes: h.duration_minutes,
-                passScore: h.pass_score,
-                maxScore: h.max_score,
-                deadline: h.deadline
-              }))
+              let foundLesson = null
+              for (const ch of state.classChapters) {
+                const found = (ch.lessons || []).find(l => l.id === lessonId)
+                if (found) {
+                  foundLesson = found
+                  break
+                }
+              }
+
+              if (foundLesson && Array.isArray(foundLesson.homeworks) && foundLesson.homeworks.length > 0) {
+                state.activeLessonHomeworks = foundLesson.homeworks
+              } else if (foundLesson && Array.isArray(foundLesson.homeworks) && foundLesson.homeworks.length === 0) {
+                state.activeLessonHomeworks = []
+              } else {
+                const rawHomeworks = await api.getHomeworks(lessonId)
+                state.activeLessonHomeworks = (rawHomeworks || []).map(h => ({
+                  id: h.id,
+                  title: h.title,
+                  lessonId: h.lesson_id || h.lessonId,
+                  pdfPath: h.pdf_path || h.pdfPath,
+                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes || 45),
+                  passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore || 5),
+                  maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore || 10),
+                  deadline: h.deadline
+                }))
+              }
             } else {
               state.activeLessonHomeworks = []
             }
@@ -138,8 +211,8 @@ async function router() {
         }
       }
 
-      // 2. Fetch Students (for Student Management, Admin Dashboard, Class Management)
-      if (['students', 'admin-dashboard', 'classes-admin', 'class-details', 'student-details'].includes(hash)) {
+      // 2. Fetch Students (for Student Management, Class Management)
+      if (['students', 'classes-admin', 'class-details', 'student-details'].includes(hash)) {
         if (!state.students || state.students.length === 0) {
           const students = await api.getStudents()
           state.students = students || []
@@ -192,6 +265,29 @@ async function router() {
             status: 'ĐÃ CHẤM'
           }
         })
+      }
+
+      // 7. Fetch Admin History & Tracking Data (Parallelized with Classes loader, no extra students call)
+      if (hash === 'admin-history') {
+        const classId = params.get('classId') || ''
+        const homeworkId = params.get('homeworkId') || ''
+
+        const loadClassesTask = (!state.classes || state.classes.length === 0)
+          ? api.getClasses().then(rawClasses => {
+              state.classes = (rawClasses || []).map(c => ({
+                id: c.id,
+                name: c.name,
+                studentsCount: c.studentsCount || 0,
+                tuitionFee: c.tuitionFee || 0,
+                progress: 0
+              }))
+            })
+          : Promise.resolve()
+
+        await Promise.all([
+          loadClassesTask,
+          loadAdminHistoryData(classId, homeworkId)
+        ])
       }
     } catch (err) {
       console.warn('[Router] Failed to pre-fetch real data from backend:', err.message)

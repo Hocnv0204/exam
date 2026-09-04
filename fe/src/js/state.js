@@ -7,12 +7,19 @@ export const state = {
   curriculums: [],
   students: [],
   homeworks: [],
-  submissions: []
+  submissions: [],
+  classChapters: [],
+  classChaptersCache: {},
+  activeLessonHomeworks: []
 }
 
 export function setSession(user, token, refreshToken = null) {
   state.user = user
   state.token = token
+  state.classes = []
+  state.classChapters = []
+  state.classChaptersCache = {}
+  state.activeLessonHomeworks = []
   if (refreshToken) {
     state.refreshToken = refreshToken
   }

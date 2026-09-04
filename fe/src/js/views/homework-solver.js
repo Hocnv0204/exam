@@ -12,6 +12,61 @@ let studentAnswers = {
   tf: {}, // { 1: { a: true, b: false, c: true, d: false }, ... }
   sa: {}  // { 1: '9.8', ... }
 }
+let isDraftRestored = false
+let saDebounceTimer = null
+
+function getDraftStorageKey(hwId) {
+  const userId = state.user?.id || 'guest'
+  return `homework_draft_${userId}_${hwId}`
+}
+
+function loadDraftFromStorage(hwId) {
+  try {
+    const raw = localStorage.getItem(getDraftStorageKey(hwId))
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch (e) {
+    console.warn('[Draft] Failed to load draft:', e)
+    return null
+  }
+}
+
+function saveDraftToStorage(hwId, answers, timeLeft) {
+  try {
+    const data = {
+      answers,
+      timeLeft,
+      updatedAt: new Date().toISOString()
+    }
+    localStorage.setItem(getDraftStorageKey(hwId), JSON.stringify(data))
+    updateAutosaveIndicator(true)
+  } catch (e) {
+    console.warn('[Draft] Failed to save draft:', e)
+  }
+}
+
+function clearDraftStorage(hwId) {
+  try {
+    localStorage.removeItem(getDraftStorageKey(hwId))
+  } catch (e) {}
+}
+
+function updateAutosaveIndicator(saved = true) {
+  const el = document.getElementById('autosave-status')
+  if (!el) return
+  if (saved) {
+    const now = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    el.innerHTML = `<i class="fa-solid fa-cloud-arrow-up" style="color:#10b981;"></i> Đã lưu nháp (${now})`
+    el.style.color = '#065f46'
+    el.style.background = '#ecfdf5'
+    el.style.borderColor = '#a7f3d0'
+  } else {
+    el.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="color:#0284c7;"></i> Đang lưu nháp...`
+    el.style.color = '#0369a1'
+    el.style.background = '#f0f9ff'
+    el.style.borderColor = '#bae6fd'
+  }
+}
 
 export function renderHomeworkSolverView() {
   const hw = state.currentHomework?.homework
@@ -64,11 +119,18 @@ export function renderHomeworkSolverView() {
     `
   }
 
-  // Reset studentAnswers structure for this homework
+  // Check if there is an existing saved draft
+  const savedDraft = loadDraftFromStorage(hw.id)
+  isDraftRestored = !!(savedDraft && savedDraft.answers && (
+    Object.keys(savedDraft.answers.mc || {}).length > 0 ||
+    Object.keys(savedDraft.answers.tf || {}).length > 0 ||
+    Object.keys(savedDraft.answers.sa || {}).length > 0
+  ))
+
   studentAnswers = {
-    mc: {},
-    tf: {},
-    sa: {}
+    mc: savedDraft?.answers?.mc || {},
+    tf: savedDraft?.answers?.tf || {},
+    sa: savedDraft?.answers?.sa || {}
   }
 
   // Separate questions by type
@@ -76,15 +138,15 @@ export function renderHomeworkSolverView() {
   const tfQuestions = questions.filter(q => (q.question_type || q.questionType) === 'TRUE_FALSE')
   const saQuestions = questions.filter(q => (q.question_type || q.questionType) === 'SHORT_ANSWER')
 
-  // Populate defaults
+  // Populate defaults for any question not in draft
   questions.forEach(q => {
     const qNum = q.question_number || q.questionNumber
     const type = q.question_type || q.questionType
-    if (type === 'MULTIPLE_CHOICE') {
+    if (type === 'MULTIPLE_CHOICE' && studentAnswers.mc[qNum] === undefined) {
       studentAnswers.mc[qNum] = null
-    } else if (type === 'TRUE_FALSE') {
+    } else if (type === 'TRUE_FALSE' && studentAnswers.tf[qNum] === undefined) {
       studentAnswers.tf[qNum] = {}
-    } else if (type === 'SHORT_ANSWER') {
+    } else if (type === 'SHORT_ANSWER' && studentAnswers.sa[qNum] === undefined) {
       studentAnswers.sa[qNum] = ''
     }
   })
@@ -134,8 +196,13 @@ export function renderHomeworkSolverView() {
                 <!-- Header Info & Timer -->
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #e2e8f0;">
                   <div>
-                    <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700;">PHIẾU ĐIỀN ĐÁP ÁN</span>
-                    <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; margin-top:4px;">${hw.title}</h3>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+                      <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700;">PHIẾU ĐIỀN ĐÁP ÁN</span>
+                      <span id="autosave-status" style="font-size:11px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 8px; border-radius:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; transition:all 0.2s ease;">
+                        <i class="fa-solid fa-cloud-arrow-up" style="color:#10b981;"></i> Tự động lưu nháp
+                      </span>
+                    </div>
+                    <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; margin:0;">${hw.title}</h3>
                   </div>
                   <div class="timer-box" style="flex-shrink:0;">
                     <i class="fa-regular fa-clock"></i> <span id="exam-timer-display">${hw.durationMinutes || 45}:00</span>
@@ -342,6 +409,9 @@ export function bindHomeworkSolverEvents() {
       
       showToast('Nộp bài thành công! Đang tải kết quả chấm điểm...', 'success')
       
+      // Clear local draft storage on successful submit
+      clearDraftStorage(hw.id)
+
       // Save result details to state for review page if needed
       state.lastSubmissionResult = result
       
@@ -352,8 +422,17 @@ export function bindHomeworkSolverEvents() {
   }
 
   // Timer Countdown Setup
+  const savedDraft = loadDraftFromStorage(hw.id)
   let timeLeftSeconds = (hw.durationMinutes || 45) * 60
+  if (savedDraft?.timeLeft && savedDraft.timeLeft > 0 && savedDraft.timeLeft <= timeLeftSeconds) {
+    timeLeftSeconds = savedDraft.timeLeft
+  }
   let timerInterval = null
+
+  if (isDraftRestored) {
+    showToast('Đã tự động khôi phục bài làm từ bản lưu nháp gần nhất!', 'info')
+    updateAutosaveIndicator(true)
+  }
 
   const startTimer = () => {
     const timerDisplay = document.getElementById('exam-timer-display')
@@ -368,6 +447,10 @@ export function bindHomeworkSolverEvents() {
       }
 
       timeLeftSeconds--
+
+      if (timeLeftSeconds % 10 === 0) {
+        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+      }
 
       if (timeLeftSeconds === 300) {
         showToast('Thời gian làm bài của bạn còn lại 5 phút!', 'warning')
@@ -698,6 +781,9 @@ export function bindHomeworkSolverEvents() {
         studentAnswers.mc[qNum] = opt
       }
 
+      // Auto-save draft immediately
+      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+
       document.querySelectorAll(`.student-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
         const isSel = b.getAttribute('data-option') === studentAnswers.mc[qNum]
         b.style.background = isSel ? '#0066cc' : '#ffffff'
@@ -722,6 +808,9 @@ export function bindHomeworkSolverEvents() {
         studentAnswers.tf[qNum][sub] = val
       }
 
+      // Auto-save draft immediately
+      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+
       const parent = btn.parentElement
       if (parent) {
         parent.querySelectorAll('.student-tf-btn').forEach(b => {
@@ -742,11 +831,17 @@ export function bindHomeworkSolverEvents() {
     })
   })
 
-  // Student SA input change
+  // Student SA input change (debounced auto-save)
   document.querySelectorAll('.student-sa-input').forEach(input => {
     input.addEventListener('input', (e) => {
       const qNum = parseInt(input.getAttribute('data-qnum'), 10)
       studentAnswers.sa[qNum] = e.target.value
+
+      updateAutosaveIndicator(false)
+      clearTimeout(saDebounceTimer)
+      saDebounceTimer = setTimeout(() => {
+        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+      }, 400)
     })
   })
 

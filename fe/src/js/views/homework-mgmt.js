@@ -4,6 +4,7 @@ import { showToast } from '../components/toast.js'
 import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 let allHomeworks = []
 let allClasses = []
@@ -16,7 +17,9 @@ let filterState = {
   chapterId: '',
   lessonId: '',
   type: '',
-  sortBy: 'newest'
+  sortBy: 'newest',
+  page: 1,
+  pageSize: 10
 }
 
 export function renderHomeworkMgmtView() {
@@ -193,6 +196,8 @@ export function renderHomeworkMgmtView() {
                 </tbody>
               </table>
             </div>
+            <!-- Homework Pagination Wrapper -->
+            <div id="hw-pagination-wrapper" style="padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #fafbfc;"></div>
           </div>
 
         </div>
@@ -215,17 +220,10 @@ export function bindHomeworkMgmtEvents() {
 async function loadData() {
   const tableBody = document.getElementById('hw-table-body')
   try {
-    // 1. Fetch Classes from state or single API call if needed
-    if (state.classes && state.classes.length > 0) {
-      allClasses = state.classes
-    } else {
-      allClasses = await api.getClasses() || []
-    }
-
-    // 2. Single API call for Homeworks (with joined metadata from backend)
+    // 1. Single API call for Homeworks (with joined class & lesson metadata from backend)
     const hwData = await api.getHomeworks()
 
-    // 3. Normalize raw response
+    // 2. Normalize raw response
     allHomeworks = (hwData || []).map(raw => {
       const lessonInfo = raw.lessons || raw.lesson
       const chapterInfo = lessonInfo?.chapters || raw.chapters
@@ -252,6 +250,19 @@ async function loadData() {
         className: raw.className || classInfo?.name || ''
       }
     })
+
+    // 3. Populate allClasses: use state.classes if cached, or derive directly from allHomeworks (zero extra API call)
+    if (state.classes && state.classes.length > 0) {
+      allClasses = state.classes
+    } else {
+      const classMap = new Map()
+      allHomeworks.forEach(h => {
+        if (h.classId && !classMap.has(h.classId)) {
+          classMap.set(h.classId, { id: h.classId, name: h.className || 'Lớp học' })
+        }
+      })
+      allClasses = Array.from(classMap.values())
+    }
 
     // Populate stats
     updateStats()
@@ -396,30 +407,36 @@ function attachFilterListeners() {
     clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
       filterState.search = e.target.value.trim().toLowerCase()
+      filterState.page = 1
       renderFilteredHomeworks()
     }, 250)
   })
 
   classSelect?.addEventListener('change', (e) => {
+    filterState.page = 1
     handleClassChange(e.target.value)
   })
 
   chapterSelect?.addEventListener('change', (e) => {
+    filterState.page = 1
     handleChapterChange(e.target.value)
   })
 
   lessonSelect?.addEventListener('change', (e) => {
     filterState.lessonId = e.target.value
+    filterState.page = 1
     renderFilteredHomeworks()
   })
 
   typeSelect?.addEventListener('change', (e) => {
     filterState.type = e.target.value
+    filterState.page = 1
     renderFilteredHomeworks()
   })
 
   sortSelect?.addEventListener('change', (e) => {
     filterState.sortBy = e.target.value
+    filterState.page = 1
     renderFilteredHomeworks()
   })
 
@@ -430,7 +447,9 @@ function attachFilterListeners() {
       chapterId: '',
       lessonId: '',
       type: '',
-      sortBy: 'newest'
+      sortBy: 'newest',
+      page: 1,
+      pageSize: 10
     }
 
     if (searchInput) searchInput.value = ''
@@ -511,9 +530,15 @@ function renderFilteredHomeworks() {
     return 0
   })
 
+  const totalItems = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / filterState.pageSize))
+  if (filterState.page > totalPages) filterState.page = Math.max(1, totalPages)
+
   if (countBadge) {
-    countBadge.textContent = filtered.length
+    countBadge.textContent = totalItems
   }
+
+  const paginationWrapper = document.getElementById('hw-pagination-wrapper')
 
   if (filtered.length === 0) {
     tableBody.innerHTML = `
@@ -525,11 +550,15 @@ function renderFilteredHomeworks() {
         </td>
       </tr>
     `
+    if (paginationWrapper) paginationWrapper.innerHTML = ''
     return
   }
 
+  const from = (filterState.page - 1) * filterState.pageSize
+  const pagedList = filtered.slice(from, from + filterState.pageSize)
+
   let html = ''
-  filtered.forEach((hw, index) => {
+  pagedList.forEach((hw, index) => {
     const isExam = hw.type === 'EXAM'
     const typeBadge = isExam
       ? `<span class="badge" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px;"><i class="fa-solid fa-shield-halved"></i> BÀI THI</span>`
@@ -540,7 +569,7 @@ function renderFilteredHomeworks() {
 
     html += `
       <tr style="border-bottom:1px solid #f1f5f9; transition:background 0.15s ease;">
-        <td style="padding:12px 16px; text-align:center; font-weight:700; color:#64748b;">${index + 1}</td>
+        <td style="padding:12px 16px; text-align:center; font-weight:700; color:#64748b;">${from + index + 1}</td>
         <td style="padding:12px 16px;">
           <div style="display:flex; flex-direction:column; gap:4px;">
             <div style="display:flex; align-items:center; gap:8px;">
@@ -581,6 +610,9 @@ function renderFilteredHomeworks() {
             <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem lịch sử & câu sai" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
               <i class="fa-solid fa-chart-pie"></i>
             </button>
+            <button class="btn-secondary btn-unsubmitted-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Theo dõi học sinh chưa làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fff7ed; border:1px solid #fed7aa; color:#ea580c;">
+              <i class="fa-solid fa-user-clock"></i>
+            </button>
             <button class="btn-secondary btn-edit-hw" data-id="${hw.id}" title="Sửa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #cbd5e1; color:#0066cc;">
               <i class="fa-solid fa-pen-to-square"></i>
             </button>
@@ -595,6 +627,28 @@ function renderFilteredHomeworks() {
 
   tableBody.innerHTML = html
 
+  if (paginationWrapper) {
+    paginationWrapper.innerHTML = renderPaginationBar({
+      currentPage: filterState.page,
+      totalItems,
+      pageSize: filterState.pageSize,
+      containerId: 'hw-pagination-container',
+      pageSizeOptions: [10, 20, 50]
+    })
+    bindPaginationEvents({
+      containerId: 'hw-pagination-container',
+      onPageChange: (newPage) => {
+        filterState.page = newPage
+        renderFilteredHomeworks()
+      },
+      onPageSizeChange: (newSize) => {
+        filterState.pageSize = newSize
+        filterState.page = 1
+        renderFilteredHomeworks()
+      }
+    })
+  }
+
   // Attach History buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...
   tableBody.querySelectorAll('.btn-history-hw').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -605,6 +659,21 @@ function renderFilteredHomeworks() {
         hash += `?classId=${classId}&homeworkId=${hwId}`
       } else if (hwId) {
         hash += `?homeworkId=${hwId}`
+      }
+      window.location.hash = hash
+    })
+  })
+
+  // Attach Unsubmitted buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...&tab=unsubmitted
+  tableBody.querySelectorAll('.btn-unsubmitted-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hwId = btn.getAttribute('data-id')
+      const classId = btn.getAttribute('data-classid')
+      let hash = '#admin-history'
+      if (classId && hwId) {
+        hash += `?classId=${classId}&homeworkId=${hwId}&tab=unsubmitted`
+      } else if (hwId) {
+        hash += `?homeworkId=${hwId}&tab=unsubmitted`
       }
       window.location.hash = hash
     })

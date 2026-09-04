@@ -281,7 +281,7 @@ export const api = {
   resetPassword: (data) => request('reset-password', { method: 'POST', body: JSON.stringify(data) }),
   createClass: (data) => request('create-class', { method: 'POST', body: JSON.stringify(data) }),
   updateClass: (data) => request('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),
-  getClasses: () => request('create-class', { method: 'GET' }),
+  getClasses: (params = '') => request(`create-class${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
   deleteClass: (classId) => request(`create-class?classId=${classId}`, { method: 'DELETE' }),
   getClassSessions: (classId, month) => request(`create-class?action=get-sessions&classId=${classId}&month=${month}`, { method: 'GET' }),
   setClassSessions: (classId, sessionDates, month) => request('create-class?action=set-sessions', { method: 'POST', body: JSON.stringify({ classId, sessionDates, month }) }),
@@ -298,26 +298,35 @@ export const api = {
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),
   deleteHomework: (homeworkId) => request(`create-homework?homeworkId=${homeworkId}`, { method: 'DELETE' }),
-  getHomeworks: (lessonIdOrQuery = '', classId = '') => {
+  getHomeworks: (lessonIdOrQuery = '', classId = '', extraParams = '') => {
+    let query = ''
     if (typeof lessonIdOrQuery === 'string' && lessonIdOrQuery.includes('=')) {
-      const q = lessonIdOrQuery.startsWith('?') ? lessonIdOrQuery : `?${lessonIdOrQuery}`
-      return request(`create-homework${q}`, { method: 'GET' })
+      query = lessonIdOrQuery.startsWith('?') ? lessonIdOrQuery.substring(1) : lessonIdOrQuery
+    } else if (lessonIdOrQuery) {
+      query = `lessonId=${lessonIdOrQuery}`
     }
-    return request(`create-homework${classId ? `?classId=${classId}` : (lessonIdOrQuery ? `?lessonId=${lessonIdOrQuery}` : '')}`, { method: 'GET' })
+    if (classId) {
+      query += `${query ? '&' : ''}classId=${classId}`
+    }
+    if (extraParams) {
+      const extra = extraParams.startsWith('?') ? extraParams.substring(1) : extraParams
+      query += `${query ? '&' : ''}${extra}`
+    }
+    return request(`create-homework${query ? `?${query}` : ''}`, { method: 'GET' })
   },
-  getTodoHomeworks: () => request('create-homework?todoOnly=true', { method: 'GET' }),
+  getTodoHomeworks: (params = '') => request(`create-homework?todoOnly=true${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
   submitExamLog: (data) => request('exam-log', { method: 'POST', body: JSON.stringify(data) }),
-  getExamLogs: (homeworkId) => request(`exam-log?homeworkId=${homeworkId}`, { method: 'GET' }),
+  getExamLogs: (homeworkId, params = '') => request(`exam-log?homeworkId=${homeworkId}${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
   reopenSubmission: (homeworkId, studentId, resetTimer, resetAnswers) => request(`reopen-submission`, { method: 'POST', body: JSON.stringify({ homeworkId, studentId, resetTimer, resetAnswers }) }),
   initExamSession: (homeworkId, sessionToken) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }) }),
   heartbeatExamSession: (homeworkId, sessionToken) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'heartbeat', homeworkId, sessionToken }) }),
   autosaveExamSession: (homeworkId, sessionToken, draftAnswers) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'autosave', homeworkId, sessionToken, draftAnswers }) }),
   getDashboard: () => request('dashboard', { method: 'GET' }),
   getStatistics: (params = '') => request(`statistics?${params}`, { method: 'GET' }),
-  getStudentHistory: (params = '') => request(`student-history?${params}`, { method: 'GET' }),
+  getStudentHistory: (params = '') => request(`student-history${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
   getHomeworkDetail: (homeworkId) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET' }),
-  getStudents: () => request('create-student', { method: 'GET' }),
+  getStudents: (params = '') => request(`create-student${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
   getTelegramConfig: (classId) => request(`create-class?action=get-telegram-config&classId=${classId}`, { method: 'GET' }),
   updateTelegramConfig: (data) => request('create-class?action=update-telegram-config', { method: 'PUT', body: JSON.stringify(data) }),
@@ -342,4 +351,34 @@ export const api = {
       hideLoading()
     }
   }
+}
+
+export function unwrapPaginated(res) {
+  if (res && res.items && Array.isArray(res.items)) {
+    return {
+      items: res.items,
+      pagination: res.pagination || {
+        page: 1,
+        limit: res.items.length,
+        total: res.items.length,
+        totalPages: 1,
+        hasPrevPage: false,
+        hasNextPage: false
+      }
+    }
+  }
+  if (Array.isArray(res)) {
+    return {
+      items: res,
+      pagination: {
+        page: 1,
+        limit: res.length,
+        total: res.length,
+        totalPages: 1,
+        hasPrevPage: false,
+        hasNextPage: false
+      }
+    }
+  }
+  return { items: [], pagination: null }
 }

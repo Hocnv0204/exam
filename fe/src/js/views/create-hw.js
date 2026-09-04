@@ -20,6 +20,8 @@ let currentConfig = {
 let mcAnswers = {}
 let tfAnswers = {}
 let saAnswers = {}
+let chaptersCache = {}
+let lessonsCache = {}
 
 function initAnswersState() {
   mcAnswers = {}
@@ -410,6 +412,19 @@ export function bindCreateHwEvents() {
   const hwData = state.editHomeworkData
   const downloadBtn = document.getElementById('download-hw-pdf-btn')
 
+  // Pre-seed cache from homework-detail if available to avoid extra network requests
+  if (isEditMode && hwData) {
+    const hw = hwData.homework
+    const editClassId = hw ? (hw.classId || hw.class_id) : null
+    const editChapterId = hw ? (hw.chapterId || hw.chapter_id) : null
+    if (editClassId && hwData.classChapters && hwData.classChapters.length > 0) {
+      chaptersCache[editClassId] = hwData.classChapters
+    }
+    if (editChapterId && hwData.chapterLessons && hwData.chapterLessons.length > 0) {
+      lessonsCache[editChapterId] = hwData.chapterLessons
+    }
+  }
+
   if (isEditMode && hwData?.homework?.pdfUrl) {
     const container = document.getElementById('pdf-preview-container')
     const titleSpan = document.getElementById('pdf-viewer-title')
@@ -596,7 +611,11 @@ export function bindCreateHwEvents() {
     }
 
     try {
-      const chapters = await api.getChapters(classId)
+      let chapters = chaptersCache[classId]
+      if (!chapters) {
+        chapters = await api.getChapters(classId)
+        chaptersCache[classId] = chapters || []
+      }
       let chOptions = '<option value="">-- Chọn chương --</option>'
 
       const isEdit = !!state.editHomeworkData
@@ -642,7 +661,11 @@ export function bindCreateHwEvents() {
     }
 
     try {
-      const lessons = await api.getLessons(chapterId)
+      let lessons = lessonsCache[chapterId]
+      if (!lessons) {
+        lessons = await api.getLessons(chapterId)
+        lessonsCache[chapterId] = lessons || []
+      }
       let lOptions = '<option value="">-- Chọn bài học --</option>'
 
       const isEdit = !!state.editHomeworkData
