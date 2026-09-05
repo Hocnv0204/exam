@@ -17,6 +17,13 @@ let unsubmittedFilter = 'ALL' // 'ALL' | 'NOT_STARTED' | 'IN_PROGRESS'
 let unsubmittedSearch = ''
 const classHomeworksCache = new Map()
 
+function formatScore(val) {
+  if (val === undefined || val === null) return '0'
+  const num = Number(val)
+  if (isNaN(num)) return '0'
+  return Number.isInteger(num) ? num.toString() : Number(num.toFixed(2)).toString()
+}
+
 function parseUrlParams() {
   const hash = window.location.hash || ''
   const queryIndex = hash.indexOf('?')
@@ -127,9 +134,14 @@ export function renderAdminHistoryView() {
                 </select>
               </div>
               
-              <div style="display:flex; flex-direction:column; gap:4px; margin-left:auto; text-align:right;">
+              <div style="display:flex; flex-direction:column; gap:4px; margin-left:auto; text-align:right; align-items:flex-end;">
                 <span style="font-size:12px; color:#64748b;">Đang xem: <strong>${classNameText}</strong></span>
                 <span style="font-size:13px; font-weight:700; color:#0f172a;">${hwNameText}</span>
+                ${selectedHomeworkId ? `
+                  <button class="btn-secondary redirect-edit-hw-btn" data-hwid="${selectedHomeworkId}" style="margin-top:4px; padding:4px 10px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:6px; transition:all 0.2s;">
+                    <i class="fa-solid fa-pen-to-square"></i> Chỉnh sửa bài tập này
+                  </button>
+                ` : ''}
               </div>
 
             </div>
@@ -167,6 +179,10 @@ export function renderAdminHistoryView() {
                   <span class="badge" style="background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
                     <i class="fa-regular fa-clock"></i> ${submissionStats.durationMinutes || 45} phút
                   </span>
+
+                  <button class="btn-secondary redirect-edit-hw-btn" data-hwid="${selectedHomeworkId}" style="font-size:12px; padding:6px 12px; cursor:pointer; color:#0066cc; border-color:#bfdbfe; background:#eff6ff; display:inline-flex; align-items:center; gap:6px; border-radius:6px;">
+                    <i class="fa-solid fa-pen-to-square"></i> Sửa bài tập
+                  </button>
                 </div>
               </div>
 
@@ -362,7 +378,12 @@ export function renderAdminHistoryView() {
                               <div style="font-size:11px; font-weight:500; color:#64748b;">@${sub.username || ''}</div>
                             </td>
                             <td style="color:#475569;" class="row-hw-title">
-                              <div style="margin-bottom: 4px;">${sub.homeworkTitle}</div>
+                              <div style="margin-bottom: 4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                <span style="font-weight:600; color:#0f172a;">${sub.homeworkTitle}</span>
+                                <button class="btn-secondary redirect-edit-hw-btn" data-hwid="${sub.homeworkId}" title="Chỉnh sửa bài tập này" style="padding:2px 6px; font-size:11px; cursor:pointer; color:#0066cc; border-color:#bae6fd; background:#eff6ff; border-radius:4px; display:inline-flex; align-items:center; gap:3px;">
+                                  <i class="fa-solid fa-pen-to-square"></i> Sửa
+                                </button>
+                              </div>
                               ${sub.type === 'EXAM' ? `
                                 <span style="background:#fef2f2; color:#ef4444; border:1px solid #fecaca; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
                                   <i class="fa-solid fa-file-contract"></i> Bài thi
@@ -380,7 +401,13 @@ export function renderAdminHistoryView() {
                             </td>
                             <td style="color:#64748b;">${submittedDate}</td>
                             <td style="font-family:var(--font-heading); font-weight:700; font-size:16px; color:${isPassed ? '#16a34a' : '#dc2626'};">
-                              ${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)}
+                              <div style="display:flex; align-items:baseline; gap:3px;">
+                                <span>${formatScore(sub.score)}</span>
+                                <span style="font-size:12px; font-weight:600; color:#64748b;">/ ${formatScore(sub.maxScore || 10)}</span>
+                              </div>
+                              <div style="font-size:11px; font-weight:500; color:#64748b; font-family:var(--font-sans); margin-top:2px;">
+                                (${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)} câu đúng)
+                              </div>
                             </td>
                             <td>
                               ${wrongList.length === 0 ? `
@@ -408,9 +435,12 @@ export function renderAdminHistoryView() {
                               })()}
                             </td>
                             <td style="white-space:nowrap; text-align:center;">
-                              <div style="display:flex; gap:6px; justify-content:center;">
+                              <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
                                 <button class="btn-secondary view-detail-btn" data-id="${sub.submissionId}" title="Xem toàn bộ bài làm" style="padding:4px 10px; font-size:12px; cursor:pointer;">
                                   <i class="fa-solid fa-eye"></i> Xem chi tiết
+                                </button>
+                                <button class="btn-secondary redirect-edit-hw-btn" data-hwid="${sub.homeworkId}" title="Chỉnh sửa bài tập này" style="padding:4px 10px; font-size:12px; cursor:pointer; color:#0284c7; border-color:#bae6fd; background:#f0f9ff; display:inline-flex; align-items:center; gap:4px;">
+                                  <i class="fa-solid fa-pen-to-square"></i> Sửa bài tập
                                 </button>
                                 <button class="btn-secondary reopen-sub-btn" data-hwid="${sub.homeworkId}" data-stuid="${sub.studentId}" data-name="${sub.studentName}" title="Cho phép học sinh làm lại" style="padding:4px 10px; font-size:12px; cursor:pointer; color:#b45309; border-color:#fde68a; background:#fffbeb;">
                                   <i class="fa-solid fa-rotate-left"></i> Khôi phục
@@ -918,6 +948,17 @@ export function bindAdminHistoryEvents() {
     })
   }
   attachStudentProfileButtons()
+
+  // Redirect to Edit Homework
+  document.querySelectorAll('.redirect-edit-hw-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const hwId = btn.getAttribute('data-hwid')
+      if (hwId) {
+        window.location.hash = `#create-homework?homeworkId=${hwId}`
+      }
+    })
+  })
 
   // View wrong modal buttons click -> Open Modal showing that student's wrong answers
   document.querySelectorAll('.view-wrong-modal-btn').forEach(btn => {

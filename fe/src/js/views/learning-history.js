@@ -10,6 +10,13 @@ let searchQuery = ''
 let currentPage = 1
 let pageSize = 10
 
+function formatScore(val) {
+  if (val === undefined || val === null) return '0'
+  const num = Number(val)
+  if (isNaN(num)) return '0'
+  return Number.isInteger(num) ? num.toString() : Number(num.toFixed(2)).toString()
+}
+
 export function renderLearningHistoryView() {
   const submissions = state.submissions
 
@@ -148,7 +155,13 @@ export function renderLearningHistoryView() {
                         <td style="color:#64748b;">${sub.lesson}</td>
                         <td style="color:#64748b;">${sub.submittedAt}</td>
                         <td style="font-family:var(--font-heading); font-weight:700; font-size:16px; color:${isPassed ? '#16a34a' : '#dc2626'};">
-                          ${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)}
+                          <div style="display:flex; align-items:baseline; gap:3px;">
+                            <span>${formatScore(sub.score)}</span>
+                            <span style="font-size:12px; font-weight:600; color:#64748b;">/ ${formatScore(sub.maxScore || 10)}</span>
+                          </div>
+                          <div style="font-size:11px; font-weight:500; color:#64748b; font-family:var(--font-sans); margin-top:2px;">
+                            (${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)} câu đúng)
+                          </div>
                         </td>
                         <td style="color:#475569; font-weight:600;">
                           ${(() => {

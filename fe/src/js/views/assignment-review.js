@@ -237,12 +237,34 @@ export function renderAssignmentReviewView() {
           <div id="review-layout-wrapper" style="display: grid; grid-template-columns: 1fr; gap: 24px; transition: all 0.3s ease;">
             
             <!-- PDF Preview Pane (Initially hidden) -->
-            <div id="pdf-preview-pane" class="pdf-iframe-wrapper" style="display: none; height: calc(100vh - 240px); position: sticky; top: 90px; z-index: 10; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y;">
-              <iframe id="pdf-preview-iframe" src="" style="width:100%; height:100%; min-height:100%; border:1px solid #cbd5e1; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); -webkit-overflow-scrolling:touch;"></iframe>
+            <div id="pdf-preview-pane" class="pdf-viewer-container" style="display: none;">
+              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:nowrap; gap:10px; background:#ffffff; padding:8px 14px; border-bottom:1px solid #e2e8f0; border-radius:12px 12px 0 0; box-sizing:border-box; flex-shrink:0;">
+                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto; font-size:13px;">
+                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:16px; flex-shrink:0;"></i>
+                  <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${sub.homeworkTitle || 'Đề bài'}">${sub.homeworkTitle || 'Đề bài PDF'}</span>
+                </div>
+                <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
+              </div>
+              <div id="pdf-canvas-container" style="flex:1; width:100%; height:100%; min-height:0; overflow:hidden; position:relative;"></div>
             </div>
 
-            <!-- Content Pane -->
-            <div id="content-pane" style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Content Pane (Student Answers) -->
+            <div id="content-pane" style="display: flex; flex-direction: column; gap: 20px;">
+              <!-- Compact summary bar visible only in split mode -->
+              <div class="card review-compact-summary" style="padding: 12px 16px; margin-bottom: 0; background: #f8fafc; border: 1px solid #e2e8f0; justify-content: space-between; align-items: center; border-radius: 10px; flex-shrink: 0; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="badge ${isPassed ? 'badge-graded' : 'badge-failed'}" style="font-size: 11px; padding: 4px 10px; font-weight: 700;">
+                    ${isPassed ? 'ĐÃ ĐẠT' : 'CHƯA ĐẠT'}
+                  </span>
+                  <span style="font-size: 12px; color: #64748b;">
+                    Đúng: <strong style="color: #15803d;">${sub.correctCount}</strong> | Sai: <strong style="color: #b91c1c;">${sub.wrongCount}</strong>
+                  </span>
+                </div>
+                <strong style="font-size: 16px; color: #0284c7; font-family: var(--font-heading);">
+                  ${formatScore(calculatedScore)} / ${formatScore(maxScore)} điểm
+                </strong>
+              </div>
+
               <div id="questions-grid" class="grid-3">
             <div style="grid-column: span 2; display:flex; flex-direction:column; gap:16px;">
               ${sortedAnswers.map(ans => {
@@ -395,7 +417,7 @@ export function renderAssignmentReviewView() {
                 }
 
                 return `
-                  <div class="card" style="border-left:4px solid ${cardBorderColor}; margin-bottom: 0;">
+                  <div class="card review-question-card" id="review-question-${qNum}" style="border-left:4px solid ${cardBorderColor}; margin-bottom: 0; scroll-margin-top: 14px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                       <div>
                         <span class="question-badge" style="background:${cardBorderColor}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
@@ -442,12 +464,12 @@ export function renderAssignmentReviewView() {
                     }
 
                     return `
-                      <div class="nav-grid-item" style="
+                      <div class="nav-grid-item" data-qnum="${qNum}" style="
                         background:${navBg}; 
                         color:${navColor}; 
                         border: 1px solid ${navBorder};
-                        width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
-                      ">${qNum}</div>
+                        width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; cursor: pointer; user-select: none; transition: transform 0.15s;
+                      " title="Xem câu ${qNum}">${qNum}</div>
                     `
                   }).join('')}
                 </div>
@@ -648,53 +670,58 @@ export function bindAssignmentReviewEvents() {
     }
   }
 
+  // Clean up split mode when navigating away
+  const cleanupSplitMode = () => {
+    document.body.classList.remove('review-split-mode')
+  }
+  window.addEventListener('hashchange', cleanupSplitMode, { once: true })
+
+  // Question navigator click-to-scroll
+  document.querySelectorAll('.nav-grid-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const qNum = item.getAttribute('data-qnum')
+      const target = document.getElementById(`review-question-${qNum}`)
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    })
+  })
+
   const togglePdfBtn = document.getElementById('toggle-pdf-btn')
   const downloadPdfBtn = document.getElementById('download-pdf-btn')
   const pdfPane = document.getElementById('pdf-preview-pane')
-  const pdfIframe = document.getElementById('pdf-preview-iframe')
+  const pdfCanvasContainer = document.getElementById('pdf-canvas-container')
   const wrapper = document.getElementById('review-layout-wrapper')
-  const questionsGrid = document.getElementById('questions-grid')
   const overviewBanner = document.getElementById('overview-banner-card')
 
-  if (togglePdfBtn && pdfPane && pdfIframe && wrapper) {
+  if (togglePdfBtn && pdfPane && wrapper) {
     const rawPdfUrl = state.lastSubmissionResult?.submission?.pdfUrl || state.lastSubmissionResult?.pdfUrl || ''
     const pdfUrl = rawPdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
 
     togglePdfBtn.onclick = () => {
-      const isHidden = pdfPane.style.display === 'none'
-      if (isHidden) {
-        // Show PDF side-by-side
-        pdfPane.style.display = 'block'
-        renderPdfViewer(pdfPane, pdfUrl)
+      const isSplitActive = wrapper.classList.contains('split-review-active')
+      if (!isSplitActive) {
+        // Activate split review mode with 2 independent scroll areas
+        wrapper.classList.add('split-review-active')
+        document.body.classList.add('review-split-mode')
+        pdfPane.style.display = 'flex'
+        const targetContainer = pdfCanvasContainer || pdfPane
+        renderPdfViewer(targetContainer, pdfUrl)
         if (overviewBanner) overviewBanner.style.display = 'none'
         if (downloadPdfBtn) downloadPdfBtn.style.display = 'inline-flex'
         
-        // Split page to 1.3fr (PDF) and 1fr (Questions & Navigation stacked)
-        wrapper.style.gridTemplateColumns = '1.3fr 1fr'
-        if (questionsGrid) {
-          questionsGrid.style.gridTemplateColumns = '1fr'
-          questionsGrid.style.gap = '20px'
-          // Make the columns inside questionsGrid stack
-          const cols = questionsGrid.children
-          if (cols[0]) cols[0].style.gridColumn = 'span 1'
-        }
         togglePdfBtn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Ẩn đề bài`
         togglePdfBtn.style.background = '#64748b'
       } else {
-        // Hide PDF
+        // Deactivate split review mode, restore full page
+        wrapper.classList.remove('split-review-active')
+        document.body.classList.remove('review-split-mode')
         pdfPane.style.display = 'none'
-        pdfIframe.src = ''
+        if (pdfCanvasContainer) pdfCanvasContainer.innerHTML = ''
+        else pdfPane.innerHTML = ''
         if (overviewBanner) overviewBanner.style.display = 'flex'
         if (downloadPdfBtn) downloadPdfBtn.style.display = 'none'
         
-        // Restore layout
-        wrapper.style.gridTemplateColumns = '1fr'
-        if (questionsGrid) {
-          questionsGrid.style.gridTemplateColumns = '2fr 1fr'
-          questionsGrid.style.gap = '24px'
-          const cols = questionsGrid.children
-          if (cols[0]) cols[0].style.gridColumn = 'span 2'
-        }
         togglePdfBtn.innerHTML = `<i class="fa-solid fa-file-pdf"></i> Xem đề bài (PDF)`
         togglePdfBtn.style.background = '#0066cc'
       }
