@@ -1,16 +1,25 @@
 import { state, logout } from '../state.js'
 
 export function renderSidebar(currentRoute) {
-  const role = state.user?.role || 'ADMIN'
+  const isGuest = !state.token
+  const role = state.user?.role || 'STUDENT'
 
   return `
     <aside class="sidebar">
-      <div class="brand-logo">
+      <div class="brand-logo" onclick="window.location.hash='${isGuest ? '#trial' : (role === 'ADMIN' ? '#admin-dashboard' : '#my-classes')}'" style="cursor:pointer;">
         <i class="fa-solid fa-graduation-cap"></i>
         <span>EduPortal</span>
       </div>
 
-      ${role === 'ADMIN' ? `
+      ${isGuest ? `
+        <div class="nav-section-title">Trải nghiệm học thử</div>
+        <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial'">
+          <i class="fa-solid fa-sparkles"></i> Bài học thử
+        </div>
+        <div class="nav-item" onclick="window.location.hash='#login'">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập / Đăng ký
+        </div>
+      ` : (role === 'ADMIN' ? `
         <div class="nav-section-title">Quản trị viên</div>
         <div class="nav-item ${currentRoute === 'admin-dashboard' ? 'active' : ''}" onclick="window.location.hash='#admin-dashboard'">
           <i class="fa-solid fa-table-cells-large"></i> Dashboard
@@ -38,11 +47,11 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'history' ? 'active' : ''}" onclick="window.location.hash='#history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài
         </div>
-      `}
+      `)}
 
       <div style="margin-top:auto; padding-top:20px; border-top:1px solid var(--border-color);">
         <div class="nav-item" id="sidebar-logout-btn">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i> Đăng xuất
+          <i class="fa-solid ${isGuest ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket'}"></i> ${isGuest ? 'Đăng nhập' : 'Đăng xuất'}
         </div>
       </div>
     </aside>
@@ -51,6 +60,10 @@ export function renderSidebar(currentRoute) {
 
 export function bindSidebarEvents() {
   document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
-    logout()
+    if (!state.token) {
+      window.location.hash = '#login'
+    } else {
+      logout()
+    }
   })
 }

@@ -35,12 +35,25 @@ export function renderLoginView() {
             Đăng Nhập <i class="fa-solid fa-arrow-right"></i>
           </button>
         </form>
+
+        <div style="margin-top:24px; padding-top:20px; border-top:1px dashed #e2e8f0; text-align:center;">
+          <div style="font-size:12px; font-weight:600; color:#64748b; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">
+            Bạn là học sinh mới?
+          </div>
+          <button type="button" id="btn-goto-trial" class="btn-secondary" style="width:100%; justify-content:center; gap:8px; font-weight:600; padding:12px; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:10px; box-shadow:0 2px 4px rgba(0,102,204,0.06); cursor:pointer;">
+            <i class="fa-solid fa-sparkles" style="color:#d97706;"></i> Trải nghiệm học thử miễn phí
+          </button>
+        </div>
       </div>
     </div>
   `
 }
 
 export function bindLoginEvents() {
+  document.getElementById('btn-goto-trial')?.addEventListener('click', () => {
+    window.location.hash = '#trial'
+  })
+
   const pwInput = document.getElementById('login-password')
   const toggleIcon = document.getElementById('toggle-pw-icon')
   toggleIcon?.addEventListener('click', () => {

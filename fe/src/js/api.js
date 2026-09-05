@@ -165,7 +165,12 @@ async function request(endpoint, options = {}) {
     return Promise.resolve([])
   }
 
-  const isPublicEndpoint = endpoint.startsWith('login') || endpoint.startsWith('refresh-token')
+  const isPublicEndpoint = endpoint.startsWith('login') ||
+    endpoint.startsWith('refresh-token') ||
+    endpoint.includes('isTrial=true') ||
+    options.isPublic === true ||
+    (endpoint.startsWith('homework-detail') && !state.token) ||
+    (endpoint.startsWith('submit-homework') && !state.token)
 
   // If access token is missing but refresh token exists, attempt refresh before sending request
   if (!state.token && !isPublicEndpoint && state.refreshToken && !isRefreshing) {
@@ -205,6 +210,8 @@ async function request(endpoint, options = {}) {
 
   if (state.token) {
     headers['Authorization'] = `Bearer ${state.token}`
+  } else if (import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    headers['Authorization'] = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
   }
 
   showLoading()
@@ -248,10 +255,14 @@ async function request(endpoint, options = {}) {
         }
       }
 
-      // If we still get a 401, logout
+      // If we still get a 401, logout only for protected endpoints
       if (response.status === 401) {
-        logout()
-        throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+        if (!isPublicEndpoint) {
+          logout()
+          throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+        } else {
+          throw new Error('Không thể truy cập dữ liệu công khai.')
+        }
       }
     }
 
@@ -259,8 +270,10 @@ async function request(endpoint, options = {}) {
     if (!response.ok || result.success === false) {
       const errMsg = result.error || `HTTP ${response.status}`
       if (response.status === 401 || errMsg.includes('Authorization') || errMsg.includes('Unauthorized')) {
-        logout()
-        throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+        if (!isPublicEndpoint) {
+          logout()
+          throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
+        }
       }
       throw new Error(errMsg)
     }
@@ -294,6 +307,7 @@ export const api = {
   createLesson: (data) => request('create-lesson', { method: 'POST', body: JSON.stringify(data) }),
   updateLesson: (data) => request('create-lesson?action=update', { method: 'PUT', body: JSON.stringify(data) }),
   getLessons: (chapterId = '') => request(`create-lesson${chapterId ? `?chapterId=${chapterId}` : ''}`, { method: 'GET' }),
+  getTrialLessons: () => request('create-lesson?isTrial=true', { method: 'GET', isPublic: true }),
   deleteLesson: (lessonId) => request(`create-lesson?lessonId=${lessonId}`, { method: 'DELETE' }),
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),

@@ -31,13 +31,13 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.create-lesson]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-homework]
 verify_jwt = true
 
 [functions.submit-homework]
-verify_jwt = true
+verify_jwt = false
 
 [functions.dashboard]
 verify_jwt = true
@@ -49,7 +49,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.homework-detail]
-verify_jwt = true
+verify_jwt = false
 
 [functions.telegram-bot]
 verify_jwt = false

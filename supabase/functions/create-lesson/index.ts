@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin, requireAuth } from '../../shared/auth-middleware.ts'
+import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import {
   createLessonSchema,
@@ -12,9 +13,84 @@ serve(async (req: Request) => {
   if (corsRes) return corsRes
 
   try {
-    const { user, serviceRoleClient } = await requireAuth(req)
     const url = new URL(req.url)
     const action = url.searchParams.get('action')
+    const isTrialQuery = url.searchParams.get('isTrial') === 'true'
+
+    // Public GET: List trial lessons for prospective students without authentication
+    if (req.method === 'GET' && isTrialQuery) {
+      const serviceRoleClient = createServiceRoleClient()
+
+      const { data: trialLessons, error } = await serviceRoleClient
+        .from('lessons')
+        .select(`
+          id,
+          chapter_id,
+          title,
+          order_index,
+          content,
+          video_url,
+          theory_files,
+          is_trial,
+          created_at,
+          chapters (
+            id,
+            title,
+            class_id,
+            classes (
+              id,
+              name
+            )
+          ),
+          homeworks (
+            id,
+            title,
+            pdf_path,
+            duration_minutes,
+            pass_score,
+            max_score,
+            is_published,
+            type
+          )
+        `)
+        .eq('is_trial', true)
+        .order('order_index', { ascending: true })
+
+      if (error) return errorResponse(error.message, 500)
+
+      const formatted = (trialLessons || []).map((l: any) => {
+        const ch = l.chapters
+        const cls = ch?.classes
+        const publishedHws = (l.homeworks || []).filter((h: any) => h.is_published !== false)
+        return {
+          id: l.id,
+          title: l.title,
+          orderIndex: l.order_index,
+          content: l.content,
+          videoUrl: l.video_url,
+          theoryFiles: l.theory_files || [],
+          isTrial: true,
+          createdAt: l.created_at,
+          chapterId: ch?.id || l.chapter_id,
+          chapterTitle: ch?.title || '',
+          classId: cls?.id || ch?.class_id || null,
+          className: cls?.name || '',
+          homeworks: publishedHws.map((h: any) => ({
+            id: h.id,
+            title: h.title,
+            pdfPath: h.pdf_path,
+            durationMinutes: h.duration_minutes,
+            passScore: h.pass_score,
+            maxScore: h.max_score,
+            type: h.type,
+          }))
+        }
+      })
+
+      return jsonResponse(formatted)
+    }
+
+    const { user, serviceRoleClient } = await requireAuth(req)
 
     // GET: List lessons (filter by chapterId if provided)
     if (req.method === 'GET') {
@@ -57,7 +133,7 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { chapterId, title, orderIndex, content, videoUrl, theoryFiles } = validation.data
+      const { chapterId, title, orderIndex, content, videoUrl, theoryFiles, isTrial } = validation.data
 
       const { data: lesson, error } = await serviceRoleClient
         .from('lessons')
@@ -68,6 +144,7 @@ serve(async (req: Request) => {
           content: content || null,
           video_url: videoUrl || null,
           theory_files: theoryFiles || [],
+          is_trial: isTrial || false,
         })
         .select()
         .single()
@@ -84,13 +161,14 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { lessonId, title, orderIndex, content, videoUrl, theoryFiles } = validation.data
+      const { lessonId, title, orderIndex, content, videoUrl, theoryFiles, isTrial } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (title) updateData.title = title
       if (orderIndex !== undefined) updateData.order_index = orderIndex
       if (content !== undefined) updateData.content = content
       if (videoUrl !== undefined) updateData.video_url = videoUrl
       if (theoryFiles !== undefined) updateData.theory_files = theoryFiles
+      if (isTrial !== undefined) updateData.is_trial = isTrial
 
       const { data: updatedLesson, error } = await serviceRoleClient
         .from('lessons')

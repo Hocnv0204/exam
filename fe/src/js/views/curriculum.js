@@ -245,6 +245,11 @@ function renderChapterCard(ch) {
                   <div>
                     <div style="font-weight:600; font-size:14px; color:#0f172a; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                       <span>${l.title}</span>
+                      ${(l.isTrial || l.is_trial) ? `
+                        <span style="font-size:10px; font-weight:700; background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:2px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-sparkles"></i> HỌC THỬ
+                        </span>
+                      ` : ''}
                       ${createdDateStr ? `
                         <span style="font-size:11px; color:#64748b; font-weight:500; background:#f1f5f9; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
                           <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> ${createdDateStr}
@@ -457,12 +462,20 @@ export function bindCurriculumEvents() {
             <input type="file" id="modal-lesson-file-input" class="form-input" accept=".pdf" style="padding:6px;">
             <div id="modal-uploaded-files-list" style="margin-top:10px; max-height:120px; overflow-y:auto;"></div>
           </div>
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:8px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600; color:#166534; margin:0;">
+              <input type="checkbox" id="modal-lesson-is-trial" style="width:16px; height:16px; accent-color:#16a34a;">
+              <span>Cho phép học thử (Công khai cho khách)</span>
+            </label>
+            <div style="font-size:11px; color:#4d7c0f; margin-left:24px; margin-top:3px;">Khách mới không cần đăng nhập vẫn có thể xem bài và làm bài tập.</div>
+          </div>
         </div>
       `
 
       openModal(`Thêm Bài Học Vào ${ch.title}`, modalHTML, async () => {
         const title = document.getElementById('modal-lesson-title')?.value.trim()
         const videoUrl = document.getElementById('modal-lesson-video')?.value.trim() || null
+        const isTrial = document.getElementById('modal-lesson-is-trial')?.checked || false
         if (!title) {
           showToast('Vui lòng nhập tên bài học!', 'error')
           return false
@@ -476,7 +489,8 @@ export function bindCurriculumEvents() {
             title,
             orderIndex,
             videoUrl,
-            theoryFiles: uploadedTheoryFiles
+            theoryFiles: uploadedTheoryFiles,
+            isTrial
           })
 
           ch.lessons.push({
@@ -485,6 +499,7 @@ export function bindCurriculumEvents() {
             title: createdLesson.title,
             videoUrl: createdLesson.video_url || '',
             theoryFiles: createdLesson.theory_files || [],
+            isTrial: createdLesson.is_trial ?? isTrial,
             createdAt: createdLesson.created_at || new Date().toISOString(),
             homeworks: [],
             refCount: 0
@@ -578,12 +593,20 @@ export function bindCurriculumEvents() {
             <input type="file" id="modal-lesson-file-input" class="form-input" accept=".pdf" style="padding:6px;">
             <div id="modal-uploaded-files-list" style="margin-top:10px; max-height:120px; overflow-y:auto;"></div>
           </div>
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:8px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600; color:#166534; margin:0;">
+              <input type="checkbox" id="modal-lesson-is-trial" ${lesson.isTrial || lesson.is_trial ? 'checked' : ''} style="width:16px; height:16px; accent-color:#16a34a;">
+              <span>Cho phép học thử (Công khai cho khách)</span>
+            </label>
+            <div style="font-size:11px; color:#4d7c0f; margin-left:24px; margin-top:3px;">Khách mới không cần đăng nhập vẫn có thể xem bài và làm bài tập.</div>
+          </div>
         </div>
       `
 
       openModal(`Sửa Bài Học`, modalHTML, async () => {
         const title = document.getElementById('modal-lesson-title')?.value.trim()
         const videoUrl = document.getElementById('modal-lesson-video')?.value.trim() || null
+        const isTrial = document.getElementById('modal-lesson-is-trial')?.checked || false
         if (!title) {
           showToast('Vui lòng nhập tên bài học!', 'error')
           return false
@@ -595,14 +618,17 @@ export function bindCurriculumEvents() {
             lessonId,
             chapterId: chId,
             title,
-            orderIndex: parseInt(lesson.code.split('.')[1], 10) || 1,
+            orderIndex: parseInt(lesson.code, 10) || 1,
             videoUrl,
-            theoryFiles: uploadedTheoryFiles
+            theoryFiles: uploadedTheoryFiles,
+            isTrial
           })
 
           lesson.title = title
           lesson.videoUrl = videoUrl || ''
           lesson.theoryFiles = uploadedTheoryFiles
+          lesson.isTrial = isTrial
+          lesson.is_trial = isTrial
 
           showToast('Cập nhật bài học thành công!', 'success')
 
@@ -762,6 +788,7 @@ export function bindCurriculumEvents() {
               title: l.title,
               videoUrl: l.video_url || '',
               theoryFiles: l.theory_files || [],
+              isTrial: l.is_trial || l.isTrial || false,
               createdAt: l.created_at || l.createdAt || null,
               refCount: 0,
               homeworks: null

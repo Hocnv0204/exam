@@ -75,6 +75,7 @@ export const createLessonSchema = z.object({
   content: z.string().optional(),
   videoUrl: z.string().optional().nullable(),
   theoryFiles: z.array(z.string()).optional().nullable(),
+  isTrial: z.boolean().optional().default(false),
 })
 
 export const updateLessonSchema = z.object({
@@ -84,6 +85,7 @@ export const updateLessonSchema = z.object({
   content: z.string().optional(),
   videoUrl: z.string().optional().nullable(),
   theoryFiles: z.array(z.string()).optional().nullable(),
+  isTrial: z.boolean().optional(),
 })
 
 export const deleteLessonSchema = z.object({
@@ -184,4 +186,7 @@ export const submitHomeworkSchema = z.object({
   answers: z.array(submittedAnswerItemSchema),
   durationSecondsTaken: z.number().int().nonnegative().optional(),
   sessionToken: z.string().optional(),
+  isTrial: z.boolean().optional(),
+  guestName: z.string().optional(),
+  guestPhone: z.string().optional(),
 })

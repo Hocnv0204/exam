@@ -69,6 +69,7 @@ function updateAutosaveIndicator(saved = true) {
 }
 
 export function renderHomeworkSolverView() {
+  const isTrial = window.location.hash.includes('trial=true') || !state.token
   const hw = state.currentHomework?.homework
   const questions = state.currentHomework?.questions || []
 
@@ -81,7 +82,10 @@ export function renderHomeworkSolverView() {
           <div class="content-body" style="padding:40px; text-align:center; color:#64748b;">
             <i class="fa-solid fa-triangle-exclamation" style="font-size:48px; color:#ef4444; margin-bottom:16px;"></i>
             <h2 style="font-weight:700; color:#0f172a; margin-bottom:8px;">Không tìm thấy bài tập</h2>
-            <p>Vui lòng quay lại danh sách lớp học và chọn một bài tập hợp lệ.</p>
+            <p>Vui lòng quay lại ${isTrial ? 'danh sách bài học thử' : 'danh sách lớp học'} và chọn một bài tập hợp lệ.</p>
+            <button class="btn-primary" onclick="window.location.hash = '${isTrial ? '#trial' : '#my-classes'}'" style="padding:10px 24px; font-size:14px; cursor:pointer; margin-top:16px;">
+              <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại trang học thử' : 'Quay lại danh sách lớp học'}
+            </button>
           </div>
         </div>
       </div>
@@ -93,7 +97,7 @@ export function renderHomeworkSolverView() {
   const deadline = hw.deadline || hw.deadline_at || null
 
   const isExpired = deadline ? new Date() > new Date(deadline) : false
-  const isExceeded = (maxAttempts > 0 && attemptsCount >= maxAttempts)
+  const isExceeded = !isTrial && (maxAttempts > 0 && attemptsCount >= maxAttempts)
 
   if (isExceeded) {
     const warningTitle = "Đạt giới hạn số lần làm bài"
@@ -109,8 +113,8 @@ export function renderHomeworkSolverView() {
               <i class="fa-solid fa-lock" style="font-size:56px; color:#ef4444; margin-bottom:20px;"></i>
               <h2 style="font-weight:700; color:#0f172a; margin-bottom:12px; font-family:var(--font-heading);">${warningTitle}</h2>
               <p style="font-size:14px; color:#475569; line-height:1.6; margin-bottom:24px;">${warningMsg}</p>
-              <button class="btn-primary" onclick="window.location.hash = '#my-classes'" style="padding:10px 24px; font-size:14px; cursor:pointer;">
-                <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách lớp học
+              <button class="btn-primary" onclick="window.location.hash = '${isTrial ? '#trial' : '#my-classes'}'" style="padding:10px 24px; font-size:14px; cursor:pointer;">
+                <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại trang học thử' : 'Quay lại danh sách lớp học'}
               </button>
             </div>
           </div>
@@ -171,6 +175,9 @@ export function renderHomeworkSolverView() {
             <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
               <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:nowrap; gap:10px;">
                 <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto;">
+                  <button type="button" class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : '#my-classes'}'" style="padding:5px 10px; font-size:12px; font-weight:600; border-radius:6px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; flex-shrink:0;">
+                    <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Học thử' : 'Quay lại'}
+                  </button>
                   <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
                   <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}</span>
                 </div>
@@ -198,6 +205,11 @@ export function renderHomeworkSolverView() {
                   <div>
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
                       <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700;">PHIẾU ĐIỀN ĐÁP ÁN</span>
+                      ${isTrial ? `
+                        <span class="badge" style="background:#fef3c7; color:#b45309; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-sparkles"></i> BÀI TẬP HỌC THỬ
+                        </span>
+                      ` : ''}
                       <span id="autosave-status" style="font-size:11px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 8px; border-radius:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; transition:all 0.2s ease;">
                         <i class="fa-solid fa-cloud-arrow-up" style="color:#10b981;"></i> Tự động lưu nháp
                       </span>
@@ -385,13 +397,14 @@ export function bindHomeworkSolverEvents() {
     })
   }
 
+  const isTrial = window.location.hash.includes('trial=true') || !state.token
+
   // Shared submit helper
-  const performSubmit = async () => {
+  const performSubmit = async (guestName = '', guestPhone = '') => {
     try {
       showToast('Đang gửi bài làm lên máy chủ chấm điểm...', 'info')
       
       const submissionAnswers = buildSubmissionAnswers()
-
 
       const totalDurationSeconds = (hw.durationMinutes || 45) * 60
       const durationSecondsTaken = Math.max(0, totalDurationSeconds - timeLeftSeconds)
@@ -401,7 +414,12 @@ export function bindHomeworkSolverEvents() {
         answers: submissionAnswers,
         durationSecondsTaken
       }
-      if (hw.type === 'EXAM' && examSessionToken) {
+
+      if (isTrial) {
+        payload.isTrial = true
+        if (guestName) payload.guestName = guestName
+        if (guestPhone) payload.guestPhone = guestPhone
+      } else if (hw.type === 'EXAM' && examSessionToken) {
         payload.sessionToken = examSessionToken
       }
 
@@ -414,8 +432,15 @@ export function bindHomeworkSolverEvents() {
 
       // Save result details to state for review page if needed
       state.lastSubmissionResult = result
-      
-      window.location.hash = '#assignment-review'
+
+      if (isTrial) {
+        try {
+          sessionStorage.setItem('last_trial_submission', JSON.stringify(result))
+        } catch (e) {}
+        window.location.hash = `#assignment-review?trial=true&submissionId=${result.submissionId}`
+      } else {
+        window.location.hash = '#assignment-review'
+      }
     } catch (err) {
       showToast(`Nộp bài thất bại: ${err.message}`, 'error')
     }
@@ -442,7 +467,7 @@ export function bindHomeworkSolverEvents() {
       if (timeLeftSeconds <= 0) {
         clearInterval(timerInterval)
         showToast('Hết thời gian làm bài! Hệ thống tự động nộp bài...', 'warning')
-        performSubmit()
+        performSubmit(isTrial ? 'Học sinh trải nghiệm (Hết giờ)' : '')
         return
       }
 
@@ -481,8 +506,8 @@ export function bindHomeworkSolverEvents() {
   }
   window.addEventListener('hashchange', hashChangeListener)
 
-  // EXAM MODE tracking & instructions popup
-  if (hw.type === 'EXAM') {
+  // EXAM MODE tracking & instructions popup (Only for enrolled students)
+  if (hw.type === 'EXAM' && !isTrial) {
     let examStarted = false
     let isLeavingOrFocusLost = false
     let currentViolationsCount = 0
@@ -847,17 +872,48 @@ export function bindHomeworkSolverEvents() {
 
   // Submit Homework Event
   document.getElementById('submit-answers-btn')?.addEventListener('click', () => {
-    openModal(
-      'Nộp bài làm',
-      `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">
-        Bạn có chắc chắn muốn nộp bài làm này?<br>
-        Kết quả sẽ được tự động chấm điểm và lưu trữ ngay lập tức.
-       </p>`,
-      async () => {
-        if (timerInterval) clearInterval(timerInterval)
-        await performSubmit()
-        return true
-      }
-    )
+    if (isTrial) {
+      openModal(
+        'Nộp bài làm học thử',
+        `
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:12px 14px; border-radius:10px; font-size:13px; line-height:1.5;">
+              <i class="fa-solid fa-circle-info" style="color:#2563eb; margin-right:4px;"></i> Chúc mừng bạn đã hoàn thành bài làm thử! Vui lòng cung cấp thông tin để hệ thống chấm điểm và gửi kết quả chi tiết.
+            </div>
+            <div>
+              <label style="display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:6px;">Họ và tên của bạn <span style="color:#ef4444;">*</span></label>
+              <input type="text" id="trial-guest-name" class="form-input" placeholder="Ví dụ: Nguyễn Văn An" style="width:100%; box-sizing:border-box;" required>
+            </div>
+            <div>
+              <label style="display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:6px;">Số điện thoại / Zalo <span style="color:#64748b; font-weight:400;">(Tùy chọn - nhận tư vấn lộ trình)</span></label>
+              <input type="tel" id="trial-guest-phone" class="form-input" placeholder="Ví dụ: 0912345678" style="width:100%; box-sizing:border-box;">
+            </div>
+          </div>
+        `,
+        async () => {
+          const guestNameInput = document.getElementById('trial-guest-name')
+          const guestPhoneInput = document.getElementById('trial-guest-phone')
+          const guestName = guestNameInput?.value?.trim() || 'Học sinh trải nghiệm'
+          const guestPhone = guestPhoneInput?.value?.trim() || ''
+
+          if (timerInterval) clearInterval(timerInterval)
+          await performSubmit(guestName, guestPhone)
+          return true
+        }
+      )
+    } else {
+      openModal(
+        'Nộp bài làm',
+        `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">
+          Bạn có chắc chắn muốn nộp bài làm này?<br>
+          Kết quả sẽ được tự động chấm điểm và lưu trữ ngay lập tức.
+         </p>`,
+        async () => {
+          if (timerInterval) clearInterval(timerInterval)
+          await performSubmit()
+          return true
+        }
+      )
+    }
   })
 }

@@ -14,9 +14,11 @@ import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData } 
 import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
+import { renderTrialView, bindTrialEvents } from './views/trial.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
+  trial: { render: renderTrialView, bind: bindTrialEvents },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
@@ -39,6 +41,39 @@ async function router() {
   
   const defaultPage = state.token ? (state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes') : 'login'
   let hash = routePath || defaultPage
+
+  // Guest & Unauthenticated Access Guard
+  if (!state.token) {
+    const isTrialMode = params.get('trial') === 'true' || hash === 'trial'
+    const guestRoutes = ['login', 'trial', 'homework-attempt', 'assignment-review']
+    if (!guestRoutes.includes(hash)) {
+      window.location.hash = '#login'
+      return
+    }
+
+    // Pre-fetch homework details for unauthenticated trial solver
+    if (hash === 'homework-attempt') {
+      const homeworkId = params.get('homeworkId')
+      if (homeworkId) {
+        try {
+          const hwData = await api.getHomeworkDetail(homeworkId)
+          state.currentHomework = hwData
+        } catch (e) {
+          console.warn('[Router] Failed to fetch trial homework:', e)
+        }
+      }
+    }
+
+    // Restore cached trial submission result on review page if present
+    if (hash === 'assignment-review' && !state.lastSubmissionResult) {
+      try {
+        const cached = sessionStorage.getItem('last_trial_submission')
+        if (cached) {
+          state.lastSubmissionResult = JSON.parse(cached)
+        }
+      } catch (e) {}
+    }
+  }
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user) {

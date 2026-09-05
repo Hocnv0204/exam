@@ -4,17 +4,31 @@ import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 
 export function renderAssignmentReviewView() {
-  const result = state.lastSubmissionResult
+  const isTrial = window.location.hash.includes('trial=true') || !state.token
+  let result = state.lastSubmissionResult
+  if (!result && isTrial) {
+    try {
+      const cached = sessionStorage.getItem('last_trial_submission')
+      if (cached) {
+        result = JSON.parse(cached)
+        state.lastSubmissionResult = result
+      }
+    } catch (e) {}
+  }
+
   if (!result) {
     return `
       <div class="app-layout">
-        ${renderSidebar('history')}
+        ${renderSidebar(isTrial ? 'trial' : 'history')}
         <div class="main-content">
-          ${renderNavbar('Nền tảng / Bảng điều khiển')}
+          ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : 'Nền tảng / Bảng điều khiển')}
           <div class="content-body" style="padding:40px; text-align:center; color:#64748b;">
             <i class="fa-solid fa-square-poll-vertical" style="font-size:48px; color:#64748b; margin-bottom:16px;"></i>
             <h2 style="font-weight:700; color:#0f172a; margin-bottom:8px;">Chưa có kết quả làm bài</h2>
             <p>Vui lòng nộp bài để xem kết quả đánh giá chi tiết.</p>
+            <button class="btn-primary" onclick="window.location.hash = '${isTrial ? '#trial' : '#my-classes'}'" style="padding:10px 24px; font-size:14px; cursor:pointer; margin-top:16px;">
+              <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại bài học thử' : 'Quay lại lớp học'}
+            </button>
           </div>
         </div>
       </div>
@@ -138,13 +152,13 @@ export function renderAssignmentReviewView() {
 
   return `
     <div class="app-layout">
-      ${renderSidebar('history')}
+      ${renderSidebar(isTrial ? 'trial' : 'history')}
       <div class="main-content">
-        ${renderNavbar('Nền tảng / Bảng điều khiển')}
+        ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : 'Nền tảng / Bảng điều khiển')}
         <div class="content-body">
           <div class="page-header">
             <div>
-              <h1 class="page-title">Xem lại kết quả bài tập</h1>
+              <h1 class="page-title">${isTrial ? 'Kết quả làm bài học thử' : 'Xem lại kết quả bài tập'}</h1>
               <p class="page-description">${sub.homeworkTitle}</p>
             </div>
             <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
@@ -164,8 +178,8 @@ export function renderAssignmentReviewView() {
                   <i class="fa-solid fa-download"></i> Tải file PDF
                 </a>
               ` : ''}
-              <button class="btn-secondary" onclick="window.location.hash='${state.user?.role === 'ADMIN' ? '#admin-history' : '#history'}'" style="cursor:pointer; white-space:nowrap;">
-                <i class="fa-solid fa-arrow-left"></i> Quay lại lịch sử
+              <button class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : (state.user?.role === 'ADMIN' ? '#admin-history' : '#history')}'" style="cursor:pointer; white-space:nowrap;">
+                <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại bài học thử' : 'Quay lại lịch sử'}
               </button>
             </div>
           </div>
@@ -488,17 +502,36 @@ export function renderAssignmentReviewView() {
               </div>
 
               <!-- Refresher Card -->
-              <div class="card" style="background:#0066cc; color:#ffffff; text-align:center;">
-                <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:8px;">Cần ôn tập thêm?</h3>
+              <div class="card" style="background:${isTrial ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#0066cc'}; color:#ffffff; text-align:center;">
+                <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:8px;">${isTrial ? 'Trải nghiệm thêm' : 'Cần ôn tập thêm?'}</h3>
                 <p style="font-size:13px; opacity:0.9; margin-bottom:16px;">
-                  Quay lại giao diện học để ôn tập kỹ lý thuyết và bài tập.
+                  ${isTrial ? 'Xem các bài học thử khác hoặc đăng nhập để tham gia khóa học chính thức.' : 'Quay lại giao diện học để ôn tập kỹ lý thuyết và bài tập.'}
                 </p>
-                <button class="btn-secondary" style="width:100%; border:none; color:#0066cc; font-weight:700; cursor:pointer;" onclick="window.location.hash='#my-classes'">
-                  Đến trang lớp học
+                <button class="btn-secondary" style="width:100%; border:none; color:#0066cc; background:#ffffff; font-weight:700; cursor:pointer;" onclick="window.location.hash='${isTrial ? '#trial' : '#my-classes'}'">
+                  ${isTrial ? 'Danh sách học thử' : 'Đến trang lớp học'}
                 </button>
               </div>
             </div>
           </div>
+
+          ${isTrial ? `
+            <!-- Trial Lead CTA Banner -->
+            <div style="background: linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%); color: #ffffff; padding: 24px; border-radius: 16px; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; box-shadow: 0 10px 25px -5px rgba(2, 132, 199, 0.3);">
+              <div>
+                <h3 style="font-size: 18px; font-weight: 700; margin: 0 0 6px 0; color: #ffffff;">Bạn muốn tham gia lộ trình học tập đầy đủ?</h3>
+                <p style="font-size: 14px; margin: 0; color: #e0f2fe;">Đăng ký tài khoản ngay để truy cập toàn bộ ngân hàng đề thi ôn luyện, xem video bài giảng chuyên sâu và nhận báo cáo tiến độ chi tiết.</p>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <button class="btn-secondary" onclick="window.location.hash='#trial'" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                  <i class="fa-solid fa-sparkles"></i> Bài học thử khác
+                </button>
+                <button class="btn-primary" onclick="window.location.hash='#login'" style="background: #f59e0b; border: none; color: #ffffff; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);">
+                  <i class="fa-solid fa-user-plus"></i> Đăng ký / Đăng nhập ngay
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
         </div>
       </div>
     </div>

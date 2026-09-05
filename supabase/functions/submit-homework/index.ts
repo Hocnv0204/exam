@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireStudent } from '../../shared/auth-middleware.ts'
+import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import { submitHomeworkSchema } from '../../shared/validators.ts'
 import { gradeQuestion, type QuestionGradeResult } from '../../shared/grading-service.ts'
@@ -14,19 +15,39 @@ serve(async (req: Request) => {
       return errorResponse('Method not allowed', 405)
     }
 
-    const { user, serviceRoleClient } = await requireStudent(req)
     const body = await req.json()
     const validation = submitHomeworkSchema.safeParse(body)
     if (!validation.success) {
       return errorResponse('Validation error', 400, validation.error.format())
     }
 
-    const { homeworkId, answers, durationSecondsTaken } = validation.data
+    const { homeworkId, answers, durationSecondsTaken, sessionToken, guestName, guestPhone } = validation.data
+    const serviceRoleClient = createServiceRoleClient()
 
-    // 1. Fetch homework and verify student class assignment
+    // 1. Fetch homework and verify lesson trial status
     const { data: homework, error: homeworkError } = await serviceRoleClient
       .from('homeworks')
-      .select('id, title, max_score, pass_score, is_published, lesson_id, deadline, max_attempts, pdf_path, type')
+      .select(`
+        id,
+        title,
+        max_score,
+        pass_score,
+        is_published,
+        lesson_id,
+        deadline,
+        max_attempts,
+        pdf_path,
+        type,
+        lessons (
+          id,
+          title,
+          is_trial,
+          chapter_id,
+          chapters (
+            class_id
+          )
+        )
+      `)
       .eq('id', homeworkId)
       .single()
 
@@ -34,14 +55,26 @@ serve(async (req: Request) => {
       return errorResponse('Homework not found or not published', 404)
     }
 
-    if (!user.classIds || user.classIds.length === 0) {
-      return errorResponse('Student is not assigned to any class', 403)
+    const isTrialHomework = (homework.lessons as any)?.is_trial === true
+    const authHeader = req.headers.get('Authorization')
+
+    let user: any = null
+    if (authHeader) {
+      try {
+        const studentResult = await requireStudent(req)
+        user = studentResult.user
+      } catch (e) {
+        if (!isTrialHomework) throw e
+      }
+    } else if (!isTrialHomework) {
+      return errorResponse('Unauthorized: Missing token', 401)
     }
 
-    // Check session for EXAM
+    const classIdOfHomework = (homework.lessons as unknown as { chapters: { class_id: string } })?.chapters?.class_id
+
+    // Check session for EXAM (if student)
     let examSessionId = null
-    if (homework.type === 'EXAM') {
-      const { sessionToken } = validation.data
+    if (homework.type === 'EXAM' && user) {
       if (!sessionToken) {
         return errorResponse('sessionToken is required for EXAM', 400)
       }
@@ -76,8 +109,8 @@ serve(async (req: Request) => {
       }
     }
 
-    // Check max attempts limit
-    if (homework.max_attempts && homework.max_attempts > 0) {
+    // Check max attempts limit for authenticated student
+    if (user && homework.max_attempts && homework.max_attempts > 0 && !isTrialHomework) {
       const { count, error: countError } = await serviceRoleClient
         .from('submissions')
         .select('*', { count: 'exact', head: true })
@@ -94,20 +127,14 @@ serve(async (req: Request) => {
       }
     }
 
-    // Verify homework's lesson -> chapter -> class matches student's class
-    const { data: lesson, error: lessonError } = await serviceRoleClient
-      .from('lessons')
-      .select('chapter_id, chapters(class_id)')
-      .eq('id', homework.lesson_id)
-      .single()
-
-    if (lessonError || !lesson) {
-      return errorResponse('Homework lesson context not found', 404)
-    }
-
-    const classIdOfHomework = (lesson.chapters as unknown as { class_id: string })?.class_id
-    if (!user.classIds.includes(classIdOfHomework)) {
-      return errorResponse('Forbidden: You are not enrolled in the class for this homework', 403)
+    // Verify student is enrolled in class (unless trial homework)
+    if (user && !isTrialHomework) {
+      if (!user.classIds || user.classIds.length === 0) {
+        return errorResponse('Student is not assigned to any class', 403)
+      }
+      if (classIdOfHomework && !user.classIds.includes(classIdOfHomework)) {
+        return errorResponse('Forbidden: You are not enrolled in the class for this homework', 403)
+      }
     }
 
     // 2. Fetch all questions for homework
@@ -227,13 +254,16 @@ serve(async (req: Request) => {
       .from('submissions')
       .insert({
         homework_id: homeworkId,
-        student_id: user.id,
+        student_id: user ? user.id : null,
         total_score: finalScore,
         max_score: homework.max_score,
         correct_count: correctCount,
         wrong_count: wrongCount,
         duration_seconds_taken: durationSecondsTaken || 0,
         is_late: isLate,
+        is_trial: isTrialHomework,
+        guest_name: guestName || (user ? null : 'Học sinh trải nghiệm'),
+        guest_phone: guestPhone || null,
         status: 'SUBMITTED'
       })
       .select('id, submitted_at')
@@ -286,11 +316,17 @@ serve(async (req: Request) => {
         .single()
 
       if (telegramConfig.data) {
-        const { data: studentProfile } = await serviceRoleClient
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single()
+        let studentDisplayName = 'Học sinh trải nghiệm'
+        if (user) {
+          const { data: studentProfile } = await serviceRoleClient
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single()
+          studentDisplayName = studentProfile?.full_name || 'Học sinh'
+        } else if (guestName) {
+          studentDisplayName = `${guestName} (Học thử)`
+        }
 
         const { data: classData } = await serviceRoleClient
           .from('classes')
@@ -312,8 +348,11 @@ serve(async (req: Request) => {
         const correctAnswers = questionReviews.filter((q) => q.isCorrect).length
         const wrongAnswers = questionReviews.length - correctAnswers
 
-        const message = `📣 <b>THÔNG BÁO NỘP BÀI</b>
-🎓 <b>Học sinh:</b> ${studentProfile?.full_name || 'N/A'}
+        const phoneLine = guestPhone ? `\n📞 <b>SĐT:</b> ${guestPhone}` : ''
+        const titleHeader = isTrialHomework ? `🌟 <b>THÔNG BÁO HỌC THỬ (TIỀM NĂNG)</b>` : `📣 <b>THÔNG BÁO NỘP BÀI</b>`
+
+        const message = `${titleHeader}
+🎓 <b>Học sinh:</b> ${studentDisplayName}${phoneLine}
 🏫 <b>Lớp:</b> ${classData?.name || 'N/A'}
 📝 <b>Bài tập:</b> ${homework.title}
 ⏱ <b>Thời gian nộp:</b> ${submissionTime}
