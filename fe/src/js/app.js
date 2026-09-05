@@ -105,14 +105,16 @@ async function router() {
           }))
           state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
             id: ch.id,
-            code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+            code: '',
             title: ch.title,
-            lessons: (ch.lessons || []).map(l => ({
+            orderIndex: ch.order_index,
+            lessons: (ch.lessons || []).map((l, idx) => ({
               id: l.id,
-              code: `${ch.order_index || 1}.${l.order_index || 1}`,
+              code: `${l.order_index || (idx + 1)}`,
               title: l.title,
               videoUrl: l.video_url || '',
               theoryFiles: l.theory_files || [],
+              createdAt: l.created_at || l.createdAt || null,
               content: l.content,
               homeworks: (l.homeworks || []).map(h => ({
                 id: h.id,
@@ -143,14 +145,16 @@ async function router() {
             const rawChapters = await api.getChapters(classId, true)
             state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
               id: ch.id,
-              code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+              code: '',
               title: ch.title,
-              lessons: (ch.lessons || []).map(l => ({
+              orderIndex: ch.order_index,
+              lessons: (ch.lessons || []).map((l, idx) => ({
                 id: l.id,
-                code: `${ch.order_index || 1}.${l.order_index || 1}`,
+                code: `${l.order_index || (idx + 1)}`,
                 title: l.title,
                 videoUrl: l.video_url || '',
                 theoryFiles: l.theory_files || [],
+                createdAt: l.created_at || l.createdAt || null,
                 content: l.content,
                 homeworks: (l.homeworks || []).map(h => ({
                   id: h.id,

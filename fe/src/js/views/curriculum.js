@@ -47,8 +47,9 @@ async function ensureCurriculumLoaded(classId) {
     const rawChapters = await api.getChapters(classId)
     const chapters = (rawChapters || []).map(ch => ({
       id: ch.id,
-      code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
+      code: '',
       title: ch.title,
+      orderIndex: ch.order_index,
       lessons: null // Indication that lessons are not loaded yet
     }))
 
@@ -207,9 +208,8 @@ function renderChapterCard(ch) {
     <div class="card" style="padding:18px; margin-bottom:16px;" id="chapter-card-${ch.id}">
       <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" class="chapter-header" data-id="${ch.id}">
         <div>
-          <span style="background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; text-transform:uppercase;">${ch.code || 'CHƯƠNG'}</span>
-          <h3 style="font-size:17px; font-weight:700; color:#0f172a; margin-top:4px;">${ch.title}</h3>
-          <div style="font-size:12px; color:#64748b;">
+          <h3 style="font-size:17px; font-weight:700; color:#0f172a; margin:0;">${ch.title}</h3>
+          <div style="font-size:12px; color:#64748b; margin-top:4px;">
             ${ch.lessons ? `${ch.lessons.length} Bài học` : 'Nhấp để hiển thị bài học'}
           </div>
         </div>
@@ -231,19 +231,27 @@ function renderChapterCard(ch) {
           </div>
         ` : ((ch.lessons || []).length === 0 ? `
           <div style="text-align:center; padding:12px; color:#64748b; font-size:13px;">Chưa có bài học nào</div>
-        ` : (ch.lessons || []).map(l => {
+        ` : (ch.lessons || []).map((l, lIdx) => {
           const isLSelected = expandedLessonIds.has(l.id)
           const isHwLoading = isLSelected && l.homeworks === null
           const lessonHomeworks = l.homeworks || []
+          const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
 
           return `
             <div style="display:flex; flex-direction:column; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; gap:8px;">
               <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" class="lesson-header" data-id="${l.id}" data-chapter-id="${ch.id}">
                 <div style="display:flex; align-items:center; gap:12px;">
-                  <span style="width:28px; height:28px; background:#ffffff; border:1px solid #cbd5e1; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">${l.code || '1.1'}</span>
+                  <span style="width:28px; height:28px; background:#ffffff; border:1px solid #cbd5e1; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">${l.code || (lIdx + 1)}</span>
                   <div>
-                    <div style="font-weight:600; font-size:14px; color:#0f172a;">${l.title}</div>
-                    <div style="font-size:12px; color:#64748b;">
+                    <div style="font-weight:600; font-size:14px; color:#0f172a; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span>${l.title}</span>
+                      ${createdDateStr ? `
+                        <span style="font-size:11px; color:#64748b; font-weight:500; background:#f1f5f9; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
+                          <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> ${createdDateStr}
+                        </span>
+                      ` : ''}
+                    </div>
+                    <div style="font-size:12px; color:#64748b; margin-top:2px;">
                       <i class="fa-regular fa-file"></i> ${l.homeworks ? `${l.homeworks.length} Bài tập` : 'Nhấp để hiển thị chi tiết'} &nbsp;•&nbsp; 
                       <i class="fa-solid fa-paperclip"></i> ${l.theoryFiles ? l.theoryFiles.length : 0} Tài liệu
                     </div>
@@ -378,8 +386,9 @@ export function bindCurriculumEvents() {
         })
         const newChapter = {
           id: createdChapter.id,
-          code: `CHƯƠNG ${orderIndex}`,
+          code: '',
           title: createdChapter.title,
+          orderIndex,
           lessons: []
         }
 
@@ -470,13 +479,13 @@ export function bindCurriculumEvents() {
             theoryFiles: uploadedTheoryFiles
           })
 
-          const chNum = ch.code.replace('CHƯƠNG', '').trim() || '1'
           ch.lessons.push({
             id: createdLesson.id,
-            code: `${chNum}.${orderIndex}`,
+            code: `${orderIndex}`,
             title: createdLesson.title,
             videoUrl: createdLesson.video_url || '',
             theoryFiles: createdLesson.theory_files || [],
+            createdAt: createdLesson.created_at || new Date().toISOString(),
             homeworks: [],
             refCount: 0
           })
@@ -747,13 +756,13 @@ export function bindCurriculumEvents() {
           }
           try {
             const rawLessons = await api.getLessons(chId)
-            const chNum = ch.code.replace('CHƯƠNG', '').trim() || '1'
-            ch.lessons = (rawLessons || []).map(l => ({
+            ch.lessons = (rawLessons || []).map((l, idx) => ({
               id: l.id,
-              code: `${chNum}.${l.order_index || 1}`,
+              code: `${l.order_index || (idx + 1)}`,
               title: l.title,
               videoUrl: l.video_url || '',
               theoryFiles: l.theory_files || [],
+              createdAt: l.created_at || l.createdAt || null,
               refCount: 0,
               homeworks: null
             }))

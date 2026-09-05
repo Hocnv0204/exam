@@ -227,21 +227,28 @@ export function renderMyClassesView() {
                     <div class="card" style="padding:18px; margin-bottom:16px;">
                       <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                          <span style="background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; text-transform:uppercase;">${ch.code || 'CHƯƠNG'}</span>
-                          <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin-top:4px;">${ch.title}</h3>
+                          <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">${ch.title}</h3>
                         </div>
                         <span style="font-size:12px; color:#64748b;">${ch.lessons?.length || 0} bài học</span>
                       </div>
 
                       <div style="margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; display:flex; flex-direction:column; gap:10px;">
-                        ${(ch.lessons || []).map(l => {
+                        ${(ch.lessons || []).map((l, lIdx) => {
                           const isSelected = lessonId === l.id
+                          const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
                           return `
                             <div class="lesson-item-btn" data-id="${l.id}" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:${isSelected ? '#e0f2fe' : '#f8fafc'}; border:1px solid ${isSelected ? '#0066cc' : 'transparent'}; border-radius:10px; cursor:pointer; transition:all 0.15s ease;">
                               <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                                <span style="width:26px; height:26px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#cbd5e1'}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${l.code || '1.1'}</span>
+                                <span style="width:26px; height:26px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#cbd5e1'}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${l.order_index || l.code || (lIdx + 1)}</span>
                                 <div>
-                                  <div style="font-weight:600; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'};">${l.title}</div>
+                                  <div style="font-weight:600; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                    <span>${l.title}</span>
+                                    ${createdDateStr ? `
+                                      <span style="font-size:11px; color:#64748b; font-weight:normal; background:#ffffff; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
+                                        <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> ${createdDateStr}
+                                      </span>
+                                    ` : ''}
+                                  </div>
                                 </div>
                               </div>
                               <div style="color:${isSelected ? '#0066cc' : '#94a3b8'};">
