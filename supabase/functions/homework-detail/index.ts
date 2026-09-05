@@ -126,7 +126,7 @@ serve(async (req: Request) => {
     // 6. Security Enforcer: Answer keys inclusion based on Role
     let questionsResult = questions
 
-    if (user.role === 'ADMIN') {
+    if (user && user.role === 'ADMIN') {
       // Admins get question_answers
       const qIds = (questions || []).map((q) => q.id)
       const { data: answerKeys } = await serviceRoleClient
