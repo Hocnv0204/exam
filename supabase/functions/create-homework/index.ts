@@ -263,43 +263,46 @@ serve(async (req: Request) => {
         return errorResponse(`Failed to create homework: ${homeworkError?.message}`, 500)
       }
 
-      const insertedQuestions = []
+      // 1. Bulk insert questions
+      const questionsPayload = questions.map((q: any) => ({
+        homework_id: homework.id,
+        question_number: q.questionNumber,
+        question_type: q.questionType,
+        prompt: q.prompt,
+        points: q.points,
+      }))
 
-      // Insert Questions & Answer Keys transactionally / iteratively
-      for (const q of questions) {
-        const { data: questionData, error: qError } = await serviceRoleClient
-          .from('questions')
-          .insert({
-            homework_id: homework.id,
-            question_number: q.questionNumber,
-            question_type: q.questionType,
-            prompt: q.prompt,
-            points: q.points,
-          })
-          .select()
-          .single()
+      const { data: insertedQuestions, error: qError } = await serviceRoleClient
+        .from('questions')
+        .insert(questionsPayload)
+        .select()
 
-        if (qError || !questionData) {
-          // Cleanup homework if question insert fails
-          await serviceRoleClient.from('homeworks').delete().eq('id', homework.id)
-          return errorResponse(`Failed to insert question #${q.questionNumber}: ${qError?.message}`, 500)
-        }
+      if (qError || !insertedQuestions) {
+        // Cleanup homework if question insert fails
+        await serviceRoleClient.from('homeworks').delete().eq('id', homework.id)
+        return errorResponse(`Failed to insert questions: ${qError?.message}`, 500)
+      }
 
-        // Insert Secure Answer Key in question_answers
-        const { error: ansError } = await serviceRoleClient.from('question_answers').insert({
-          question_id: questionData.id,
+      // 2. Map question answers and bulk insert into question_answers
+      const qMap = new Map(insertedQuestions.map((iq: any) => [iq.question_number, iq.id]))
+      const answersPayload = questions.map((q: any) => {
+        const qId = qMap.get(q.questionNumber)
+        return {
+          question_id: qId,
           mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || null : null,
           tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
           sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? null : String(q.saAnswer)) : null,
           sa_tolerance: q.questionType === 'SHORT_ANSWER' ? q.saTolerance ?? 0 : 0,
-        })
-
-        if (ansError) {
-          await serviceRoleClient.from('homeworks').delete().eq('id', homework.id)
-          return errorResponse(`Failed to insert answer key for question #${q.questionNumber}: ${ansError.message}`, 500)
         }
+      }).filter((a: any) => !!a.question_id)
 
-        insertedQuestions.push(questionData)
+      const { error: ansError } = await serviceRoleClient
+        .from('question_answers')
+        .insert(answersPayload)
+
+      if (ansError) {
+        await serviceRoleClient.from('homeworks').delete().eq('id', homework.id)
+        return errorResponse(`Failed to insert answer keys: ${ansError.message}`, 500)
       }
 
       return jsonResponse(
@@ -373,83 +376,78 @@ serve(async (req: Request) => {
           }
         }
 
-        for (const q of questions) {
-          let questionId = existingMap.get(q.questionNumber)
+        // 1. Bulk insert new questions (if any)
+        const toInsert = questions.filter((q: any) => !existingMap.has(q.questionNumber))
+        if (toInsert.length > 0) {
+          const { data: newQuestions, error: insertErr } = await serviceRoleClient
+            .from('questions')
+            .insert(toInsert.map((q: any) => ({
+              homework_id: homeworkId,
+              question_number: q.questionNumber,
+              question_type: q.questionType,
+              prompt: q.prompt,
+              points: q.points,
+            })))
+            .select('id, question_number')
 
-          if (questionId) {
-            // Update existing question
-            const { error: updateQErr } = await serviceRoleClient
+          if (insertErr || !newQuestions) {
+            return errorResponse(`Failed to insert new questions: ${insertErr?.message}`, 500)
+          }
+          for (const nq of newQuestions) {
+            existingMap.set(nq.question_number, nq.id)
+          }
+        }
+
+        // 2. Parallel update existing questions
+        const toUpdate = questions.filter((q: any) => existingMap.has(q.questionNumber))
+        if (toUpdate.length > 0) {
+          const updatePromises = toUpdate.map((q: any) => {
+            const qId = existingMap.get(q.questionNumber)
+            return serviceRoleClient
               .from('questions')
               .update({
                 question_type: q.questionType,
                 prompt: q.prompt,
                 points: q.points,
               })
-              .eq('id', questionId)
-
-            if (updateQErr) {
-              return errorResponse(`Failed to update question #${q.questionNumber}: ${updateQErr.message}`, 500)
-            }
-
-            existingMap.delete(q.questionNumber)
-          } else {
-            // Insert new question
-            const { data: newQ, error: insertQErr } = await serviceRoleClient
-              .from('questions')
-              .insert({
-                homework_id: homeworkId,
-                question_number: q.questionNumber,
-                question_type: q.questionType,
-                prompt: q.prompt,
-                points: q.points,
-              })
-              .select('id')
-              .single()
-
-            if (insertQErr || !newQ) {
-              return errorResponse(`Failed to insert question #${q.questionNumber}: ${insertQErr?.message}`, 500)
-            }
-            questionId = newQ.id
+              .eq('id', qId)
+          })
+          const results = await Promise.all(updatePromises)
+          const failed = results.find((r: any) => r.error)
+          if (failed) {
+            return errorResponse(`Failed to update questions: ${failed.error?.message}`, 500)
           }
+        }
 
-          // Update or Insert Secure Answer Key in question_answers
-          const { data: existingAns } = await serviceRoleClient
-            .from('question_answers')
-            .select('id')
-            .eq('question_id', questionId)
-            .maybeSingle()
-
-          const ansPayload = {
-            question_id: questionId,
+        // 3. Upsert all answer keys in a single bulk request (question_id has UNIQUE constraint)
+        const answersPayload = questions.map((q: any) => {
+          const qId = existingMap.get(q.questionNumber)
+          return {
+            question_id: qId,
             mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || null : null,
             tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
             sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? null : String(q.saAnswer)) : null,
             sa_tolerance: q.questionType === 'SHORT_ANSWER' ? q.saTolerance ?? 0 : 0,
           }
+        }).filter((a: any) => !!a.question_id)
 
-          if (existingAns) {
-            const { error: updateAnsErr } = await serviceRoleClient
-              .from('question_answers')
-              .update(ansPayload)
-              .eq('question_id', questionId)
+        if (answersPayload.length > 0) {
+          const { error: ansUpsertErr } = await serviceRoleClient
+            .from('question_answers')
+            .upsert(answersPayload, { onConflict: 'question_id' })
 
-            if (updateAnsErr) {
-              return errorResponse(`Failed to update answer key for question #${q.questionNumber}: ${updateAnsErr.message}`, 500)
-            }
-          } else {
-            const { error: insertAnsErr } = await serviceRoleClient
-              .from('question_answers')
-              .insert(ansPayload)
-
-            if (insertAnsErr) {
-              return errorResponse(`Failed to insert answer key for question #${q.questionNumber}: ${insertAnsErr.message}`, 500)
-            }
+          if (ansUpsertErr) {
+            return errorResponse(`Failed to update answer keys: ${ansUpsertErr.message}`, 500)
           }
         }
 
-        // Delete any leftover questions that were removed in the updated payload
-        if (existingMap.size > 0) {
-          const removedIds = Array.from(existingMap.values())
+        // 4. Delete any leftover questions that were removed in the updated payload
+        const incomingQNums = new Set(questions.map((q: any) => q.questionNumber))
+        const removedIds = (existingQuestions || [])
+          .filter((eq: any) => !incomingQNums.has(eq.question_number))
+          .map((eq: any) => eq.id)
+
+        if (removedIds.length > 0) {
           const { error: delErr } = await serviceRoleClient
             .from('questions')
             .delete()
@@ -460,8 +458,18 @@ serve(async (req: Request) => {
           }
         }
 
-        // Regrade all existing student submissions for this homework
-        await regradeHomeworkSubmissions(serviceRoleClient, homeworkId)
+        // 5. Regrade existing student submissions in background if EdgeRuntime permits, or synchronously
+        const regradeTask = regradeHomeworkSubmissions(serviceRoleClient, homeworkId).catch((err: any) => {
+          console.error('[create-homework] Error during submissions regrading:', err)
+        })
+
+        // @ts-ignore
+        if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+          // @ts-ignore
+          EdgeRuntime.waitUntil(regradeTask)
+        } else {
+          await regradeTask
+        }
       }
 
       return jsonResponse({
@@ -568,15 +576,31 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
     })
   }
 
-  // 3. Regrade each submission
+  // 3. Fetch ALL answers for all submissions of this homework in ONE single query!
+  const subIds = submissions.map((s: any) => s.id)
+  const { data: allSubAnswers, error: saErr } = await serviceRoleClient
+    .from('submission_answers')
+    .select('id, submission_id, question_id, given_answer')
+    .in('submission_id', subIds)
+
+  if (saErr || !allSubAnswers || allSubAnswers.length === 0) return
+
+  // Group answers by submission_id
+  const answersBySub = new Map<string, any[]>()
+  for (const ans of allSubAnswers) {
+    let list = answersBySub.get(ans.submission_id)
+    if (!list) {
+      list = []
+      answersBySub.set(ans.submission_id, list)
+    }
+    list.push(ans)
+  }
+
+  const allUpdatedAnswers: any[] = []
+  const submissionsToUpdate: any[] = []
+
   for (const sub of submissions) {
-    const { data: subAnswers, error: saErr } = await serviceRoleClient
-      .from('submission_answers')
-      .select('id, question_id, given_answer')
-      .eq('submission_id', sub.id)
-
-    if (saErr || !subAnswers) continue
-
+    const subAnswers = answersBySub.get(sub.id) || []
     let totalScore = 0
     let correctCount = 0
     let wrongCount = 0
@@ -612,13 +636,14 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
       correctCount += gradeResult.isCorrect ? 1 : 0
       wrongCount += gradeResult.isCorrect ? 0 : 1
 
-      await serviceRoleClient
-        .from('submission_answers')
-        .update({
-          is_correct: gradeResult.isCorrect,
-          score_earned: gradeResult.scoreEarned,
-        })
-        .eq('id', ans.id)
+      allUpdatedAnswers.push({
+        id: ans.id,
+        submission_id: ans.submission_id,
+        question_id: ans.question_id,
+        given_answer: ans.given_answer,
+        is_correct: gradeResult.isCorrect,
+        score_earned: gradeResult.scoreEarned,
+      })
     }
 
     if (isAllMC && totalQuestions > 0) {
@@ -627,14 +652,39 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
 
     const finalScore = Math.round(totalScore * 10) / 10
 
-    await serviceRoleClient
-      .from('submissions')
-      .update({
-        total_score: finalScore,
-        correct_count: correctCount,
-        wrong_count: wrongCount,
-      })
-      .eq('id', sub.id)
+    submissionsToUpdate.push({
+      id: sub.id,
+      total_score: finalScore,
+      correct_count: correctCount,
+      wrong_count: wrongCount,
+    })
+  }
+
+  // 4. Batch update submission_answers using upsert in chunks of 200
+  if (allUpdatedAnswers.length > 0) {
+    const chunkSize = 200
+    for (let i = 0; i < allUpdatedAnswers.length; i += chunkSize) {
+      const chunk = allUpdatedAnswers.slice(i, i + chunkSize)
+      await serviceRoleClient
+        .from('submission_answers')
+        .upsert(chunk, { onConflict: 'id' })
+    }
+  }
+
+  // 5. Parallel update submissions
+  if (submissionsToUpdate.length > 0) {
+    await Promise.all(
+      submissionsToUpdate.map((sub: any) =>
+        serviceRoleClient
+          .from('submissions')
+          .update({
+            total_score: sub.total_score,
+            correct_count: sub.correct_count,
+            wrong_count: sub.wrong_count,
+          })
+          .eq('id', sub.id)
+      )
+    )
   }
 }
 
