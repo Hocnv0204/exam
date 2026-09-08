@@ -143,7 +143,7 @@ export interface Database {
           id: string
           lesson_id: string
           title: string
-          pdf_path: string
+          pdf_path: string | null
           duration_minutes: number
           pass_score: number
           max_score: number
@@ -155,7 +155,7 @@ export interface Database {
           id?: string
           lesson_id: string
           title: string
-          pdf_path: string
+          pdf_path?: string | null
           duration_minutes?: number
           pass_score?: number
           max_score?: number
@@ -167,7 +167,7 @@ export interface Database {
           id?: string
           lesson_id?: string
           title?: string
-          pdf_path?: string
+          pdf_path?: string | null
           duration_minutes?: number
           pass_score?: number
           max_score?: number
@@ -183,6 +183,10 @@ export interface Database {
           question_number: number
           question_type: QuestionType
           prompt: string
+          content: string | null
+          options: Json | null
+          statements: Json | null
+          part_title: string | null
           points: number
           created_at: string
         }
@@ -192,6 +196,10 @@ export interface Database {
           question_number: number
           question_type: QuestionType
           prompt: string
+          content?: string | null
+          options?: Json | null
+          statements?: Json | null
+          part_title?: string | null
           points?: number
           created_at?: string
         }
@@ -201,6 +209,10 @@ export interface Database {
           question_number?: number
           question_type?: QuestionType
           prompt?: string
+          content?: string | null
+          options?: Json | null
+          statements?: Json | null
+          part_title?: string | null
           points?: number
           created_at?: string
         }
@@ -211,8 +223,9 @@ export interface Database {
           question_id: string
           mc_answer: string | null
           tf_answers: Json | null
-          sa_answer: number | null
+          sa_answer: string | number | null
           sa_tolerance: number | null
+          explanation: string | null
           created_at: string
         }
         Insert: {
@@ -220,8 +233,9 @@ export interface Database {
           question_id: string
           mc_answer?: string | null
           tf_answers?: Json | null
-          sa_answer?: number | null
+          sa_answer?: string | number | null
           sa_tolerance?: number | null
+          explanation?: string | null
           created_at?: string
         }
         Update: {
@@ -229,8 +243,9 @@ export interface Database {
           question_id?: string
           mc_answer?: string | null
           tf_answers?: Json | null
-          sa_answer?: number | null
+          sa_answer?: string | number | null
           sa_tolerance?: number | null
+          explanation?: string | null
           created_at?: string
         }
       }

@@ -80,7 +80,11 @@ serve(async (req: Request) => {
             question_number,
             question_type,
             prompt,
-            points
+            points,
+            content,
+            options,
+            statements,
+            part_title
           )
         `)
         .eq('submission_id', submissionId)
@@ -93,7 +97,7 @@ serve(async (req: Request) => {
       const questionIds = (answers || []).map((a: any) => a.question_id)
       const { data: answerKeys } = await serviceRoleClient
         .from('question_answers')
-        .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance')
+        .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
         .in('question_id', questionIds)
 
       const keyMap = new Map((answerKeys || []).map((k: any) => [k.question_id, k]))
@@ -191,6 +195,11 @@ serve(async (req: Request) => {
           questionId: ans.question_id,
           questionNumber: ans.questions?.question_number,
           questionType: qType,
+          content: ans.questions?.content,
+          options: ans.questions?.options,
+          statements: ans.questions?.statements,
+          partTitle: ans.questions?.part_title,
+          explanation: key?.explanation || null,
           is_correct: ans.is_correct,
           isCorrect: ans.is_correct,
           score_earned: scoreEarned,
@@ -205,6 +214,11 @@ serve(async (req: Request) => {
             question_number: ans.questions?.question_number,
             question_type: ans.questions?.question_type,
             prompt: ans.questions?.prompt,
+            content: ans.questions?.content,
+            options: ans.questions?.options,
+            statements: ans.questions?.statements,
+            part_title: ans.questions?.part_title,
+            explanation: key?.explanation || null,
             points,
           },
         }

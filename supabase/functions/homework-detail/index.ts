@@ -100,9 +100,9 @@ serve(async (req: Request) => {
       }
     }
 
-    // 4. Generate Signed URL for PDF storage file
-    let pdfUrl = homework.pdf_path
-    if (!pdfUrl.startsWith('http')) {
+    // 4. Generate Signed URL for PDF storage file (if present)
+    let pdfUrl = homework.pdf_path || ''
+    if (pdfUrl && !pdfUrl.startsWith('http')) {
       const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
         .from('pdf-files')
         .createSignedUrl(homework.pdf_path, 3600) // 1 hour signed URL
@@ -115,7 +115,7 @@ serve(async (req: Request) => {
     // 5. Fetch Questions
     const { data: questions, error: qErr } = await serviceRoleClient
       .from('questions')
-      .select('id, question_number, question_type, prompt, points')
+      .select('id, question_number, question_type, prompt, content, options, statements, part_title, points')
       .eq('homework_id', homeworkId)
       .order('question_number', { ascending: true })
 
@@ -131,7 +131,7 @@ serve(async (req: Request) => {
       const qIds = (questions || []).map((q) => q.id)
       const { data: answerKeys } = await serviceRoleClient
         .from('question_answers')
-        .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance')
+        .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
         .in('question_id', qIds)
 
       const keyMap = new Map(answerKeys?.map((k) => [k.question_id, k]) || [])

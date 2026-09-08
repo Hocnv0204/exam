@@ -140,7 +140,7 @@ serve(async (req: Request) => {
     // 2. Fetch all questions for homework
     const { data: questions, error: qError } = await serviceRoleClient
       .from('questions')
-      .select('id, question_number, question_type, prompt, points')
+      .select('id, question_number, question_type, prompt, points, content, options, statements, part_title')
       .eq('homework_id', homeworkId)
 
     if (qError || !questions || questions.length === 0) {
@@ -151,7 +151,7 @@ serve(async (req: Request) => {
     const questionIds = questions.map((q) => q.id)
     const { data: answerKeys, error: keyError } = await serviceRoleClient
       .from('question_answers')
-      .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance')
+      .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
       .in('question_id', questionIds)
 
     if (keyError || !answerKeys) {
@@ -225,13 +225,32 @@ serve(async (req: Request) => {
       correctCount += gradeResult.isCorrect ? 1 : 0
       wrongCount += gradeResult.isCorrect ? 0 : 1
 
+      let correctAnswerSummary: any = null
+      if (user?.role === 'ADMIN') {
+        if (q.question_type === 'MULTIPLE_CHOICE') {
+          correctAnswerSummary = key?.mc_answer || null
+        } else if (q.question_type === 'TRUE_FALSE') {
+          correctAnswerSummary = key?.tf_answers || null
+        } else if (q.question_type === 'SHORT_ANSWER') {
+          correctAnswerSummary = {
+            answer: key?.sa_answer,
+            tolerance: key?.sa_tolerance || 0
+          }
+        }
+      }
+
       questionReviews.push({
         questionNumber: q.question_number,
         prompt: q.prompt,
+        content: q.content,
+        options: q.options,
+        statements: q.statements,
+        partTitle: q.part_title,
+        explanation: key?.explanation || null,
         questionType: q.question_type,
         givenAnswer: given,
         ...gradeResult,
-        correctAnswerSummary: null,
+        correctAnswerSummary,
       })
 
       submissionAnswersToInsert.push({
