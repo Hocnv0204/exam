@@ -57,7 +57,7 @@ serve(async (req: Request) => {
         
         let query = serviceRoleClient
           .from('student_sessions')
-          .select('session_date')
+          .select('session_date, is_paid')
           .eq('student_id', studentId)
           .eq('class_id', classId)
           
@@ -71,7 +71,28 @@ serve(async (req: Request) => {
         const { data: sessions, error } = await query
         if (error) return errorResponse(error.message, 500)
         
-        return jsonResponse((sessions || []).map(s => s.session_date))
+        const formatted = (sessions || []).map(s => ({
+          sessionDate: s.session_date,
+          isPaid: s.is_paid
+        }))
+        return jsonResponse(formatted)
+      }
+
+      if (action === 'get-telegram-config') {
+        const classId = url.searchParams.get('classId')
+        if (!classId) return errorResponse('Class ID is required', 400)
+        
+        const { data, error } = await serviceRoleClient
+          .from('telegram_configs')
+          .select('*')
+          .eq('class_id', classId)
+          .single()
+
+        if (error && error.code !== 'PGRST116') {
+          return errorResponse(error.message, 500)
+        }
+
+        return jsonResponse(data || null)
       }
 
       if (user.role === 'ADMIN') {
@@ -97,10 +118,18 @@ serve(async (req: Request) => {
         })
         return jsonResponse(formatted)
       } else {
-        // STUDENT
-        if (!user.classIds || user.classIds.length === 0) {
+        // STUDENT: Query student_classes table directly for user.id
+        const { data: stClasses, error: stErr } = await serviceRoleClient
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', user.id)
+
+        if (stErr || !stClasses || stClasses.length === 0) {
           return jsonResponse([])
         }
+
+        const enrolledClassIds = stClasses.map(sc => sc.class_id)
+
         const { data: studentClasses, error } = await serviceRoleClient
           .from('classes')
           .select(`
@@ -109,7 +138,7 @@ serve(async (req: Request) => {
               student_id
             )
           `)
-          .in('id', user.classIds)
+          .in('id', enrolledClassIds)
 
         if (error) return jsonResponse([])
         
@@ -189,11 +218,23 @@ serve(async (req: Request) => {
         if (deleteError) return errorResponse(deleteError.message, 500)
         
         if (sessionDates.length > 0) {
-          const inserts = sessionDates.map(date => ({
-            student_id: studentId,
-            class_id: classId,
-            session_date: date
-          }))
+          const inserts = sessionDates.map((s: any) => {
+            if (typeof s === 'string') {
+              return {
+                student_id: studentId,
+                class_id: classId,
+                session_date: s,
+                is_paid: false
+              }
+            }
+            const isPaidVal = s.isPaid === true || s.isPaid === 'true' || s.is_paid === true || s.is_paid === 'true'
+            return {
+              student_id: studentId,
+              class_id: classId,
+              session_date: s.date,
+              is_paid: isPaidVal
+            }
+          })
           const { error: insertError } = await serviceRoleClient
             .from('student_sessions')
             .insert(inserts)
@@ -203,6 +244,8 @@ serve(async (req: Request) => {
         
         return jsonResponse({ message: 'Student sessions updated successfully' })
       }
+
+
 
       // Create Class
       if (!action || action === 'create') {
@@ -232,8 +275,33 @@ serve(async (req: Request) => {
       }
     }
 
-    // PUT / PATCH: Update Class
-    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update') {
+    // PUT / PATCH: Update Class or Telegram Config
+    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update' || action === 'update-telegram-config') {
+      if (action === 'update-telegram-config') {
+        const body = await req.json()
+        const { classId, chatId, chatTitle, isEnabled } = body
+        if (!classId || !chatId) {
+          return errorResponse('classId and chatId are required', 400)
+        }
+
+        const { data, error } = await serviceRoleClient
+          .from('telegram_configs')
+          .upsert(
+            {
+              class_id: classId,
+              chat_id: chatId,
+              chat_title: chatTitle || null,
+              is_enabled: isEnabled ?? true,
+            },
+            { onConflict: 'class_id' }
+          )
+          .select()
+          .single()
+
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse(data)
+      }
+
       const body = await req.json()
       const validation = updateClassSchema.safeParse(body)
       if (!validation.success) {
@@ -260,8 +328,21 @@ serve(async (req: Request) => {
       })
     }
 
-    // DELETE: Delete Class
-    if (req.method === 'DELETE' || action === 'delete') {
+    // DELETE: Delete Class or Telegram Config
+    if (req.method === 'DELETE' || action === 'delete' || action === 'delete-telegram-config') {
+      if (action === 'delete-telegram-config') {
+        const classId = url.searchParams.get('classId')
+        if (!classId) return errorResponse('Class ID is required', 400)
+
+        const { error } = await serviceRoleClient
+          .from('telegram_configs')
+          .delete()
+          .eq('class_id', classId)
+
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse({ message: 'Telegram config deleted successfully' })
+      }
+
       const body = await req.json().catch(() => ({}))
       const classIdQuery = url.searchParams.get('classId') || body.classId
 

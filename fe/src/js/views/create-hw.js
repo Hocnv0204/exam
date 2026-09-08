@@ -1,8 +1,10 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
+import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { renderPdfViewer } from '../components/pdf-viewer.js'
 
 // In-memory state for building the answer matrix
 let currentConfig = {
@@ -18,6 +20,8 @@ let currentConfig = {
 let mcAnswers = {}
 let tfAnswers = {}
 let saAnswers = {}
+let chaptersCache = {}
+let lessonsCache = {}
 
 function initAnswersState() {
   mcAnswers = {}
@@ -40,6 +44,9 @@ export function renderCreateHwView() {
   const isEdit = !!state.editHomeworkData
   const hw = isEdit ? state.editHomeworkData.homework : null
   const questions = isEdit ? (state.editHomeworkData.questions || []) : []
+
+  const pdfDownloadUrl = (isEdit && hw?.pdfUrl) ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''
+  const pdfDownloadName = hw?.pdfPath || 'Homework_Attachment.pdf'
 
   let deadlineVal = ''
   if (isEdit && hw && (hw.deadline || hw.deadline_at)) {
@@ -95,6 +102,14 @@ export function renderCreateHwView() {
     return `<option value="${c.id}" ${isSel ? 'selected' : ''}>${c.name}</option>`
   }).join('')
 
+  let displayTitle = isEdit ? (hw?.title || '') : ''
+  if (isEdit && hw?.title && hw?.lessonTitle) {
+    const prefix = `${hw.lessonTitle} - `
+    if (displayTitle.startsWith(prefix)) {
+      displayTitle = displayTitle.substring(prefix.length)
+    }
+  }
+
   return `
     <div class="app-layout">
       ${renderSidebar('create-homework')}
@@ -105,22 +120,26 @@ export function renderCreateHwView() {
             
             <!-- LEFT COLUMN: PDF VIEWER & UPLOAD (60%) -->
             <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
-              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px;">
-                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px;"></i>
-                  <span id="pdf-viewer-title">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
+              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:10px; margin-bottom:12px; padding:8px 14px; box-sizing:border-box;">
+                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden;">
+                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
+                  <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
                 </div>
-                <div>
+                <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
+                  <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
                   <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
-                  <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="padding:6px 12px; font-size:12px; height:auto; line-height:1; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; line-height:1; display:inline-flex; align-items:center; gap:5px; cursor:pointer; box-shadow:none; border-radius:6px;">
                     <i class="fa-solid fa-upload"></i> Chọn file PDF
                   </button>
+                  <a id="download-hw-pdf-btn" href="${pdfDownloadUrl || '#'}" download="${pdfDownloadName}" target="_blank" rel="noopener noreferrer" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; box-sizing:border-box; line-height:1; display:inline-flex; align-items:center; gap:5px; text-decoration:none; ${pdfDownloadUrl ? 'background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer;' : 'background:#f8fafc; color:#94a3b8; border:1px solid #e2e8f0; cursor:not-allowed; opacity:0.7;'} border-radius:6px; font-weight:600; transition:all 0.2s;" title="${pdfDownloadUrl ? `Tải file PDF: ${pdfDownloadName}` : 'Chưa có file PDF để tải xuống'}">
+                    <i class="fa-solid fa-download"></i> Tải file PDF
+                  </a>
                 </div>
               </div>
 
               <!-- PDF Iframe Preview / Placeholder -->
-              <div id="pdf-preview-container" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow:hidden; position:relative;">
-                <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; border:none; background:#f8fafc; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
+              <div id="pdf-preview-container" class="pdf-iframe-wrapper" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; position:relative;">
+                <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; min-height:100%; border:none; background:#f8fafc; -webkit-overflow-scrolling:touch; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
                 ${!(isEdit && hw?.pdfUrl) ? `
                   <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
                     <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
@@ -142,7 +161,8 @@ export function renderCreateHwView() {
                 <div style="display:flex; flex-direction:column; gap:12px;">
                   <div>
                     <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
-                    <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: Kiểm tra Chương 3..." value="${isEdit ? hw.title : ''}" style="padding:8px 12px; font-size:13px;">
+                    <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: TN - 1, Bài tập 1..." value="${displayTitle}" style="padding:8px 12px; font-size:13px;">
+                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tiền tố tên bài học sẽ tự động được thêm vào trước tên bài tập khi gửi dữ liệu</div>
                   </div>
 
                   <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
@@ -166,13 +186,24 @@ export function renderCreateHwView() {
                     </div>
                   </div>
 
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                  <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px;">
                     <div>
-                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian làm bài (Phút)</label>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Loại bài tập <span style="color:#ef4444;">*</span></label>
+                      <select id="hw-type" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
+                        <option value="PRACTICE" ${isEdit && hw.type === 'PRACTICE' ? 'selected' : ''}>Luyện tập</option>
+                        <option value="EXAM" ${isEdit && hw.type === 'EXAM' ? 'selected' : ''}>Bài thi</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian (Phút)</label>
                       <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 45 : 45}" min="5" style="padding:8px 12px; font-size:13px;">
                     </div>
                     <div>
-                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần làm tối đa (0 = Không giới hạn)</label>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Giới hạn vi phạm</label>
+                      <input type="number" id="hw-max-violations" class="form-input" value="${isEdit && hw.maxViolations !== undefined ? hw.maxViolations : 3}" min="1" max="10" style="padding:8px 12px; font-size:13px;">
+                    </div>
+                    <div>
+                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần</label>
                       <input type="number" id="hw-max-attempts" class="form-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.max_attempts !== undefined && hw.max_attempts !== null ? hw.max_attempts : 0)}" min="0" style="padding:8px 12px; font-size:13px;">
                     </div>
                   </div>
@@ -225,6 +256,24 @@ export function renderCreateHwView() {
                 </button>
               </div>
 
+              <!-- JSON Import/Export Answers Card -->
+              <div class="card" style="border:2px solid #cbd5e1; background:#f8fafc; margin:0; padding:12px 16px;">
+                <h3 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-file-import"></i> Nhập / Xuất đáp án nhanh
+                </h3>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button class="btn-secondary" id="copy-sample-btn" type="button" style="flex:1 1 130px; padding:8px 10px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; border:1px solid #cbd5e1; background:#ffffff; border-radius:8px; font-weight:600; white-space:nowrap;" title="Sao chép cấu trúc JSON mẫu gồm 12 câu TN, 4 câu Đ/S, 6 câu TLN">
+                    <i class="fa-regular fa-file-code"></i> Sao chép JSON mẫu
+                  </button>
+                  <button class="btn-secondary" id="copy-answers-btn" type="button" style="flex:1 1 130px; padding:8px 10px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; border:1px solid #0066cc; background:#eff6ff; color:#0066cc; border-radius:8px; font-weight:600; white-space:nowrap;" title="Sao chép toàn bộ đáp án hiện tại của bảng dưới dạng JSON">
+                    <i class="fa-regular fa-copy"></i> Sao chép đáp án JSON
+                  </button>
+                  <button class="btn-primary" id="import-answers-btn" type="button" style="flex:1 1 130px; padding:8px 10px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; background:#059669; border-radius:8px; font-weight:600; white-space:nowrap; width:auto;" title="Nhập danh sách đáp án từ chuỗi JSON">
+                    <i class="fa-solid fa-keyboard"></i> Nhập đáp án (JSON)
+                  </button>
+                </div>
+              </div>
+
               <!-- Answer Key Matrix Section -->
               <div id="answer-matrix-container" style="display:flex; flex-direction:column; gap:16px;">
                 ${renderAnswerMatrix()}
@@ -254,8 +303,8 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.mcCount }, (_, i) => i + 1).map(qNum => {
-            const selected = mcAnswers[qNum]
-            return `
+    const selected = mcAnswers[qNum]
+    return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                 <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
                 <div style="display:flex; gap:6px;">
@@ -270,7 +319,7 @@ function renderAnswerMatrix() {
                 </div>
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -289,16 +338,16 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:flex; flex-direction:column; gap:12px;">
           ${Array.from({ length: currentConfig.tfCount }, (_, i) => i + 1).map(index => {
-            const actualQNum = currentConfig.mcCount + index
-            const tfObj = tfAnswers[index] || {}
-            return `
+    const actualQNum = currentConfig.mcCount + index
+    const tfObj = tfAnswers[index] || {}
+    return `
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
                 <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${actualQNum}</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
                   ${['a', 'b', 'c', 'd'].map(sub => {
-                    const isTrue = tfObj[sub] === true
-                    const isFalse = tfObj[sub] === false
-                    return `
+      const isTrue = tfObj[sub] === true
+      const isFalse = tfObj[sub] === false
+      return `
                       <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
                         <span style="font-weight:700; color:#475569;">${sub})</span>
                         <div style="display:flex; gap:4px;">
@@ -317,11 +366,11 @@ function renderAnswerMatrix() {
                         </div>
                       </div>
                     `
-                  }).join('')}
+    }).join('')}
                 </div>
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -340,15 +389,15 @@ function renderAnswerMatrix() {
       ` : `
         <div style="display:flex; flex-direction:column; gap:8px;">
           ${Array.from({ length: currentConfig.saCount }, (_, i) => i + 1).map(index => {
-            const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
-            const val = saAnswers[index] || ''
-            return `
+    const actualQNum = currentConfig.mcCount + currentConfig.tfCount + index
+    const val = saAnswers[index] || ''
+    return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                 <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${actualQNum}</span>
                 <input type="text" class="form-input sa-input" data-index="${index}" value="${val}" placeholder="Nhập đáp án chuẩn..." style="padding:6px 10px; font-size:13px; background:#ffffff;">
               </div>
             `
-          }).join('')}
+  }).join('')}
         </div>
       `}
     </div>
@@ -361,20 +410,40 @@ export function bindCreateHwEvents() {
   // PDF Preview pre-load if in Edit Mode
   const isEditMode = !!state.editHomeworkData
   const hwData = state.editHomeworkData
+  const downloadBtn = document.getElementById('download-hw-pdf-btn')
+
+  // Pre-seed cache from homework-detail if available to avoid extra network requests
+  if (isEditMode && hwData) {
+    const hw = hwData.homework
+    const editClassId = hw ? (hw.classId || hw.class_id) : null
+    const editChapterId = hw ? (hw.chapterId || hw.chapter_id) : null
+    if (editClassId && hwData.classChapters && hwData.classChapters.length > 0) {
+      chaptersCache[editClassId] = hwData.classChapters
+    }
+    if (editChapterId && hwData.chapterLessons && hwData.chapterLessons.length > 0) {
+      lessonsCache[editChapterId] = hwData.chapterLessons
+    }
+  }
+
   if (isEditMode && hwData?.homework?.pdfUrl) {
-    const iframe = document.getElementById('pdf-preview-iframe')
     const container = document.getElementById('pdf-preview-container')
-    const placeholder = document.getElementById('pdf-placeholder')
     const titleSpan = document.getElementById('pdf-viewer-title')
-    
-    if (iframe && container) {
+
+    if (container) {
       const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
-      if (!iframe.src || iframe.src === 'about:blank' || iframe.src === window.location.href) {
-        iframe.src = mappedUrl
+      renderPdfViewer(container, mappedUrl)
+      const fileName = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
+      if (titleSpan) titleSpan.textContent = fileName
+      if (downloadBtn) {
+        downloadBtn.href = mappedUrl
+        downloadBtn.download = fileName
+        downloadBtn.style.background = '#eff6ff'
+        downloadBtn.style.color = '#0066cc'
+        downloadBtn.style.borderColor = '#bfdbfe'
+        downloadBtn.style.cursor = 'pointer'
+        downloadBtn.style.opacity = '1'
+        downloadBtn.title = `Tải file PDF: ${fileName}`
       }
-      iframe.style.display = 'block'
-      if (placeholder) placeholder.style.display = 'none'
-      if (titleSpan) titleSpan.textContent = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
     }
   }
 
@@ -382,22 +451,76 @@ export function bindCreateHwEvents() {
   const fileInput = document.getElementById('hw-pdf-file')
   fileInput?.addEventListener('change', (e) => {
     const file = e.target.files[0]
-    const iframe = document.getElementById('pdf-preview-iframe')
-    const placeholder = document.getElementById('pdf-placeholder')
+    const container = document.getElementById('pdf-preview-container')
     const titleSpan = document.getElementById('pdf-viewer-title')
 
     if (file && file.type === 'application/pdf') {
       const fileURL = URL.createObjectURL(file)
-      if (iframe) {
-        iframe.src = fileURL
-        iframe.style.display = 'block'
+      if (container) {
+        renderPdfViewer(container, fileURL)
       }
-      if (placeholder) placeholder.style.display = 'none'
       if (titleSpan) titleSpan.textContent = file.name
+      if (downloadBtn) {
+        downloadBtn.href = fileURL
+        downloadBtn.download = file.name
+        downloadBtn.style.background = '#eff6ff'
+        downloadBtn.style.color = '#0066cc'
+        downloadBtn.style.borderColor = '#bfdbfe'
+        downloadBtn.style.cursor = 'pointer'
+        downloadBtn.style.opacity = '1'
+        downloadBtn.title = `Tải file PDF: ${file.name}`
+      }
     } else {
-      if (iframe) iframe.style.display = 'none'
-      if (placeholder) placeholder.style.display = 'block'
+      if (container) {
+        container.innerHTML = `
+          <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
+            <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
+            <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
+          </div>
+        `
+      }
       if (titleSpan) titleSpan.textContent = 'Chưa chọn file PDF'
+      if (downloadBtn) {
+        downloadBtn.href = '#'
+        downloadBtn.removeAttribute('download')
+        downloadBtn.style.background = '#f8fafc'
+        downloadBtn.style.color = '#94a3b8'
+        downloadBtn.style.borderColor = '#e2e8f0'
+        downloadBtn.style.cursor = 'not-allowed'
+        downloadBtn.style.opacity = '0.7'
+        downloadBtn.title = 'Chưa có file PDF để tải xuống'
+      }
+    }
+  })
+
+  // Download PDF button click listener
+  downloadBtn?.addEventListener('click', async (e) => {
+    const href = downloadBtn.getAttribute('href')
+    if (!href || href === '#' || downloadBtn.style.cursor === 'not-allowed') {
+      e.preventDefault()
+      showToast('Chưa có file PDF nào để tải xuống!', 'warning')
+      return
+    }
+    if (href.startsWith('blob:')) {
+      return
+    }
+    e.preventDefault()
+    try {
+      showToast('Đang tải file PDF...', 'info')
+      const res = await fetch(href)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = downloadBtn.getAttribute('download') || 'De_Bai.pdf'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000)
+    } catch (err) {
+      console.warn('Direct blob download failed, falling back to window.open:', err)
+      window.open(href, '_blank')
     }
   })
 
@@ -405,6 +528,76 @@ export function bindCreateHwEvents() {
   const classSelect = document.getElementById('hw-class-select')
   const chapterSelect = document.getElementById('hw-chapter-select')
   const lessonSelect = document.getElementById('hw-lesson-select')
+  const typeSelect = document.getElementById('hw-type')
+  const maxAttemptsInput = document.getElementById('hw-max-attempts')
+
+  let previousLessonTitle = ''
+
+  const getSelectedLessonTitle = () => {
+    if (!lessonSelect || lessonSelect.selectedIndex < 0) return ''
+    const opt = lessonSelect.options[lessonSelect.selectedIndex]
+    if (!opt || !opt.value) return ''
+    return opt.textContent.trim()
+  }
+
+  const applyLessonPrefixToTitle = (newLessonTitle) => {
+    const titleInput = document.getElementById('hw-title')
+    if (!titleInput || !newLessonTitle) return
+    const currentVal = titleInput.value.trim()
+
+    // If input is empty
+    if (!currentVal) {
+      titleInput.value = `${newLessonTitle} - `
+      previousLessonTitle = newLessonTitle
+      return
+    }
+
+    // If title currently starts with previousLessonTitle, replace old prefix with new prefix
+    if (previousLessonTitle && currentVal.startsWith(previousLessonTitle)) {
+      const suffix = currentVal.substring(previousLessonTitle.length).replace(/^[\s\-–—:]+/, '').trim()
+      titleInput.value = suffix ? `${newLessonTitle} - ${suffix}` : `${newLessonTitle} - `
+      previousLessonTitle = newLessonTitle
+      return
+    }
+
+    // If title already starts with newLessonTitle, don't duplicate
+    if (currentVal.startsWith(newLessonTitle)) {
+      previousLessonTitle = newLessonTitle
+      return
+    }
+
+    // If title already has some custom name, prepend newLessonTitle
+    titleInput.value = `${newLessonTitle} - ${currentVal}`
+    previousLessonTitle = newLessonTitle
+  }
+
+  // Disable max attempts if Exam
+  const maxViolationsInput = document.getElementById('hw-max-violations')
+  if (typeSelect && maxAttemptsInput) {
+    const handleTypeChange = () => {
+      if (typeSelect.value === 'EXAM') {
+        maxAttemptsInput.value = 1;
+        maxAttemptsInput.disabled = true;
+        maxAttemptsInput.style.backgroundColor = '#f1f5f9';
+
+        if (maxViolationsInput) {
+          maxViolationsInput.disabled = false;
+          maxViolationsInput.style.backgroundColor = '#ffffff';
+        }
+      } else {
+        maxAttemptsInput.disabled = false;
+        maxAttemptsInput.style.backgroundColor = '#ffffff';
+
+        if (maxViolationsInput) {
+          maxViolationsInput.disabled = true;
+          maxViolationsInput.style.backgroundColor = '#f1f5f9';
+        }
+      }
+    };
+    typeSelect.addEventListener('change', handleTypeChange);
+    // Init state
+    handleTypeChange();
+  }
 
   const updateChaptersDropdown = async (targetChapterId = null, targetLessonId = null) => {
     const classId = classSelect?.value
@@ -418,9 +611,13 @@ export function bindCreateHwEvents() {
     }
 
     try {
-      const chapters = await api.getChapters(classId)
+      let chapters = chaptersCache[classId]
+      if (!chapters) {
+        chapters = await api.getChapters(classId)
+        chaptersCache[classId] = chapters || []
+      }
       let chOptions = '<option value="">-- Chọn chương --</option>'
-      
+
       const isEdit = !!state.editHomeworkData
       const hw = isEdit ? state.editHomeworkData.homework : null
       const editChapterId = targetChapterId || (hw ? (hw.chapterId || hw.chapter_id) : null)
@@ -464,7 +661,11 @@ export function bindCreateHwEvents() {
     }
 
     try {
-      const lessons = await api.getLessons(chapterId)
+      let lessons = lessonsCache[chapterId]
+      if (!lessons) {
+        lessons = await api.getLessons(chapterId)
+        lessonsCache[chapterId] = lessons || []
+      }
       let lOptions = '<option value="">-- Chọn bài học --</option>'
 
       const isEdit = !!state.editHomeworkData
@@ -478,6 +679,15 @@ export function bindCreateHwEvents() {
 
       if (lessonSelect) {
         lessonSelect.innerHTML = lOptions || '<option value="">Chưa có bài học nào</option>'
+        if (!isEdit && lessons && lessons.length === 1) {
+          lessonSelect.value = lessons[0].id
+          applyLessonPrefixToTitle(lessons[0].title)
+        } else if (isEdit && editLessonId) {
+          const currentOpt = lessonSelect.options[lessonSelect.selectedIndex]
+          if (currentOpt && currentOpt.value) {
+            previousLessonTitle = currentOpt.textContent.trim()
+          }
+        }
       }
     } catch (e) {
       if (lessonSelect) {
@@ -503,36 +713,14 @@ export function bindCreateHwEvents() {
     let initialLessonId = hw ? (hw.lessonId || hw.lesson_id) : null
     let initialClassId = hw ? (hw.classId || hw.class_id) : null
 
-    // Fallback lookup: resolve IDs via matching names if they are not provided by edge function response
-    if (isEdit && hw && (!initialChapterId || !initialLessonId || !initialClassId)) {
-      for (const cls of state.classes) {
-        try {
-          const chapters = await api.getChapters(cls.id)
-          for (const ch of (chapters || [])) {
-            if (ch.title === hw.chapterTitle) {
-              const lessons = await api.getLessons(ch.id)
-              for (const l of (lessons || [])) {
-                if (l.title === hw.lessonTitle) {
-                  initialClassId = cls.id
-                  initialChapterId = ch.id
-                  initialLessonId = l.id
-                  break
-                }
-              }
-            }
-            if (initialLessonId) break
-          }
-        } catch (e) {
-          console.error('[CreateHW] Fallback matching failed:', e)
-        }
-        if (initialLessonId) break
-      }
-    }
-
     if (initialClassId && classSelect) {
       classSelect.value = initialClassId
     }
     await updateChaptersDropdown(initialChapterId, initialLessonId)
+
+    if (isEdit && hw) {
+      previousLessonTitle = hw.lessonTitle || getSelectedLessonTitle()
+    }
   }
 
   initDropdowns()
@@ -552,12 +740,10 @@ export function bindCreateHwEvents() {
       if (!mcAnswers[i]) mcAnswers[i] = 'A'
     }
     for (let i = 1; i <= currentConfig.tfCount; i++) {
-      const actualQNum = currentConfig.mcCount + i
-      if (!tfAnswers[actualQNum]) tfAnswers[actualQNum] = { a: true, b: true, c: false, d: true }
+      if (!tfAnswers[i]) tfAnswers[i] = { a: true, b: true, c: false, d: true }
     }
     for (let i = 1; i <= currentConfig.saCount; i++) {
-      const actualQNum = currentConfig.mcCount + currentConfig.tfCount + i
-      if (saAnswers[actualQNum] === undefined) saAnswers[actualQNum] = ''
+      if (saAnswers[i] === undefined) saAnswers[i] = ''
     }
 
     const container = document.getElementById('answer-matrix-container')
@@ -572,19 +758,308 @@ export function bindCreateHwEvents() {
     showToast('Đã cập nhật số lượng câu hỏi và bảng đáp án!', 'info')
   })
 
+  // Universal clipboard copy helper
+  const copyTextToClipboard = async (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (e) {
+        // fallback below
+      }
+    }
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    textArea.style.top = '-999999px'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    try {
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      return successful
+    } catch (err) {
+      document.body.removeChild(textArea)
+      return false
+    }
+  }
+
+  // Handle Copy Sample JSON
+  document.getElementById('copy-sample-btn')?.addEventListener('click', async () => {
+    const sampleQuestions = [];
+
+    // Part I: MC (12 questions)
+    for (let i = 1; i <= 12; i++) {
+      sampleQuestions.push({
+        questionNumber: i,
+        questionType: "MULTIPLE_CHOICE",
+        mcAnswer: i % 4 === 1 ? "A" : i % 4 === 2 ? "B" : i % 4 === 3 ? "C" : "D"
+      });
+    }
+
+    // Part II: TF (4 questions)
+    for (let i = 1; i <= 4; i++) {
+      sampleQuestions.push({
+        questionNumber: 12 + i,
+        questionType: "TRUE_FALSE",
+        tfAnswers: {
+          a: i % 2 === 1,
+          b: i % 2 === 0,
+          c: i % 3 === 1,
+          d: i % 3 !== 1
+        }
+      });
+    }
+
+    // Part III: SA (6 questions)
+    const saSamples = ["10.5", "42", "Hà Nội", "3.14", "2026", "Bài tập"];
+    for (let i = 1; i <= 6; i++) {
+      sampleQuestions.push({
+        questionNumber: 16 + i,
+        questionType: "SHORT_ANSWER",
+        saAnswer: saSamples[i - 1]
+      });
+    }
+
+    const jsonStr = JSON.stringify(sampleQuestions, null, 2);
+    const success = await copyTextToClipboard(jsonStr);
+    if (success) {
+      showToast("Đã sao chép JSON mẫu vào bộ nhớ tạm!", "success");
+    } else {
+      showToast("Không thể tự động sao chép vào bộ nhớ tạm!", "error");
+    }
+  });
+
+  // Handle Copy Current Answers JSON
+  document.getElementById('copy-answers-btn')?.addEventListener('click', async () => {
+    const totalQuestions = currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount;
+    if (totalQuestions === 0) {
+      showToast('Chưa có câu hỏi nào để sao chép đáp án!', 'warning');
+      return;
+    }
+
+    const currentQuestions = [];
+    let globalIndex = 1;
+
+    // Part I: MC
+    for (let i = 1; i <= currentConfig.mcCount; i++) {
+      currentQuestions.push({
+        questionNumber: globalIndex++,
+        questionType: 'MULTIPLE_CHOICE',
+        mcAnswer: mcAnswers[i] || 'A'
+      });
+    }
+
+    // Part II: TF
+    for (let i = 1; i <= currentConfig.tfCount; i++) {
+      const tf = tfAnswers[i] || {};
+      currentQuestions.push({
+        questionNumber: globalIndex++,
+        questionType: 'TRUE_FALSE',
+        tfAnswers: {
+          a: tf.a !== undefined ? tf.a : true,
+          b: tf.b !== undefined ? tf.b : true,
+          c: tf.c !== undefined ? tf.c : false,
+          d: tf.d !== undefined ? tf.d : true
+        }
+      });
+    }
+
+    // Part III: SA
+    for (let i = 1; i <= currentConfig.saCount; i++) {
+      const ans = saAnswers[i] !== undefined && saAnswers[i] !== null ? String(saAnswers[i]) : '';
+      currentQuestions.push({
+        questionNumber: globalIndex++,
+        questionType: 'SHORT_ANSWER',
+        saAnswer: ans
+      });
+    }
+
+    const jsonStr = JSON.stringify(currentQuestions, null, 2);
+    const success = await copyTextToClipboard(jsonStr);
+    if (success) {
+      showToast(`Đã sao chép đáp án JSON (${currentQuestions.length} câu) vào bộ nhớ tạm!`, 'success');
+    } else {
+      showToast('Không thể tự động sao chép vào bộ nhớ tạm!', 'error');
+    }
+  });
+
+  // Handle Import JSON Text Dialog
+  document.getElementById('import-answers-btn')?.addEventListener('click', () => {
+    const bodyHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:12px; color:#64748b; line-height:1.4;">
+          Dán chuỗi JSON danh sách đáp án của bạn vào khung bên dưới. Định dạng dữ liệu phải khớp với cấu trúc mẫu (mảng gồm các câu hỏi liên tục bắt đầu từ câu 1).
+        </div>
+        <textarea id="import-json-textarea" class="form-input" placeholder="[\n  {\n    &quot;questionNumber&quot;: 1,\n    &quot;questionType&quot;: &quot;MULTIPLE_CHOICE&quot;,\n    &quot;mcAnswer&quot;: &quot;A&quot;\n  }\n]" style="width:100%; height:250px; font-family:monospace; font-size:12px; padding:10px; line-height:1.5; resize:vertical; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px;"></textarea>
+        <div id="modal-error-msg" style="color:#ef4444; font-size:12px; display:none; font-weight:600;"></div>
+      </div>
+    `;
+
+    openModal("Nhập đáp án JSON", bodyHTML, () => {
+      const textarea = document.getElementById('import-json-textarea');
+      const errorMsgDiv = document.getElementById('modal-error-msg');
+      if (!textarea) return false;
+
+      const text = textarea.value.trim();
+      if (!text) {
+        if (errorMsgDiv) {
+          errorMsgDiv.textContent = "Vui lòng nhập dữ liệu JSON!";
+          errorMsgDiv.style.display = "block";
+        }
+        return false;
+      }
+
+      try {
+        const parsed = JSON.parse(text);
+
+        if (!Array.isArray(parsed)) {
+          throw new Error("Dữ liệu JSON phải là một danh sách các câu hỏi (mảng).");
+        }
+
+        if (parsed.length === 0) {
+          throw new Error("Danh sách câu hỏi trống.");
+        }
+
+        // 1. Validate structure and numbers
+        const sorted = [...parsed].sort((a, b) => a.questionNumber - b.questionNumber);
+
+        for (let i = 0; i < sorted.length; i++) {
+          const q = sorted[i];
+          const expectedNum = i + 1;
+          if (q.questionNumber !== expectedNum) {
+            throw new Error(`Số câu không liên tục hoặc không hợp lệ. Mong đợi Câu ${expectedNum} nhưng nhận được Câu ${q.questionNumber}.`);
+          }
+          if (!q.questionType || !['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER'].includes(q.questionType)) {
+            throw new Error(`Câu ${q.questionNumber} có loại câu hỏi không hợp lệ hoặc bị thiếu.`);
+          }
+
+          if (q.questionType === 'MULTIPLE_CHOICE') {
+            if (!q.mcAnswer || !['A', 'B', 'C', 'D'].includes(q.mcAnswer)) {
+              throw new Error(`Câu ${q.questionNumber} (Trắc nghiệm) phải có đáp án 'mcAnswer' là A, B, C hoặc D.`);
+            }
+          } else if (q.questionType === 'TRUE_FALSE') {
+            if (!q.tfAnswers || typeof q.tfAnswers !== 'object') {
+              throw new Error(`Câu ${q.questionNumber} (Đúng/Sai) thiếu cấu trúc đáp án 'tfAnswers'.`);
+            }
+            const keys = ['a', 'b', 'c', 'd'];
+            for (const key of keys) {
+              if (q.tfAnswers[key] === undefined || typeof q.tfAnswers[key] !== 'boolean') {
+                throw new Error(`Câu ${q.questionNumber} (Đúng/Sai) phải chứa ý phụ '${key}' có giá trị true hoặc false.`);
+              }
+            }
+          } else if (q.questionType === 'SHORT_ANSWER') {
+            if (q.saAnswer === undefined || q.saAnswer === null || String(q.saAnswer).trim() === '') {
+              throw new Error(`Câu ${q.questionNumber} (Trả lời ngắn) phải có đáp án 'saAnswer' không được để trống.`);
+            }
+          }
+        }
+
+        // 2. Validate ordering partition (MULTIPLE_CHOICE -> TRUE_FALSE -> SHORT_ANSWER)
+        let lastType = 'MULTIPLE_CHOICE';
+        for (let i = 0; i < sorted.length; i++) {
+          const q = sorted[i];
+          const type = q.questionType;
+          if (type === 'MULTIPLE_CHOICE') {
+            if (lastType !== 'MULTIPLE_CHOICE') {
+              throw new Error(`Lỗi thứ tự: Câu trắc nghiệm (Câu ${q.questionNumber}) không được phép đứng sau câu loại khác.`);
+            }
+          } else if (type === 'TRUE_FALSE') {
+            if (lastType === 'SHORT_ANSWER') {
+              throw new Error(`Lỗi thứ tự: Câu Đúng/Sai (Câu ${q.questionNumber}) không được phép đứng sau câu tự luận/ngắn.`);
+            }
+            lastType = 'TRUE_FALSE';
+          } else if (type === 'SHORT_ANSWER') {
+            lastType = 'SHORT_ANSWER';
+          }
+        }
+
+        // 3. Count types
+        const mcQ = sorted.filter(q => q.questionType === 'MULTIPLE_CHOICE');
+        const tfQ = sorted.filter(q => q.questionType === 'TRUE_FALSE');
+        const saQ = sorted.filter(q => q.questionType === 'SHORT_ANSWER');
+
+        const mcCount = mcQ.length;
+        const tfCount = tfQ.length;
+        const saCount = saQ.length;
+
+        // 4. Update in-memory answer maps
+        const newMcAnswers = {};
+        const newTfAnswers = {};
+        const newSaAnswers = {};
+
+        mcQ.forEach((q, idx) => {
+          newMcAnswers[idx + 1] = q.mcAnswer;
+        });
+
+        tfQ.forEach((q, idx) => {
+          newTfAnswers[idx + 1] = {
+            a: q.tfAnswers.a,
+            b: q.tfAnswers.b,
+            c: q.tfAnswers.c,
+            d: q.tfAnswers.d
+          };
+        });
+
+        saQ.forEach((q, idx) => {
+          newSaAnswers[idx + 1] = String(q.saAnswer);
+        });
+
+        // Apply updates
+        currentConfig.mcCount = mcCount;
+        currentConfig.tfCount = tfCount;
+        currentConfig.saCount = saCount;
+
+        mcAnswers = newMcAnswers;
+        tfAnswers = newTfAnswers;
+        saAnswers = newSaAnswers;
+
+        // Update input element values in HTML if they exist
+        const mcInput = document.getElementById('cfg-mc-count');
+        const tfInput = document.getElementById('cfg-tf-count');
+        const saInput = document.getElementById('cfg-sa-count');
+        if (mcInput) mcInput.value = mcCount;
+        if (tfInput) tfInput.value = tfCount;
+        if (saInput) saInput.value = saCount;
+
+        // Re-render UI matrix
+        const container = document.getElementById('answer-matrix-container');
+        if (container) {
+          container.innerHTML = renderAnswerMatrix();
+          bindMatrixEvents();
+        }
+
+        showToast(`Nhập thành công ${sorted.length} câu hỏi từ chuỗi JSON!`, "success");
+        return true; // Closes modal
+      } catch (err) {
+        if (errorMsgDiv) {
+          errorMsgDiv.textContent = `Lỗi: ${err.message}`;
+          errorMsgDiv.style.display = "block";
+        }
+        return false; // Keep modal open
+      }
+    });
+  });
+
   bindMatrixEvents()
 
   // Save Homework Event
   document.getElementById('save-homework-btn')?.addEventListener('click', async () => {
-    const title = document.getElementById('hw-title')?.value.trim()
+    let title = document.getElementById('hw-title')?.value.trim()
     const classId = document.getElementById('hw-class-select')?.value
     const lessonId = document.getElementById('hw-lesson-select')?.value
+    const selectedLessonTitle = getSelectedLessonTitle()
     const duration = parseInt(document.getElementById('hw-duration')?.value || '45', 10)
     const deadlineRaw = document.getElementById('hw-deadline')?.value
     const maxAttemptsVal = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
+    const maxViolationsVal = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
+    const typeVal = document.getElementById('hw-type')?.value || 'PRACTICE'
 
     const deadline = deadlineRaw ? new Date(deadlineRaw).toISOString() : null
     const maxAttempts = maxAttemptsVal > 0 ? maxAttemptsVal : null
+    const maxViolations = maxViolationsVal > 0 ? maxViolationsVal : 3
 
     if (!title) {
       showToast('Vui lòng nhập tên bài tập!', 'error')
@@ -594,6 +1069,14 @@ export function bindCreateHwEvents() {
     if (!lessonId) {
       showToast('Vui lòng chọn bài học cho bài tập này!', 'error')
       return
+    }
+
+    let finalTitle = title
+    if (selectedLessonTitle) {
+      const prefix = `${selectedLessonTitle} - `
+      if (!title.startsWith(prefix)) {
+        finalTitle = `${prefix}${title}`
+      }
     }
 
     const totalQuestions = currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount
@@ -681,7 +1164,7 @@ export function bindCreateHwEvents() {
         await api.updateHomework({
           homeworkId: hw.id,
           lessonId,
-          title,
+          title: finalTitle,
           pdfPath,
           durationMinutes: duration,
           passScore: hw.passScore || hw.pass_score || 5.0,
@@ -689,15 +1172,17 @@ export function bindCreateHwEvents() {
           isPublished: hw.isPublished !== false,
           questions,
           deadline,
-          maxAttempts
+          maxAttempts,
+          type: typeVal,
+          maxViolations
         })
-        showToast(`Đã cập nhật bài tập "${title}" thành công!`, 'success')
-        window.location.hash = '#curriculum'
+        showToast(`Đã cập nhật bài tập "${finalTitle}" thành công!`, 'success')
+        window.location.hash = '#homework-mgmt'
       } else {
         showToast('Đang lưu cấu hình bài tập...', 'info')
         await api.createHomework({
           lessonId,
-          title,
+          title: finalTitle,
           pdfPath,
           durationMinutes: duration,
           passScore: 5.0,
@@ -705,10 +1190,12 @@ export function bindCreateHwEvents() {
           isPublished: true,
           questions,
           deadline,
-          maxAttempts
+          maxAttempts,
+          type: typeVal,
+          maxViolations
         })
-        showToast(`Đã xuất bản bài tập "${title}" thành công!`, 'success')
-        window.location.hash = '#curriculum'
+        showToast(`Đã xuất bản bài tập "${finalTitle}" thành công!`, 'success')
+        window.location.hash = '#homework-mgmt'
       }
     } catch (err) {
       showToast(`Lưu bài tập thất bại: ${err.message}`, 'error')

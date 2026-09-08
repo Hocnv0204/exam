@@ -137,6 +137,72 @@ README.md
 
 ---
 
+## Telegram Bot Integration
+
+The system includes a Telegram bot that sends notifications when students submit homework.
+
+### Setup Steps
+
+1. **Create a Telegram Bot**:
+   - Open Telegram and search for `@BotFather`
+   - Send `/newbot` and follow instructions
+   - Copy the bot token (format: `123456789:ABCdef...`)
+
+2. **Configure Environment Variable**:
+   - Add `TELEGRAM_BOT_TOKEN` to your `.env.local` file in the `supabase/` directory:
+     ```bash
+     TELEGRAM_BOT_TOKEN=123456789:ABCdef...
+     ```
+
+3. **Deploy Telegram Bot Edge Function**:
+   ```bash
+   supabase functions deploy telegram-bot
+   ```
+
+4. **Set Telegram Webhook**:
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=<SUPABASE_PROJECT_URL>/functions/v1/telegram-bot"
+   ```
+
+5. **Add Bot to Telegram Group**:
+   - Open your Telegram group
+   - Add the bot as an administrator with permission to send messages
+   - Send `/start` to verify the bot is working
+
+6. **Link Class to Telegram Group**:
+   - In the class details page, use the command `/link <class_id>`
+   - The bot will confirm successful linking
+
+### Frontend Configuration
+
+The class details page includes a "Cấu hình Bot Telegram" section where admins can:
+- View the current Telegram group/channel linked to the class
+- Toggle notifications on/off
+- Unlink the Telegram group
+
+### Database Table
+
+The `telegram_configs` table stores:
+- `class_id` (UUID, Foreign Key to classes)
+- `chat_id` (TEXT, Telegram group/channel ID)
+- `chat_title` (TEXT, Group name)
+- `is_enabled` (BOOLEAN, Notification status)
+
+### Notification Format
+
+When a student submits homework, the bot sends:
+```
+📣 THÔNG BÁO NỘP BÀI
+🎓 Học sinh: [Student Name]
+🏫 Lớp: [Class Name]
+📝 Bài tập: [Homework Title]
+⏱ Thời gian nộp: [Date/Time]
+📊 Điểm số: [Score]/[Max Score] (Đạt/Không đạt)
+✅ Đúng/Sai: [Correct]/[Wrong]
+```
+
+---
+
 ## Edge Functions & API Documentation
 
 All responses follow a consistent format:
@@ -171,6 +237,7 @@ In case of error:
 | `statistics` | `GET` | `ADMIN` | Deep statistics per homework, student, or class. |
 | `student-history` | `GET` | `STUDENT` / `ADMIN` | Submission history overview & detailed submission breakdown. |
 | `homework-detail` | `GET` | `STUDENT` / `ADMIN` | Fetch homework details, signed PDF URL, and questions (sanitized for students). |
+| `telegram-bot` | `POST` | Public (webhook) | Telegram webhook endpoint for bot commands (`/start`, `/link`). |
 
 ---
 
@@ -233,6 +300,7 @@ supabase functions deploy dashboard
 supabase functions deploy statistics
 supabase functions deploy student-history
 supabase functions deploy homework-detail
+supabase functions deploy telegram-bot
 ```
 
 ---

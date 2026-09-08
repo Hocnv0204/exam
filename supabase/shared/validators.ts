@@ -75,6 +75,7 @@ export const createLessonSchema = z.object({
   content: z.string().optional(),
   videoUrl: z.string().optional().nullable(),
   theoryFiles: z.array(z.string()).optional().nullable(),
+  isTrial: z.boolean().optional().default(false),
 })
 
 export const updateLessonSchema = z.object({
@@ -84,6 +85,7 @@ export const updateLessonSchema = z.object({
   content: z.string().optional(),
   videoUrl: z.string().optional().nullable(),
   theoryFiles: z.array(z.string()).optional().nullable(),
+  isTrial: z.boolean().optional(),
 })
 
 export const deleteLessonSchema = z.object({
@@ -108,16 +110,16 @@ export const questionInputSchema = z.object({
   prompt: z.string().optional().default(''),
   points: z.number().positive().default(1),
   // Answer keys (Restricted from students)
-  mcAnswer: z.enum(['A', 'B', 'C', 'D']).optional(),
-  tfAnswers: tfAnswerSchema.optional(),
-  saAnswer: z.union([z.number(), z.string()]).optional(),
-  saTolerance: z.number().nonnegative().optional().default(0),
+  mcAnswer: z.enum(['A', 'B', 'C', 'D']).nullable().optional(),
+  tfAnswers: tfAnswerSchema.nullable().optional(),
+  saAnswer: z.union([z.number(), z.string()]).nullable().optional(),
+  saTolerance: z.number().nonnegative().nullable().optional().default(0),
 })
 
 // Homework Management Validators
 export const createHomeworkSchema = z.object({
   lessonId: z.string().optional().default('00000000-0000-0000-0000-000000000000'),
-  classId: z.string().optional(),
+  classId: z.string().optional().nullable(),
   title: z.string().min(1, 'Homework title is required'),
   pdfPath: z.string().optional().default('Homework_Attachment.pdf'),
   durationMinutes: z.number().int().positive().optional().default(60),
@@ -125,13 +127,15 @@ export const createHomeworkSchema = z.object({
   maxScore: z.number().positive().optional().default(10),
   isPublished: z.boolean().optional().default(true),
   questions: z.array(questionInputSchema).min(1, 'At least one question is required'),
-  deadline: z.string().optional().nullable(),
-  maxAttempts: z.number().int().nonnegative().optional().nullable(),
+  deadline: z.string().nullable().optional(),
+  maxAttempts: z.number().int().nonnegative().nullable().optional(),
+  type: z.enum(['PRACTICE', 'EXAM']).optional().default('PRACTICE'),
+  maxViolations: z.number().int().positive().nullable().optional(),
 })
 
 export const updateHomeworkSchema = z.object({
   homeworkId: z.string().uuid('Invalid Homework ID'),
-  lessonId: z.string().uuid('Invalid Lesson ID').optional(),
+  lessonId: z.string().uuid('Invalid Lesson ID').optional().nullable(),
   title: z.string().min(1).optional(),
   pdfPath: z.string().optional(),
   durationMinutes: z.number().int().positive().optional(),
@@ -139,8 +143,10 @@ export const updateHomeworkSchema = z.object({
   maxScore: z.number().positive().optional(),
   isPublished: z.boolean().optional(),
   questions: z.array(questionInputSchema).optional(),
-  deadline: z.string().optional().nullable(),
-  maxAttempts: z.number().int().nonnegative().optional().nullable(),
+  deadline: z.string().nullable().optional(),
+  maxAttempts: z.number().int().nonnegative().nullable().optional(),
+  type: z.enum(['PRACTICE', 'EXAM']).optional(),
+  maxViolations: z.number().int().positive().nullable().optional(),
 })
 
 export const deleteHomeworkSchema = z.object({
@@ -153,7 +159,7 @@ export const submittedAnswerItemSchema = z.object({
   givenAnswer: z.discriminatedUnion('type', [
     z.object({
       type: z.literal('MULTIPLE_CHOICE'),
-      value: z.enum(['A', 'B', 'C', 'D']),
+      value: z.enum(['A', 'B', 'C', 'D']).or(z.literal('')).nullable().optional(),
     }),
     z.object({
       type: z.literal('TRUE_FALSE'),
@@ -179,4 +185,8 @@ export const submitHomeworkSchema = z.object({
   homeworkId: z.string().uuid('Invalid Homework ID'),
   answers: z.array(submittedAnswerItemSchema),
   durationSecondsTaken: z.number().int().nonnegative().optional(),
+  sessionToken: z.string().optional(),
+  isTrial: z.boolean().optional(),
+  guestName: z.string().optional(),
+  guestPhone: z.string().optional(),
 })

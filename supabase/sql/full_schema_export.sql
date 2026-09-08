@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS public.submissions (
     max_score NUMERIC(5,2) NOT NULL DEFAULT 10.00,
     correct_count INT NOT NULL DEFAULT 0,
     wrong_count INT NOT NULL DEFAULT 0,
+    duration_seconds_taken INT DEFAULT 0,
+    is_late BOOLEAN NOT NULL DEFAULT FALSE,
     submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

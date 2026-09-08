@@ -1,6 +1,7 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
+import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { openModal } from '../components/modal.js'
 import { api, SUPABASE_URL } from '../api.js'
 
@@ -25,9 +26,11 @@ export function renderMyClassesView() {
   const classId = params.get('classId')
   const lessonId = params.get('lessonId')
 
-  const classes = state.classes || []
+  let classes = state.classes || []
+  if (state.user?.role === 'STUDENT' && Array.isArray(state.user?.classIds)) {
+    classes = classes.filter(c => state.user.classIds.includes(c.id))
+  }
   const classChapters = state.classChapters || []
-  const activeLessonHomeworks = state.activeLessonHomeworks || []
 
   let activeLesson = null
   if (lessonId) {
@@ -40,6 +43,10 @@ export function renderMyClassesView() {
     }
   }
 
+  const activeLessonHomeworks = (activeLesson && Array.isArray(activeLesson.homeworks))
+    ? activeLesson.homeworks
+    : (state.activeLessonHomeworks || [])
+
   // Case 1: Viewing Specific Class Details (Lessons & Assignments)
   if (classId) {
     const selectedClass = classes.find(c => c.id === classId) || classes[0]
@@ -50,34 +57,36 @@ export function renderMyClassesView() {
         <div class="main-content">
           ${renderNavbar('Nền tảng / Bảng điều khiển')}
           <div class="content-body">
-            <!-- Back Button & Page Header -->
-            <div style="margin-bottom:16px;">
-              <button class="btn-secondary" id="back-to-classes-btn" style="padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
-                <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách lớp học
-              </button>
-            </div>
+            ${activeLesson ? '' : `
+              <!-- Back Button & Page Header -->
+              <div style="margin-bottom:16px;">
+                <button class="btn-secondary" id="back-to-classes-btn" style="padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
+                  <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách lớp học
+                </button>
+              </div>
 
-            <!-- Class Banner -->
-            <div class="card" style="background:linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); padding:24px; margin-bottom:24px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:20px;">
-                  <div style="width:60px; height:60px; background:#0066cc; color:#ffffff; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:28px;">
-                    <i class="fa-solid fa-graduation-cap"></i>
-                  </div>
-                  <div>
-                    <h1 class="page-title" style="font-size:24px; margin-top:2px;">${selectedClass ? selectedClass.name : 'Đang tải...'}</h1>
-                    <div style="font-size:13px; color:#64748b; margin-top:4px;">
-                      <i class="fa-solid fa-users"></i> ${selectedClass ? selectedClass.studentsCount : 0} Học sinh
+              <!-- Class Banner -->
+              <div class="card" style="background:linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); padding:24px; margin-bottom:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:20px;">
+                    <div style="width:60px; height:60px; background:#0066cc; color:#ffffff; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:28px;">
+                      <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <div>
+                      <h1 class="page-title" style="font-size:24px; margin-top:2px;">${selectedClass ? selectedClass.name : 'Đang tải...'}</h1>
+                      <div style="font-size:13px; color:#64748b; margin-top:4px;">
+                        <i class="fa-solid fa-users"></i> ${selectedClass ? selectedClass.studentsCount : 0} Học sinh
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div style="text-align:right;">
-                  <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Tiến độ môn học</div>
-                  <div style="font-family:var(--font-heading); font-size:28px; font-weight:700; color:#0066cc;">${selectedClass ? selectedClass.progress : 0}%</div>
+                  <div style="text-align:right;">
+                    <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Tiến độ môn học</div>
+                    <div style="font-family:var(--font-heading); font-size:28px; font-weight:700; color:#0066cc;">${selectedClass ? selectedClass.progress : 0}%</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            `}
 
             <!-- Main Content: Lessons & Assignments Split -->
             ${activeLesson ? (() => {
@@ -107,7 +116,7 @@ export function renderMyClassesView() {
                     <!-- Video Area -->
                     ${embedUrl ? `
                       <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:20px; background:#000; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-                        <iframe src="${embedUrl}" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" allowfullscreen allow="autoplay"></iframe>
+                        <iframe src="${embedUrl}" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" allowfullscreen allow="autoplay; encrypted-media; fullscreen" referrerpolicy="no-referrer"></iframe>
                       </div>
                     ` : `
                       <div style="padding:48px 16px; border:1px dashed #cbd5e1; border-radius:12px; text-align:center; color:#64748b; margin-bottom:20px;">
@@ -165,17 +174,33 @@ export function renderMyClassesView() {
                           </div>
                         ` : `
                           <div style="display:flex; flex-direction:column; gap:12px;">
-                            ${activeLessonHomeworks.map(hw => `
-                              <div style="padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                                <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:4px;">${hw.title}</div>
-                                <div style="font-size:11px; color:#64748b; margin-bottom:10px;">
-                                  <i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút
+                            ${activeLessonHomeworks.map(hw => {
+                              const isExpired = hw.deadline ? new Date() > new Date(hw.deadline) : false
+                              const deadlineHtml = hw.deadline
+                                ? `<div style="margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
+                                    <span style="color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; width: fit-content; font-size: 11px;">
+                                      <i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}
+                                    </span>
+                                    ${isExpired ? `
+                                      <span style="color: #d97706; background: #fef3c7; border: 1px solid #fde68a; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 10px; width: fit-content; text-transform: uppercase;">
+                                        <i class="fa-solid fa-clock-rotate-left"></i> Quá hạn (Nộp muộn)
+                                      </span>
+                                    ` : ''}
+                                   </div>`
+                                : ''
+                              return `
+                                <div style="padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+                                  <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:4px;">${hw.title}</div>
+                                  <div style="font-size:11px; color:#64748b; margin-bottom:10px; display:flex; flex-direction:column; gap:4px;">
+                                    <span><i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút</span>
+                                    ${deadlineHtml}
+                                  </div>
+                                  <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px; background: ${isExpired ? '#d97706' : ''}; border-color: ${isExpired ? '#d97706' : ''};">
+                                    ${isExpired ? 'Vào làm bài (Nộp muộn) <i class="fa-solid fa-arrow-right"></i>' : 'Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>'}
+                                  </button>
                                 </div>
-                                <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px;">
-                                  Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>
-                                </button>
-                              </div>
-                            `).join('')}
+                              `
+                            }).join('')}
                           </div>
                         `}
                       </div>
@@ -202,21 +227,28 @@ export function renderMyClassesView() {
                     <div class="card" style="padding:18px; margin-bottom:16px;">
                       <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                          <span style="background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; text-transform:uppercase;">${ch.code || 'CHƯƠNG'}</span>
-                          <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin-top:4px;">${ch.title}</h3>
+                          <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">${ch.title}</h3>
                         </div>
                         <span style="font-size:12px; color:#64748b;">${ch.lessons?.length || 0} bài học</span>
                       </div>
 
                       <div style="margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; display:flex; flex-direction:column; gap:10px;">
-                        ${(ch.lessons || []).map(l => {
+                        ${(ch.lessons || []).map((l, lIdx) => {
                           const isSelected = lessonId === l.id
+                          const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
                           return `
                             <div class="lesson-item-btn" data-id="${l.id}" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:${isSelected ? '#e0f2fe' : '#f8fafc'}; border:1px solid ${isSelected ? '#0066cc' : 'transparent'}; border-radius:10px; cursor:pointer; transition:all 0.15s ease;">
                               <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                                <span style="width:26px; height:26px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#cbd5e1'}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${l.code || '1.1'}</span>
+                                <span style="width:26px; height:26px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#cbd5e1'}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${l.order_index || l.code || (lIdx + 1)}</span>
                                 <div>
-                                  <div style="font-weight:600; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'};">${l.title}</div>
+                                  <div style="font-weight:600; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                    <span>${l.title}</span>
+                                    ${createdDateStr ? `
+                                      <span style="font-size:11px; color:#64748b; font-weight:normal; background:#ffffff; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
+                                        <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> ${createdDateStr}
+                                      </span>
+                                    ` : ''}
+                                  </div>
                                 </div>
                               </div>
                               <div style="color:${isSelected ? '#0066cc' : '#94a3b8'};">
@@ -358,8 +390,17 @@ export function bindMyClassesEvents() {
       const mappedUrl = fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       openModal(
         displayName,
-        `<iframe src="${mappedUrl}" style="width:100%; height:70vh; border:none; border-radius:8px; background:#f8fafc;"></iframe>`
+        `<div id="modal-pdf-container" style="width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;"></div>
+         <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+           <a href="${mappedUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px;">
+             <i class="fa-solid fa-up-right-from-square"></i> Mở file PDF trong tab mới
+           </a>
+         </div>`
       )
+      const modalPdfContainer = document.getElementById('modal-pdf-container')
+      if (modalPdfContainer) {
+        renderPdfViewer(modalPdfContainer, mappedUrl)
+      }
       const modalContent = document.querySelector('#modal-container .modal-content')
       if (modalContent) {
         modalContent.style.maxWidth = '900px'
@@ -409,19 +450,94 @@ async function loadTodoHomeworks() {
       return
     }
 
-    // Group by classId
-    const groups = {}
-    todoHomeworks.forEach(hw => {
-      if (!groups[hw.classId]) {
-        groups[hw.classId] = {
-          name: hw.className,
-          homeworks: []
-        }
-      }
-      groups[hw.classId].homeworks.push(hw)
-    })
+    let currentFilter = 'ALL'
 
-    let html = `
+    const renderTodoList = (filter) => {
+      const filteredHomeworks = todoHomeworks.filter(hw => {
+        if (filter === 'PRACTICE') return hw.type !== 'EXAM'
+        if (filter === 'EXAM') return hw.type === 'EXAM'
+        return true
+      })
+
+      if (filteredHomeworks.length === 0) {
+        return `
+          <div style="text-align:center; padding:32px 16px; color:#64748b; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1; margin-top:8px;">
+            <i class="fa-regular fa-folder-open" style="font-size:32px; color:#94a3b8; margin-bottom:8px; display:block;"></i>
+            <span style="font-size:13px;">Không có bài tập nào thuộc phân loại này.</span>
+          </div>
+        `
+      }
+
+      // Group by classId
+      const groups = {}
+      filteredHomeworks.forEach(hw => {
+        if (!groups[hw.classId]) {
+          groups[hw.classId] = {
+            name: hw.className,
+            homeworks: []
+          }
+        }
+        groups[hw.classId].homeworks.push(hw)
+      })
+
+      let html = `
+        <div class="todo-scroll-container" style="display:flex; flex-direction:column; gap:20px; margin-top:8px; max-height:420px; overflow-y:auto; padding-right:8px; scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent;">
+      `
+
+      Object.values(groups).forEach(g => {
+        const homeworksHtml = g.homeworks.map(hw => {
+          const isExam = hw.type === 'EXAM'
+          const typeBadge = isExam
+            ? `<span style="color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 11px; width: fit-content;"><i class="fa-solid fa-shield-halved"></i> BÀI THI</span>`
+            : `<span style="color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 11px; width: fit-content;"><i class="fa-solid fa-pen-to-square"></i> LUYỆN TẬP</span>`
+
+          const deadlineHtml = hw.deadline
+            ? `<span style="color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; width: fit-content; margin-top: 4px;">
+                <i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}
+               </span>`
+            : ''
+
+          return `
+            <div style="padding:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; display:flex; flex-direction:column; justify-content:space-between; height:100%; box-sizing:border-box;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
+                  <div style="font-weight:700; font-size:14px; color:#0f172a; line-height:1.4; flex:1;">${hw.title}</div>
+                  ${typeBadge}
+                </div>
+                <div style="font-size:12px; color:#64748b; margin-bottom:12px; display:flex; flex-direction:column; gap:4px;">
+                  <span><i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút</span>
+                  ${deadlineHtml}
+                </div>
+              </div>
+              <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:8px 14px; font-size:12px; width:100%; cursor:pointer; margin-top:4px;">
+                Bắt đầu làm bài <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          `
+        }).join('')
+
+        html += `
+          <div>
+            <h4 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#0f172a; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#0066cc;"></span>
+              Lớp: ${g.name}
+            </h4>
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+              ${homeworksHtml}
+            </div>
+          </div>
+        `
+      })
+
+      html += `</div>`
+      return html
+    }
+
+    const allCount = todoHomeworks.length
+    const practiceCount = todoHomeworks.filter(h => h.type !== 'EXAM').length
+    const examCount = todoHomeworks.filter(h => h.type === 'EXAM').length
+
+    let mainHtml = `
       <style>
         .todo-scroll-container::-webkit-scrollbar {
           width: 6px;
@@ -437,45 +553,49 @@ async function loadTodoHomeworks() {
           background: #94a3b8;
         }
       </style>
-      <div class="todo-scroll-container" style="display:flex; flex-direction:column; gap:20px; margin-top:8px; max-height:420px; overflow-y:auto; padding-right:8px; scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent;">
-    `
-
-    Object.values(groups).forEach(g => {
-      const homeworksHtml = g.homeworks.map(hw => {
-        const deadlineHtml = hw.deadline
-          ? `<span><i class="fa-solid fa-calendar-day"></i> Hạn chót: ${new Date(hw.deadline).toLocaleString('vi-VN')}</span>`
-          : ''
-        return `
-          <div style="padding:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; display:flex; flex-direction:column; justify-content:space-between; height:100%; box-sizing:border-box;">
-            <div>
-              <div style="font-weight:700; font-size:14px; color:#0f172a; margin-bottom:6px; line-height:1.4;">${hw.title}</div>
-              <div style="font-size:12px; color:#64748b; margin-bottom:12px; display:flex; flex-direction:column; gap:4px;">
-                <span><i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút</span>
-                ${deadlineHtml}
-              </div>
-            </div>
-            <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:8px 14px; font-size:12px; width:100%; cursor:pointer; margin-top:4px;">
-              Bắt đầu làm bài <i class="fa-solid fa-arrow-right"></i>
-            </button>
-          </div>
-        `
-      }).join('')
-
-      html += `
-        <div>
-          <h4 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#0f172a; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
-            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#0066cc;"></span>
-            Lớp: ${g.name}
-          </h4>
-          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
-            ${homeworksHtml}
-          </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
+        <div style="display:flex; gap:8px;">
+          <button class="todo-filter-btn" data-filter="ALL" style="padding:6px 14px; font-size:12px; font-weight:700; border-radius:20px; border:1px solid #0066cc; background:#0066cc; color:#ffffff; cursor:pointer; transition:all 0.15s ease;">
+            Tất cả (${allCount})
+          </button>
+          <button class="todo-filter-btn" data-filter="PRACTICE" style="padding:6px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer; transition:all 0.15s ease;">
+            <i class="fa-solid fa-pen-to-square" style="color:#16a34a;"></i> Luyện tập (${practiceCount})
+          </button>
+          <button class="todo-filter-btn" data-filter="EXAM" style="padding:6px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer; transition:all 0.15s ease;">
+            <i class="fa-solid fa-shield-halved" style="color:#dc2626;"></i> Bài thi (${examCount})
+          </button>
         </div>
-      `
-    })
+      </div>
+      <div id="todo-list-wrapper">
+        ${renderTodoList('ALL')}
+      </div>
+    `
+    container.innerHTML = mainHtml
 
-    html += `</div>`
-    container.innerHTML = html
+    // Bind Filter Events
+    container.querySelectorAll('.todo-filter-btn').forEach(btn => {
+      btn.onclick = () => {
+        const filter = btn.getAttribute('data-filter')
+        currentFilter = filter
+
+        // Update active tab style
+        container.querySelectorAll('.todo-filter-btn').forEach(b => {
+          b.style.background = '#ffffff'
+          b.style.color = '#475569'
+          b.style.borderColor = '#cbd5e1'
+          b.style.fontWeight = '600'
+        })
+        btn.style.background = '#0066cc'
+        btn.style.color = '#ffffff'
+        btn.style.borderColor = '#0066cc'
+        btn.style.fontWeight = '700'
+
+        const wrapper = document.getElementById('todo-list-wrapper')
+        if (wrapper) {
+          wrapper.innerHTML = renderTodoList(filter)
+        }
+      }
+    })
   } catch (err) {
     console.error('Failed to load todo homeworks:', err)
     container.innerHTML = `

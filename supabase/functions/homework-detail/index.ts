@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAuth } from '../../shared/auth-middleware.ts'
+import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 
 serve(async (req: Request) => {
@@ -11,7 +12,6 @@ serve(async (req: Request) => {
       return errorResponse('Method not allowed', 405)
     }
 
-    const { user, serviceRoleClient } = await requireAuth(req)
     const url = new URL(req.url)
     const homeworkId = url.searchParams.get('homeworkId')
 
@@ -19,7 +19,9 @@ serve(async (req: Request) => {
       return errorResponse('Missing required query parameter: homeworkId', 400)
     }
 
-    // 1. Fetch Homework
+    const serviceRoleClient = createServiceRoleClient()
+
+    // 1. Fetch Homework + Lesson trial status
     const { data: homework, error: hErr } = await serviceRoleClient
       .from('homeworks')
       .select(`
@@ -34,8 +36,12 @@ serve(async (req: Request) => {
         created_at,
         deadline,
         max_attempts,
+        type,
+        max_violations,
         lessons (
+          id,
           title,
+          is_trial,
           chapter_id,
           chapters (
             title,
@@ -50,12 +56,27 @@ serve(async (req: Request) => {
       return errorResponse('Homework not found', 404)
     }
 
+    const isTrialLesson = (homework.lessons as any)?.is_trial === true
+    const authHeader = req.headers.get('Authorization')
+
+    let user: any = null
+    if (authHeader) {
+      try {
+        const authResult = await requireAuth(req)
+        user = authResult.user
+      } catch (e) {
+        if (!isTrialLesson) throw e
+      }
+    } else if (!isTrialLesson) {
+      return errorResponse('Unauthorized: Missing token', 401)
+    }
+
     const homeworkClassId = (
       homework.lessons as unknown as { chapters: { class_id: string } }
     )?.chapters?.class_id
 
-    // 2. Authorization check for Student
-    if (user.role === 'STUDENT') {
+    // 2. Authorization check for Student (skipped if trial lesson)
+    if (user && user.role === 'STUDENT' && !isTrialLesson) {
       if (!homework.is_published) {
         return errorResponse('Homework is not published', 403)
       }
@@ -66,12 +87,13 @@ serve(async (req: Request) => {
 
     // 3. Count attempts for STUDENT
     let attemptsCount = 0
-    if (user.role === 'STUDENT') {
+    if (user && user.role === 'STUDENT') {
       const { count, error: countErr } = await serviceRoleClient
         .from('submissions')
         .select('*', { count: 'exact', head: true })
         .eq('homework_id', homeworkId)
         .eq('student_id', user.id)
+        .eq('status', 'SUBMITTED')
 
       if (!countErr && count !== null) {
         attemptsCount = count
@@ -104,7 +126,7 @@ serve(async (req: Request) => {
     // 6. Security Enforcer: Answer keys inclusion based on Role
     let questionsResult = questions
 
-    if (user.role === 'ADMIN') {
+    if (user && user.role === 'ADMIN') {
       // Admins get question_answers
       const qIds = (questions || []).map((q) => q.id)
       const { data: answerKeys } = await serviceRoleClient
@@ -134,6 +156,8 @@ serve(async (req: Request) => {
         createdAt: homework.created_at,
         deadline: homework.deadline,
         maxAttempts: homework.max_attempts,
+        type: homework.type || 'PRACTICE',
+        maxViolations: homework.max_violations !== undefined ? homework.max_violations : 3,
         lessonTitle: (homework.lessons as unknown as { title: string })?.title,
         chapterTitle: (homework.lessons as unknown as { chapters: { title: string } })?.chapters?.title,
         lessonId: homework.lesson_id,

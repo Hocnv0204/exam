@@ -10,12 +10,15 @@ import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/home
 import { renderAssignmentReviewView, bindAssignmentReviewEvents } from './views/assignment-review.js'
 import { renderLearningHistoryView, bindLearningHistoryEvents } from './views/learning-history.js'
 import { renderAdminDashboardView, bindAdminDashboardEvents } from './views/admin-dashboard.js'
-import { renderAdminHistoryView, bindAdminHistoryEvents } from './views/admin-history.js'
+import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData } from './views/admin-history.js'
 import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
+import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
+import { renderTrialView, bindTrialEvents } from './views/trial.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
+  trial: { render: renderTrialView, bind: bindTrialEvents },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
@@ -27,7 +30,8 @@ const routes = {
   'admin-dashboard': { render: renderAdminDashboardView, bind: bindAdminDashboardEvents },
   'admin-history': { render: renderAdminHistoryView, bind: bindAdminHistoryEvents },
   'class-details': { render: renderClassDetailsView, bind: bindClassDetailsEvents },
-  'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents }
+  'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents },
+  'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents }
 }
 
 async function router() {
@@ -38,9 +42,42 @@ async function router() {
   const defaultPage = state.token ? (state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes') : 'login'
   let hash = routePath || defaultPage
 
+  // Guest & Unauthenticated Access Guard
+  if (!state.token) {
+    const isTrialMode = params.get('trial') === 'true' || hash === 'trial'
+    const guestRoutes = ['login', 'trial', 'homework-attempt', 'assignment-review']
+    if (!guestRoutes.includes(hash)) {
+      window.location.hash = '#login'
+      return
+    }
+
+    // Pre-fetch homework details for unauthenticated trial solver
+    if (hash === 'homework-attempt') {
+      const homeworkId = params.get('homeworkId')
+      if (homeworkId) {
+        try {
+          const hwData = await api.getHomeworkDetail(homeworkId)
+          state.currentHomework = hwData
+        } catch (e) {
+          console.warn('[Router] Failed to fetch trial homework:', e)
+        }
+      }
+    }
+
+    // Restore cached trial submission result on review page if present
+    if (hash === 'assignment-review' && !state.lastSubmissionResult) {
+      try {
+        const cached = sessionStorage.getItem('last_trial_submission')
+        if (cached) {
+          state.lastSubmissionResult = JSON.parse(cached)
+        }
+      } catch (e) {}
+    }
+  }
+
   // Route Guard: Access Control based on Role
   if (state.token && state.user) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'classes-admin', 'curriculum', 'create-homework', 'admin-history']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt']
     const studentOnlyRoutes = ['my-classes', 'homework-attempt', 'history']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
@@ -79,55 +116,130 @@ async function router() {
         }
       }
 
-      // 1. Fetch Classes (for Class Management, Students dropdown, Curriculum, Homework Creation, My Classes)
-      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'admin-dashboard', 'admin-history', 'class-details', 'student-details'].includes(hash)) {
-        const rawClasses = await api.getClasses()
-        state.classes = (rawClasses || []).map(c => {
-          return {
+      // 1. Fetch Classes & Chapters for My Classes and Admin pages
+      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details'].includes(hash)) {
+        const classId = hash === 'my-classes' ? params.get('classId') : null
+        const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
+
+        state.classChaptersCache = state.classChaptersCache || {}
+        const needClasses = (!state.classes || state.classes.length === 0 || hash === 'classes-admin')
+        const needChapters = classId ? !state.classChaptersCache[classId] : false
+
+        if (needClasses && needChapters) {
+          // Parallel fetch on cold reload!
+          const [rawClasses, rawChapters] = await Promise.all([
+            api.getClasses(),
+            api.getChapters(classId, true)
+          ])
+          state.classes = (rawClasses || []).map(c => ({
             id: c.id,
             name: c.name,
             studentsCount: c.studentsCount || 0,
             tuitionFee: c.tuitionFee || 0,
             progress: 0
-          }
-        })
-
-        // Eager load class details for students on My Classes page
-        if (hash === 'my-classes') {
-          const classId = params.get('classId')
-          const lessonId = params.get('lessonId')
-          if (classId) {
-            const rawChapters = await api.getChapters(classId)
-            const chapters = []
-            for (const ch of (rawChapters || [])) {
-              const rawLessons = await api.getLessons(ch.id)
-              chapters.push({
-                id: ch.id,
-                code: `CHƯƠNG ${ch.order_index || ''}`.trim(),
-                title: ch.title,
-                lessons: (rawLessons || []).map(l => ({
-                  id: l.id,
-                  code: `${ch.order_index || 1}.${l.order_index || 1}`,
-                  title: l.title,
-                  videoUrl: l.video_url || '',
-                  theoryFiles: l.theory_files || [],
-                  content: l.content
-                }))
-              })
-            }
-            state.classChapters = chapters
-
-            if (lessonId) {
-              const rawHomeworks = await api.getHomeworks(lessonId)
-              state.activeLessonHomeworks = (rawHomeworks || []).map(h => ({
+          }))
+          state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
+            id: ch.id,
+            code: '',
+            title: ch.title,
+            orderIndex: ch.order_index,
+            lessons: (ch.lessons || []).map((l, idx) => ({
+              id: l.id,
+              code: `${l.order_index || (idx + 1)}`,
+              title: l.title,
+              videoUrl: l.video_url || '',
+              theoryFiles: l.theory_files || [],
+              createdAt: l.created_at || l.createdAt || null,
+              content: l.content,
+              homeworks: (l.homeworks || []).map(h => ({
                 id: h.id,
                 title: h.title,
-                lessonId: h.lesson_id,
+                lessonId: h.lesson_id || l.id,
                 pdfPath: h.pdf_path,
-                durationMinutes: h.duration_minutes,
-                passScore: h.pass_score,
-                maxScore: h.max_score
+                durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : 45,
+                passScore: h.pass_score !== undefined ? h.pass_score : 5,
+                maxScore: h.max_score !== undefined ? h.max_score : 10,
+                deadline: h.deadline,
+                maxAttempts: h.max_attempts,
+                type: h.type
               }))
+            }))
+          }))
+        } else {
+          if (needClasses) {
+            const rawClasses = await api.getClasses()
+            state.classes = (rawClasses || []).map(c => ({
+              id: c.id,
+              name: c.name,
+              studentsCount: c.studentsCount || 0,
+              tuitionFee: c.tuitionFee || 0,
+              progress: 0
+            }))
+          }
+          if (needChapters) {
+            const rawChapters = await api.getChapters(classId, true)
+            state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
+              id: ch.id,
+              code: '',
+              title: ch.title,
+              orderIndex: ch.order_index,
+              lessons: (ch.lessons || []).map((l, idx) => ({
+                id: l.id,
+                code: `${l.order_index || (idx + 1)}`,
+                title: l.title,
+                videoUrl: l.video_url || '',
+                theoryFiles: l.theory_files || [],
+                createdAt: l.created_at || l.createdAt || null,
+                content: l.content,
+                homeworks: (l.homeworks || []).map(h => ({
+                  id: h.id,
+                  title: h.title,
+                  lessonId: h.lesson_id || l.id,
+                  pdfPath: h.pdf_path,
+                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : 45,
+                  passScore: h.pass_score !== undefined ? h.pass_score : 5,
+                  maxScore: h.max_score !== undefined ? h.max_score : 10,
+                  deadline: h.deadline,
+                  maxAttempts: h.max_attempts,
+                  type: h.type
+                }))
+              }))
+            }))
+          }
+        }
+
+        // Active class & lesson handling for My Classes page
+        if (hash === 'my-classes') {
+          if (classId) {
+            state.classChapters = state.classChaptersCache[classId] || []
+
+            if (lessonId) {
+              let foundLesson = null
+              for (const ch of state.classChapters) {
+                const found = (ch.lessons || []).find(l => l.id === lessonId)
+                if (found) {
+                  foundLesson = found
+                  break
+                }
+              }
+
+              if (foundLesson && Array.isArray(foundLesson.homeworks) && foundLesson.homeworks.length > 0) {
+                state.activeLessonHomeworks = foundLesson.homeworks
+              } else if (foundLesson && Array.isArray(foundLesson.homeworks) && foundLesson.homeworks.length === 0) {
+                state.activeLessonHomeworks = []
+              } else {
+                const rawHomeworks = await api.getHomeworks(lessonId)
+                state.activeLessonHomeworks = (rawHomeworks || []).map(h => ({
+                  id: h.id,
+                  title: h.title,
+                  lessonId: h.lesson_id || h.lessonId,
+                  pdfPath: h.pdf_path || h.pdfPath,
+                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes || 45),
+                  passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore || 5),
+                  maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore || 10),
+                  deadline: h.deadline
+                }))
+              }
             } else {
               state.activeLessonHomeworks = []
             }
@@ -138,11 +250,13 @@ async function router() {
         }
       }
 
-      // 2. Fetch Students (for Student Management, Admin Dashboard, Class Management)
-      if (['students', 'admin-dashboard', 'classes-admin', 'class-details', 'student-details'].includes(hash)) {
-        const students = await api.getStudents()
-        state.students = students || []
-        
+      // 2. Fetch Students (for Student Management, Class Management)
+      if (['students', 'classes-admin', 'class-details', 'student-details'].includes(hash)) {
+        if (!state.students || state.students.length === 0) {
+          const students = await api.getStudents()
+          state.students = students || []
+        }
+
         // Count student profiles associated with each class to populate studentsCount
         state.classes.forEach(c => {
           c.studentsCount = state.students.filter(s => s.classIds ? s.classIds.includes(c.id) : (s.classId === c.id)).length
@@ -191,6 +305,29 @@ async function router() {
           }
         })
       }
+
+      // 7. Fetch Admin History & Tracking Data (Parallelized with Classes loader, no extra students call)
+      if (hash === 'admin-history') {
+        const classId = params.get('classId') || ''
+        const homeworkId = params.get('homeworkId') || ''
+
+        const loadClassesTask = (!state.classes || state.classes.length === 0)
+          ? api.getClasses().then(rawClasses => {
+              state.classes = (rawClasses || []).map(c => ({
+                id: c.id,
+                name: c.name,
+                studentsCount: c.studentsCount || 0,
+                tuitionFee: c.tuitionFee || 0,
+                progress: 0
+              }))
+            })
+          : Promise.resolve()
+
+        await Promise.all([
+          loadClassesTask,
+          loadAdminHistoryData(classId, homeworkId)
+        ])
+      }
     } catch (err) {
       console.warn('[Router] Failed to pre-fetch real data from backend:', err.message)
     }
@@ -200,19 +337,47 @@ async function router() {
   if (app) {
     app.innerHTML = route.render()
     route.bind()
+
+    // Auto-hide sidebar on entering all pages
+    const layout = app.querySelector('.app-layout')
+    if (layout) {
+      layout.classList.add('sidebar-collapsed')
+    }
   }
 }
 
 window.addEventListener('hashchange', router)
 window.addEventListener('DOMContentLoaded', router)
 
-// Global event delegation for Collapsible Sidebar Toggle Button
+// Global event delegation for Collapsible Sidebar Toggle Button & Navigation auto-hide
 document.addEventListener('click', (e) => {
   const toggleBtn = e.target.closest('#sidebar-toggle-btn')
   if (toggleBtn) {
     const layout = document.querySelector('.app-layout')
     if (layout) {
       layout.classList.toggle('sidebar-collapsed')
+    }
+    return
+  }
+
+  // Auto-hide sidebar when clicking any navigation link in sidebar
+  const navItem = e.target.closest('.sidebar .nav-item')
+  if (navItem && !navItem.id?.includes('logout')) {
+    const layout = document.querySelector('.app-layout')
+    if (layout) {
+      layout.classList.add('sidebar-collapsed')
+    }
+    return
+  }
+
+  // Mobile / iPad backdrop click outside sidebar to close sidebar
+  if (window.innerWidth <= 1024) {
+    const layout = document.querySelector('.app-layout')
+    const sidebar = document.querySelector('.sidebar')
+    if (layout && !layout.classList.contains('sidebar-collapsed') && sidebar) {
+      if (!sidebar.contains(e.target) && !e.target.closest('#sidebar-toggle-btn')) {
+        layout.classList.add('sidebar-collapsed')
+      }
     }
   }
 })

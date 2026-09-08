@@ -47,15 +47,26 @@ serve(async (req: Request) => {
         })
       }
 
-      const scores = submissions.map((s) => Number(s.total_score))
-      const totalSubmissions = scores.length
+      // Take highest score per student for this homework
+      const bestScorePerStudent = new Map<string, number>()
+      for (const sub of submissions) {
+        const score = Number(sub.total_score)
+        const currentBest = bestScorePerStudent.get(sub.student_id)
+        if (currentBest === undefined || score > currentBest) {
+          bestScorePerStudent.set(sub.student_id, score)
+        }
+      }
+
+      const scores = Array.from(bestScorePerStudent.values())
+      const totalSubmissions = submissions.length
+      const studentCount = scores.length
       const sum = scores.reduce((a, b) => a + b, 0)
-      const averageScore = Number((sum / totalSubmissions).toFixed(2))
+      const averageScore = Number((sum / studentCount).toFixed(2))
       const highestScore = Math.max(...scores)
       const lowestScore = Math.min(...scores)
       const passCount = scores.filter((sc) => sc >= Number(homework.pass_score)).length
-      const failCount = totalSubmissions - passCount
-      const passPercentage = Number(((passCount / totalSubmissions) * 100).toFixed(2))
+      const failCount = studentCount - passCount
+      const passPercentage = Number(((passCount / studentCount) * 100).toFixed(2))
 
       return jsonResponse({
         homework,
@@ -88,21 +99,34 @@ serve(async (req: Request) => {
       if (stErr) return errorResponse(stErr.message, 500)
 
       const studentIds = students.map((s) => s.id)
-      let submissions: Array<{ total_score: number }> = []
+      let submissions: Array<{ student_id: string; homework_id: string; total_score: number }> = []
 
       if (studentIds.length > 0) {
         const { data: subData } = await serviceRoleClient
           .from('submissions')
-          .select('total_score')
+          .select('student_id, homework_id, total_score')
           .in('student_id', studentIds)
 
         if (subData) submissions = subData
       }
 
       const totalSubmissions = submissions.length
+
+      // Take highest score per student per homework
+      const bestScoreMap = new Map<string, number>()
+      for (const sub of submissions) {
+        const key = `${sub.student_id}_${sub.homework_id}`
+        const score = Number(sub.total_score)
+        const currentBest = bestScoreMap.get(key)
+        if (currentBest === undefined || score > currentBest) {
+          bestScoreMap.set(key, score)
+        }
+      }
+
+      const bestScores = Array.from(bestScoreMap.values())
       const averageScore =
-        totalSubmissions > 0
-          ? Number((submissions.reduce((a, b) => a + Number(b.total_score), 0) / totalSubmissions).toFixed(2))
+        bestScores.length > 0
+          ? Number((bestScores.reduce((a, b) => a + b, 0) / bestScores.length).toFixed(2))
           : 0
 
       return jsonResponse({
@@ -134,15 +158,29 @@ serve(async (req: Request) => {
 
       const { data: submissions, error: subErr } = await serviceRoleClient
         .from('submissions')
-        .select('id, total_score, max_score, submitted_at, homeworks(title)')
+        .select('id, homework_id, total_score, max_score, submitted_at, homeworks(title)')
         .eq('student_id', studentId)
 
       if (subErr) return errorResponse(subErr.message, 500)
 
       const totalSubmissions = submissions?.length || 0
+
+      // Take highest score per homework for this student
+      const bestScorePerHomework = new Map<string, number>()
+      if (submissions) {
+        for (const sub of submissions) {
+          const score = Number(sub.total_score)
+          const currentBest = bestScorePerHomework.get(sub.homework_id)
+          if (currentBest === undefined || score > currentBest) {
+            bestScorePerHomework.set(sub.homework_id, score)
+          }
+        }
+      }
+
+      const bestScores = Array.from(bestScorePerHomework.values())
       const averageScore =
-        totalSubmissions > 0
-          ? Number((submissions!.reduce((a, b) => a + Number(b.total_score), 0) / totalSubmissions).toFixed(2))
+        bestScores.length > 0
+          ? Number((bestScores.reduce((a, b) => a + b, 0) / bestScores.length).toFixed(2))
           : 0
 
       return jsonResponse({
@@ -166,15 +204,28 @@ serve(async (req: Request) => {
         title,
         pass_score,
         max_score,
-        submissions (total_score)
+        submissions (student_id, total_score)
       `)
 
     if (hAllErr) return errorResponse(hAllErr.message, 500)
 
     const summary = homeworkStats.map((hw) => {
-      const subs = hw.submissions as unknown as Array<{ total_score: number }> || []
+      const subs = hw.submissions as unknown as Array<{ student_id: string; total_score: number }> || []
+
+      // Take highest score per student for each homework
+      const bestScoreMap = new Map<string, number>()
+      for (const s of subs) {
+        const score = Number(s.total_score)
+        const currentBest = bestScoreMap.get(s.student_id)
+        if (currentBest === undefined || score > currentBest) {
+          bestScoreMap.set(s.student_id, score)
+        }
+      }
+
+      const bestScores = Array.from(bestScoreMap.values())
       const subCount = subs.length
-      const avg = subCount > 0 ? Number((subs.reduce((a, b) => a + Number(b.total_score), 0) / subCount).toFixed(2)) : 0
+      const avg = bestScores.length > 0 ? Number((bestScores.reduce((a, b) => a + b, 0) / bestScores.length).toFixed(2)) : 0
+
       return {
         homeworkId: hw.id,
         title: hw.title,

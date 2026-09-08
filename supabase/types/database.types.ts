@@ -243,6 +243,8 @@ export interface Database {
           max_score: number
           correct_count: number
           wrong_count: number
+          duration_seconds_taken?: number
+          is_late: boolean
           submitted_at: string
         }
         Insert: {
@@ -253,6 +255,8 @@ export interface Database {
           max_score: number
           correct_count: number
           wrong_count: number
+          duration_seconds_taken?: number
+          is_late?: boolean
           submitted_at?: string
         }
         Update: {
@@ -263,6 +267,8 @@ export interface Database {
           max_score?: number
           correct_count?: number
           wrong_count?: number
+          duration_seconds_taken?: number
+          is_late?: boolean
           submitted_at?: string
         }
       }
