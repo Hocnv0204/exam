@@ -255,9 +255,9 @@ export function cleanLatexPrompt(text) {
  */
 export function extractCommentKey(text) {
   if (!text) return null
-  const m = text.match(/%\s*(?:Câu\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*([A-D])\b/i) ||
+  const m = text.match(/%\s*(?:C[aâ]u\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*([A-D])\b/i) ||
             text.match(/%\s*Đáp\s*án\s*[-:]\s*([A-D])\b/i) ||
-            text.match(/%\s*Câu\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*([A-D])\b/i)
+            text.match(/%\s*C[aâ]u\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*([A-D])\b/i)
   return m ? m[1].toUpperCase() : null
 }
 
@@ -270,7 +270,7 @@ export function extractCommentTfKeys(text) {
   if (!text) return null
   
   // Dạng a-S, b-Đ, c-S, d-Đ hoặc aD bS cD dS hoặc a:Đ b:S c:Đ d:S
-  const matchDetailed = text.match(/%\s*(?:Câu\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*a[-:\s]*([ĐDSTF01])[\s,;]*b[-:\s]*([ĐDSTF01])[\s,;]*c[-:\s]*([ĐDSTF01])[\s,;]*d[-:\s]*([ĐDSTF01])/i)
+  const matchDetailed = text.match(/%\s*(?:C[aâ]u\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*a[-:\s]*([ĐDSTF01])[\s,;]*b[-:\s]*([ĐDSTF01])[\s,;]*c[-:\s]*([ĐDSTF01])[\s,;]*d[-:\s]*([ĐDSTF01])/i)
   if (matchDetailed) {
     const isTrue = (char) => ['D', 'Đ', 'T', '1'].includes(char.toUpperCase())
     return {
@@ -282,7 +282,7 @@ export function extractCommentTfKeys(text) {
   }
 
   // Dạng 4 ký tự liền nhau: DDSD, TTFT, DSDD
-  const matchCompact = text.match(/%\s*(?:Câu\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*([ĐDSTF01]{4})/i)
+  const matchCompact = text.match(/%\s*(?:C[aâ]u\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*([ĐDSTF01]{4})/i)
   if (matchCompact) {
     const chars = matchCompact[1].split('')
     const isTrue = (char) => ['D', 'Đ', 'T', '1'].includes(char.toUpperCase())
@@ -305,7 +305,7 @@ export function extractCommentTfKeys(text) {
  */
 export function extractCommentSaKey(text) {
   if (!text) return null
-  const m = text.match(/%\s*(?:Câu\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*([^\n\r]+)/i)
+  const m = text.match(/%\s*(?:C[aâ]u\s*\d+(?:\s*\([^)]*\))?\s*[-:]\s*)?Key:\s*([^\n\r]+)/i)
   if (m) {
     const val = m[1].trim()
     // Nếu là key trắc nghiệm (A, B, C, D) đơn lẻ thì bỏ qua cho extractCommentKey
@@ -373,6 +373,288 @@ export function parseAnswerKeyString(inputStr) {
  *   errors: Array<{ questionNumber: number, rawTextSnippet: string, reason: string }>
  * }}
  */
+/**
+ * Bóc tách một khối câu hỏi đơn lẻ từ mã LaTeX
+ * @param {string} questionBlock - Chuỗi mã nguồn của 1 câu
+ * @param {number} questionNumber - Số thứ tự câu
+ * @param {string|null} currentPartTitle - Tiêu đề phần hiện tại
+ * @returns {{ question: object, error: string | null, partTitle: string | null }}
+ */
+export function parseSingleQuestionBlock(questionBlock, questionNumber = 1, currentPartTitle = null) {
+  let error = null
+  let partTitle = currentPartTitle
+
+  // Kiểm tra xem có \PartHeader ở trước hoặc trong khối câu này không
+  const partMatch = questionBlock.match(/\\PartHeader\s*\{([^}]+)\}\s*\{([^}]+)\}/)
+  if (partMatch) {
+    partTitle = `${partMatch[1].trim()}. ${partMatch[2].trim()}`
+  }
+
+  // 1. Tìm comment đáp án nằm ngay trong khối câu hỏi này
+  const commentKey = extractCommentKey(questionBlock)
+  const commentTfKeys = extractCommentTfKeys(questionBlock)
+  const commentSaKey = extractCommentSaKey(questionBlock)
+
+  // Phát hiện yêu cầu hình ảnh trong câu hỏi (\includegraphics hoặc [HÌNH])
+  const imgMatch = questionBlock.match(/\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}/) || questionBlock.match(/\[H[IÌ]NH(?:[_\s:]*([a-zA-Z0-9_.-]+))?\]/i)
+  let detectedImageName = null
+  if (imgMatch) {
+    const fn = imgMatch[1] ? imgMatch[1].split('/').pop().trim() : 'hinh_ve.png'
+    if (!fn.toLowerCase().includes('minion')) {
+      detectedImageName = fn
+    }
+  }
+
+  // 2. Xác định dạng câu hỏi và bóc tách
+  const choiceMatch = questionBlock.match(/\\(choice|choiceTwo|choiceFour)\b/)
+  const choiceTfMatch = questionBlock.match(/\\choiceTF\b/)
+  const tfBoxMatch = questionBlock.match(/\\begin\{TrueFalseBox\}/)
+  const shortAnsMatch = questionBlock.match(/\\shortans\b/)
+  const saBoxMatch = questionBlock.match(/\\ShortAnswerBox\b/)
+
+  let question = null
+
+  if (choiceMatch) {
+    // DẠNG 1: TRẮC NGHIỆM ABCD
+    const choiceCmd = choiceMatch[0]
+    const choicePos = questionBlock.indexOf(choiceCmd)
+    const promptRaw = questionBlock.substring(0, choicePos)
+    const afterChoice = questionBlock.substring(choicePos + choiceCmd.length)
+
+    // Dùng Balanced Brace Scanner để lấy đúng 4 đối số
+    const extracted = extractBalancedArguments(afterChoice, 0, 4)
+    if (extracted.args.length < 4) {
+      error = `Câu ${questionNumber}: Lệnh ${choiceCmd} chỉ bóc tách được ${extracted.args.length}/4 phương án. ${extracted.error || ''}`
+    }
+
+    let detectedAnswer = commentKey
+    const options = []
+    const keys = ['A', 'B', 'C', 'D']
+
+    extracted.args.forEach((argRaw, i) => {
+      let content = argRaw.trim()
+      const key = keys[i] || 'A'
+
+      // Kiểm tra xem có \True không
+      if (content.includes('\\True')) {
+        detectedAnswer = key
+        content = content.replace(/\\True\b/g, '').trim()
+      }
+
+      options.push({ key, content })
+    })
+
+    // Làm sạch prompt câu hỏi
+    let cleanPrompt = promptRaw
+      .replace(/%\s*C[aâ]u[^\n]*\n?/gi, '')
+      .replace(/\\Cau\b/g, '')
+      .replace(/\\PartHeader\{[^}]+\}\{[^}]+\}/g, '')
+
+    cleanPrompt = cleanLatexPrompt(cleanPrompt)
+
+    question = {
+      questionNumber,
+      questionType: 'MULTIPLE_CHOICE',
+      partTitle,
+      content: cleanPrompt,
+      options,
+      mcAnswer: detectedAnswer || null,
+      imageName: detectedImageName,
+      explanation: null,
+      rawBlock: questionBlock,
+      parseError: error
+    }
+  } else if (choiceTfMatch) {
+    // DẠNG 2A: ĐÚNG / SAI 4 Ý (\choiceTF)
+    const choicePos = questionBlock.indexOf('\\choiceTF')
+    const promptRaw = questionBlock.substring(0, choicePos)
+    const afterChoice = questionBlock.substring(choicePos + '\\choiceTF'.length)
+
+    const extracted = extractBalancedArguments(afterChoice, 0, 4)
+    if (extracted.args.length < 4) {
+      error = `Câu ${questionNumber}: Lệnh \\choiceTF chỉ bóc tách được ${extracted.args.length}/4 mệnh đề.`
+    }
+
+    const statements = []
+    const tfAnswers = commentTfKeys || { a: false, b: false, c: false, d: false }
+    const tfKeys = ['a', 'b', 'c', 'd']
+
+    extracted.args.forEach((argRaw, i) => {
+      let content = argRaw.trim()
+      const k = tfKeys[i] || 'a'
+
+      if (content.includes('\\True')) {
+        tfAnswers[k] = true
+        content = content.replace(/\\True\b/g, '').trim()
+      }
+
+      statements.push({ key: k, content })
+    })
+
+    let cleanPrompt = promptRaw
+      .replace(/%\s*C[aâ]u[^\n]*\n?/gi, '')
+      .replace(/\\Cau\b/g, '')
+      .replace(/\\PartHeader\{[^}]+\}\{[^}]+\}/g, '')
+
+    cleanPrompt = cleanLatexPrompt(cleanPrompt)
+
+    question = {
+      questionNumber,
+      questionType: 'TRUE_FALSE',
+      partTitle,
+      content: cleanPrompt,
+      statements,
+      tfAnswers,
+      imageName: detectedImageName,
+      explanation: null,
+      rawBlock: questionBlock,
+      parseError: error
+    }
+  } else if (tfBoxMatch) {
+    // DẠNG 2B: ĐÚNG / SAI dạng \begin{TrueFalseBox}{...} \tfStatement{...} \end{TrueFalseBox}
+    const tfBoxPos = questionBlock.indexOf('\\begin{TrueFalseBox}')
+    const afterBoxStart = questionBlock.substring(tfBoxPos + '\\begin{TrueFalseBox}'.length)
+    const promptExtract = extractBalancedArguments(afterBoxStart, 0, 1)
+    const rawPrompt = promptExtract.args[0] || ''
+    const remainder = afterBoxStart.substring(promptExtract.nextIndex)
+
+    const statements = []
+    const tfAnswers = commentTfKeys || { a: false, b: false, c: false, d: false }
+    const tfKeys = ['a', 'b', 'c', 'd']
+
+    let stmIdx = 0
+    let searchPos = 0
+    while (stmIdx < 4) {
+      const sPos = remainder.indexOf('\\tfStatement', searchPos)
+      if (sPos === -1) break
+      const afterCmd = remainder.substring(sPos + '\\tfStatement'.length)
+      const stmExtract = extractBalancedArguments(afterCmd, 0, 1)
+      if (stmExtract.args.length > 0) {
+        let stmContent = stmExtract.args[0].trim()
+        const k = tfKeys[stmIdx] || 'a'
+        if (stmContent.includes('\\True')) {
+          tfAnswers[k] = true
+          stmContent = stmContent.replace(/\\True\b/g, '').trim()
+        }
+        stmContent = stmContent.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
+        statements.push({ key: k, content: cleanLatexPrompt(stmContent) })
+        stmIdx++
+        searchPos = sPos + '\\tfStatement'.length + stmExtract.nextIndex
+      } else {
+        break
+      }
+    }
+
+    let cleanPrompt = cleanLatexPrompt(rawPrompt)
+
+    question = {
+      questionNumber,
+      questionType: 'TRUE_FALSE',
+      partTitle,
+      content: cleanPrompt,
+      statements,
+      tfAnswers,
+      imageName: detectedImageName,
+      explanation: null,
+      rawBlock: questionBlock,
+      parseError: error
+    }
+  } else if (saBoxMatch) {
+    // DẠNG 3A: TRẢ LỜI NGẮN (\ShortAnswerBox{...})
+    const saPos = questionBlock.indexOf('\\ShortAnswerBox')
+    const afterSa = questionBlock.substring(saPos + '\\ShortAnswerBox'.length)
+    const extracted = extractBalancedArguments(afterSa, 0, 1)
+    const rawPrompt = extracted.args[0] || ''
+    let cleanPrompt = cleanLatexPrompt(rawPrompt)
+
+    question = {
+      questionNumber,
+      questionType: 'SHORT_ANSWER',
+      partTitle,
+      content: cleanPrompt,
+      saAnswer: commentSaKey || null,
+      imageName: detectedImageName,
+      explanation: null,
+      rawBlock: questionBlock,
+      parseError: error
+    }
+  } else if (shortAnsMatch) {
+    // DẠNG 3B: TRẢ LỜI NGẮN (\shortans{...})
+    const saPos = questionBlock.indexOf('\\shortans')
+    const promptRaw = questionBlock.substring(0, saPos)
+    const afterSa = questionBlock.substring(saPos + '\\shortans'.length)
+
+    const extracted = extractBalancedArguments(afterSa, 0, 1)
+    const saAnswer = extracted.args[0] ? extracted.args[0].trim() : (commentSaKey || null)
+
+    let cleanPrompt = promptRaw
+      .replace(/%\s*C[aâ]u[^\n]*\n?/gi, '')
+      .replace(/\\Cau\b/g, '')
+      .replace(/\\PartHeader\{[^}]+\}\{[^}]+\}/g, '')
+
+    cleanPrompt = cleanLatexPrompt(cleanPrompt)
+
+    question = {
+      questionNumber,
+      questionType: 'SHORT_ANSWER',
+      partTitle,
+      content: cleanPrompt,
+      saAnswer,
+      imageName: detectedImageName,
+      explanation: null,
+      rawBlock: questionBlock,
+      parseError: error
+    }
+  } else {
+    // Fallback: Kiểm tra xem có các ký hiệu A. B. C. D. thủ công không
+    const manualOpts = questionBlock.match(/[A-D]\.\s+([\s\S]+?)(?=[B-D]\.|$)/g)
+    if (manualOpts && manualOpts.length >= 2) {
+      const firstOptIndex = questionBlock.search(/[A-D]\.\s+/)
+      const promptRaw = questionBlock.substring(0, firstOptIndex)
+      let cleanPrompt = cleanLatexPrompt(promptRaw.replace(/\\Cau\b/g, '').replace(/%\s*C[aâ]u[^\n]*\n?/gi, ''))
+
+      const options = []
+      manualOpts.forEach(opt => {
+        const k = opt.substring(0, 1).toUpperCase()
+        const c = opt.substring(2).trim()
+        options.push({ key: k, content: c })
+      })
+
+      question = {
+        questionNumber,
+        questionType: 'MULTIPLE_CHOICE',
+        partTitle,
+        content: cleanPrompt,
+        options,
+        mcAnswer: commentKey || null,
+        imageName: detectedImageName,
+        explanation: null,
+        rawBlock: questionBlock,
+        parseError: error
+      }
+    } else {
+      // Câu hỏi tự luận thuần hoặc trả lời ngắn không có macro riêng
+      let cleanPrompt = cleanLatexPrompt(questionBlock.replace(/\\Cau\b/g, '').replace(/%\s*C[aâ]u[^\n]*\n?/gi, ''))
+      question = {
+        questionNumber,
+        questionType: 'SHORT_ANSWER',
+        partTitle,
+        content: cleanPrompt,
+        saAnswer: commentSaKey || null,
+        imageName: detectedImageName,
+        explanation: null,
+        rawBlock: questionBlock,
+        parseError: error
+      }
+    }
+  }
+
+  return { question, error, partTitle }
+}
+
+/**
+ * Trích xuất toàn bộ đề thi LaTeX thành cấu trúc dữ liệu câu hỏi hoàn chỉnh
+ */
 export function parseLatexExam(latexSource) {
   const result = {
     success: true,
@@ -395,8 +677,7 @@ export function parseLatexExam(latexSource) {
     result.subtitle = headerMatch[2].trim()
   }
 
-  // 2. Tách theo các khối câu hỏi.
-  // Để không bỏ sót phần header trước câu hỏi (ví dụ \PartHeader), ta duyệt từ \begin{document}
+  // 2. Tách theo các khối câu hỏi
   let bodyContent = latexSource
   const docStart = latexSource.indexOf('\\begin{document}')
   if (docStart !== -1) {
@@ -407,9 +688,7 @@ export function parseLatexExam(latexSource) {
     bodyContent = bodyContent.substring(0, docEnd)
   }
 
-  // Tách văn bản theo các mốc câu hỏi: giữ lại cả các comment ngay trước mốc
-  // Regex tìm mốc bắt đầu: \Cau hoặc \begin{TrueFalseBox} hoặc \ShortAnswerBox hoặc \begin{ex} hoặc \begin{cau}
-  const markerRegex = /(?:%\s*Câu[^\n]*\n)*\s*(?:\\Cau\b|\\begin\{TrueFalseBox\}|\\ShortAnswerBox\b|\\begin\{ex\}|\\begin\{cau\}|(?:\n|^)\s*Câu\s*\d+\s*[:.])/g
+  const markerRegex = /(?:%[^\n]*\n)*\s*(?:\\Cau\b|\\begin\{TrueFalseBox\}|\\ShortAnswerBox\b|\\begin\{ex\}|\\begin\{cau\}|(?:\n|^)\s*C[aâ]u\s*\d+\s*[:.])/gi
   
   const matches = []
   let match
@@ -438,270 +717,29 @@ export function parseLatexExam(latexSource) {
     const next = matches[idx + 1]
     const questionNumber = idx + 1
 
-    // Nội dung khối câu hỏi
     const questionBlock = next 
       ? bodyContent.substring(current.index, next.index)
       : bodyContent.substring(current.index)
 
-    // Kiểm tra xem có \PartHeader ở trước hoặc trong khối câu này không
-    const partMatch = questionBlock.match(/\\PartHeader\s*\{([^}]+)\}\s*\{([^}]+)\}/)
-    if (partMatch) {
-      currentPartTitle = `${partMatch[1].trim()}. ${partMatch[2].trim()}`
+    const { question, error, partTitle } = parseSingleQuestionBlock(questionBlock, questionNumber, currentPartTitle)
+    
+    if (partTitle) {
+      currentPartTitle = partTitle
+    }
+    
+    if (error) {
+      result.errors.push({
+        questionNumber,
+        rawTextSnippet: questionBlock.substring(0, 150),
+        reason: error
+      })
     }
 
-    // 1. Tìm comment đáp án nằm ngay trong khối câu hỏi này
-    const commentKey = extractCommentKey(questionBlock)
-    const commentTfKeys = extractCommentTfKeys(questionBlock)
-    const commentSaKey = extractCommentSaKey(questionBlock)
-
-    // Phát hiện yêu cầu hình ảnh trong câu hỏi (\includegraphics hoặc [HÌNH])
-    const imgMatch = questionBlock.match(/\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}/) || questionBlock.match(/\[H[IÌ]NH(?:[_\s:]*([a-zA-Z0-9_.-]+))?\]/i)
-    let detectedImageName = null
-    if (imgMatch) {
-      const fn = imgMatch[1] ? imgMatch[1].split('/').pop().trim() : 'hinh_ve.png'
-      if (!fn.toLowerCase().includes('minion')) {
-        detectedImageName = fn
-      }
-    }
-
-    // 2. Xác định dạng câu hỏi và bóc tách
-    // Kiểm tra trắc nghiệm 4 lựa chọn: \choice, \choiceTwo, \choiceFour
-    const choiceMatch = questionBlock.match(/\\(choice|choiceTwo|choiceFour)\b/)
-    const choiceTfMatch = questionBlock.match(/\\choiceTF\b/)
-    const tfBoxMatch = questionBlock.match(/\\begin\{TrueFalseBox\}/)
-    const shortAnsMatch = questionBlock.match(/\\shortans\b/)
-    const saBoxMatch = questionBlock.match(/\\ShortAnswerBox\b/)
-
-    if (choiceMatch) {
-      // DẠNG 1: TRẮC NGHIỆM ABCD
-      const choiceCmd = choiceMatch[0]
-      const choicePos = questionBlock.indexOf(choiceCmd)
-      const promptRaw = questionBlock.substring(0, choicePos)
-      const afterChoice = questionBlock.substring(choicePos + choiceCmd.length)
-
-      // Dùng Balanced Brace Scanner để lấy đúng 4 đối số
-      const extracted = extractBalancedArguments(afterChoice, 0, 4)
-      if (extracted.args.length < 4) {
-        result.errors.push({
-          questionNumber,
-          rawTextSnippet: questionBlock.substring(0, 150),
-          reason: `Câu ${questionNumber}: Lệnh ${choiceCmd} chỉ bóc tách được ${extracted.args.length}/4 phương án. ${extracted.error || ''}`
-        })
-      }
-
-      let detectedAnswer = commentKey
-      const options = []
-      const keys = ['A', 'B', 'C', 'D']
-
-      extracted.args.forEach((argRaw, i) => {
-        let content = argRaw.trim()
-        const key = keys[i] || 'A'
-
-        // Kiểm tra xem có \True không
-        if (content.includes('\\True')) {
-          detectedAnswer = key
-          content = content.replace(/\\True\b/g, '').trim()
-        }
-
-        options.push({ key, content })
-      })
-
-      // Làm sạch prompt câu hỏi
-      let cleanPrompt = promptRaw
-        .replace(/%\s*Câu[^\n]*\n?/g, '')
-        .replace(/\\Cau\b/g, '')
-        .replace(/\\PartHeader\{[^}]+\}\{[^}]+\}/g, '')
-
-      cleanPrompt = cleanLatexPrompt(cleanPrompt)
-
-      result.questions.push({
-        questionNumber,
-        questionType: 'MULTIPLE_CHOICE',
-        partTitle: currentPartTitle,
-        content: cleanPrompt,
-        options,
-        mcAnswer: detectedAnswer || null,
-        imageName: detectedImageName,
-        explanation: null
-      })
-    } else if (choiceTfMatch) {
-      // DẠNG 2A: ĐÚNG / SAI 4 Ý (\choiceTF)
-      const choicePos = questionBlock.indexOf('\\choiceTF')
-      const promptRaw = questionBlock.substring(0, choicePos)
-      const afterChoice = questionBlock.substring(choicePos + '\\choiceTF'.length)
-
-      const extracted = extractBalancedArguments(afterChoice, 0, 4)
-      if (extracted.args.length < 4) {
-        result.errors.push({
-          questionNumber,
-          rawTextSnippet: questionBlock.substring(0, 150),
-          reason: `Câu ${questionNumber}: Lệnh \\choiceTF chỉ bóc tách được ${extracted.args.length}/4 mệnh đề.`
-        })
-      }
-
-      const statements = []
-      const tfAnswers = commentTfKeys || { a: false, b: false, c: false, d: false }
-      const tfKeys = ['a', 'b', 'c', 'd']
-
-      extracted.args.forEach((argRaw, i) => {
-        let content = argRaw.trim()
-        const k = tfKeys[i] || 'a'
-
-        if (content.includes('\\True')) {
-          tfAnswers[k] = true
-          content = content.replace(/\\True\b/g, '').trim()
-        }
-
-        statements.push({ key: k, content })
-      })
-
-      let cleanPrompt = promptRaw
-        .replace(/%\s*Câu[^\n]*\n?/g, '')
-        .replace(/\\Cau\b/g, '')
-        .replace(/\\PartHeader\{[^}]+\}\{[^}]+\}/g, '')
-
-      cleanPrompt = cleanLatexPrompt(cleanPrompt)
-
-      result.questions.push({
-        questionNumber,
-        questionType: 'TRUE_FALSE',
-        partTitle: currentPartTitle,
-        content: cleanPrompt,
-        statements,
-        tfAnswers,
-        imageName: detectedImageName,
-        explanation: null
-      })
-    } else if (tfBoxMatch) {
-      // DẠNG 2B: ĐÚNG / SAI dạng \begin{TrueFalseBox}{...} \tfStatement{...} \end{TrueFalseBox}
-      const tfBoxPos = questionBlock.indexOf('\\begin{TrueFalseBox}')
-      const afterBoxStart = questionBlock.substring(tfBoxPos + '\\begin{TrueFalseBox}'.length)
-      const promptExtract = extractBalancedArguments(afterBoxStart, 0, 1)
-      const rawPrompt = promptExtract.args[0] || ''
-      const remainder = afterBoxStart.substring(promptExtract.nextIndex)
-
-      const statements = []
-      const tfAnswers = commentTfKeys || { a: false, b: false, c: false, d: false }
-      const tfKeys = ['a', 'b', 'c', 'd']
-
-      let stmIdx = 0
-      let searchPos = 0
-      while (stmIdx < 4) {
-        const sPos = remainder.indexOf('\\tfStatement', searchPos)
-        if (sPos === -1) break
-        const afterCmd = remainder.substring(sPos + '\\tfStatement'.length)
-        const stmExtract = extractBalancedArguments(afterCmd, 0, 1)
-        if (stmExtract.args.length > 0) {
-          let stmContent = stmExtract.args[0].trim()
-          const k = tfKeys[stmIdx] || 'a'
-          if (stmContent.includes('\\True')) {
-            tfAnswers[k] = true
-            stmContent = stmContent.replace(/\\True\b/g, '').trim()
-          }
-          stmContent = stmContent.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
-          statements.push({ key: k, content: cleanLatexPrompt(stmContent) })
-          stmIdx++
-          searchPos = sPos + '\\tfStatement'.length + stmExtract.nextIndex
-        } else {
-          break
-        }
-      }
-
-      let cleanPrompt = cleanLatexPrompt(rawPrompt)
-
-      result.questions.push({
-        questionNumber,
-        questionType: 'TRUE_FALSE',
-        partTitle: currentPartTitle,
-        content: cleanPrompt,
-        statements,
-        tfAnswers,
-        imageName: detectedImageName,
-        explanation: null
-      })
-    } else if (saBoxMatch) {
-      // DẠNG 3A: TRẢ LỜI NGẮN (\ShortAnswerBox{...})
-      const saPos = questionBlock.indexOf('\\ShortAnswerBox')
-      const afterSa = questionBlock.substring(saPos + '\\ShortAnswerBox'.length)
-      const extracted = extractBalancedArguments(afterSa, 0, 1)
-      const rawPrompt = extracted.args[0] || ''
-      let cleanPrompt = cleanLatexPrompt(rawPrompt)
-
-      result.questions.push({
-        questionNumber,
-        questionType: 'SHORT_ANSWER',
-        partTitle: currentPartTitle,
-        content: cleanPrompt,
-        saAnswer: commentSaKey || null,
-        imageName: detectedImageName,
-        explanation: null
-      })
-    } else if (shortAnsMatch) {
-      // DẠNG 3B: TRẢ LỜI NGẮN (\shortans{...})
-      const saPos = questionBlock.indexOf('\\shortans')
-      const promptRaw = questionBlock.substring(0, saPos)
-      const afterSa = questionBlock.substring(saPos + '\\shortans'.length)
-
-      const extracted = extractBalancedArguments(afterSa, 0, 1)
-      const saAnswer = extracted.args[0] ? extracted.args[0].trim() : (commentSaKey || null)
-
-      let cleanPrompt = promptRaw
-        .replace(/%\s*Câu[^\n]*\n?/g, '')
-        .replace(/\\Cau\b/g, '')
-        .replace(/\\PartHeader\{[^}]+\}\{[^}]+\}/g, '')
-
-      cleanPrompt = cleanLatexPrompt(cleanPrompt)
-
-      result.questions.push({
-        questionNumber,
-        questionType: 'SHORT_ANSWER',
-        partTitle: currentPartTitle,
-        content: cleanPrompt,
-        saAnswer,
-        imageName: detectedImageName,
-        explanation: null
-      })
-    } else {
-      // Fallback: Kiểm tra xem có các ký hiệu A. B. C. D. thủ công không
-      const manualOpts = questionBlock.match(/[A-D]\.\s+([\s\S]+?)(?=[B-D]\.|$)/g)
-      if (manualOpts && manualOpts.length >= 2) {
-        // Tách câu hỏi trắc nghiệm theo A. B. C. D. thủ công
-        const firstOptIndex = questionBlock.search(/[A-D]\.\s+/)
-        const promptRaw = questionBlock.substring(0, firstOptIndex)
-        let cleanPrompt = cleanLatexPrompt(promptRaw.replace(/\\Cau\b/g, '').replace(/%\s*Câu[^\n]*\n?/g, ''))
-
-        const options = []
-        manualOpts.forEach(opt => {
-          const k = opt.substring(0, 1).toUpperCase()
-          const c = opt.substring(2).trim()
-          options.push({ key: k, content: c })
-        })
-
-        result.questions.push({
-          questionNumber,
-          questionType: 'MULTIPLE_CHOICE',
-          partTitle: currentPartTitle,
-          content: cleanPrompt,
-          options,
-          mcAnswer: commentKey || null,
-          imageName: detectedImageName,
-          explanation: null
-        })
-      } else {
-        // Câu hỏi tự luận thuần hoặc trả lời ngắn không có macro riêng (ví dụ: \Cau ... Đáp số ...)
-        let cleanPrompt = cleanLatexPrompt(questionBlock.replace(/\\Cau\b/g, '').replace(/%\s*Câu[^\n]*\n?/g, ''))
-        result.questions.push({
-          questionNumber,
-          questionType: 'SHORT_ANSWER',
-          partTitle: currentPartTitle,
-          content: cleanPrompt,
-          saAnswer: commentSaKey || null,
-          imageName: detectedImageName,
-          explanation: null
-        })
-      }
+    if (question) {
+      result.questions.push(question)
     }
   }
 
   return result
 }
+

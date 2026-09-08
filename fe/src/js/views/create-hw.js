@@ -5,7 +5,7 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { parseLatexExam, parseAnswerKeyString } from '../utils/latex-parser.js'
+import { parseLatexExam, parseSingleQuestionBlock, parseAnswerKeyString } from '../utils/latex-parser.js'
 import { renderMath } from '../components/math-renderer.js'
 
 // In-memory state
@@ -14,6 +14,18 @@ let parsedLatexData = null
 let latexInputText = ''
 let selectedQuestionForImage = null
 let isPasteListenerRegistered = false
+let editingQuestionNumber = null
+let singleQuestionEditErrors = {}
+
+function escapeHtml(str) {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 let currentConfig = {
   editingHomeworkId: null,
@@ -488,10 +500,64 @@ function renderQuestionsPreviewHtml(questions) {
       `
     }
 
-    const typeBadge = q.questionType === 'MULTIPLE_CHOICE' ? 'Trắc nghiệm ABCD' : (q.questionType === 'TRUE_FALSE' ? 'Đúng / Sai' : 'Trả lời ngắn')
+    const isEditing = editingQuestionNumber === q.questionNumber
     const isSelected = selectedQuestionForImage === q.questionNumber
+    const typeBadge = q.questionType === 'MULTIPLE_CHOICE' ? 'Trắc nghiệm ABCD' : (q.questionType === 'TRUE_FALSE' ? 'Đúng / Sai' : 'Trả lời ngắn')
 
-    // Kiểm tra nếu câu hỏi có ảnh đính kèm (hoặc đã có sẵn trong content)
+    if (isEditing) {
+      // INLINE LATEX EDITOR VIEW
+      const rawCode = q.rawBlock || ''
+      const editError = singleQuestionEditErrors[q.questionNumber] || q.parseError || null
+
+      html += `
+        <div class="question-card-item editing-single-latex" data-qnum="${q.questionNumber}" style="padding:16px; margin-bottom:14px; border:2px solid #2563eb; background:#f8fafc; border-radius:12px; box-shadow:0 4px 14px rgba(37,99,235,0.12);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #e2e8f0;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="question-badge" style="background:#2563eb; color:#ffffff; font-size:12px; padding:2px 8px;">Câu ${q.questionNumber}</span>
+              <span style="font-size:12px; font-weight:700; color:#1e40af;"><i class="fa-solid fa-code"></i> Sửa mã nguồn LaTeX câu này</span>
+            </div>
+            <div style="font-size:11px; color:#64748b; font-weight:600;">
+              Chỉnh sửa riêng câu ${q.questionNumber}
+            </div>
+          </div>
+
+          ${editError ? `
+            <div style="margin-bottom:10px; padding:8px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; color:#b91c1c; font-size:12px; display:flex; align-items:flex-start; gap:8px;">
+              <i class="fa-solid fa-circle-exclamation" style="margin-top:2px;"></i>
+              <div><strong>Cảnh báo/Lỗi:</strong> ${escapeHtml(editError)}</div>
+            </div>
+          ` : ''}
+
+          <div style="margin-bottom:8px;">
+            <label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">
+              Mã LaTeX câu hỏi (Nội dung, công thức, TikZ, phương án, đáp án):
+            </label>
+            <textarea id="single-q-latex-textarea-${q.questionNumber}" class="single-q-latex-textarea" rows="7" style="width:100%; font-family:var(--font-mono, 'Fira Code', monospace); font-size:13px; line-height:1.5; padding:10px 12px; border:1.5px solid #94a3b8; border-radius:8px; background:#ffffff; color:#0f172a; resize:vertical; box-sizing:border-box;" placeholder="Nhập mã LaTeX của câu hỏi...">${escapeHtml(rawCode)}</textarea>
+          </div>
+
+          <div style="margin-bottom:12px; font-size:11px; color:#475569; background:#ffffff; border:1px solid #e2e8f0; padding:8px 10px; border-radius:6px; line-height:1.6;">
+            <div style="font-weight:700; color:#0369a1; margin-bottom:2px;"><i class="fa-solid fa-lightbulb"></i> Mẹo cú pháp:</div>
+            <div>• Trắc nghiệm ABCD: <code>% Câu ${q.questionNumber} - Key: A</code> và <code>\\choice{\\True A}{B}{C}{D}</code></div>
+            <div>• Đúng / Sai 4 ý: <code>\\choiceTF{\\True Ý 1}{Ý 2}{\\True Ý 3}{Ý 4}</code> hoặc <code>% Key: a-Đ, b-S, c-Đ, d-S</code></div>
+            <div>• Trả lời ngắn: <code>\\shortans{12.5}</code> hoặc <code>% Key: 12.5</code></div>
+            <div>• Bảng biến thiên TikZ: <code>\\begin{tikzpicture} \\tkzTabInit... \\tkzTabLine... \\end{tikzpicture}</code></div>
+            <div>• Ảnh đính kèm: <code>[HÌNH: ten_anh.png]</code> hoặc <code>\\includegraphics{ten_anh.png}</code></div>
+          </div>
+
+          <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <button type="button" class="btn-cancel-single-q-latex" data-qnum="${q.questionNumber}" style="padding:6px 14px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:600; color:#475569; cursor:pointer;">
+              <i class="fa-solid fa-xmark"></i> Hủy
+            </button>
+            <button type="button" class="btn-save-single-q-latex" data-qnum="${q.questionNumber}" style="padding:6px 16px; background:#2563eb; color:#ffffff; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(37,99,235,0.3);">
+              <i class="fa-solid fa-floppy-disk"></i> Lưu & Render lại câu này
+            </button>
+          </div>
+        </div>
+      `
+      return
+    }
+
+    // NORMAL PREVIEW CARD
     let attachedImg = q.attachedImage || null
     if (!attachedImg && q.content) {
       const matchDataImg = q.content.match(/<img[^>]+src=["'](data:image\/[^"']+|https?:\/\/[^"']+)["']/i)
@@ -501,7 +567,6 @@ function renderQuestionsPreviewHtml(questions) {
       }
     }
 
-    // Làm sạch content hiển thị để không bị lặp ảnh / lặp placeholder khi render
     let displayPrompt = q.content || ''
     if (attachedImg) {
       displayPrompt = displayPrompt.replace(/<div class="latex-image-container"[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi, '')
@@ -509,11 +574,16 @@ function renderQuestionsPreviewHtml(questions) {
     }
 
     html += `
-      <div class="question-card-item ${isSelected ? 'selected-for-paste' : ''}" data-qnum="${q.questionNumber}" tabindex="0" style="padding:16px; margin-bottom:14px; cursor:default;">
+      <div class="question-card-item ${isSelected ? 'selected-for-paste' : ''} ${q.parseError ? 'has-parse-error' : ''}" data-qnum="${q.questionNumber}" tabindex="0" style="padding:16px; margin-bottom:14px; cursor:default; ${q.parseError ? 'border-color:#fdba74; background:#fffcf9;' : ''}">
         <div class="question-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #f1f5f9;">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <span class="question-badge" style="font-size:12px; padding:2px 8px;">Câu ${q.questionNumber}</span>
             <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">${typeBadge}</span>
+            ${q.parseError ? `
+              <span class="badge" style="background:#fef2f2; color:#b91c1c; font-size:11px; font-weight:700; border:1px solid #fecaca;">
+                <i class="fa-solid fa-triangle-exclamation"></i> Có cảnh báo cú pháp
+              </span>
+            ` : ''}
             ${isSelected ? `
               <span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px; padding:2px 8px;">
                 <i class="fa-solid fa-crosshairs"></i> Đang chọn (Bấm Ctrl+V để dán ảnh)
@@ -522,6 +592,9 @@ function renderQuestionsPreviewHtml(questions) {
           </div>
 
           <div style="display:flex; align-items:center; gap:6px;">
+            <button type="button" class="btn-edit-question-latex" data-qnum="${q.questionNumber}" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:600; color:#1d4ed8; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Chỉnh sửa mã LaTeX của riêng câu này">
+              <i class="fa-solid fa-pen-to-square"></i> Sửa LaTeX
+            </button>
             <input type="file" accept="image/*" class="q-image-file-input" data-qnum="${q.questionNumber}" style="display:none;" />
             <button type="button" class="btn-attach-image-trigger" data-qnum="${q.questionNumber}" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:600; color:#475569; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Chọn file ảnh hoặc bấm Ctrl+V để dán ảnh">
               <i class="fa-regular fa-image" style="color:#0066cc;"></i>
@@ -534,6 +607,18 @@ function renderQuestionsPreviewHtml(questions) {
             ` : ''}
           </div>
         </div>
+
+        ${q.parseError ? `
+          <div style="margin-bottom:12px; padding:8px 12px; background:#fff7ed; border:1.5px solid #fdba74; border-radius:8px; color:#9a3412; font-size:12px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-triangle-exclamation" style="font-size:14px; color:#ea580c;"></i>
+              <span><strong>Cảnh báo bóc tách:</strong> ${escapeHtml(q.parseError)}</span>
+            </div>
+            <button type="button" class="btn-edit-question-latex" data-qnum="${q.questionNumber}" style="background:#ea580c; color:#ffffff; border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;">
+              <i class="fa-solid fa-pen-to-square"></i> Sửa câu này ngay
+            </button>
+          </div>
+        ` : ''}
 
         <div class="question-prompt-text" style="font-size:14px; margin-bottom:12px;">
           ${displayPrompt}
@@ -644,18 +729,172 @@ function refreshQuestionsPreview() {
   }
 }
 
+function refreshAnswerMatrix() {
+  const matrixContainer = document.getElementById('answer-matrix-container')
+  if (matrixContainer && currentInputMode === 'latex') {
+    matrixContainer.innerHTML = renderLatexMatrixPanel()
+    bindLatexMatrixEvents(matrixContainer)
+  }
+}
+
+function bindLatexMatrixEvents(container) {
+  if (!container) return
+
+  container.querySelectorAll('.latex-matrix-mc-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
+      const opt = btn.getAttribute('data-option')
+      mcAnswers[qNum] = opt
+      if (parsedLatexData?.questions) {
+        const found = parsedLatexData.questions.find(q => q.questionNumber === qNum)
+        if (found) found.mcAnswer = opt
+      }
+      container.querySelectorAll(`.latex-matrix-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
+        const isSel = b.getAttribute('data-option') === opt
+        b.style.background = isSel ? '#0066cc' : '#ffffff'
+        b.style.color = isSel ? '#ffffff' : '#334155'
+        b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
+      })
+      refreshQuestionsPreview()
+    })
+  })
+
+  container.querySelectorAll('.latex-matrix-tf-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
+      const sub = btn.getAttribute('data-sub')
+      const val = btn.getAttribute('data-val') === 'true'
+
+      if (!tfAnswers[qNum]) tfAnswers[qNum] = {}
+      tfAnswers[qNum][sub] = val
+      if (parsedLatexData?.questions) {
+        const found = parsedLatexData.questions.find(q => q.questionNumber === qNum)
+        if (found) {
+          if (!found.tfAnswers) found.tfAnswers = {}
+          found.tfAnswers[sub] = val
+        }
+      }
+
+      const parent = btn.parentElement
+      if (parent) {
+        parent.querySelectorAll('.latex-matrix-tf-btn').forEach(b => {
+          const isVal = b.getAttribute('data-val') === (val ? 'true' : 'false')
+          b.style.background = isVal ? (val ? '#16a34a' : '#dc2626') : '#ffffff'
+          b.style.color = isVal ? '#ffffff' : '#475569'
+          b.style.borderColor = isVal ? (val ? '#16a34a' : '#dc2626') : '#cbd5e1'
+        })
+      }
+      refreshQuestionsPreview()
+    })
+  })
+
+  container.querySelectorAll('.latex-matrix-sa-input').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const qNum = parseInt(input.getAttribute('data-qnum'), 10)
+      saAnswers[qNum] = e.target.value.trim()
+      if (parsedLatexData?.questions) {
+        const found = parsedLatexData.questions.find(q => q.questionNumber === qNum)
+        if (found) found.saAnswer = e.target.value.trim()
+      }
+    })
+  })
+}
+
 function bindQuestionImageEvents(container) {
   if (!container) return
 
   // Click on question card to select it for paste
   container.querySelectorAll('.question-card-item').forEach(card => {
     card.addEventListener('click', (e) => {
-      if (e.target.closest('button') || e.target.closest('input')) return
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return
       const qNum = parseInt(card.dataset.qnum, 10)
       if (selectedQuestionForImage !== qNum) {
         selectedQuestionForImage = qNum
         container.querySelectorAll('.question-card-item').forEach(c => c.classList.remove('selected-for-paste'))
         card.classList.add('selected-for-paste')
+      }
+    })
+  })
+
+  // Edit single question LaTeX button
+  container.querySelectorAll('.btn-edit-question-latex').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const qNum = parseInt(btn.dataset.qnum, 10)
+      editingQuestionNumber = qNum
+      refreshQuestionsPreview()
+      setTimeout(() => {
+        const ta = document.getElementById(`single-q-latex-textarea-${qNum}`)
+        if (ta) {
+          ta.focus()
+          ta.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 50)
+    })
+  })
+
+  // Cancel edit single question button
+  container.querySelectorAll('.btn-cancel-single-q-latex').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const qNum = parseInt(btn.dataset.qnum, 10)
+      editingQuestionNumber = null
+      delete singleQuestionEditErrors[qNum]
+      refreshQuestionsPreview()
+    })
+  })
+
+  // Save single question LaTeX button
+  container.querySelectorAll('.btn-save-single-q-latex').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const qNum = parseInt(btn.dataset.qnum, 10)
+      const ta = document.getElementById(`single-q-latex-textarea-${qNum}`)
+      const newRawCode = ta ? ta.value.trim() : ''
+
+      if (!newRawCode) {
+        showToast('Mã câu hỏi không được để trống!', 'warning')
+        return
+      }
+
+      if (!parsedLatexData?.questions) return
+      const oldIdx = parsedLatexData.questions.findIndex(item => item.questionNumber === qNum)
+      if (oldIdx === -1) return
+      const oldQ = parsedLatexData.questions[oldIdx]
+
+      const { question: updatedQ, error, partTitle } = parseSingleQuestionBlock(newRawCode, qNum, oldQ.partTitle)
+
+      if (error) {
+        singleQuestionEditErrors[qNum] = error
+        showToast(`Cảnh báo bóc tách: ${error}`, 'warning')
+      } else {
+        delete singleQuestionEditErrors[qNum]
+      }
+
+      if (updatedQ) {
+        // Retain attached image if any
+        if (oldQ.attachedImage) {
+          updatedQ.attachedImage = oldQ.attachedImage
+        }
+        if (partTitle) {
+          updatedQ.partTitle = partTitle
+        }
+
+        parsedLatexData.questions[oldIdx] = updatedQ
+
+        // Sync answer matrix
+        if (updatedQ.questionType === 'MULTIPLE_CHOICE' && updatedQ.mcAnswer) {
+          mcAnswers[qNum] = updatedQ.mcAnswer
+        } else if (updatedQ.questionType === 'TRUE_FALSE' && updatedQ.tfAnswers) {
+          tfAnswers[qNum] = updatedQ.tfAnswers
+        } else if (updatedQ.questionType === 'SHORT_ANSWER' && updatedQ.saAnswer) {
+          saAnswers[qNum] = updatedQ.saAnswer
+        }
+
+        editingQuestionNumber = null
+        refreshQuestionsPreview()
+        refreshAnswerMatrix()
+        showToast(`Đã lưu và render lại Câu ${qNum}!`, 'success')
       }
     })
   })
@@ -1321,62 +1560,10 @@ export function bindCreateHwEvents() {
     })
 
     // Bind matrix click events for LaTeX palette
-    document.querySelectorAll('.latex-matrix-mc-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
-        const opt = btn.getAttribute('data-option')
-        mcAnswers[qNum] = opt
-        if (parsedLatexData?.questions) {
-          const found = parsedLatexData.questions.find(q => q.questionNumber === qNum)
-          if (found) found.mcAnswer = opt
-        }
-        document.querySelectorAll(`.latex-matrix-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
-          const isSel = b.getAttribute('data-option') === opt
-          b.style.background = isSel ? '#0066cc' : '#ffffff'
-          b.style.color = isSel ? '#ffffff' : '#334155'
-          b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
-        })
-      })
-    })
-
-    document.querySelectorAll('.latex-matrix-tf-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
-        const sub = btn.getAttribute('data-sub')
-        const val = btn.getAttribute('data-val') === 'true'
-
-        if (!tfAnswers[qNum]) tfAnswers[qNum] = {}
-        tfAnswers[qNum][sub] = val
-        if (parsedLatexData?.questions) {
-          const found = parsedLatexData.questions.find(q => q.questionNumber === qNum)
-          if (found) {
-            if (!found.tfAnswers) found.tfAnswers = {}
-            found.tfAnswers[sub] = val
-          }
-        }
-
-        const parent = btn.parentElement
-        if (parent) {
-          parent.querySelectorAll('.latex-matrix-tf-btn').forEach(b => {
-            const isVal = b.getAttribute('data-val') === (val ? 'true' : 'false')
-            b.style.background = isVal ? (val ? '#16a34a' : '#dc2626') : '#ffffff'
-            b.style.color = isVal ? '#ffffff' : '#475569'
-            b.style.borderColor = isVal ? (val ? '#16a34a' : '#dc2626') : '#cbd5e1'
-          })
-        }
-      })
-    })
-
-    document.querySelectorAll('.latex-matrix-sa-input').forEach(input => {
-      input.addEventListener('input', (e) => {
-        const qNum = parseInt(input.getAttribute('data-qnum'), 10)
-        saAnswers[qNum] = e.target.value.trim()
-        if (parsedLatexData?.questions) {
-          const found = parsedLatexData.questions.find(q => q.questionNumber === qNum)
-          if (found) found.saAnswer = e.target.value.trim()
-        }
-      })
-    })
+    const matrixContainer = document.getElementById('answer-matrix-container')
+    if (matrixContainer) {
+      bindLatexMatrixEvents(matrixContainer)
+    }
 
     // If preview container already exists in DOM, render math on it
     const previewContainer = document.getElementById('latex-rendered-preview-container')

@@ -74,16 +74,28 @@ function preprocessChemicalFormulas(root) {
   let node
   while ((node = walker.nextNode())) {
     if (node.nodeValue && node.nodeValue.includes('\\ce{')) {
-      // Kiểm tra xem có đang nằm ngoài dấu $ không
       nodesToReplace.push(node)
     }
   }
 
   nodesToReplace.forEach(textNode => {
     let val = textNode.nodeValue
-    // Tìm các \ce{...} mà trước đó không có dấu $
-    // Ví dụ \ce{...} mà không nằm trong $ \ce{...} $
-    const replaced = val.replace(/(?<!\$)\\ce\{([^{}]+(?:\([^()]+\)[^{}]*)*)\}(?!\$)/g, '$\\ce{$1}$')
+    
+    // Split by math delimiters: $$...$$, $...$, \[...\], \(...\)
+    const regex = /(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
+    const parts = val.split(regex);
+    
+    for (let i = 0; i < parts.length; i++) {
+      // Even indices are outside math mode
+      if (i % 2 === 0) {
+        // Replace \ce{...} that are outside math mode with $\ce{...}$
+        // Allow up to 1 level of nested curly braces inside \ce{...}
+        parts[i] = parts[i].replace(/\\ce\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$\\ce{$1}$');
+      }
+    }
+    
+    const replaced = parts.join('');
+
     if (replaced !== val) {
       textNode.nodeValue = replaced
     }
