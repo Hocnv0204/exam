@@ -2,6 +2,7 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
+import { renderMath } from '../utils/exam-parser.js'
 
 export function renderAssignmentReviewView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
@@ -355,6 +356,15 @@ export function renderAssignmentReviewView() {
                   correctStr = val !== undefined && val !== null ? String(val) : ''
                 }
 
+                let promptObj = null
+                try {
+                  const rawP = ans.questions?.prompt || ans.prompt
+                  if (typeof rawP === 'string' && rawP.startsWith('{')) {
+                    const parsed = JSON.parse(rawP)
+                    if (parsed.isInteractive) promptObj = parsed
+                  }
+                } catch (e) {}
+
                 let reviewBody = ''
                 if (qType === 'TRUE_FALSE') {
                   const tfObj = givenAnswer?.value || {}
@@ -388,8 +398,11 @@ export function renderAssignmentReviewView() {
                     const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
                     const correctValText = correctMap[sub] !== undefined ? (correctMap[sub] ? 'Đ' : 'S') : ''
 
+                    const stmtObj = promptObj?.options?.find(o => o.key.toLowerCase() === sub.toLowerCase())
+                    const stmtText = stmtObj ? stmtObj.text : ''
+
                     return `
-                      <div style="display:flex; flex-direction:column; gap:4px; padding:10px; background:${isStmtCorrect ? '#f0fdf4' : '#fef2f2'}; border:1px solid ${isStmtCorrect ? '#10b981' : '#ef4444'}; border-radius:8px; font-size:13px;">
+                      <div style="display:flex; flex-direction:column; gap:6px; padding:12px; background:${isStmtCorrect ? '#f0fdf4' : '#fef2f2'}; border:1px solid ${isStmtCorrect ? '#10b981' : '#ef4444'}; border-radius:8px; font-size:13px;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                           <span style="font-weight:700; color:#334155;">Ý ${sub.toUpperCase()}:</span>
                           <span style="font-weight:700; color:${isStmtCorrect ? '#15803d' : '#b91c1c'}; display:flex; align-items:center; gap:4px;">
@@ -397,6 +410,7 @@ export function renderAssignmentReviewView() {
                             ${displayVal}
                           </span>
                         </div>
+                        ${stmtText ? `<div style="font-size:13px; color:#1e293b; line-height:1.5; font-weight:500;">${stmtText}</div>` : ''}
                         ${(state.user?.role === 'ADMIN' && correctValText) ? `
                           <div style="font-size:11px; color:#475569; border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px;">
                             Đáp án đúng: <strong style="color:#15803d;">${correctValText}</strong>
@@ -407,8 +421,49 @@ export function renderAssignmentReviewView() {
                   }).join('')
 
                   reviewBody = `
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div style="display:grid; grid-template-columns:1fr; gap:10px;">
                       ${tfReviewHtml}
+                    </div>
+                  `
+                } else if (qType === 'MULTIPLE_CHOICE' && promptObj?.options && promptObj.options.length > 0) {
+                  const optHtml = promptObj.options.map(opt => {
+                    const isSelected = String(givenAnswer?.value || '').trim().toUpperCase() === opt.key.toUpperCase()
+                    const isThisCorrect = correctStr ? (correctStr.trim().toUpperCase() === opt.key.toUpperCase()) : (isSelected && isCorrect)
+
+                    let optBg = '#ffffff'
+                    let optBorder = '#e2e8f0'
+                    let optColor = '#334155'
+                    let optBadge = ''
+
+                    if (isSelected && isCorrect) {
+                      optBg = '#f0fdf4'
+                      optBorder = '#10b981'
+                      optColor = '#15803d'
+                      optBadge = `<span style="font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:4px; margin-left:auto; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Bạn chọn (Đúng)</span>`
+                    } else if (isSelected && !isCorrect) {
+                      optBg = '#fef2f2'
+                      optBorder = '#ef4444'
+                      optColor = '#b91c1c'
+                      optBadge = `<span style="font-size:12px; font-weight:700; color:#b91c1c; background:#fee2e2; padding:2px 8px; border-radius:4px; margin-left:auto; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-xmark"></i> Bạn chọn (Sai)</span>`
+                    } else if (!isSelected && isThisCorrect && (state.user?.role === 'ADMIN' || !isCorrect)) {
+                      optBg = '#f0fdf4'
+                      optBorder = '#86efac'
+                      optColor = '#166534'
+                      optBadge = `<span style="font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:4px; margin-left:auto; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Đáp án đúng</span>`
+                    }
+
+                    return `
+                      <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:${optBg}; border:1.5px solid ${optBorder}; border-radius:8px; font-size:14px; color:${optColor};">
+                        <strong style="width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:${isSelected ? (isCorrect ? '#10b981' : '#ef4444') : '#f1f5f9'}; color:${isSelected ? '#ffffff' : '#475569'}; font-size:12px; flex-shrink:0;">${opt.key}</strong>
+                        <span style="flex:1;">${opt.text}</span>
+                        ${optBadge}
+                      </div>
+                    `
+                  }).join('')
+
+                  reviewBody = `
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      ${optHtml}
                     </div>
                   `
                 } else {
@@ -442,11 +497,31 @@ export function renderAssignmentReviewView() {
                       </span>
                     </div>
 
-                    <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">
-                      Câu hỏi số ${qNum}
-                    </div>
+                    ${promptObj ? `
+                      <div class="interactive-prompt-text" style="font-size:15px; font-weight:600; color:#0f172a; line-height:1.6; margin-bottom:12px;">
+                        ${promptObj.text || `Câu hỏi số ${qNum}`}
+                      </div>
+                      ${promptObj.imageUrl ? `
+                        <div style="text-align:center; margin-bottom:14px;">
+                          <img src="${promptObj.imageUrl}" alt="Hình minh họa câu ${qNum}" style="max-width:100%; max-height:260px; border-radius:8px; border:1px solid #e2e8f0; object-fit:contain; box-shadow:0 2px 6px rgba(0,0,0,0.06);" />
+                        </div>
+                      ` : ''}
+                    ` : `
+                      <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">
+                        Câu hỏi số ${qNum}
+                      </div>
+                    `}
 
                     ${reviewBody}
+
+                    ${promptObj?.explanation ? `
+                      <div class="review-explanation-card" style="margin-top:14px; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-left:4px solid #3b82f6; border-radius:8px; font-size:13.5px; color:#1e3a8a; line-height:1.6;">
+                        <div style="font-weight:700; color:#1d4ed8; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                          <i class="fa-solid fa-lightbulb" style="color:#eab308;"></i> Lời giải chi tiết:
+                        </div>
+                        <div class="explanation-text" style="color:#1e293b;">${promptObj.explanation}</div>
+                      </div>
+                    ` : ''}
                   </div>
                 `
               }).join('')}
@@ -540,6 +615,11 @@ export function renderAssignmentReviewView() {
 
 export function bindAssignmentReviewEvents() {
   bindSidebarEvents()
+
+  const reviewContainer = document.getElementById('questions-grid') || document.querySelector('.content-body')
+  if (reviewContainer) {
+    renderMath(reviewContainer)
+  }
 
   // Fetch and display exam logs if user is admin
   const logsContainer = document.getElementById('exam-logs-container')

@@ -5,12 +5,25 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
+import { renderMath, parseExamMarkdown, compressImage, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
 
 // In-memory state for building the answer matrix
 let currentConfig = {
   mcCount: 12,  // Trắc nghiệm ABCD
   tfCount: 4,   // Trắc nghiệm Đúng/Sai (4 ý)
   saCount: 6   // Trả lời ngắn
+}
+
+// Interactive Exam State
+let currentMode = 'INTERACTIVE' // 'INTERACTIVE' | 'PDF'
+let interactiveMarkdown = MATH_TEMPLATE
+let interactiveQuestions = []
+
+// Initialize default parsed questions from MATH_TEMPLATE
+try {
+  interactiveQuestions = parseExamMarkdown(MATH_TEMPLATE).questions || []
+} catch (e) {
+  interactiveQuestions = []
 }
 
 // Store chosen answers relative to their sections:
@@ -37,7 +50,232 @@ export function resetCreateForm() {
   currentConfig.mcCount = 12
   currentConfig.tfCount = 4
   currentConfig.saCount = 6
+  currentMode = 'INTERACTIVE'
+  interactiveMarkdown = MATH_TEMPLATE
+  interactiveQuestions = parseExamMarkdown(MATH_TEMPLATE).questions || []
   initAnswersState()
+}
+
+function escapeHtml(str) {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function renderInteractiveCardsHtml() {
+  if (!interactiveQuestions || interactiveQuestions.length === 0) {
+    return `
+      <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:10px; padding:30px; text-align:center; color:#64748b;">
+        <i class="fa-solid fa-file-lines" style="font-size:36px; color:#cbd5e1; margin-bottom:10px; display:block;"></i>
+        <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Chưa có câu hỏi nào được bóc tách</div>
+        <div style="font-size:12px;">Nhập nội dung vào khung soạn thảo ở trên và bấm "Phân tích & Xem trước", hoặc bấm "Mẫu Toán" / "Mẫu Hóa".</div>
+      </div>
+    `
+  }
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <span style="font-weight:700; font-size:13.5px; color:#0f172a;">
+        <i class="fa-solid fa-list-check" style="color:#10b981;"></i> Danh sách câu hỏi (${interactiveQuestions.length} câu)
+      </span>
+      <span style="font-size:11.5px; color:#0284c7; background:#e0f2fe; padding:2px 8px; border-radius:10px; font-weight:600;">
+        <i class="fa-solid fa-paste"></i> Mẹo: Nhấp vào ô ảnh rồi bấm Ctrl+V để dán ảnh
+      </span>
+    </div>
+
+    ${interactiveQuestions.map(q => {
+      const qNum = q.questionNumber
+      const typeLabel = q.questionType === 'MULTIPLE_CHOICE'
+        ? 'Phần I: Trắc nghiệm ABCD'
+        : (q.questionType === 'TRUE_FALSE' ? 'Phần II: Đúng / Sai' : 'Phần III: Trả lời ngắn')
+      const typeColor = q.questionType === 'MULTIPLE_CHOICE'
+        ? '#0066cc'
+        : (q.questionType === 'TRUE_FALSE' ? '#0284c7' : '#4f46e5')
+
+      return `
+        <div class="interactive-q-card" data-qnum="${qNum}" tabindex="0">
+          <div class="interactive-q-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="badge" style="background:${typeColor}15; color:${typeColor}; font-weight:700; font-size:12px;">
+                ${typeLabel}
+              </span>
+              <span style="font-weight:700; font-size:14px; color:#0f172a;">Câu ${qNum}</span>
+            </div>
+            <div style="font-size:12px; color:#64748b; display:flex; align-items:center; gap:6px;">
+              <span>Điểm:</span>
+              <input type="number" step="0.25" min="0" value="${q.points || 0.25}" data-qnum="${qNum}" class="q-points-input" style="width:55px; padding:2px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px;">
+            </div>
+          </div>
+
+          <!-- Prompt Text with KaTeX -->
+          <div class="interactive-q-prompt">${escapeHtml(q.promptText || '')}</div>
+
+          <!-- Image Area (Dropzone or Attached Image) -->
+          <div style="margin:10px 0 14px 0;">
+            ${q.imageUrl ? `
+              <div style="position:relative; display:inline-block; max-width:100%;">
+                <img src="${q.imageUrl}" alt="Câu ${qNum}" class="interactive-q-image" style="margin:0;">
+                <button type="button" class="btn-remove-q-image" data-qnum="${qNum}" style="position:absolute; top:8px; right:8px; background:rgba(239,68,68,0.9); color:#ffffff; border:none; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.2);">
+                  <i class="fa-solid fa-trash"></i> Xóa ảnh
+                </button>
+              </div>
+            ` : `
+              <div class="image-paste-zone" data-qnum="${qNum}" tabindex="0" title="Nhấp vào đây và bấm Ctrl+V để dán ảnh chụp màn hình, hoặc bấm để tải ảnh từ máy">
+                <input type="file" accept="image/*" class="q-image-file-input" data-qnum="${qNum}" style="display:none;">
+                <i class="fa-regular fa-image" style="font-size:22px; color:#94a3b8; margin-bottom:4px; display:block;"></i>
+                <div style="font-size:12px; font-weight:600; color:#334155; margin-bottom:2px;">
+                  Chèn hình ảnh cho Câu ${qNum}
+                </div>
+                <div style="font-size:11px; color:#64748b;">
+                  Kéo thả ảnh vào đây, hoặc <span style="color:#0066cc; font-weight:600; text-decoration:underline;">chọn từ máy</span>, hoặc bấm <strong>Ctrl + V</strong> để dán ảnh chụp
+                </div>
+              </div>
+            `}
+          </div>
+
+          <!-- Options Preview -->
+          ${q.questionType === 'MULTIPLE_CHOICE' ? `
+            <div class="exam-options-grid grid-2col">
+              ${(q.options || []).map(opt => {
+                const isCorrect = q.mcAnswer === opt.id
+                return `
+                  <div class="exam-option-card ${isCorrect ? 'selected' : ''}" data-qnum="${qNum}" data-optid="${opt.id}" style="${isCorrect ? 'border-color:#16a34a; background:#f0fdf4; color:#15803d;' : ''}">
+                    <div class="exam-opt-badge" style="${isCorrect ? 'background:#16a34a; color:#ffffff;' : ''}">${opt.id}</div>
+                    <div style="flex:1 1 auto;">${escapeHtml(opt.text || '')}</div>
+                    ${isCorrect ? '<i class="fa-solid fa-circle-check" style="color:#16a34a; font-size:16px;"></i>' : ''}
+                  </div>
+                `
+              }).join('')}
+            </div>
+          ` : (q.questionType === 'TRUE_FALSE' ? `
+            <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
+              ${(q.options || []).map(sub => {
+                const isTrue = q.tfAnswers && q.tfAnswers[sub.id] === true
+                return `
+                  <div class="tf-statement-row">
+                    <div class="tf-statement-text">
+                      <strong>${sub.id})</strong> ${escapeHtml(sub.text || '')}
+                    </div>
+                    <div class="tf-toggle-btns">
+                      <span class="badge" style="${isTrue ? 'background:#16a34a; color:#ffffff;' : 'background:#dc2626; color:#ffffff;'} font-weight:700; padding:3px 10px; font-size:11px;">
+                        ${isTrue ? 'ĐÚNG' : 'SAI'}
+                      </span>
+                    </div>
+                  </div>
+                `
+              }).join('')}
+            </div>
+          ` : `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+              <div style="font-size:13px; font-weight:600; color:#334155;">
+                <i class="fa-solid fa-key" style="color:#4f46e5;"></i> Đáp án đúng: <span style="color:#15803d; font-family:monospace; font-size:14px; background:#dcfce7; padding:2px 8px; border-radius:4px;">${escapeHtml(q.saAnswer || 'Chưa nhập')}</span>
+              </div>
+              <div style="font-size:12px; color:#64748b;">
+                Dung sai cho phép: <strong>&plusmn; ${q.saTolerance || 0}</strong>
+              </div>
+            </div>
+          `)}
+
+          <!-- Explanation (Lời giải) -->
+          ${q.explanation ? `
+            <div style="background:#f1f5f9; border-left:3px solid #0284c7; border-radius:0 8px 8px 0; padding:8px 12px; margin-top:8px; font-size:12.5px; color:#334155; line-height:1.5;">
+              <strong style="color:#0284c7; display:flex; align-items:center; gap:4px; margin-bottom:3px;">
+                <i class="fa-solid fa-lightbulb"></i> Lời giải chi tiết:
+              </strong>
+              <div>${escapeHtml(q.explanation)}</div>
+            </div>
+          ` : ''}
+        </div>
+      `
+    }).join('')}
+  `
+}
+
+function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
+  return `
+    <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div class="exam-mode-switch">
+        <button type="button" class="exam-mode-tab ${currentMode === 'INTERACTIVE' ? 'active' : ''}" id="btn-mode-interactive">
+          <i class="fa-solid fa-wand-magic-sparkles" style="color:#0284c7;"></i> Đề thi Tương tác (Toán & Hóa)
+        </button>
+        <button type="button" class="exam-mode-tab ${currentMode === 'PDF' ? 'active' : ''}" id="btn-mode-pdf">
+          <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Đề bài qua file PDF
+        </button>
+      </div>
+
+      ${currentMode === 'INTERACTIVE' ? `
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button type="button" class="btn-secondary" id="btn-load-math-tpl" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Nạp nội dung đề mẫu môn Toán">
+            <i class="fa-solid fa-square-root-variable" style="color:#0284c7;"></i> Mẫu Toán
+          </button>
+          <button type="button" class="btn-secondary" id="btn-load-chem-tpl" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Nạp nội dung đề mẫu môn Hóa học">
+            <i class="fa-solid fa-flask" style="color:#10b981;"></i> Mẫu Hóa
+          </button>
+          <button type="button" class="btn-primary" id="btn-parse-markdown" style="padding:5px 12px; font-size:12px; border-radius:6px; cursor:pointer; background:linear-gradient(135deg, #0284c7, #0066cc);">
+            <i class="fa-solid fa-bolt"></i> Phân tích & Xem trước
+          </button>
+        </div>
+      ` : ''}
+    </div>
+
+    ${currentMode === 'INTERACTIVE' ? `
+      <!-- INTERACTIVE MARKDOWN & QUESTION PREVIEW -->
+      <div class="interactive-creator-wrapper" style="display:flex; flex-direction:column; gap:14px; height:calc(100vh - 180px); overflow-y:auto; padding-right:6px;">
+        
+        <!-- Collapsible Markdown Input Box -->
+        <div class="card" style="margin:0; padding:14px; border:1px solid #cbd5e1; border-radius:10px; background:#ffffff;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-weight:700; font-size:13px; color:#1e293b; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-code" style="color:#0284c7;"></i> Nội dung Đề thi Text / Markdown (Toán & Hóa):
+            </span>
+            <span style="font-size:11px; color:#64748b;">
+              Công thức: <code>$...$</code>, Hóa học: <code>$\\ce{...}$</code>, Ảnh: <code>[Ảnh]</code>
+            </span>
+          </div>
+          <textarea id="hw-markdown-input" class="form-input" style="width:100%; height:180px; font-family:monospace; font-size:12px; line-height:1.5; padding:10px; resize:vertical; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px;">${interactiveMarkdown}</textarea>
+        </div>
+
+        <!-- Parsed Questions Cards List -->
+        <div id="interactive-preview-container">
+          ${renderInteractiveCardsHtml()}
+        </div>
+      </div>
+    ` : `
+      <!-- PDF VIEWER CONTAINER (ORIGINAL) -->
+      <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
+        <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:10px; margin-bottom:12px; padding:8px 14px; box-sizing:border-box;">
+          <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden;">
+            <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
+            <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
+            <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
+            <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
+            <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; line-height:1; display:inline-flex; align-items:center; gap:5px; cursor:pointer; box-shadow:none; border-radius:6px;">
+              <i class="fa-solid fa-upload"></i> Chọn file PDF
+            </button>
+            <a id="download-hw-pdf-btn" href="${pdfDownloadUrl || '#'}" download="${pdfDownloadName}" target="_blank" rel="noopener noreferrer" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; box-sizing:border-box; line-height:1; display:inline-flex; align-items:center; gap:5px; text-decoration:none; ${pdfDownloadUrl ? 'background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer;' : 'background:#f8fafc; color:#94a3b8; border:1px solid #e2e8f0; cursor:not-allowed; opacity:0.7;'} border-radius:6px; font-weight:600; transition:all 0.2s;" title="${pdfDownloadUrl ? `Tải file PDF: ${pdfDownloadName}` : 'Chưa có file PDF để tải xuống'}">
+              <i class="fa-solid fa-download"></i> Tải file PDF
+            </a>
+          </div>
+        </div>
+
+        <div id="pdf-preview-container" class="pdf-iframe-wrapper" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; position:relative;">
+          <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; min-height:100%; border:none; background:#f8fafc; -webkit-overflow-scrolling:touch; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
+          ${!(isEdit && hw?.pdfUrl) ? `
+            <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
+              <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
+              <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `}
+  `
 }
 
 export function renderCreateHwView() {
@@ -64,6 +302,41 @@ export function renderCreateHwView() {
   if (isEdit && hw && questions.length > 0) {
     if (currentConfig.editingHomeworkId !== hw.id) {
       currentConfig.editingHomeworkId = hw.id
+
+      // Check if interactive questions
+      const hasInteractive = questions.some(q => {
+        try {
+          const p = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : null
+          return p && p.isInteractive
+        } catch (e) { return false }
+      })
+
+      if (hasInteractive) {
+        currentMode = 'INTERACTIVE'
+        interactiveQuestions = questions.map(q => {
+          let pObj = {}
+          try {
+            pObj = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : {}
+          } catch (e) {}
+          const qa = q.answerKey || {}
+          return {
+            questionNumber: q.question_number || q.questionNumber,
+            questionType: q.question_type || q.questionType,
+            points: q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
+            promptText: pObj.text || q.prompt || '',
+            imageUrl: pObj.imageUrl || '',
+            options: pObj.options || [],
+            explanation: pObj.explanation || '',
+            mcAnswer: qa.mc_answer || 'A',
+            tfAnswers: qa.tf_answers || { a: true, b: true, c: false, d: true },
+            saAnswer: qa.sa_answer !== undefined && qa.sa_answer !== null ? String(qa.sa_answer) : '',
+            saTolerance: qa.sa_tolerance || 0,
+            hasImagePlaceholder: !!pObj.imageUrl
+          }
+        })
+      } else {
+        currentMode = 'PDF'
+      }
 
       const mcQ = questions.filter(q => q.question_type === 'MULTIPLE_CHOICE')
       const tfQ = questions.filter(q => q.question_type === 'TRUE_FALSE')
@@ -95,6 +368,9 @@ export function renderCreateHwView() {
     }
   } else if (!isEdit) {
     currentConfig.editingHomeworkId = null
+    if (interactiveQuestions.length === 0) {
+      interactiveQuestions = parseExamMarkdown(MATH_TEMPLATE).questions || []
+    }
   }
 
   const classOptions = state.classes.map(c => {
@@ -118,35 +394,9 @@ export function renderCreateHwView() {
         <div class="content-body" style="padding: 16px 24px;">
           <div class="split-homework-layout">
             
-            <!-- LEFT COLUMN: PDF VIEWER & UPLOAD (60%) -->
-            <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
-              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:10px; margin-bottom:12px; padding:8px 14px; box-sizing:border-box;">
-                <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden;">
-                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
-                  <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
-                  <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
-                  <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
-                  <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; line-height:1; display:inline-flex; align-items:center; gap:5px; cursor:pointer; box-shadow:none; border-radius:6px;">
-                    <i class="fa-solid fa-upload"></i> Chọn file PDF
-                  </button>
-                  <a id="download-hw-pdf-btn" href="${pdfDownloadUrl || '#'}" download="${pdfDownloadName}" target="_blank" rel="noopener noreferrer" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; box-sizing:border-box; line-height:1; display:inline-flex; align-items:center; gap:5px; text-decoration:none; ${pdfDownloadUrl ? 'background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer;' : 'background:#f8fafc; color:#94a3b8; border:1px solid #e2e8f0; cursor:not-allowed; opacity:0.7;'} border-radius:6px; font-weight:600; transition:all 0.2s;" title="${pdfDownloadUrl ? `Tải file PDF: ${pdfDownloadName}` : 'Chưa có file PDF để tải xuống'}">
-                    <i class="fa-solid fa-download"></i> Tải file PDF
-                  </a>
-                </div>
-              </div>
-
-              <!-- PDF Iframe Preview / Placeholder -->
-              <div id="pdf-preview-container" class="pdf-iframe-wrapper" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; position:relative;">
-                <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; min-height:100%; border:none; background:#f8fafc; -webkit-overflow-scrolling:touch; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
-                ${!(isEdit && hw?.pdfUrl) ? `
-                  <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
-                    <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
-                    <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
-                  </div>
-                ` : ''}
-              </div>
+            <!-- LEFT COLUMN: INTERACTIVE OR PDF -->
+            <div id="create-hw-left-pane" style="display:flex; flex-direction:column; overflow:hidden;">
+              ${renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName)}
             </div>
 
             <!-- RIGHT COLUMN: CONFIG & ANSWER KEY MATRIX (40%) -->
@@ -425,73 +675,346 @@ export function bindCreateHwEvents() {
     }
   }
 
-  if (isEditMode && hwData?.homework?.pdfUrl) {
-    const container = document.getElementById('pdf-preview-container')
-    const titleSpan = document.getElementById('pdf-viewer-title')
+  // Helper to refresh interactive cards
+  const refreshInteractiveCards = () => {
+    const previewContainer = document.getElementById('interactive-preview-container')
+    if (previewContainer) {
+      previewContainer.innerHTML = renderInteractiveCardsHtml()
+      bindInteractiveCardEvents()
+      renderMath(previewContainer)
+    }
+  }
 
-    if (container) {
-      const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
-      renderPdfViewer(container, mappedUrl)
-      const fileName = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
-      if (titleSpan) titleSpan.textContent = fileName
-      if (downloadBtn) {
-        downloadBtn.href = mappedUrl
-        downloadBtn.download = fileName
-        downloadBtn.style.background = '#eff6ff'
-        downloadBtn.style.color = '#0066cc'
-        downloadBtn.style.borderColor = '#bfdbfe'
-        downloadBtn.style.cursor = 'pointer'
-        downloadBtn.style.opacity = '1'
-        downloadBtn.title = `Tải file PDF: ${fileName}`
+  // Synchronize counts and answers with the right column answer matrix
+  const syncCountsFromInteractive = () => {
+    const mcQ = interactiveQuestions.filter(q => q.questionType === 'MULTIPLE_CHOICE')
+    const tfQ = interactiveQuestions.filter(q => q.questionType === 'TRUE_FALSE')
+    const saQ = interactiveQuestions.filter(q => q.questionType === 'SHORT_ANSWER')
+
+    currentConfig.mcCount = mcQ.length
+    currentConfig.tfCount = tfQ.length
+    currentConfig.saCount = saQ.length
+
+    mcAnswers = {}
+    mcQ.forEach((q, idx) => {
+      mcAnswers[idx + 1] = q.mcAnswer || 'A'
+    })
+
+    tfAnswers = {}
+    tfQ.forEach((q, idx) => {
+      tfAnswers[idx + 1] = q.tfAnswers || { a: true, b: true, c: false, d: true }
+    })
+
+    saAnswers = {}
+    saQ.forEach((q, idx) => {
+      saAnswers[idx + 1] = q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : ''
+    })
+
+    const mcInput = document.getElementById('cfg-mc-count')
+    const tfInput = document.getElementById('cfg-tf-count')
+    const saInput = document.getElementById('cfg-sa-count')
+    if (mcInput) mcInput.value = currentConfig.mcCount
+    if (tfInput) tfInput.value = currentConfig.tfCount
+    if (saInput) saInput.value = currentConfig.saCount
+
+    const matrixContainer = document.getElementById('answer-matrix-container')
+    if (matrixContainer) {
+      matrixContainer.innerHTML = renderAnswerMatrix()
+      bindMatrixEvents()
+    }
+  }
+
+  // Bind events for preview question cards (option click, image paste, upload, drop)
+  const bindInteractiveCardEvents = () => {
+    const previewContainer = document.getElementById('interactive-preview-container')
+    if (!previewContainer) return
+
+    // Render KaTeX Math & Chem
+    renderMath(previewContainer)
+
+    // Option cards click in preview (changes the correct answer)
+    previewContainer.querySelectorAll('.exam-option-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const qNum = parseInt(card.getAttribute('data-qnum'), 10)
+        const optId = card.getAttribute('data-optid')
+        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+        if (q && q.questionType === 'MULTIPLE_CHOICE') {
+          q.mcAnswer = optId
+          refreshInteractiveCards()
+          syncCountsFromInteractive()
+        }
+      })
+    })
+
+    // TF statement rows toggle
+    previewContainer.querySelectorAll('.tf-statement-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const card = row.closest('.interactive-q-card')
+        if (!card) return
+        const qNum = parseInt(card.getAttribute('data-qnum'), 10)
+        const strong = row.querySelector('strong')
+        const subId = strong?.textContent?.replace(/[\)\.\:]/g, '').trim().toLowerCase()
+        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+        if (q && q.questionType === 'TRUE_FALSE' && subId) {
+          if (!q.tfAnswers) q.tfAnswers = {}
+          q.tfAnswers[subId] = !q.tfAnswers[subId]
+          refreshInteractiveCards()
+          syncCountsFromInteractive()
+        }
+      })
+    })
+
+    // Points input change
+    previewContainer.querySelectorAll('.q-points-input').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const qNum = parseInt(input.getAttribute('data-qnum'), 10)
+        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+        if (q) {
+          q.points = Math.max(0, parseFloat(e.target.value) || 0.25)
+        }
+      })
+    })
+
+    // Remove image button
+    previewContainer.querySelectorAll('.btn-remove-q-image').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
+        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+        if (q) {
+          q.imageUrl = ''
+          refreshInteractiveCards()
+          showToast(`Đã xóa ảnh của Câu ${qNum}`, 'info')
+        }
+      })
+    })
+
+    // File input changes
+    previewContainer.querySelectorAll('.q-image-file-input').forEach(input => {
+      input.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const qNum = parseInt(input.getAttribute('data-qnum'), 10)
+        try {
+          showToast(`Đang nén ảnh cho Câu ${qNum}...`, 'info')
+          const dataUrl = await compressImage(file)
+          const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+          if (q) {
+            q.imageUrl = dataUrl
+            refreshInteractiveCards()
+            showToast(`Đã chèn ảnh cho Câu ${qNum} thành công!`, 'success')
+          }
+        } catch (err) {
+          showToast(`Lỗi: ${err.message}`, 'error')
+        }
+      })
+    })
+
+    // Image paste zones (Click to browse, drag & drop)
+    previewContainer.querySelectorAll('.image-paste-zone').forEach(zone => {
+      const qNum = parseInt(zone.getAttribute('data-qnum'), 10)
+
+      zone.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove-q-image')) return
+        const fileInput = zone.querySelector('.q-image-file-input')
+        if (fileInput) fileInput.click()
+      })
+
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault()
+        zone.style.borderColor = '#0066cc'
+        zone.style.background = '#eff6ff'
+      })
+      zone.addEventListener('dragleave', () => {
+        zone.style.borderColor = '#cbd5e1'
+        zone.style.background = '#f8fafc'
+      })
+      zone.addEventListener('drop', async (e) => {
+        e.preventDefault()
+        zone.style.borderColor = '#cbd5e1'
+        zone.style.background = '#f8fafc'
+        const file = e.dataTransfer?.files?.[0]
+        if (file && file.type.startsWith('image/')) {
+          try {
+            showToast(`Đang nén ảnh cho Câu ${qNum}...`, 'info')
+            const dataUrl = await compressImage(file)
+            const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+            if (q) {
+              q.imageUrl = dataUrl
+              refreshInteractiveCards()
+              showToast(`Đã đính kèm ảnh cho Câu ${qNum}!`, 'success')
+            }
+          } catch (err) {
+            showToast(`Lỗi: ${err.message}`, 'error')
+          }
+        }
+      })
+    })
+
+    // Paste listener (Ctrl + V) on question cards
+    previewContainer.querySelectorAll('.interactive-q-card').forEach(card => {
+      card.addEventListener('paste', async (e) => {
+        const items = (e.clipboardData || window.clipboardData)?.items
+        if (!items) return
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            e.preventDefault()
+            e.stopPropagation()
+            const blob = items[i].getAsFile()
+            const qNum = parseInt(card.getAttribute('data-qnum'), 10)
+            try {
+              showToast(`Đang dán ảnh chụp màn hình cho Câu ${qNum}...`, 'info')
+              const dataUrl = await compressImage(blob)
+              const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+              if (q) {
+                q.imageUrl = dataUrl
+                refreshInteractiveCards()
+                showToast(`Đã dán ảnh cho Câu ${qNum} thành công!`, 'success')
+              }
+            } catch (err) {
+              showToast(`Lỗi: ${err.message}`, 'error')
+            }
+            break
+          }
+        }
+      })
+    })
+  }
+
+  // Update Left Pane on tab switch
+  const updateLeftPane = () => {
+    const leftPane = document.getElementById('create-hw-left-pane')
+    if (leftPane) {
+      leftPane.innerHTML = renderLeftColumn(hwData?.homework, isEditMode, downloadBtn?.getAttribute('href'), downloadBtn?.getAttribute('download'))
+      bindInteractiveToolbarEvents()
+      if (currentMode === 'INTERACTIVE') {
+        bindInteractiveCardEvents()
+        syncCountsFromInteractive()
+      } else {
+        initPdfListeners()
       }
     }
   }
 
-  // PDF Preview file change listener
-  const fileInput = document.getElementById('hw-pdf-file')
-  fileInput?.addEventListener('change', (e) => {
-    const file = e.target.files[0]
-    const container = document.getElementById('pdf-preview-container')
-    const titleSpan = document.getElementById('pdf-viewer-title')
+  // Toolbar events (Mẫu Toán, Mẫu Hóa, Phân tích)
+  const bindInteractiveToolbarEvents = () => {
+    document.getElementById('btn-mode-interactive')?.addEventListener('click', () => {
+      currentMode = 'INTERACTIVE'
+      updateLeftPane()
+    })
+    document.getElementById('btn-mode-pdf')?.addEventListener('click', () => {
+      currentMode = 'PDF'
+      updateLeftPane()
+    })
 
-    if (file && file.type === 'application/pdf') {
-      const fileURL = URL.createObjectURL(file)
+    // Math template
+    document.getElementById('btn-load-math-tpl')?.addEventListener('click', () => {
+      const textarea = document.getElementById('hw-markdown-input')
+      if (textarea) textarea.value = MATH_TEMPLATE
+      interactiveMarkdown = MATH_TEMPLATE
+      const parsed = parseExamMarkdown(MATH_TEMPLATE)
+      interactiveQuestions = parsed.questions || []
+      refreshInteractiveCards()
+      syncCountsFromInteractive()
+      showToast('Đã nạp đề mẫu môn Toán (Chuẩn BGD)!', 'success')
+    })
+
+    // Chem template
+    document.getElementById('btn-load-chem-tpl')?.addEventListener('click', () => {
+      const textarea = document.getElementById('hw-markdown-input')
+      if (textarea) textarea.value = CHEM_TEMPLATE
+      interactiveMarkdown = CHEM_TEMPLATE
+      const parsed = parseExamMarkdown(CHEM_TEMPLATE)
+      interactiveQuestions = parsed.questions || []
+      refreshInteractiveCards()
+      syncCountsFromInteractive()
+      showToast('Đã nạp đề mẫu môn Hóa học (Chuẩn BGD)!', 'success')
+    })
+
+    // Parse button
+    document.getElementById('btn-parse-markdown')?.addEventListener('click', () => {
+      const textarea = document.getElementById('hw-markdown-input')
+      const text = textarea?.value || ''
+      interactiveMarkdown = text
+      const parsed = parseExamMarkdown(text)
+      if (parsed.questions && parsed.questions.length > 0) {
+        // Preserve any existing attached images if question numbers match
+        parsed.questions.forEach(newQ => {
+          const oldQ = interactiveQuestions.find(x => x.questionNumber === newQ.questionNumber)
+          if (oldQ && oldQ.imageUrl) {
+            newQ.imageUrl = oldQ.imageUrl
+          }
+        })
+        interactiveQuestions = parsed.questions
+        refreshInteractiveCards()
+        syncCountsFromInteractive()
+        showToast(`Đã phân tích thành công ${parsed.questions.length} câu hỏi!`, 'success')
+      } else {
+        showToast('Không tìm thấy câu hỏi hợp lệ trong văn bản!', 'error')
+      }
+    })
+  }
+
+  // Initial binding for interactive mode
+  bindInteractiveToolbarEvents()
+  if (currentMode === 'INTERACTIVE') {
+    bindInteractiveCardEvents()
+    syncCountsFromInteractive()
+  }
+
+  const initPdfListeners = () => {
+    if (isEditMode && hwData?.homework?.pdfUrl) {
+      const container = document.getElementById('pdf-preview-container')
+      const titleSpan = document.getElementById('pdf-viewer-title')
+      const dBtn = document.getElementById('download-hw-pdf-btn')
+
       if (container) {
-        renderPdfViewer(container, fileURL)
-      }
-      if (titleSpan) titleSpan.textContent = file.name
-      if (downloadBtn) {
-        downloadBtn.href = fileURL
-        downloadBtn.download = file.name
-        downloadBtn.style.background = '#eff6ff'
-        downloadBtn.style.color = '#0066cc'
-        downloadBtn.style.borderColor = '#bfdbfe'
-        downloadBtn.style.cursor = 'pointer'
-        downloadBtn.style.opacity = '1'
-        downloadBtn.title = `Tải file PDF: ${file.name}`
-      }
-    } else {
-      if (container) {
-        container.innerHTML = `
-          <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
-            <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
-            <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
-          </div>
-        `
-      }
-      if (titleSpan) titleSpan.textContent = 'Chưa chọn file PDF'
-      if (downloadBtn) {
-        downloadBtn.href = '#'
-        downloadBtn.removeAttribute('download')
-        downloadBtn.style.background = '#f8fafc'
-        downloadBtn.style.color = '#94a3b8'
-        downloadBtn.style.borderColor = '#e2e8f0'
-        downloadBtn.style.cursor = 'not-allowed'
-        downloadBtn.style.opacity = '0.7'
-        downloadBtn.title = 'Chưa có file PDF để tải xuống'
+        const mappedUrl = hwData.homework.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+        renderPdfViewer(container, mappedUrl)
+        const fileName = hwData.homework.pdfPath || 'Homework_Attachment.pdf'
+        if (titleSpan) titleSpan.textContent = fileName
+        if (dBtn) {
+          dBtn.href = mappedUrl
+          dBtn.download = fileName
+          dBtn.style.background = '#eff6ff'
+          dBtn.style.color = '#0066cc'
+          dBtn.style.borderColor = '#bfdbfe'
+          dBtn.style.cursor = 'pointer'
+          dBtn.style.opacity = '1'
+          dBtn.title = `Tải file PDF: ${fileName}`
+        }
       }
     }
-  })
+
+    // PDF Preview file change listener
+    const fInput = document.getElementById('hw-pdf-file')
+    fInput?.addEventListener('change', (e) => {
+      const file = e.target.files[0]
+      const container = document.getElementById('pdf-preview-container')
+      const titleSpan = document.getElementById('pdf-viewer-title')
+      const dBtn = document.getElementById('download-hw-pdf-btn')
+
+      if (file && file.type === 'application/pdf') {
+        const fileURL = URL.createObjectURL(file)
+        if (container) {
+          renderPdfViewer(container, fileURL)
+        }
+        if (titleSpan) titleSpan.textContent = file.name
+        if (dBtn) {
+          dBtn.href = fileURL
+          dBtn.download = file.name
+          dBtn.style.background = '#eff6ff'
+          dBtn.style.color = '#0066cc'
+          dBtn.style.borderColor = '#bfdbfe'
+          dBtn.style.cursor = 'pointer'
+          dBtn.style.opacity = '1'
+          dBtn.title = `Tải file PDF: ${file.name}`
+        }
+      }
+    })
+  }
+
+  initPdfListeners()
 
   // Download PDF button click listener
   downloadBtn?.addEventListener('click', async (e) => {
@@ -1079,73 +1602,115 @@ export function bindCreateHwEvents() {
       }
     }
 
-    const totalQuestions = currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount
-    if (totalQuestions === 0) {
-      showToast('Bài tập phải có ít nhất 1 câu hỏi!', 'error')
-      return
-    }
-
     // Build questions list
-    const questions = []
-    let globalIndex = 1
+    let questions = []
 
-    // Part I: MC
-    for (let i = 1; i <= currentConfig.mcCount; i++) {
-      const ans = mcAnswers[i]
-      if (!ans) {
-        showToast(`Vui lòng chọn đáp án cho Câu ${globalIndex} (Phần I)`, 'error')
+    if (currentMode === 'INTERACTIVE') {
+      if (!interactiveQuestions || interactiveQuestions.length === 0) {
+        showToast('Bài tập phải có ít nhất 1 câu hỏi!', 'error')
         return
       }
-      questions.push({
-        id: `q_${globalIndex}`,
-        questionNumber: globalIndex,
-        questionType: 'MULTIPLE_CHOICE',
-        mcAnswer: ans,
-        points: 1.0
-      })
-      globalIndex++
-    }
 
-    // Part II: TF
-    for (let i = 1; i <= currentConfig.tfCount; i++) {
-      const tf = tfAnswers[i] || {}
-      if (tf.a === undefined || tf.b === undefined || tf.c === undefined || tf.d === undefined) {
-        showToast(`Vui lòng chọn đầy đủ Đúng/Sai cho Câu ${globalIndex} (Phần II)`, 'error')
+      for (let i = 0; i < interactiveQuestions.length; i++) {
+        const q = interactiveQuestions[i]
+        if (q.questionType === 'MULTIPLE_CHOICE' && !q.mcAnswer) {
+          showToast(`Vui lòng chọn đáp án đúng cho Câu ${q.questionNumber} (Phần I)!`, 'error')
+          return
+        }
+        if (q.questionType === 'SHORT_ANSWER' && (!q.saAnswer || String(q.saAnswer).trim() === '')) {
+          showToast(`Vui lòng nhập đáp án cho Câu ${q.questionNumber} (Phần III)!`, 'error')
+          return
+        }
+      }
+
+      questions = interactiveQuestions.map(q => ({
+        id: `q_${q.questionNumber}`,
+        questionNumber: q.questionNumber,
+        questionType: q.questionType,
+        points: q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
+        prompt: JSON.stringify({
+          isInteractive: true,
+          text: q.promptText || '',
+          imageUrl: q.imageUrl || '',
+          options: q.options || [],
+          explanation: q.explanation || ''
+        }),
+        mcAnswer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || 'A' : undefined,
+        tfAnswers: q.questionType === 'TRUE_FALSE' ? (q.tfAnswers || { a: true, b: true, c: false, d: true }) : undefined,
+        saAnswer: q.questionType === 'SHORT_ANSWER' ? String(q.saAnswer || '').trim() : undefined,
+        saTolerance: q.questionType === 'SHORT_ANSWER' ? (Number(q.saTolerance) || 0) : 0
+      }))
+    } else {
+      const totalQuestions = currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount
+      if (totalQuestions === 0) {
+        showToast('Bài tập phải có ít nhất 1 câu hỏi!', 'error')
         return
       }
-      questions.push({
-        id: `q_${globalIndex}`,
-        questionNumber: globalIndex,
-        questionType: 'TRUE_FALSE',
-        tfAnswers: { a: tf.a, b: tf.b, c: tf.c, d: tf.d },
-        points: 1.0
-      })
-      globalIndex++
-    }
 
-    // Part III: SA
-    for (let i = 1; i <= currentConfig.saCount; i++) {
-      const ans = saAnswers[i]
-      if (ans === undefined || ans === null || ans.trim() === '') {
-        showToast(`Vui lòng nhập đáp án cho Câu ${globalIndex} (Phần III)`, 'error')
-        return
+      let globalIndex = 1
+
+      // Part I: MC
+      for (let i = 1; i <= currentConfig.mcCount; i++) {
+        const ans = mcAnswers[i]
+        if (!ans) {
+          showToast(`Vui lòng chọn đáp án cho Câu ${globalIndex} (Phần I)`, 'error')
+          return
+        }
+        questions.push({
+          id: `q_${globalIndex}`,
+          questionNumber: globalIndex,
+          questionType: 'MULTIPLE_CHOICE',
+          mcAnswer: ans,
+          points: 1.0
+        })
+        globalIndex++
       }
-      questions.push({
-        id: `q_${globalIndex}`,
-        questionNumber: globalIndex,
-        questionType: 'SHORT_ANSWER',
-        saAnswer: ans.trim(),
-        points: 1.0
-      })
-      globalIndex++
+
+      // Part II: TF
+      for (let i = 1; i <= currentConfig.tfCount; i++) {
+        const tf = tfAnswers[i] || {}
+        if (tf.a === undefined || tf.b === undefined || tf.c === undefined || tf.d === undefined) {
+          showToast(`Vui lòng chọn đầy đủ Đúng/Sai cho Câu ${globalIndex} (Phần II)`, 'error')
+          return
+        }
+        questions.push({
+          id: `q_${globalIndex}`,
+          questionNumber: globalIndex,
+          questionType: 'TRUE_FALSE',
+          tfAnswers: { a: tf.a, b: tf.b, c: tf.c, d: tf.d },
+          points: 1.0
+        })
+        globalIndex++
+      }
+
+      // Part III: SA
+      for (let i = 1; i <= currentConfig.saCount; i++) {
+        const ans = saAnswers[i]
+        if (ans === undefined || ans === null || ans.trim() === '') {
+          showToast(`Vui lòng nhập đáp án cho Câu ${globalIndex} (Phần III)`, 'error')
+          return
+        }
+        questions.push({
+          id: `q_${globalIndex}`,
+          questionNumber: globalIndex,
+          questionType: 'SHORT_ANSWER',
+          saAnswer: ans.trim(),
+          points: 1.0
+        })
+        globalIndex++
+      }
     }
 
     const isEdit = !!state.editHomeworkData
     const hw = isEdit ? state.editHomeworkData.homework : null
 
     const fileInput = document.getElementById('hw-pdf-file')
-    const file = fileInput?.files[0]
+    const file = fileInput?.files?.[0]
     let pdfPath = hw ? (hw.pdfPath || hw.pdf_path || 'Homework_Attachment.pdf') : 'Homework_Attachment.pdf'
+
+    if (currentMode === 'INTERACTIVE' && !file && (!hw || !hw.pdfPath || hw.pdfPath === 'Homework_Attachment.pdf')) {
+      pdfPath = 'INTERACTIVE'
+    }
 
     try {
       if (file) {
