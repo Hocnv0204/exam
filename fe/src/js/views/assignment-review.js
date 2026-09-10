@@ -46,10 +46,12 @@ export function renderAssignmentReviewView() {
     wrongCount: result.wrongCount,
     submittedAt: result.submittedAt,
     isLate: result.isLate,
-    pdfUrl: result.pdfUrl
+    pdfUrl: result.pdfUrl,
+    showSolutions: result.showSolutions !== undefined ? result.showSolutions : result.show_solutions
   }
 
   const pdfUrl = sub.pdfUrl || result.pdfUrl || ''
+  const showSolutions = state.user?.role === 'ADMIN' || (result.showSolutions !== false && result.show_solutions !== false && sub.showSolutions !== false && sub.show_solutions !== false)
   
   const answers = result.questionReview ? result.questionReview.map(q => ({
     is_correct: q.isCorrect,
@@ -197,6 +199,11 @@ export function renderAssignmentReviewView() {
                     <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn
                   </div>
                 ` : ''}
+                ${!showSolutions ? `
+                  <div style="font-size:13px; background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-eye-slash" style="color:#64748b;"></i> Ẩn đáp án & giải thích
+                  </div>
+                ` : ''}
               </div>
               
               <!-- Total Score prominently displayed -->
@@ -336,10 +343,10 @@ export function renderAssignmentReviewView() {
                 }
 
                 let correctStr = ''
-                const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.questions?.question_answers
+                const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.correctAnswer || ans.questions?.question_answers
                 
                 if (qType === 'MULTIPLE_CHOICE') {
-                  correctStr = corrKey?.mc_answer || corrKey || ''
+                  correctStr = corrKey?.mc_answer || (typeof corrKey === 'string' ? corrKey : '') || ''
                 } else if (qType === 'TRUE_FALSE') {
                   const val = corrKey?.tf_answers || corrKey || {}
                   const a = val.a !== undefined ? val.a : val.s1
@@ -398,7 +405,7 @@ export function renderAssignmentReviewView() {
                     const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
                     const correctValText = correctMap[sub] !== undefined ? (correctMap[sub] ? 'Đ' : 'S') : ''
 
-                    const stmtObj = promptObj?.options?.find(o => o.key.toLowerCase() === sub.toLowerCase())
+                    const stmtObj = promptObj?.options?.find(o => (o.id || o.key || '').toLowerCase() === sub.toLowerCase())
                     const stmtText = stmtObj ? stmtObj.text : ''
 
                     return `
@@ -411,7 +418,7 @@ export function renderAssignmentReviewView() {
                           </span>
                         </div>
                         ${stmtText ? `<div style="font-size:13px; color:#1e293b; line-height:1.5; font-weight:500;">${stmtText}</div>` : ''}
-                        ${(state.user?.role === 'ADMIN' && correctValText) ? `
+                        ${(showSolutions && (state.user?.role === 'ADMIN' || !isStmtCorrect) && correctValText) ? `
                           <div style="font-size:11px; color:#475569; border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px;">
                             Đáp án đúng: <strong style="color:#15803d;">${correctValText}</strong>
                           </div>
@@ -427,8 +434,9 @@ export function renderAssignmentReviewView() {
                   `
                 } else if (qType === 'MULTIPLE_CHOICE' && promptObj?.options && promptObj.options.length > 0) {
                   const optHtml = promptObj.options.map(opt => {
-                    const isSelected = String(givenAnswer?.value || '').trim().toUpperCase() === opt.key.toUpperCase()
-                    const isThisCorrect = correctStr ? (correctStr.trim().toUpperCase() === opt.key.toUpperCase()) : (isSelected && isCorrect)
+                    const optId = (opt.id || opt.key || '').toUpperCase()
+                    const isSelected = String(givenAnswer?.value || '').trim().toUpperCase() === optId
+                    const isThisCorrect = correctStr ? (correctStr.trim().toUpperCase() === optId) : (isSelected && isCorrect)
 
                     let optBg = '#ffffff'
                     let optBorder = '#e2e8f0'
@@ -445,7 +453,7 @@ export function renderAssignmentReviewView() {
                       optBorder = '#ef4444'
                       optColor = '#b91c1c'
                       optBadge = `<span style="font-size:12px; font-weight:700; color:#b91c1c; background:#fee2e2; padding:2px 8px; border-radius:4px; margin-left:auto; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-xmark"></i> Bạn chọn (Sai)</span>`
-                    } else if (!isSelected && isThisCorrect && (state.user?.role === 'ADMIN' || !isCorrect)) {
+                    } else if (showSolutions && !isSelected && isThisCorrect && (state.user?.role === 'ADMIN' || !isCorrect)) {
                       optBg = '#f0fdf4'
                       optBorder = '#86efac'
                       optColor = '#166534'
@@ -454,8 +462,8 @@ export function renderAssignmentReviewView() {
 
                     return `
                       <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:${optBg}; border:1.5px solid ${optBorder}; border-radius:8px; font-size:14px; color:${optColor};">
-                        <strong style="width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:${isSelected ? (isCorrect ? '#10b981' : '#ef4444') : '#f1f5f9'}; color:${isSelected ? '#ffffff' : '#475569'}; font-size:12px; flex-shrink:0;">${opt.key}</strong>
-                        <span style="flex:1;">${opt.text}</span>
+                        <strong style="width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:${isSelected ? (isCorrect ? '#10b981' : '#ef4444') : '#f1f5f9'}; color:${isSelected ? '#ffffff' : '#475569'}; font-size:12px; flex-shrink:0;">${optId}</strong>
+                        <span style="flex:1;">${opt.text || ''}</span>
                         ${optBadge}
                       </div>
                     `
@@ -474,7 +482,7 @@ export function renderAssignmentReviewView() {
                           <i class="fa-solid ${isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> Đáp án của bạn: ${givenStr}
                         </div>
                       </div>
-                      ${(state.user?.role === 'ADMIN' && !isCorrect && correctStr) ? `
+                      ${(showSolutions && (!isCorrect || state.user?.role === 'ADMIN') && correctStr) ? `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#f0fdf4; border:1px solid #10b981; border-radius:10px;">
                           <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:#15803d; font-size:14px;">
                             <i class="fa-solid fa-circle-check"></i> Đáp án đúng: ${correctStr}
@@ -514,7 +522,7 @@ export function renderAssignmentReviewView() {
 
                     ${reviewBody}
 
-                    ${promptObj?.explanation ? `
+                    ${showSolutions && promptObj?.explanation ? `
                       <div class="review-explanation-card" style="margin-top:14px; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-left:4px solid #3b82f6; border-radius:8px; font-size:13.5px; color:#1e3a8a; line-height:1.6;">
                         <div style="font-weight:700; color:#1d4ed8; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
                           <i class="fa-solid fa-lightbulb" style="color:#eab308;"></i> Lời giải chi tiết:

@@ -76,6 +76,7 @@ serve(async (req: Request) => {
             pass_score,
             pdf_path,
             type,
+            show_solutions,
             lessons (
               id,
               title,
@@ -117,7 +118,6 @@ serve(async (req: Request) => {
           given_answer,
           is_correct,
           score_earned,
-          feedback,
           questions (
             id,
             question_number,
@@ -159,16 +159,19 @@ serve(async (req: Request) => {
       const score = Number(sub.total_score)
       const passScore = Number(hwObj?.pass_score ?? 5)
       const isPassed = score >= passScore
+      const shouldShowSolutions = hwObj?.show_solutions !== false || (user && user.role === 'ADMIN')
 
       const formattedAnswers = (answers || []).map((ans: any) => {
         const qAnswers = ans.questions?.question_answers?.[0] || ans.questions?.question_answers || {}
         let correctAnswer: any = null
-        if (ans.questions?.question_type === 'MULTIPLE_CHOICE') {
-          correctAnswer = qAnswers.mc_answer
-        } else if (ans.questions?.question_type === 'TRUE_FALSE') {
-          correctAnswer = qAnswers.tf_answers
-        } else if (ans.questions?.question_type === 'SHORT_ANSWER') {
-          correctAnswer = qAnswers.sa_answer
+        if (shouldShowSolutions) {
+          if (ans.questions?.question_type === 'MULTIPLE_CHOICE') {
+            correctAnswer = qAnswers.mc_answer
+          } else if (ans.questions?.question_type === 'TRUE_FALSE') {
+            correctAnswer = qAnswers.tf_answers
+          } else if (ans.questions?.question_type === 'SHORT_ANSWER') {
+            correctAnswer = qAnswers.sa_answer
+          }
         }
 
         const rawGiven = ans.given_answer
@@ -182,24 +185,40 @@ serve(async (req: Request) => {
         }
 
         const points = Number(ans.questions?.points || 1)
+        let prompt = ans.questions?.prompt
+        const feedback = ans.is_correct ? 'Đúng' : 'Sai'
+
+        if (!shouldShowSolutions) {
+          if (typeof prompt === 'string' && prompt.startsWith('{')) {
+            try {
+              const pObj = JSON.parse(prompt)
+              if (pObj.explanation) {
+                pObj.explanation = ''
+                prompt = JSON.stringify(pObj)
+              }
+            } catch {
+              // keep as-is
+            }
+          }
+        }
 
         return {
           id: ans.id,
           questionId: ans.question_id,
           questionNumber: ans.questions?.question_number,
           questionType: ans.questions?.question_type,
-          prompt: ans.questions?.prompt,
+          prompt,
           points,
           givenAnswer: parsedGiven,
           correctAnswer,
           isCorrect: ans.is_correct,
           scoreEarned: Number(ans.score_earned || 0),
-          feedback: ans.feedback,
+          feedback,
           question: {
             id: ans.question_id,
             questionNumber: ans.questions?.question_number,
             questionType: ans.questions?.question_type,
-            prompt: ans.questions?.prompt,
+            prompt,
             points,
           },
         }
@@ -222,6 +241,7 @@ serve(async (req: Request) => {
         correctCount: sub.correct_count,
         wrongCount: sub.wrong_count,
         pdfUrl,
+        showSolutions: hwObj?.show_solutions !== false,
         answers: formattedAnswers,
         submission: {
           id: sub.id,
@@ -239,6 +259,7 @@ serve(async (req: Request) => {
           guestPhone: sub.guest_phone || null,
           type: hwObj?.type || 'PRACTICE',
           pdfUrl,
+          showSolutions: hwObj?.show_solutions !== false,
         },
       })
     }

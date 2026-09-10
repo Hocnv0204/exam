@@ -104,6 +104,7 @@ serve(async (req: Request) => {
             deadline,
             max_attempts,
             type,
+            show_solutions,
             lessons!inner (
               id,
               title,
@@ -133,6 +134,7 @@ serve(async (req: Request) => {
           deadline: hw.deadline,
           maxAttempts: hw.max_attempts,
           type: hw.type,
+          showSolutions: hw.show_solutions !== false,
           lessonTitle: hw.lessons?.title || '',
           chapterTitle: hw.lessons?.chapters?.title || ''
         }))
@@ -157,6 +159,7 @@ serve(async (req: Request) => {
           max_attempts,
           type,
           max_violations,
+          show_solutions,
           lessons (
             id,
             title,
@@ -197,6 +200,7 @@ serve(async (req: Request) => {
           maxAttempts: hw.max_attempts,
           type: hw.type || 'PRACTICE',
           maxViolations: hw.max_violations,
+          showSolutions: hw.show_solutions !== false,
           lessonTitle: lessonInfo?.title || '',
           chapterId: chapterInfo?.id || lessonInfo?.chapter_id || null,
           chapterTitle: chapterInfo?.title || '',
@@ -234,6 +238,7 @@ serve(async (req: Request) => {
         maxAttempts,
         type,
         maxViolations,
+        showSolutions,
       } = validation.data
 
       // Automatically enforce max_attempts = 1 if it's an EXAM
@@ -255,6 +260,7 @@ serve(async (req: Request) => {
           max_attempts: finalMaxAttempts,
           type: type || 'PRACTICE',
           max_violations: finalMaxViolations,
+          show_solutions: showSolutions !== false,
         })
         .select()
         .single()
@@ -323,7 +329,7 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts, type, maxViolations } = validation.data
+      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts, type, maxViolations, showSolutions } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
       if (lessonId !== undefined) updateData.lesson_id = lessonId
@@ -337,6 +343,7 @@ serve(async (req: Request) => {
       if (maxAttempts !== undefined) updateData.max_attempts = maxAttempts || null
       if (type !== undefined) updateData.type = type
       if (maxViolations !== undefined) updateData.max_violations = maxViolations || 3
+      if (showSolutions !== undefined) updateData.show_solutions = showSolutions
       
       // Enforce max_attempts and max_violations if EXAM
       if (updateData.type === 'EXAM' || (type === undefined && (maxAttempts !== undefined || maxViolations !== undefined))) {

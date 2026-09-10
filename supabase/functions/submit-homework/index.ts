@@ -38,6 +38,7 @@ serve(async (req: Request) => {
         max_attempts,
         pdf_path,
         type,
+        show_solutions,
         lessons (
           id,
           title,
@@ -225,13 +226,37 @@ serve(async (req: Request) => {
       correctCount += gradeResult.isCorrect ? 1 : 0
       wrongCount += gradeResult.isCorrect ? 0 : 1
 
+      const shouldShowSolutions = homework.show_solutions !== false || (user && user.role === 'ADMIN')
+      let reviewPrompt = q.prompt
+      let reviewCorrectAnswerSummary = gradeResult.correctAnswerSummary
+      let reviewFeedback = gradeResult.feedback
+
+      if (!shouldShowSolutions) {
+        reviewCorrectAnswerSummary = null
+        if (typeof reviewPrompt === 'string' && reviewPrompt.startsWith('{')) {
+          try {
+            const pObj = JSON.parse(reviewPrompt)
+            if (pObj.explanation) {
+              pObj.explanation = ''
+              reviewPrompt = JSON.stringify(pObj)
+            }
+          } catch {
+            // keep as-is
+          }
+        }
+        if (reviewFeedback && reviewFeedback.includes('Correct:')) {
+          reviewFeedback = gradeResult.isCorrect ? 'Đúng' : 'Sai'
+        }
+      }
+
       questionReviews.push({
         questionNumber: q.question_number,
-        prompt: q.prompt,
+        prompt: reviewPrompt,
         questionType: q.question_type,
         givenAnswer: given,
         ...gradeResult,
-        correctAnswerSummary: null,
+        correctAnswerSummary: reviewCorrectAnswerSummary,
+        feedback: reviewFeedback,
       })
 
       submissionAnswersToInsert.push({
@@ -406,6 +431,7 @@ serve(async (req: Request) => {
         wrongCount,
         questionReview: questionReviews,
         pdfUrl,
+        showSolutions: homework.show_solutions !== false,
       },
       200
     )

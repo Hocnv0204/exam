@@ -287,9 +287,12 @@ async function router() {
       // 5. Fetch submission details for review view
       if (hash === 'assignment-review') {
         const submissionId = params.get('submissionId')
-        if (submissionId) {
+        const currentSubId = state.lastSubmissionResult?.submissionId || state.lastSubmissionResult?.submission?.id
+        if (submissionId && currentSubId !== submissionId) {
           const detail = await api.getStudentHistory(`submissionId=${submissionId}`)
-          state.lastSubmissionResult = detail
+          if (detail && !detail.error) {
+            state.lastSubmissionResult = detail
+          }
         }
       }
 

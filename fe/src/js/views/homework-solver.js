@@ -887,7 +887,7 @@ export function bindHomeworkSolverEvents() {
         }
         window.location.hash = `#assignment-review?trial=true&submissionId=${result.submissionId}`
       } else {
-        window.location.hash = '#assignment-review'
+        window.location.hash = `#assignment-review?submissionId=${result.submissionId}`
       }
     } catch (err) {
       showToast(`Nộp bài thất bại: ${err.message}`, 'error')

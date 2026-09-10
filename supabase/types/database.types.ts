@@ -148,6 +148,7 @@ export interface Database {
           pass_score: number
           max_score: number
           is_published: boolean
+          show_solutions: boolean
           created_at: string
           updated_at: string
         }
@@ -160,6 +161,7 @@ export interface Database {
           pass_score?: number
           max_score?: number
           is_published?: boolean
+          show_solutions?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -172,6 +174,7 @@ export interface Database {
           pass_score?: number
           max_score?: number
           is_published?: boolean
+          show_solutions?: boolean
           created_at?: string
           updated_at?: string
         }

@@ -469,6 +469,16 @@ export function renderCreateHwView() {
                       </button>
                     </div>
                   </div>
+
+                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-top:2px;">
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin:0;">
+                      <input type="checkbox" id="hw-show-solutions" ${isEdit ? (hw?.showSolutions !== false && hw?.show_solutions !== false ? 'checked' : '') : 'checked'} style="width:18px; height:18px; accent-color:#0066cc; cursor:pointer;">
+                      <span style="font-size:13px; font-weight:600; color:#1e293b;"><i class="fa-regular fa-eye" style="color:#0066cc; margin-right:4px;"></i> Hiển thị đáp án & giải thích sau khi nộp</span>
+                    </label>
+                    <div style="font-size:11px; color:#64748b; margin-left:28px; margin-top:3px;">
+                      Nếu chọn thì khi nộp bài sẽ hiển thị đáp án và giải thích, nếu ẩn thì chỉ hiển thị là sai, không có đáp án và giải thích.
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1579,6 +1589,7 @@ export function bindCreateHwEvents() {
     const maxAttemptsVal = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
     const maxViolationsVal = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
     const typeVal = document.getElementById('hw-type')?.value || 'PRACTICE'
+    const showSolutions = document.getElementById('hw-show-solutions') ? document.getElementById('hw-show-solutions').checked : true
 
     const deadline = deadlineRaw ? new Date(deadlineRaw).toISOString() : null
     const maxAttempts = maxAttemptsVal > 0 ? maxAttemptsVal : null
@@ -1739,7 +1750,8 @@ export function bindCreateHwEvents() {
           deadline,
           maxAttempts,
           type: typeVal,
-          maxViolations
+          maxViolations,
+          showSolutions
         })
         showToast(`Đã cập nhật bài tập "${finalTitle}" thành công!`, 'success')
         window.location.hash = '#homework-mgmt'
@@ -1757,7 +1769,8 @@ export function bindCreateHwEvents() {
           deadline,
           maxAttempts,
           type: typeVal,
-          maxViolations
+          maxViolations,
+          showSolutions
         })
         showToast(`Đã xuất bản bài tập "${finalTitle}" thành công!`, 'success')
         window.location.hash = '#homework-mgmt'
