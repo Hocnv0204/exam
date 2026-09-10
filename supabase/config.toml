@@ -46,7 +46,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.student-history]
-verify_jwt = true
+verify_jwt = false
 
 [functions.homework-detail]
 verify_jwt = false

@@ -16,6 +16,9 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial'">
           <i class="fa-solid fa-sparkles"></i> Bài học thử
         </div>
+        <div class="nav-item ${currentRoute === 'trial-history' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=history'">
+          <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài
+        </div>
         <div class="nav-item" onclick="window.location.hash='#login'">
           <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập / Đăng ký
         </div>

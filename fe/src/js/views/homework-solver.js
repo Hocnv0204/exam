@@ -436,7 +436,42 @@ export function bindHomeworkSolverEvents() {
       if (isTrial) {
         try {
           sessionStorage.setItem('last_trial_submission', JSON.stringify(result))
-        } catch (e) {}
+
+          // Append to persistent trial submission history in localStorage
+          const localHistoryStr = localStorage.getItem('trial_submissions_history')
+          let localHistory = localHistoryStr ? JSON.parse(localHistoryStr) : []
+          if (!Array.isArray(localHistory)) localHistory = []
+
+          // Remove duplicate if already present
+          localHistory = localHistory.filter(item => item.submissionId !== result.submissionId)
+
+          localHistory.unshift({
+            submissionId: result.submissionId,
+            homeworkId: hw.id,
+            homeworkTitle: hw.title || 'Bài tập tự luyện thử',
+            lessonTitle: hw.lessonTitle || '',
+            score: result.score,
+            maxScore: result.maxScore || hw.maxScore || 10,
+            passScore: result.passScore || hw.passScore || 5,
+            isPassed: result.isPassed,
+            correctCount: result.correctCount,
+            wrongCount: result.wrongCount,
+            durationSecondsTaken,
+            guestName: guestName || 'Học sinh trải nghiệm',
+            guestPhone: guestPhone || '',
+            submittedAt: new Date().toISOString()
+          })
+
+          localStorage.setItem('trial_submissions_history', JSON.stringify(localHistory))
+          if (guestPhone) {
+            localStorage.setItem('trial_guest_phone', guestPhone)
+          }
+          if (guestName) {
+            localStorage.setItem('trial_guest_name', guestName)
+          }
+        } catch (e) {
+          console.warn('[Trial] Failed to save trial submission to localStorage:', e)
+        }
         window.location.hash = `#assignment-review?trial=true&submissionId=${result.submissionId}`
       } else {
         window.location.hash = '#assignment-review'
