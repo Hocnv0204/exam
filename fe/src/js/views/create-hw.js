@@ -1654,23 +1654,37 @@ export function bindCreateHwEvents() {
         }
       }
 
-      questions = interactiveQuestions.map(q => ({
-        id: `q_${q.questionNumber}`,
-        questionNumber: q.questionNumber,
-        questionType: q.questionType,
-        points: q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
-        prompt: JSON.stringify({
-          isInteractive: true,
-          text: q.promptText || '',
-          imageUrl: q.imageUrl || '',
-          options: q.options || [],
-          explanation: q.explanation || ''
-        }),
-        mcAnswer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || 'A' : undefined,
-        tfAnswers: q.questionType === 'TRUE_FALSE' ? (q.tfAnswers || { a: true, b: true, c: false, d: true }) : undefined,
-        saAnswer: q.questionType === 'SHORT_ANSWER' ? String(q.saAnswer || '').trim() : undefined,
-        saTolerance: q.questionType === 'SHORT_ANSWER' ? (Number(q.saTolerance) || 0) : 0
-      }))
+      questions = interactiveQuestions.map(q => {
+        const isTf = q.questionType === 'TRUE_FALSE'
+        const isMc = q.questionType === 'MULTIPLE_CHOICE'
+        const isSa = q.questionType === 'SHORT_ANSWER'
+
+        const opts = q.options || []
+        const statements = isTf ? opts : (q.statements || [])
+
+        return {
+          id: `q_${q.questionNumber}`,
+          questionNumber: q.questionNumber,
+          questionType: q.questionType,
+          points: q.points || (isTf ? 1.0 : (isSa ? 0.5 : 0.25)),
+          prompt: JSON.stringify({
+            isInteractive: true,
+            text: q.promptText || '',
+            imageUrl: q.imageUrl || '',
+            options: isMc ? opts : [],
+            statements: isTf ? statements : [],
+            explanation: q.explanation || ''
+          }),
+          content: q.promptText || '',
+          options: isMc ? opts : null,
+          statements: isTf ? statements : null,
+          explanation: q.explanation || '',
+          mcAnswer: isMc ? q.mcAnswer || 'A' : undefined,
+          tfAnswers: isTf ? (q.tfAnswers || { a: true, b: true, c: false, d: true }) : undefined,
+          saAnswer: isSa ? String(q.saAnswer || '').trim() : undefined,
+          saTolerance: isSa ? (Number(q.saTolerance) || 0) : 0
+        }
+      })
     } else {
       const totalQuestions = currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount
       if (totalQuestions === 0) {
