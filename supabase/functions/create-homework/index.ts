@@ -270,17 +270,30 @@ serve(async (req: Request) => {
       }
 
       // 1. Bulk insert questions
-      const questionsPayload = questions.map((q: any) => ({
-        homework_id: homework.id,
-        question_number: q.questionNumber,
-        question_type: q.questionType,
-        prompt: q.prompt || '',
-        content: q.content || null,
-        options: q.options || null,
-        statements: q.statements || null,
-        part_title: q.partTitle || null,
-        points: q.points,
-      }))
+      const parsedPrompts = questions.map((q: any) => {
+        let p: any = null
+        if (typeof q.prompt === 'object' && q.prompt !== null) p = q.prompt
+        else if (typeof q.prompt === 'string') {
+          try { p = JSON.parse(q.prompt) } catch (_) {}
+        }
+        return p || {}
+      })
+
+      const questionsPayload = questions.map((q: any, idx: number) => {
+        const p = parsedPrompts[idx] || {}
+        const isTf = q.questionType === 'TRUE_FALSE'
+        return {
+          homework_id: homework.id,
+          question_number: q.questionNumber,
+          question_type: q.questionType,
+          prompt: typeof q.prompt === 'string' ? q.prompt : JSON.stringify(q.prompt || {}),
+          content: q.content || p.text || (typeof q.prompt === 'string' && !q.prompt.startsWith('{') ? q.prompt : null),
+          options: q.options || (isTf ? null : (p.options || null)),
+          statements: q.statements || (isTf ? (p.statements || p.options || null) : null),
+          part_title: q.partTitle || p.partTitle || null,
+          points: q.points,
+        }
+      })
 
       const { data: insertedQuestions, error: qError } = await serviceRoleClient
         .from('questions')
@@ -295,15 +308,16 @@ serve(async (req: Request) => {
 
       // 2. Map question answers and bulk insert into question_answers
       const qMap = new Map(insertedQuestions.map((iq: any) => [iq.question_number, iq.id]))
-      const answersPayload = questions.map((q: any) => {
+      const answersPayload = questions.map((q: any, idx: number) => {
         const qId = qMap.get(q.questionNumber)
+        const p = parsedPrompts[idx] || {}
         return {
           question_id: qId,
-          mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || null : null,
-          tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
-          sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? null : String(q.saAnswer)) : null,
-          sa_tolerance: q.questionType === 'SHORT_ANSWER' ? q.saTolerance ?? 0 : 0,
-          explanation: q.explanation || null,
+          mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? (q.mcAnswer || p.mcAnswer || null) : null,
+          tf_answers: q.questionType === 'TRUE_FALSE' ? (q.tfAnswers || p.tfAnswers || null) : null,
+          sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? (p.saAnswer !== undefined ? String(p.saAnswer) : null) : String(q.saAnswer)) : null,
+          sa_tolerance: q.questionType === 'SHORT_ANSWER' ? (q.saTolerance ?? (p.saTolerance ?? 0)) : 0,
+          explanation: q.explanation || p.explanation || null,
         }
       }).filter((a: any) => !!a.question_id)
 
@@ -329,19 +343,60 @@ serve(async (req: Request) => {
         const grBlock = ((lessonData?.chapters as any)?.classes as any)?.grade_block || '12-Toán'
 
         const bankRows = questions.map((q: any) => {
-          let promptPayload: any
+          let promptPayload: any = null
           if (typeof q.prompt === 'object' && q.prompt !== null) {
-            promptPayload = q.prompt
-          } else {
+            promptPayload = { ...q.prompt }
+          } else if (typeof q.prompt === 'string') {
+            try {
+              const parsed = JSON.parse(q.prompt)
+              if (parsed && typeof parsed === 'object') {
+                promptPayload = parsed
+              }
+            } catch (_) {}
+          }
+
+          if (!promptPayload) {
             promptPayload = {
               isInteractive: true,
-              text: q.content || q.prompt || '',
+              text: q.content || (typeof q.prompt === 'string' ? q.prompt : '') || '',
               imageUrl: q.imageUrl || '',
               partTitle: q.partTitle || '',
               options: q.options || [],
               statements: q.statements || [],
               explanation: q.explanation || ''
             }
+          }
+
+          // Unwrap if promptPayload.text is itself a stringified JSON (prevent double-nested JSON)
+          let unwrapCount = 0
+          while (typeof promptPayload.text === 'string' && promptPayload.text.trim().startsWith('{') && unwrapCount < 3) {
+            try {
+              const inner = JSON.parse(promptPayload.text)
+              if (inner && typeof inner === 'object' && (inner.text !== undefined || inner.options || inner.statements)) {
+                promptPayload = {
+                  ...promptPayload,
+                  ...inner,
+                  text: inner.text !== undefined ? inner.text : promptPayload.text,
+                  options: (inner.options && inner.options.length) ? inner.options : promptPayload.options,
+                  statements: (inner.statements && inner.statements.length) ? inner.statements : promptPayload.statements,
+                  explanation: inner.explanation || promptPayload.explanation || '',
+                  imageUrl: inner.imageUrl || promptPayload.imageUrl || ''
+                }
+                unwrapCount++
+              } else {
+                break
+              }
+            } catch (_) {
+              break
+            }
+          }
+
+          // Ensure options and statements arrays are populated correctly
+          if (q.questionType === 'TRUE_FALSE' && (!promptPayload.statements || promptPayload.statements.length === 0) && promptPayload.options) {
+            promptPayload.statements = promptPayload.options
+          }
+          if (q.questionType === 'MULTIPLE_CHOICE' && (!promptPayload.options || promptPayload.options.length === 0) && promptPayload.statements) {
+            promptPayload.options = promptPayload.statements
           }
 
           return {
@@ -354,10 +409,10 @@ serve(async (req: Request) => {
             question_type: q.questionType,
             difficulty: 'THONG_HIEU',
             prompt: typeof promptPayload === 'string' ? promptPayload : JSON.stringify(promptPayload),
-            mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || null : null,
-            tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
-            sa_answer: q.questionType === 'SHORT_ANSWER' ? (q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : null) : null,
-            sa_tolerance: q.saTolerance || 0,
+            mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? (q.mcAnswer || promptPayload.mcAnswer || null) : null,
+            tf_answers: q.questionType === 'TRUE_FALSE' ? (q.tfAnswers || promptPayload.tfAnswers || null) : null,
+            sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer !== undefined && q.saAnswer !== null) ? String(q.saAnswer) : (promptPayload.saAnswer ? String(promptPayload.saAnswer) : null)) : null,
+            sa_tolerance: q.saTolerance || promptPayload.saTolerance || 0,
             points: q.points || 0.25,
             tags: [title],
             usage_count: 1

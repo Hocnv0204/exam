@@ -27,6 +27,70 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
+function parsePromptPayload(rawPrompt, fallbackContent) {
+  let promptData = { text: '', imageUrl: '', options: [], statements: [], explanation: '', isInteractive: false }
+  try {
+    if (typeof rawPrompt === 'string') {
+      const parsed = JSON.parse(rawPrompt)
+      if (parsed && typeof parsed === 'object') promptData = { ...promptData, ...parsed }
+      else promptData.text = rawPrompt
+    } else if (typeof rawPrompt === 'object' && rawPrompt !== null) {
+      promptData = { ...promptData, ...rawPrompt }
+    }
+  } catch (_) {
+    promptData.text = rawPrompt || ''
+  }
+
+  // Unwrap if promptData.text is itself a stringified JSON (prevent double-nested JSON bug)
+  let unwrapLimit = 0
+  while (typeof promptData.text === 'string' && promptData.text.trim().startsWith('{') && unwrapLimit < 3) {
+    try {
+      const inner = JSON.parse(promptData.text)
+      if (inner && typeof inner === 'object' && (inner.text !== undefined || inner.options || inner.statements)) {
+        promptData = {
+          ...promptData,
+          ...inner,
+          text: inner.text !== undefined ? inner.text : promptData.text,
+          options: (inner.options && inner.options.length) ? inner.options : promptData.options,
+          statements: (inner.statements && inner.statements.length) ? inner.statements : promptData.statements,
+          explanation: inner.explanation || promptData.explanation || '',
+          imageUrl: inner.imageUrl || promptData.imageUrl || '',
+          isInteractive: inner.isInteractive !== undefined ? inner.isInteractive : promptData.isInteractive
+        }
+        unwrapLimit++
+      } else {
+        break
+      }
+    } catch (_) {
+      break
+    }
+  }
+
+  if (!Array.isArray(promptData.options)) promptData.options = []
+  if (!Array.isArray(promptData.statements)) promptData.statements = []
+  if (!promptData.text && fallbackContent) promptData.text = fallbackContent
+
+  return promptData
+}
+
+function isInteractiveHomework(hw, questions) {
+  if (hw?.pdfPath === 'INTERACTIVE' || hw?.pdf_path === 'INTERACTIVE') return true
+
+  const hasPdf = !!(hw && (hw.pdfUrl || (hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))))
+  if (!hasPdf) return true
+
+  return questions.some(q => {
+    try {
+      const p = parsePromptPayload(q.prompt, q.content)
+      if (p && p.isInteractive) return true
+      if (p && ((p.statements && p.statements.length > 0) || (p.options && p.options.length > 0 && p.options.some(o => o.text)))) {
+        return true
+      }
+    } catch (_) {}
+    return false
+  })
+}
+
 function renderInteractiveSolverQuestionCards(parsedQuestions) {
   let currentSection = ''
 
@@ -49,6 +113,14 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
     }
 
     const isFlagged = flaggedQuestions.has(qNum)
+
+    // True/False statements fallback guaranteeing 4 statements: a, b, c, d
+    const tfStatements = (q.options && q.options.length > 0) ? q.options : [
+      { id: 'a', text: '' },
+      { id: 'b', text: '' },
+      { id: 'c', text: '' },
+      { id: 'd', text: '' }
+    ]
 
     return `
       ${sectionHeader}
@@ -89,15 +161,26 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
             }).join('')}
           </div>
         ` : (q.questionType === 'TRUE_FALSE' ? `
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            ${(q.options || []).map(sub => {
+          <div class="tf-statements-container" style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+            ${tfStatements.map(sub => {
               const val = studentAnswers.tf[qNum]?.[sub.id]
+              const displayText = sub.text ? escapeHtml(sub.text) : `<span style="color:#64748b; font-style:italic;">Ý ${sub.id.toUpperCase()}</span>`
+              const isSelected = val !== undefined
+              const isTrue = val === true
+              const isFalse = val === false
+
               return `
-                <div class="tf-statement-row">
-                  <div class="tf-statement-text"><strong>${sub.id})</strong> ${escapeHtml(sub.text || '')}</div>
-                  <div class="tf-toggle-btns">
-                    <button type="button" class="tf-toggle-btn true ${val === true ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub.id}" data-val="true">Đúng</button>
-                    <button type="button" class="tf-toggle-btn false ${val === false ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub.id}" data-val="false">Sai</button>
+                <div class="tf-statement-row" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border:1.5px solid ${isSelected ? (isTrue ? '#86efac' : '#fca5a5') : '#e2e8f0'}; border-radius:10px; background:${isSelected ? (isTrue ? '#f0fdf4' : '#fef2f2') : '#ffffff'}; gap:12px; transition:all 0.15s ease;">
+                  <div class="tf-statement-text" style="font-size:14px; color:#1e293b; line-height:1.5; flex:1;">
+                    <strong style="color:#0284c7; margin-right:4px;">${sub.id})</strong> ${displayText}
+                  </div>
+                  <div class="tf-toggle-btns" style="display:flex; gap:6px; flex-shrink:0;">
+                    <button type="button" class="tf-toggle-btn true ${isTrue ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub.id}" data-val="true" style="padding:6px 14px; font-size:12.5px; font-weight:700; border-radius:7px; cursor:pointer; transition:all 0.15s ease; display:inline-flex; align-items:center; gap:4px; border:1px solid ${isTrue ? '#16a34a' : '#cbd5e1'}; background:${isTrue ? '#16a34a' : '#ffffff'}; color:${isTrue ? '#ffffff' : '#475569'}; box-shadow:${isTrue ? '0 2px 4px rgba(22,163,74,0.2)' : 'none'};">
+                      <i class="fa-solid fa-check"></i> Đúng
+                    </button>
+                    <button type="button" class="tf-toggle-btn false ${isFalse ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub.id}" data-val="false" style="padding:6px 14px; font-size:12.5px; font-weight:700; border-radius:7px; cursor:pointer; transition:all 0.15s ease; display:inline-flex; align-items:center; gap:4px; border:1px solid ${isFalse ? '#dc2626' : '#cbd5e1'}; background:${isFalse ? '#dc2626' : '#ffffff'}; color:${isFalse ? '#ffffff' : '#475569'}; box-shadow:${isFalse ? '0 2px 4px rgba(220,38,38,0.2)' : 'none'};">
+                      <i class="fa-solid fa-xmark"></i> Sai
+                    </button>
                   </div>
                 </div>
               `
@@ -571,59 +654,106 @@ export function renderHomeworkSolverView() {
   }
 
   // Separate questions by type
-  const mcQuestions = questions.filter(q => (q.question_type || q.questionType) === 'MULTIPLE_CHOICE')
-  const tfQuestions = questions.filter(q => (q.question_type || q.questionType) === 'TRUE_FALSE')
-  const saQuestions = questions.filter(q => (q.question_type || q.questionType) === 'SHORT_ANSWER')
+  const mcQuestions = questions.filter(q => {
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    return rawType === 'MULTIPLE_CHOICE' || rawType === 'MC'
+  })
+  const tfQuestions = questions.filter(q => {
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    return rawType === 'TRUE_FALSE' || rawType === 'TF'
+  })
+  const saQuestions = questions.filter(q => {
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    return rawType === 'SHORT_ANSWER' || rawType === 'SA'
+  })
 
   // Populate defaults for any question not in draft
   questions.forEach(q => {
     const qNum = q.question_number || q.questionNumber
-    const type = q.question_type || q.questionType
-    if (type === 'MULTIPLE_CHOICE' && studentAnswers.mc[qNum] === undefined) {
-      studentAnswers.mc[qNum] = null
-    } else if (type === 'TRUE_FALSE' && studentAnswers.tf[qNum] === undefined) {
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF'
+    const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+
+    if (isTf && studentAnswers.tf[qNum] === undefined) {
       studentAnswers.tf[qNum] = {}
-    } else if (type === 'SHORT_ANSWER' && studentAnswers.sa[qNum] === undefined) {
+    } else if (isSa && studentAnswers.sa[qNum] === undefined) {
       studentAnswers.sa[qNum] = ''
+    } else if (!isTf && !isSa && studentAnswers.mc[qNum] === undefined) {
+      studentAnswers.mc[qNum] = null
     }
   })
 
-  const isInteractive = questions.some(q => {
-    try {
-      const p = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : null
-      return (p && p.isInteractive) || !!(q.content || q.options || q.statements)
-    } catch (e) { return !!(q.content || q.options || q.statements) }
-  })
+  const isInteractive = isInteractiveHomework(hw, questions)
 
   if (isInteractive) {
     const parsedQuestionList = questions.map(q => {
-      let pObj = {}
-      try {
-        pObj = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : {}
-      } catch (e) {}
+      const pObj = parsePromptPayload(q.prompt, q.content)
+      const qNum = q.question_number || q.questionNumber
+      const rawType = (q.question_type || q.questionType || '').toUpperCase()
+      const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
+      const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+      const questionType = isTf ? 'TRUE_FALSE' : (isSa ? 'SHORT_ANSWER' : 'MULTIPLE_CHOICE')
 
-      let promptText = pObj.text || q.content || q.prompt || ''
-      let options = pObj.options || []
-      if (options.length === 0 && q.options) {
-        if (Array.isArray(q.options)) {
-          options = q.options.map(opt => typeof opt === 'string' ? { id: '', text: opt } : { id: opt.key || opt.id || '', text: opt.text || '' })
-        } else if (typeof q.options === 'object') {
-          options = Object.keys(q.options).map(k => ({ id: k, text: q.options[k] }))
+      let promptText = pObj.text || q.content || (typeof q.prompt === 'string' && !q.prompt.trim().startsWith('{') ? q.prompt : '') || `Câu hỏi số ${qNum}`
+      let options = []
+
+      if (isTf) {
+        let rawStatements = []
+        if (Array.isArray(q.statements) && q.statements.length > 0) {
+          rawStatements = q.statements
+        } else if (Array.isArray(pObj.statements) && pObj.statements.length > 0) {
+          rawStatements = pObj.statements
+        } else if (Array.isArray(q.options) && q.options.length > 0) {
+          rawStatements = q.options
+        } else if (Array.isArray(pObj.options) && pObj.options.length > 0) {
+          rawStatements = pObj.options
+        } else if (typeof q.statements === 'object' && q.statements !== null) {
+          rawStatements = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: q.statements[k] || '' }))
+        } else if (typeof pObj.statements === 'object' && pObj.statements !== null) {
+          rawStatements = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: pObj.statements[k] || '' }))
         }
-      }
-      if (options.length === 0 && q.statements) {
-        if (Array.isArray(q.statements)) {
-          options = q.statements.map((s, idx) => ({ id: s.key || ['a', 'b', 'c', 'd'][idx], text: s.text || String(s) }))
-        } else if (typeof q.statements === 'object') {
-          options = Object.keys(q.statements).map(k => ({ id: k, text: q.statements[k] }))
+
+        const tfKeys = ['a', 'b', 'c', 'd']
+        options = tfKeys.map((k, idx) => {
+          const found = rawStatements.find(s => {
+            if (!s) return false
+            const sKey = String(s.key || s.id || '').trim().toLowerCase()
+            return sKey === k
+          }) || rawStatements[idx]
+
+          let stmtText = ''
+          if (found) {
+            if (typeof found === 'string') stmtText = found
+            else if (typeof found === 'object') stmtText = found.text || found.content || found.prompt || ''
+          }
+          stmtText = stmtText.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
+          return { id: k, text: stmtText }
+        })
+      } else if (!isSa) {
+        let rawOptions = pObj.options.length > 0 ? pObj.options : (q.options || [])
+        if (Array.isArray(rawOptions) && rawOptions.length > 0) {
+          options = rawOptions.map((opt, idx) => {
+            if (typeof opt === 'string') {
+              return { id: ['A', 'B', 'C', 'D'][idx] || String(idx + 1), text: opt }
+            }
+            return {
+              id: (opt.id || opt.key || ['A', 'B', 'C', 'D'][idx] || '').toUpperCase(),
+              text: opt.text || opt.content || ''
+            }
+          })
+        } else if (typeof rawOptions === 'object' && rawOptions !== null) {
+          options = ['A', 'B', 'C', 'D'].map(k => ({ id: k, text: rawOptions[k] || '' }))
+        }
+        if (!options || options.length === 0) {
+          options = ['A', 'B', 'C', 'D'].map(k => ({ id: k, text: '' }))
         }
       }
 
       return {
         id: q.id,
-        questionNumber: q.question_number || q.questionNumber,
-        questionType: q.question_type || q.questionType,
-        points: q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
+        questionNumber: qNum,
+        questionType,
+        points: q.points || (questionType === 'TRUE_FALSE' ? 1.0 : (questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
         promptText,
         imageUrl: pObj.imageUrl || '',
         options,
@@ -707,7 +837,7 @@ export function renderHomeworkSolverView() {
 
                     <div style="display:flex; flex-direction:column; gap:8px;">
                       ${mcQuestions.map((q, idx) => {
-                        const qNum = q.question_number
+                        const qNum = q.question_number || q.questionNumber
                         const selected = studentAnswers.mc[qNum] || null
                         return `
                           <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
@@ -738,7 +868,7 @@ export function renderHomeworkSolverView() {
 
                     <div style="display:flex; flex-direction:column; gap:12px;">
                       ${tfQuestions.map((q, idx) => {
-                        const qNum = q.question_number
+                        const qNum = q.question_number || q.questionNumber
                         const tfObj = studentAnswers.tf[qNum] || {}
                         return `
                           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
@@ -747,7 +877,7 @@ export function renderHomeworkSolverView() {
                               ${['a', 'b', 'c', 'd'].map(sub => {
                                 const val = tfObj[sub]
                                 return `
-                                  <div style="display:flex; items-center; justify-content:space-between; background:#ffffff; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
+                                  <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
                                     <span style="font-weight:700; color:#475569;">${sub})</span>
                                     <div style="display:flex; gap:4px;">
                                       <button type="button" class="student-tf-btn" data-qnum="${qNum}" data-sub="${sub}" data-val="true" style="
@@ -783,7 +913,7 @@ export function renderHomeworkSolverView() {
 
                     <div style="display:flex; flex-direction:column; gap:8px;">
                       ${saQuestions.map((q, idx) => {
-                        const qNum = q.question_number
+                        const qNum = q.question_number || q.questionNumber
                         const val = studentAnswers.sa[qNum] || ''
                         return `
                           <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
@@ -819,12 +949,7 @@ export function bindHomeworkSolverEvents() {
   const questions = state.currentHomework?.questions || []
   if (!hw) return
 
-  const isInteractive = questions.some(q => {
-    try {
-      const p = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : null
-      return p && p.isInteractive
-    } catch (e) { return false }
-  })
+  const isInteractive = isInteractiveHomework(hw, questions)
 
   if (isInteractive) {
     const solverContainer = document.getElementById('interactive-solver-container')
@@ -836,12 +961,12 @@ export function bindHomeworkSolverEvents() {
       let answered = 0
       questions.forEach(q => {
         const qNum = q.question_number || q.questionNumber
-        const type = q.question_type || q.questionType
-        if (type === 'MULTIPLE_CHOICE' && studentAnswers.mc[qNum]) answered++
-        else if (type === 'TRUE_FALSE') {
+        const type = (q.question_type || q.questionType || '').toUpperCase()
+        if ((type === 'MULTIPLE_CHOICE' || type === 'MC') && studentAnswers.mc[qNum]) answered++
+        else if (type === 'TRUE_FALSE' || type === 'TF') {
           const tf = studentAnswers.tf[qNum] || {}
           if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answered++
-        } else if (type === 'SHORT_ANSWER' && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
+        } else if ((type === 'SHORT_ANSWER' || type === 'SA') && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
           answered++
         }
       })
@@ -883,19 +1008,54 @@ export function bindHomeworkSolverEvents() {
         const val = btn.getAttribute('data-val') === 'true'
 
         if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
-        studentAnswers.tf[qNum][sub] = val
-
+        const currentVal = studentAnswers.tf[qNum][sub]
+        const row = btn.closest('.tf-statement-row')
         const parent = btn.parentElement
-        if (parent) {
-          parent.querySelectorAll('.tf-toggle-btn').forEach(b => b.classList.remove('active'))
+
+        if (currentVal === val) {
+          // Deselect if clicked again
+          delete studentAnswers.tf[qNum][sub]
+          btn.classList.remove('active')
+          btn.style.background = '#ffffff'
+          btn.style.color = '#475569'
+          btn.style.borderColor = '#cbd5e1'
+          btn.style.boxShadow = 'none'
+          if (row) {
+            row.style.background = '#ffffff'
+            row.style.borderColor = '#e2e8f0'
+          }
+        } else {
+          studentAnswers.tf[qNum][sub] = val
+          if (parent) {
+            parent.querySelectorAll('.tf-toggle-btn').forEach(b => {
+              b.classList.remove('active')
+              b.style.background = '#ffffff'
+              b.style.color = '#475569'
+              b.style.borderColor = '#cbd5e1'
+              b.style.boxShadow = 'none'
+            })
+          }
           btn.classList.add('active')
+          btn.style.background = val ? '#16a34a' : '#dc2626'
+          btn.style.color = '#ffffff'
+          btn.style.borderColor = val ? '#16a34a' : '#dc2626'
+          btn.style.boxShadow = val ? '0 2px 4px rgba(22,163,74,0.2)' : '0 2px 4px rgba(220,38,38,0.2)'
+          if (row) {
+            row.style.background = val ? '#f0fdf4' : '#fef2f2'
+            row.style.borderColor = val ? '#86efac' : '#fca5a5'
+          }
         }
 
-        const tf = studentAnswers.tf[qNum]
-        const allDone = ['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)
+        const tf = studentAnswers.tf[qNum] || {}
+        const answeredStatementsCount = ['a', 'b', 'c', 'd'].filter(k => tf[k] !== undefined).length
+        const allDone = answeredStatementsCount === 4
         const navBtn = document.getElementById(`nav-btn-q-${qNum}`)
-        if (navBtn && allDone) {
-          navBtn.classList.add('answered')
+        if (navBtn) {
+          if (allDone) {
+            navBtn.classList.add('answered')
+          } else if (answeredStatementsCount === 0) {
+            navBtn.classList.remove('answered')
+          }
         }
 
         updateInteractiveProgress()
