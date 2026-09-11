@@ -116,9 +116,18 @@ serve(async (req: Request) => {
 
       // Determine active grading structure
       const totalQuestions = (answers || []).length
-      const mcCount = (answers || []).filter((a: any) => a.questions?.question_type === 'MULTIPLE_CHOICE').length
-      const tfCount = (answers || []).filter((a: any) => a.questions?.question_type === 'TRUE_FALSE').length
-      const saCount = (answers || []).filter((a: any) => a.questions?.question_type === 'SHORT_ANSWER').length
+      const mcCount = (answers || []).filter((a: any) => {
+        const q = Array.isArray(a.questions) ? a.questions[0] : (a.questions || {})
+        return (q.question_type || a.question_type) === 'MULTIPLE_CHOICE'
+      }).length
+      const tfCount = (answers || []).filter((a: any) => {
+        const q = Array.isArray(a.questions) ? a.questions[0] : (a.questions || {})
+        return (q.question_type || a.question_type) === 'TRUE_FALSE'
+      }).length
+      const saCount = (answers || []).filter((a: any) => {
+        const q = Array.isArray(a.questions) ? a.questions[0] : (a.questions || {})
+        return (q.question_type || a.question_type) === 'SHORT_ANSWER'
+      }).length
 
       const isAllMC = mcCount === totalQuestions && totalQuestions > 0
       const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
@@ -134,7 +143,9 @@ serve(async (req: Request) => {
       const isPassed = score >= passScore
 
       const formattedAnswers = (answers || []).map((ans: any) => {
-        const qType = ans.questions?.question_type
+        const qObj = Array.isArray(ans.questions) ? ans.questions[0] : (ans.questions || {})
+        const qType = qObj.question_type || ans.question_type
+        const qNum = qObj.question_number !== undefined ? qObj.question_number : ans.question_number
         const key = keyMap.get(ans.question_id)
 
         let points = 1.0
@@ -149,7 +160,7 @@ serve(async (req: Request) => {
           else if (qType === 'TRUE_FALSE') points = 1.0
           else if (qType === 'SHORT_ANSWER') points = 0.25
         } else {
-          points = ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : 1.0
+          points = qObj.points !== undefined && qObj.points !== null ? Number(qObj.points) : (ans.points !== undefined ? Number(ans.points) : 1.0)
         }
 
         let scoreEarned = ans.score_earned !== undefined && ans.score_earned !== null ? Number(ans.score_earned) : 0
@@ -164,22 +175,56 @@ serve(async (req: Request) => {
           if (user.role === 'ADMIN') correctAnswerSummary = key?.mc_answer || null
         } else if (qType === 'TRUE_FALSE') {
           if (user.role === 'ADMIN') correctAnswerSummary = key?.tf_answers || null
-          const studentVal = ans.given_answer?.value || {}
-          const correctVal = (key?.tf_answers as any) || {}
 
-          const correctA = correctVal.a !== undefined ? correctVal.a : correctVal.s1
-          const correctB = correctVal.b !== undefined ? correctVal.b : correctVal.s2
-          const correctC = correctVal.c !== undefined ? correctVal.c : correctVal.s3
-          const correctD = correctVal.d !== undefined ? correctVal.d : correctVal.s4
+          // 1. Check if statementGrades was pre-calculated and stored in given_answer
+          let stGrades = ans.given_answer?.statementGrades
+          if (typeof stGrades === 'string') {
+            try { stGrades = JSON.parse(stGrades) } catch {}
+          }
 
-          if (correctA !== undefined) {
-            statementGrades = {
-              a: studentVal.a !== undefined ? studentVal.a === correctA : false,
-              b: studentVal.b !== undefined ? studentVal.b === correctB : false,
-              c: studentVal.c !== undefined ? studentVal.c === correctC : false,
-              d: studentVal.d !== undefined ? studentVal.d === correctD : false,
+          // 2. If not stored, compute dynamically from answer keys and student given answer
+          if (!stGrades || (!stGrades.a && !stGrades.b && !stGrades.c && !stGrades.d && scoreEarned > 0)) {
+            let correctVal = key?.tf_answers
+            if (typeof correctVal === 'string') {
+              try { correctVal = JSON.parse(correctVal) } catch {}
             }
-          } else if (ans.is_correct || ans.score_earned === 1) {
+            correctVal = (correctVal as any) || {}
+
+            let studentVal = ans.given_answer?.value !== undefined ? ans.given_answer.value : ans.given_answer
+            if (typeof studentVal === 'string') {
+              try { studentVal = JSON.parse(studentVal) } catch {}
+            }
+            studentVal = (studentVal as any) || {}
+
+            const getBool = (v: any) => {
+              if (v === true || v === 'true' || v === 1 || v === '1') return true
+              if (v === false || v === 'false' || v === 0 || v === '0') return false
+              return undefined
+            }
+
+            const cA = getBool(correctVal.a !== undefined ? correctVal.a : correctVal.s1)
+            const cB = getBool(correctVal.b !== undefined ? correctVal.b : correctVal.s2)
+            const cC = getBool(correctVal.c !== undefined ? correctVal.c : correctVal.s3)
+            const cD = getBool(correctVal.d !== undefined ? correctVal.d : correctVal.s4)
+
+            const sA = getBool(studentVal.a !== undefined ? studentVal.a : studentVal.s1)
+            const sB = getBool(studentVal.b !== undefined ? studentVal.b : studentVal.s2)
+            const sC = getBool(studentVal.c !== undefined ? studentVal.c : studentVal.s3)
+            const sD = getBool(studentVal.d !== undefined ? studentVal.d : studentVal.s4)
+
+            if (cA !== undefined || cB !== undefined || cC !== undefined || cD !== undefined) {
+              stGrades = {
+                a: sA !== undefined && cA !== undefined ? sA === cA : false,
+                b: sB !== undefined && cB !== undefined ? sB === cB : false,
+                c: sC !== undefined && cC !== undefined ? sC === cC : false,
+                d: sD !== undefined && cD !== undefined ? sD === cD : false,
+              }
+            }
+          }
+
+          if (stGrades) {
+            statementGrades = stGrades
+          } else if (ans.is_correct || scoreEarned >= points) {
             statementGrades = { a: true, b: true, c: true, d: true }
           }
         } else if (qType === 'SHORT_ANSWER') {
@@ -193,12 +238,13 @@ serve(async (req: Request) => {
 
         return {
           questionId: ans.question_id,
-          questionNumber: ans.questions?.question_number,
+          questionNumber: qNum,
           questionType: qType,
-          content: ans.questions?.content,
-          options: ans.questions?.options,
-          statements: ans.questions?.statements,
-          partTitle: ans.questions?.part_title,
+          content: qObj.content || ans.content,
+          options: qObj.options || ans.options,
+          statements: qObj.statements || ans.statements,
+          partTitle: qObj.part_title || ans.part_title,
+          prompt: qObj.prompt || ans.prompt,
           explanation: key?.explanation || null,
           is_correct: ans.is_correct,
           isCorrect: ans.is_correct,
@@ -211,18 +257,21 @@ serve(async (req: Request) => {
           correctAnswerSummary: user.role === 'ADMIN' ? correctAnswerSummary : null,
           statementGrades,
           questions: {
-            question_number: ans.questions?.question_number,
-            question_type: ans.questions?.question_type,
-            prompt: ans.questions?.prompt,
-            content: ans.questions?.content,
-            options: ans.questions?.options,
-            statements: ans.questions?.statements,
-            part_title: ans.questions?.part_title,
+            question_number: qNum,
+            question_type: qType,
+            prompt: qObj.prompt || ans.prompt,
+            content: qObj.content || ans.content,
+            options: qObj.options || ans.options,
+            statements: qObj.statements || ans.statements,
+            part_title: qObj.part_title || ans.part_title,
             explanation: key?.explanation || null,
             points,
           },
         }
       })
+
+      // Ensure answers are strictly sorted by questionNumber ascending
+      formattedAnswers.sort((a: any, b: any) => (Number(a.questionNumber) || 0) - (Number(b.questionNumber) || 0))
 
       return jsonResponse({
         submissionId: sub.id,

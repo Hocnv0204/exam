@@ -142,6 +142,7 @@ serve(async (req: Request) => {
       .from('questions')
       .select('id, question_number, question_type, prompt, points, content, options, statements, part_title')
       .eq('homework_id', homeworkId)
+      .order('question_number', { ascending: true })
 
     if (qError || !questions || questions.length === 0) {
       return errorResponse('Homework contains no questions', 400)
@@ -239,6 +240,11 @@ serve(async (req: Request) => {
         }
       }
 
+      const givenAnswerWithMeta = {
+        ...given,
+        statementGrades: gradeResult.statementGrades || null,
+      }
+
       questionReviews.push({
         questionNumber: q.question_number,
         prompt: q.prompt,
@@ -248,14 +254,15 @@ serve(async (req: Request) => {
         partTitle: q.part_title,
         explanation: key?.explanation || null,
         questionType: q.question_type,
-        givenAnswer: given,
+        givenAnswer: givenAnswerWithMeta,
+        statementGrades: gradeResult.statementGrades || null,
         ...gradeResult,
         correctAnswerSummary,
       })
 
       submissionAnswersToInsert.push({
         question_id: q.id,
-        given_answer: given,
+        given_answer: givenAnswerWithMeta,
         is_correct: gradeResult.isCorrect,
         score_earned: gradeResult.scoreEarned,
       })

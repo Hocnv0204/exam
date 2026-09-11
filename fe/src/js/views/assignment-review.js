@@ -51,30 +51,92 @@ export function renderAssignmentReviewView() {
 
   const pdfUrl = sub.pdfUrl || result.pdfUrl || ''
   
-  const answers = result.questionReview ? result.questionReview.map(q => ({
-    is_correct: q.isCorrect,
-    score_earned: q.scoreEarned,
-    given_answer: q.givenAnswer,
-    correct_answer: q.correctAnswerSummary,
+  const rawAnswers = result.questionReview ? result.questionReview.map(q => ({
+    is_correct: q.isCorrect !== undefined ? q.isCorrect : q.is_correct,
+    score_earned: q.scoreEarned !== undefined ? q.scoreEarned : q.score_earned,
+    given_answer: q.givenAnswer !== undefined ? q.givenAnswer : q.given_answer,
+    correct_answer: q.correctAnswerSummary !== undefined ? q.correctAnswerSummary : q.correct_answer,
     statementGrades: q.statementGrades,
+    questionNumber: q.questionNumber !== undefined ? q.questionNumber : q.question_number,
     questions: {
-      question_number: q.questionNumber,
-      question_type: q.questionType,
+      question_number: q.questionNumber !== undefined ? q.questionNumber : q.question_number,
+      question_type: q.questionType || q.question_type,
       prompt: q.prompt,
       content: q.content,
       options: q.options,
       statements: q.statements,
       part_title: q.partTitle || q.part_title,
       explanation: q.explanation,
-      points: q.pointsPossible
+      points: q.pointsPossible || q.points
     }
   })) : (result.answers || [])
 
+  const answers = rawAnswers.map((ans, idx) => {
+    const qObj = Array.isArray(ans.questions) ? ans.questions[0] : (ans.questions || {})
+    const qNum = qObj.question_number !== undefined ? qObj.question_number : (ans.questionNumber !== undefined ? ans.questionNumber : (ans.question_number !== undefined ? ans.question_number : (idx + 1)))
+    const qType = qObj.question_type || ans.questionType || ans.question_type || 'MULTIPLE_CHOICE'
+    const prompt = qObj.prompt !== undefined ? qObj.prompt : (ans.prompt !== undefined ? ans.prompt : '')
+    const content = qObj.content !== undefined ? qObj.content : (ans.content !== undefined ? ans.content : '')
+    const options = qObj.options || ans.options || null
+    const statements = qObj.statements || ans.statements || null
+    const partTitle = qObj.part_title || qObj.partTitle || ans.partTitle || ans.part_title || null
+    const explanation = qObj.explanation || ans.explanation || null
+    const points = qObj.points || ans.pointsPossible || ans.points || 1
+
+    return {
+      ...ans,
+      is_correct: ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect,
+      score_earned: ans.score_earned !== undefined ? ans.score_earned : ans.scoreEarned,
+      given_answer: ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer,
+      correct_answer: ans.correct_answer !== undefined ? ans.correct_answer : ans.correctAnswerSummary,
+      statementGrades: ans.statementGrades || qObj.statementGrades || ans.given_answer?.statementGrades || ans.givenAnswer?.statementGrades,
+      rawQuestionNumber: Number(qNum) || (idx + 1),
+      questions: {
+        question_number: Number(qNum) || (idx + 1),
+        question_type: qType,
+        prompt,
+        content,
+        options,
+        statements,
+        part_title: partTitle,
+        explanation,
+        points
+      }
+    }
+  })
+
   // Sort answers by question number ascending to fix out-of-order display bug
   const sortedAnswers = [...answers].sort((a, b) => {
-    const numA = a.questions?.question_number || 0
-    const numB = b.questions?.question_number || 0
+    const numA = a.rawQuestionNumber || a.questions?.question_number || 0
+    const numB = b.rawQuestionNumber || b.questions?.question_number || 0
     return numA - numB
+  })
+
+  // Assign type-based numbering starting at 1 for each question type
+  let mcIndex = 0
+  let tfIndex = 0
+  let saIndex = 0
+
+  sortedAnswers.forEach(ans => {
+    const qType = ans.questions?.question_type || ans.questionType
+    if (qType === 'MULTIPLE_CHOICE') {
+      mcIndex++
+      ans.displayNumber = mcIndex
+      ans.typePrefix = 'MC'
+    } else if (qType === 'TRUE_FALSE') {
+      tfIndex++
+      ans.displayNumber = tfIndex
+      ans.typePrefix = 'TF'
+    } else if (qType === 'SHORT_ANSWER') {
+      saIndex++
+      ans.displayNumber = saIndex
+      ans.typePrefix = 'SA'
+    } else {
+      mcIndex++
+      ans.displayNumber = mcIndex
+      ans.typePrefix = 'MC'
+    }
+    ans.anchorId = `review-q-${ans.typePrefix}-${ans.displayNumber}`
   })
 
   // Determine active structure
@@ -154,7 +216,54 @@ export function renderAssignmentReviewView() {
   }
 
   let tfLabel = 'Đúng / Sai (1đ/câu)'
-  let saLabel = isStructureC ? 'Trả lời ngắn (0.25đ/câu)' : 'Trả lời ngắn (0.5đ/câu)'
+  let saLabel = isStructureB ? 'Trả lời ngắn (0.5đ/câu)' : (isStructureC ? 'Trả lời ngắn (0.25đ/câu)' : 'Trả lời ngắn')
+  const hasMultipleSections = ((mcCount > 0 ? 1 : 0) + (tfCount > 0 ? 1 : 0) + (saCount > 0 ? 1 : 0)) > 1
+
+  const renderNavButton = (ans) => {
+    const displayNum = ans.displayNumber
+    const anchorId = ans.anchorId
+    const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
+    const scoreEarned = ans.score_earned !== undefined ? ans.score_earned : (ans.scoreEarned || 0)
+
+    let navBg = '#fee2e2'
+    let navColor = '#dc2626'
+    let navBorder = '#ef4444'
+
+    if (isCorrect) {
+      navBg = '#dcfce7'
+      navColor = '#16a34a'
+      navBorder = '#10b981'
+    } else if (scoreEarned > 0) {
+      navBg = '#fef3c7'
+      navColor = '#d97706'
+      navBorder = '#f59e0b'
+    }
+
+    return `
+      <div class="nav-grid-item" data-target-id="${anchorId}" data-qnum="${ans.rawQuestionNumber}" style="
+        background:${navBg}; 
+        color:${navColor}; 
+        border: 1px solid ${navBorder};
+        width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; cursor: pointer; user-select: none; transition: transform 0.15s;
+      " title="Xem câu ${displayNum}">${displayNum}</div>
+    `
+  }
+
+  const renderNavSection = (qType, title, count) => {
+    if (count === 0) return ''
+    const list = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === qType)
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+          <span>${title}</span>
+          <span style="font-size:10px; background:#f1f5f9; color:#64748b; padding:2px 6px; border-radius:4px; font-weight:700;">${count} câu</span>
+        </div>
+        <div class="question-nav-grid" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px;">
+          ${list.map(ans => renderNavButton(ans)).join('')}
+        </div>
+      </div>
+    `
+  }
 
   return `
     <div class="app-layout">
@@ -287,262 +396,328 @@ export function renderAssignmentReviewView() {
 
               <div id="questions-grid" class="grid-3">
             <div style="grid-column: span 2; display:flex; flex-direction:column; gap:16px;">
-              ${sortedAnswers.map(ans => {
-                const qNum = ans.questions?.question_number || 1
-                const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
-                const qType = ans.questions?.question_type || ans.questionType
-                const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (qType === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
-                let pointsPossible = ans.pointsPossible
-                if (isAllMC) {
-                  pointsPossible = totalQuestions > 0 ? (10 / totalQuestions) : 0.25
-                } else if (isStructureB) {
-                  if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
-                  else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
-                  else if (qType === 'SHORT_ANSWER') pointsPossible = 0.5
-                } else if (isStructureC) {
-                  if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
-                  else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
-                  else if (qType === 'SHORT_ANSWER') pointsPossible = 0.25
-                } else if (pointsPossible === undefined || pointsPossible === null) {
-                  pointsPossible = ans.questions?.points || 1
-                }
+              ${(() => {
+                let currentSectionType = null
 
-                let scoreEarned = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
-                if (isAllMC) {
-                  scoreEarned = isCorrect ? pointsPossible : 0
-                }
-
-                const givenAnswer = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer
-
-                let cardBorderColor = '#ef4444'
-                let badgeBg = '#fee2e2'
-                let badgeColor = '#dc2626'
-                let badgeIcon = 'fa-xmark'
-
-                if (isCorrect || scoreEarned >= pointsPossible) {
-                  cardBorderColor = '#10b981'
-                  badgeBg = '#dcfce7'
-                  badgeColor = '#16a34a'
-                  badgeIcon = 'fa-check'
-                } else if (scoreEarned > 0) {
-                  cardBorderColor = '#f59e0b'
-                  badgeBg = '#fef3c7'
-                  badgeColor = '#d97706'
-                  badgeIcon = 'fa-triangle-exclamation'
-                }
-                
-                let givenStr = ''
-                if (givenAnswer?.type === 'TRUE_FALSE') {
-                  const val = givenAnswer?.value || {}
-                  const renderVal = (v) => v === true ? 'Đ' : (v === false ? 'S' : '_')
-                  givenStr = `a: ${renderVal(val.a)}, b: ${renderVal(val.b)}, c: ${renderVal(val.c)}, d: ${renderVal(val.d)}`
-                } else {
-                  givenStr = givenAnswer?.value !== null && givenAnswer?.value !== undefined && givenAnswer?.value !== '' ? String(givenAnswer.value) : 'Không trả lời'
-                }
-
-                let correctStr = ''
-                const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.questions?.question_answers
-                
-                if (qType === 'MULTIPLE_CHOICE') {
-                  correctStr = corrKey?.mc_answer || corrKey || ''
-                } else if (qType === 'TRUE_FALSE') {
-                  const val = corrKey?.tf_answers || corrKey || {}
-                  const a = val.a !== undefined ? val.a : val.s1
-                  const b = val.b !== undefined ? val.b : val.s2
-                  const c = val.c !== undefined ? val.c : val.s3
-                  const d = val.d !== undefined ? val.d : val.s4
-                  if (a !== undefined || b !== undefined || c !== undefined || d !== undefined) {
-                    correctStr = `a: ${a ? 'Đ' : 'S'}, b: ${b ? 'Đ' : 'S'}, c: ${c ? 'Đ' : 'S'}, d: ${d ? 'Đ' : 'S'}`
+                return sortedAnswers.map((ans, idx) => {
+                  const qNum = ans.displayNumber || (idx + 1)
+                  const anchorId = ans.anchorId || `review-q-${idx + 1}`
+                  const rawNum = ans.rawQuestionNumber || ans.questions?.question_number || (idx + 1)
+                  const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
+                  const qType = ans.questions?.question_type || ans.questionType
+                  const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (qType === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
+                  let pointsPossible = ans.pointsPossible
+                  if (isAllMC) {
+                    pointsPossible = totalQuestions > 0 ? (10 / totalQuestions) : 0.25
+                  } else if (isStructureB) {
+                    if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
+                    else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
+                    else if (qType === 'SHORT_ANSWER') pointsPossible = 0.5
+                  } else if (isStructureC) {
+                    if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
+                    else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
+                    else if (qType === 'SHORT_ANSWER') pointsPossible = 0.25
+                  } else if (pointsPossible === undefined || pointsPossible === null) {
+                    pointsPossible = ans.questions?.points || 1
                   }
-                } else {
-                  const val = corrKey?.sa_answer !== undefined && corrKey?.sa_answer !== null 
-                    ? corrKey.sa_answer 
-                    : (corrKey?.answer !== undefined && corrKey?.answer !== null ? corrKey.answer : corrKey)
-                  correctStr = val !== undefined && val !== null ? String(val) : ''
-                }
 
-                const qContent = ans.questions?.content || ans.content || ans.questions?.prompt || ''
-                const qOptions = ans.questions?.options || ans.options || null
-                const qStatements = ans.questions?.statements || ans.statements || null
-                const qExplanation = ans.questions?.explanation || ans.explanation || null
+                  let scoreEarned = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+                  if (isAllMC) {
+                    scoreEarned = isCorrect ? pointsPossible : 0
+                  }
 
-                let reviewBody = ''
-                if (qType === 'TRUE_FALSE') {
-                  const tfObj = givenAnswer?.value || {}
-                  const corrKeyVal = corrKey?.tf_answers || corrKey || {}
-                  const correctA = corrKeyVal.a !== undefined ? corrKeyVal.a : corrKeyVal.s1
-                  const correctB = corrKeyVal.b !== undefined ? corrKeyVal.b : corrKeyVal.s2
-                  const correctC = corrKeyVal.c !== undefined ? corrKeyVal.c : corrKeyVal.s3
-                  const correctD = corrKeyVal.d !== undefined ? corrKeyVal.d : corrKeyVal.s4
-                  const correctMap = { a: correctA, b: correctB, c: correctC, d: correctD }
+                  const givenAnswer = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer
 
-                  let statementGrades = ans.statementGrades || ans.questions?.statementGrades
-                  if (!statementGrades && correctMap.a !== undefined) {
-                    statementGrades = {
-                      a: tfObj.a === correctMap.a,
-                      b: tfObj.b === correctMap.b,
-                      c: tfObj.c === correctMap.c,
-                      d: tfObj.d === correctMap.d
+                  let cardBorderColor = '#ef4444'
+                  let badgeBg = '#fee2e2'
+                  let badgeColor = '#dc2626'
+                  let badgeIcon = 'fa-xmark'
+
+                  if (isCorrect || scoreEarned >= pointsPossible) {
+                    cardBorderColor = '#10b981'
+                    badgeBg = '#dcfce7'
+                    badgeColor = '#16a34a'
+                    badgeIcon = 'fa-check'
+                  } else if (scoreEarned > 0) {
+                    cardBorderColor = '#f59e0b'
+                    badgeBg = '#fef3c7'
+                    badgeColor = '#d97706'
+                    badgeIcon = 'fa-triangle-exclamation'
+                  }
+                  
+                  let givenStr = ''
+                  if (givenAnswer?.type === 'TRUE_FALSE') {
+                    const val = givenAnswer?.value || {}
+                    const renderVal = (v) => v === true ? 'Đ' : (v === false ? 'S' : '_')
+                    givenStr = `a: ${renderVal(val.a)}, b: ${renderVal(val.b)}, c: ${renderVal(val.c)}, d: ${renderVal(val.d)}`
+                  } else {
+                    givenStr = givenAnswer?.value !== null && givenAnswer?.value !== undefined && givenAnswer?.value !== '' ? String(givenAnswer.value) : 'Không trả lời'
+                  }
+
+                  let correctStr = ''
+                  const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.questions?.question_answers
+                  
+                  if (qType === 'MULTIPLE_CHOICE') {
+                    correctStr = corrKey?.mc_answer || corrKey || ''
+                  } else if (qType === 'TRUE_FALSE') {
+                    const val = corrKey?.tf_answers || corrKey || {}
+                    const a = val.a !== undefined ? val.a : val.s1
+                    const b = val.b !== undefined ? val.b : val.s2
+                    const c = val.c !== undefined ? val.c : val.s3
+                    const d = val.d !== undefined ? val.d : val.s4
+                    if (a !== undefined || b !== undefined || c !== undefined || d !== undefined) {
+                      correctStr = `a: ${a ? 'Đ' : 'S'}, b: ${b ? 'Đ' : 'S'}, c: ${c ? 'Đ' : 'S'}, d: ${d ? 'Đ' : 'S'}`
                     }
+                  } else {
+                    const val = corrKey?.sa_answer !== undefined && corrKey?.sa_answer !== null 
+                      ? corrKey.sa_answer 
+                      : (corrKey?.answer !== undefined && corrKey?.answer !== null ? corrKey.answer : corrKey)
+                    correctStr = val !== undefined && val !== null ? String(val) : ''
                   }
-                  if (!statementGrades) {
-                    if (isCorrect || scoreEarned >= pointsPossible) {
+
+                  const qContent = ans.questions?.content || ans.content || ans.questions?.prompt || ''
+                  const qOptions = ans.questions?.options || ans.options || null
+                  const qStatements = ans.questions?.statements || ans.statements || null
+                  const qExplanation = ans.questions?.explanation || ans.explanation || null
+
+                  let reviewBody = ''
+                  if (qType === 'TRUE_FALSE') {
+                    let tfObj = givenAnswer?.value !== undefined ? givenAnswer.value : givenAnswer
+                    if (typeof tfObj === 'string') {
+                      try { tfObj = JSON.parse(tfObj) } catch {}
+                    }
+                    tfObj = tfObj || {}
+
+                    let corrKeyVal = corrKey?.tf_answers || corrKey || {}
+                    if (typeof corrKeyVal === 'string') {
+                      try { corrKeyVal = JSON.parse(corrKeyVal) } catch {}
+                    }
+
+                    const getBool = (v) => {
+                      if (v === true || v === 'true' || v === 1 || v === '1') return true
+                      if (v === false || v === 'false' || v === 0 || v === '0') return false
+                      return undefined
+                    }
+
+                    const correctA = getBool(corrKeyVal.a !== undefined ? corrKeyVal.a : corrKeyVal.s1)
+                    const correctB = getBool(corrKeyVal.b !== undefined ? corrKeyVal.b : corrKeyVal.s2)
+                    const correctC = getBool(corrKeyVal.c !== undefined ? corrKeyVal.c : corrKeyVal.s3)
+                    const correctD = getBool(corrKeyVal.d !== undefined ? corrKeyVal.d : corrKeyVal.s4)
+                    const correctMap = { a: correctA, b: correctB, c: correctC, d: correctD }
+
+                    let statementGrades = ans.statementGrades || ans.questions?.statementGrades || givenAnswer?.statementGrades
+                    if (typeof statementGrades === 'string') {
+                      try { statementGrades = JSON.parse(statementGrades) } catch {}
+                    }
+
+                    // If not present, compare student value with correct key if available
+                    if (!statementGrades && (correctA !== undefined || correctB !== undefined || correctC !== undefined || correctD !== undefined)) {
+                      statementGrades = {
+                        a: getBool(tfObj.a !== undefined ? tfObj.a : tfObj.s1) === correctA,
+                        b: getBool(tfObj.b !== undefined ? tfObj.b : tfObj.s2) === correctB,
+                        c: getBool(tfObj.c !== undefined ? tfObj.c : tfObj.s3) === correctC,
+                        d: getBool(tfObj.d !== undefined ? tfObj.d : tfObj.s4) === correctD
+                      }
+                    }
+
+                    // Fallback for full score
+                    if (!statementGrades && (isCorrect || scoreEarned >= pointsPossible)) {
                       statementGrades = { a: true, b: true, c: true, d: true }
-                    } else {
-                      statementGrades = {}
                     }
-                  }
 
-                  let stmtList = []
-                  if (Array.isArray(qStatements)) {
-                    stmtList = qStatements.map((s, idx) => ({ key: s.key || ['a', 'b', 'c', 'd'][idx], text: s.text || String(s) }))
-                  } else if (typeof qStatements === 'object' && qStatements) {
-                    stmtList = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: qStatements[k] || '' }))
-                  }
+                    let stmtList = []
+                    if (Array.isArray(qStatements)) {
+                      stmtList = qStatements.map((s, idx) => ({ key: s.key || ['a', 'b', 'c', 'd'][idx], text: s.text || String(s) }))
+                    } else if (typeof qStatements === 'object' && qStatements) {
+                      stmtList = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: qStatements[k] || '' }))
+                    }
 
-                  const tfReviewHtml = ['a', 'b', 'c', 'd'].map(sub => {
-                    const studentVal = tfObj[sub]
-                    const isStmtCorrect = statementGrades[sub] === true || (isCorrect && studentVal !== undefined)
-                    const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
-                    const correctValText = correctMap[sub] !== undefined ? (correctMap[sub] ? 'Đ' : 'S') : ''
-                    const stmtObj = stmtList.find(s => s.key === sub)
-                    const stmtText = stmtObj?.text || ''
+                    const tfReviewHtml = ['a', 'b', 'c', 'd'].map(sub => {
+                      const studentRaw = tfObj[sub] !== undefined ? tfObj[sub] : tfObj[`s${sub === 'a' ? 1 : sub === 'b' ? 2 : sub === 'c' ? 3 : 4}`]
+                      const studentVal = getBool(studentRaw)
+                      const isStmtCorrect = statementGrades ? (statementGrades[sub] === true) : (isCorrect && studentVal !== undefined)
+                      const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
+                      const correctVal = correctMap[sub]
+                      const correctValText = correctVal !== undefined ? (correctVal ? 'Đ' : 'S') : ''
+                      const stmtObj = stmtList.find(s => s.key === sub)
+                      const stmtText = stmtObj?.text || ''
 
-                    return `
-                      <div style="display:flex; flex-direction:column; gap:6px; padding:12px; background:${isStmtCorrect ? '#f0fdf4' : '#fef2f2'}; border:1px solid ${isStmtCorrect ? '#10b981' : '#ef4444'}; border-radius:8px; font-size:13px;">
-                        ${stmtText ? `
-                          <div style="font-size:14px; color:#1e293b; line-height:1.5; margin-bottom:4px;">
-                            <strong style="color:#0284c7;">${sub})</strong> ${stmtText}
+                      return `
+                        <div style="display:flex; flex-direction:column; gap:6px; padding:12px; background:${isStmtCorrect ? '#f0fdf4' : '#fef2f2'}; border:1.5px solid ${isStmtCorrect ? '#10b981' : '#ef4444'}; border-radius:8px; font-size:13px; transition:all 0.2s ease;">
+                          ${stmtText ? `
+                            <div style="font-size:14px; color:#1e293b; line-height:1.5; margin-bottom:4px;">
+                              <strong style="color:#0284c7;">${sub})</strong> ${stmtText}
+                            </div>
+                          ` : `
+                            <div style="font-weight:700; color:#334155;">Ý ${sub.toUpperCase()}:</div>
+                          `}
+                          <div style="display:flex; justify-content:space-between; align-items:center; padding-top:4px; border-top:1px dashed ${isStmtCorrect ? '#bbf7d0' : '#fecaca'};">
+                            <span style="font-weight:600; color:#475569; font-size:12px;">Lựa chọn của bạn:</span>
+                            <span style="font-weight:700; color:${isStmtCorrect ? '#15803d' : '#b91c1c'}; display:flex; align-items:center; gap:6px;">
+                              <i class="fa-solid ${isStmtCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
+                              <span>${displayVal}</span>
+                              <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:${isStmtCorrect ? '#dcfce7' : '#fee2e2'}; font-weight:700;">${isStmtCorrect ? 'Chính xác' : 'Chưa đúng'}</span>
+                            </span>
                           </div>
-                        ` : `
-                          <div style="font-weight:700; color:#334155;">Ý ${sub.toUpperCase()}:</div>
-                        `}
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding-top:4px; border-top:1px dashed ${isStmtCorrect ? '#bbf7d0' : '#fecaca'};">
-                          <span style="font-weight:600; color:#475569; font-size:12px;">Lựa chọn của bạn:</span>
-                          <span style="font-weight:700; color:${isStmtCorrect ? '#15803d' : '#b91c1c'}; display:flex; align-items:center; gap:4px;">
-                            <i class="fa-solid ${isStmtCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
-                            ${displayVal}
-                          </span>
+                          ${(state.user?.role === 'ADMIN' && correctValText) ? `
+                            <div style="font-size:11px; color:#475569; display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                              <span>Đáp án đúng:</span>
+                              <strong style="color:#15803d;">${correctValText === 'Đ' ? 'Đúng (Đ)' : 'Sai (S)'}</strong>
+                            </div>
+                          ` : ''}
                         </div>
-                        ${(state.user?.role === 'ADMIN' && correctValText) ? `
-                          <div style="font-size:11px; color:#475569; display:flex; justify-content:space-between; align-items:center;">
-                            <span>Đáp án đúng:</span>
-                            <strong style="color:#15803d;">${correctValText === 'Đ' ? 'Đúng (Đ)' : 'Sai (S)'}</strong>
+                      `
+                    }).join('')
+
+                    reviewBody = `
+                      <div style="display:grid; grid-template-columns:1fr; gap:10px;">
+                        ${tfReviewHtml}
+                      </div>
+                    `
+                  } else if (qType === 'MULTIPLE_CHOICE' && qOptions) {
+                    let optList = []
+                    if (Array.isArray(qOptions)) {
+                      optList = qOptions.map(opt => typeof opt === 'string' ? { key: '', text: opt } : opt)
+                    } else if (typeof qOptions === 'object' && qOptions) {
+                      optList = ['A', 'B', 'C', 'D'].map(k => ({ key: k, text: qOptions[k] || '' }))
+                    }
+
+                    reviewBody = `
+                      <div style="display:flex; flex-direction:column; gap:8px;">
+                        ${optList.map(opt => {
+                          const isChosen = givenStr === opt.key
+                          const isRight = correctStr === opt.key
+                          let optBorder = '#e2e8f0'
+                          let optBg = '#ffffff'
+                          let badge = ''
+
+                          if (isChosen && (isCorrect || isRight)) {
+                            optBorder = '#10b981'
+                            optBg = '#f0fdf4'
+                            badge = `<span style="font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-circle-check"></i> Bạn chọn (Đúng)</span>`
+                          } else if (isChosen && !isCorrect) {
+                            optBorder = '#ef4444'
+                            optBg = '#fef2f2'
+                            badge = `<span style="font-size:12px; font-weight:700; color:#b91c1c; background:#fee2e2; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-circle-xmark"></i> Bạn chọn (Sai)</span>`
+                          } else if (isRight && state.user?.role === 'ADMIN') {
+                            optBorder = '#10b981'
+                            optBg = '#f0fdf4'
+                            badge = `<span style="font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-check"></i> Đáp án đúng</span>`
+                          }
+
+                          return `
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border:1.5px solid ${optBorder}; background:${optBg}; border-radius:10px; gap:12px;">
+                              <div style="display:flex; align-items:center; gap:12px; flex:1;">
+                                <span style="width:28px; height:28px; border-radius:50%; background:${isChosen ? (isCorrect ? '#10b981' : '#ef4444') : (isRight && state.user?.role === 'ADMIN' ? '#10b981' : '#f1f5f9')}; color:${(isChosen || (isRight && state.user?.role === 'ADMIN')) ? '#ffffff' : '#334155'}; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                                  ${opt.key}
+                                </span>
+                                <div style="font-size:14px; color:#1e293b; line-height:1.5;">${opt.text || ''}</div>
+                              </div>
+                              ${badge}
+                            </div>
+                          `
+                        }).join('')}
+                      </div>
+                    `
+                  } else {
+                    reviewBody = `
+                      <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:${isCorrect ? '#f0fdf4' : '#fef2f2'}; border:1px solid ${isCorrect ? '#10b981' : '#ef4444'}; border-radius:10px;">
+                          <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:${isCorrect ? '#15803d' : '#b91c1c'}; font-size:14px;">
+                            <i class="fa-solid ${isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> Đáp án của bạn: ${givenStr}
+                          </div>
+                        </div>
+                        ${(state.user?.role === 'ADMIN' && !isCorrect && correctStr) ? `
+                          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#f0fdf4; border:1px solid #10b981; border-radius:10px;">
+                            <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:#15803d; font-size:14px;">
+                              <i class="fa-solid fa-circle-check"></i> Đáp án đúng: ${correctStr}
+                            </div>
                           </div>
                         ` : ''}
                       </div>
                     `
-                  }).join('')
-
-                  reviewBody = `
-                    <div style="display:grid; grid-template-columns:1fr; gap:10px;">
-                      ${tfReviewHtml}
-                    </div>
-                  `
-                } else if (qType === 'MULTIPLE_CHOICE' && qOptions) {
-                  let optList = []
-                  if (Array.isArray(qOptions)) {
-                    optList = qOptions.map(opt => typeof opt === 'string' ? { key: '', text: opt } : opt)
-                  } else if (typeof qOptions === 'object' && qOptions) {
-                    optList = ['A', 'B', 'C', 'D'].map(k => ({ key: k, text: qOptions[k] || '' }))
                   }
 
-                  reviewBody = `
-                    <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${optList.map(opt => {
-                        const isChosen = givenStr === opt.key
-                        const isRight = correctStr === opt.key
-                        let optBorder = '#e2e8f0'
-                        let optBg = '#ffffff'
-                        let badge = ''
-
-                        if (isChosen && (isCorrect || isRight)) {
-                          optBorder = '#10b981'
-                          optBg = '#f0fdf4'
-                          badge = `<span style="font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-circle-check"></i> Bạn chọn (Đúng)</span>`
-                        } else if (isChosen && !isCorrect) {
-                          optBorder = '#ef4444'
-                          optBg = '#fef2f2'
-                          badge = `<span style="font-size:12px; font-weight:700; color:#b91c1c; background:#fee2e2; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-circle-xmark"></i> Bạn chọn (Sai)</span>`
-                        } else if (isRight && state.user?.role === 'ADMIN') {
-                          optBorder = '#10b981'
-                          optBg = '#f0fdf4'
-                          badge = `<span style="font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-check"></i> Đáp án đúng</span>`
-                        }
-
-                        return `
-                          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border:1.5px solid ${optBorder}; background:${optBg}; border-radius:10px; gap:12px;">
-                            <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                              <span style="width:28px; height:28px; border-radius:50%; background:${isChosen ? (isCorrect ? '#10b981' : '#ef4444') : (isRight && state.user?.role === 'ADMIN' ? '#10b981' : '#f1f5f9')}; color:${(isChosen || (isRight && state.user?.role === 'ADMIN')) ? '#ffffff' : '#334155'}; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                                ${opt.key}
-                              </span>
-                              <div style="font-size:14px; color:#1e293b; line-height:1.5;">${opt.text || ''}</div>
-                            </div>
-                            ${badge}
-                          </div>
-                        `
-                      }).join('')}
-                    </div>
-                  `
-                } else {
-                  reviewBody = `
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:${isCorrect ? '#f0fdf4' : '#fef2f2'}; border:1px solid ${isCorrect ? '#10b981' : '#ef4444'}; border-radius:10px;">
-                        <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:${isCorrect ? '#15803d' : '#b91c1c'}; font-size:14px;">
-                          <i class="fa-solid ${isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> Đáp án của bạn: ${givenStr}
+                  let explanationHtml = ''
+                  if (qExplanation) {
+                    explanationHtml = `
+                      <div class="solution-explanation-box" style="background:#f8fafc; border:1px solid #cbd5e1; border-left:4px solid #10b981; border-radius:10px; padding:14px 18px; margin-top:14px; font-size:14px; color:#1e293b;">
+                        <div style="font-weight:700; color:#059669; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                          <i class="fa-solid fa-lightbulb" style="color:#eab308;"></i> Lời giải chi tiết:
                         </div>
+                        <div class="explanation-content" style="line-height:1.6;">${qExplanation}</div>
                       </div>
-                      ${(state.user?.role === 'ADMIN' && !isCorrect && correctStr) ? `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#f0fdf4; border:1px solid #10b981; border-radius:10px;">
-                          <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:#15803d; font-size:14px;">
-                            <i class="fa-solid fa-circle-check"></i> Đáp án đúng: ${correctStr}
+                    `
+                  }
+
+                  let sectionHeaderHtml = ''
+                  if (hasMultipleSections && currentSectionType !== qType) {
+                    currentSectionType = qType
+                    if (qType === 'MULTIPLE_CHOICE') {
+                      sectionHeaderHtml = `
+                        <div class="review-section-header" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 14px 20px; font-weight: 800; font-size: 15px; color: #1e40af; display: flex; align-items: center; justify-content: space-between; margin-top: ${idx > 0 ? '16px' : '0'};">
+                          <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="fa-solid fa-list-check" style="color: #2563eb; font-size:18px;"></i>
+                            <span>PHẦN I: CÂU TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN LỰA CHỌN (${mcCount} câu)</span>
                           </div>
+                          <span style="font-size:12px; font-weight:700; color:#1d4ed8; background:#ffffff; padding:4px 12px; border-radius:8px; border:1px solid #bfdbfe;">Câu 1 - ${mcCount}</span>
                         </div>
-                      ` : ''}
+                      `
+                    } else if (qType === 'TRUE_FALSE') {
+                      sectionHeaderHtml = `
+                        <div class="review-section-header" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1.5px solid #bbf7d0; border-radius: 12px; padding: 14px 20px; font-weight: 800; font-size: 15px; color: #15803d; display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
+                          <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="fa-solid fa-square-check" style="color: #16a34a; font-size:18px;"></i>
+                            <span>PHẦN II: CÂU TRẮC NGHIỆM ĐÚNG / SAI (${tfCount} câu)</span>
+                          </div>
+                          <span style="font-size:12px; font-weight:700; color:#15803d; background:#ffffff; padding:4px 12px; border-radius:8px; border:1px solid #bbf7d0;">Câu 1 - ${tfCount}</span>
+                        </div>
+                      `
+                    } else if (qType === 'SHORT_ANSWER') {
+                      sectionHeaderHtml = `
+                        <div class="review-section-header" style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); border: 1.5px solid #fef08a; border-radius: 12px; padding: 14px 20px; font-weight: 800; font-size: 15px; color: #854d0e; display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
+                          <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="fa-solid fa-pen-to-square" style="color: #ca8a04; font-size:18px;"></i>
+                            <span>PHẦN III: CÂU TRẮC NGHIỆM TRẢ LỜI NGẮN (${saCount} câu)</span>
+                          </div>
+                          <span style="font-size:12px; font-weight:700; color:#854d0e; background:#ffffff; padding:4px 12px; border-radius:8px; border:1px solid #fef08a;">Câu 1 - ${saCount}</span>
+                        </div>
+                      `
+                    }
+                  }
+
+                  const isGenericPlaceholder = !qContent || !!qContent.trim().match(/^Câu hỏi số\s*\d+$/i)
+
+                  return `
+                    ${sectionHeaderHtml}
+                    <div class="card review-question-card" id="${anchorId}" data-legacy-id="review-question-${rawNum}" style="border-left:4px solid ${cardBorderColor}; margin-bottom: 0; scroll-margin-top: 14px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div>
+                          <span class="question-badge" style="background:${cardBorderColor}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
+                          <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">${qTypeStr}</span>
+                        </div>
+                        <span class="badge" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
+                          <i class="fa-solid ${badgeIcon}"></i> ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm
+                        </span>
+                      </div>
+
+                      ${!isGenericPlaceholder ? `
+                        <div class="question-prompt-text" style="font-size:15px; color:#0f172a; line-height:1.6; margin-bottom:14px;">
+                          ${qContent}
+                        </div>
+                      ` : `
+                        <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">
+                          Câu hỏi số ${qNum}
+                        </div>
+                      `}
+
+                      ${reviewBody}
+
+                      ${explanationHtml}
                     </div>
                   `
-                }
-
-                let explanationHtml = ''
-                if (qExplanation) {
-                  explanationHtml = `
-                    <div class="solution-explanation-box" style="background:#f8fafc; border:1px solid #cbd5e1; border-left:4px solid #10b981; border-radius:10px; padding:14px 18px; margin-top:14px; font-size:14px; color:#1e293b;">
-                      <div style="font-weight:700; color:#059669; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
-                        <i class="fa-solid fa-lightbulb" style="color:#eab308;"></i> Lời giải chi tiết:
-                      </div>
-                      <div class="explanation-content" style="line-height:1.6;">${qExplanation}</div>
-                    </div>
-                  `
-                }
-
-                return `
-                  <div class="card review-question-card" id="review-question-${qNum}" style="border-left:4px solid ${cardBorderColor}; margin-bottom: 0; scroll-margin-top: 14px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                      <div>
-                        <span class="question-badge" style="background:${cardBorderColor}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
-                        <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">${qTypeStr}</span>
-                      </div>
-                      <span class="badge" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
-                        <i class="fa-solid ${badgeIcon}"></i> ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm
-                      </span>
-                    </div>
-
-                    ${qContent ? `
-                      <div class="question-prompt-text" style="font-size:15px; color:#0f172a; line-height:1.6; margin-bottom:14px;">
-                        ${qContent}
-                      </div>
-                    ` : `
-                      <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">
-                        Câu hỏi số ${qNum}
-                      </div>
-                    `}
-
-                    ${reviewBody}
-
-                    ${explanationHtml}
-                  </div>
-                `
-              }).join('')}
+                }).join('')
+              })()}
             </div>
 
             <!-- Right Column: Question Navigator -->
@@ -550,36 +725,15 @@ export function renderAssignmentReviewView() {
               <div class="card">
                 <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:12px;">Sơ đồ câu hỏi</h3>
                 
-                <div class="question-nav-grid" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px;">
-                  ${sortedAnswers.map(ans => {
-                    const qNum = ans.questions?.question_number || 1
-                    const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
-                    const scoreEarned = ans.score_earned !== undefined ? ans.score_earned : (ans.scoreEarned || 0)
-
-                    let navBg = '#fee2e2'
-                    let navColor = '#dc2626'
-                    let navBorder = '#ef4444'
-
-                    if (isCorrect) {
-                      navBg = '#dcfce7'
-                      navColor = '#16a34a'
-                      navBorder = '#10b981'
-                    } else if (scoreEarned > 0) {
-                      navBg = '#fef3c7'
-                      navColor = '#d97706'
-                      navBorder = '#f59e0b'
-                    }
-
-                    return `
-                      <div class="nav-grid-item" data-qnum="${qNum}" style="
-                        background:${navBg}; 
-                        color:${navColor}; 
-                        border: 1px solid ${navBorder};
-                        width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; cursor: pointer; user-select: none; transition: transform 0.15s;
-                      " title="Xem câu ${qNum}">${qNum}</div>
-                    `
-                  }).join('')}
-                </div>
+                ${hasMultipleSections ? `
+                  ${renderNavSection('MULTIPLE_CHOICE', 'Phần I: Trắc nghiệm', mcCount)}
+                  ${renderNavSection('TRUE_FALSE', 'Phần II: Đúng / Sai', tfCount)}
+                  ${renderNavSection('SHORT_ANSWER', 'Phần III: Trả lời ngắn', saCount)}
+                ` : `
+                  <div class="question-nav-grid" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px;">
+                    ${sortedAnswers.map(ans => renderNavButton(ans)).join('')}
+                  </div>
+                `}
 
                 <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px; font-size:12px;">
                   <div style="display:flex; align-items:center; gap:6px;">
@@ -811,8 +965,11 @@ export function bindAssignmentReviewEvents() {
   // Question navigator click-to-scroll
   document.querySelectorAll('.nav-grid-item').forEach(item => {
     item.addEventListener('click', () => {
+      const targetId = item.getAttribute('data-target-id')
       const qNum = item.getAttribute('data-qnum')
-      const target = document.getElementById(`review-question-${qNum}`)
+      const target = (targetId && document.getElementById(targetId)) ||
+        (qNum && document.getElementById(`review-question-${qNum}`)) ||
+        (qNum && document.querySelector(`[data-legacy-id="review-question-${qNum}"]`))
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }

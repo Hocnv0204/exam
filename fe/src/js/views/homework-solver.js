@@ -72,11 +72,16 @@ function updateAutosaveIndicator(saved = true) {
 function renderInteractiveQuestionsList(questions, studentAnswers) {
   let currentPart = null
   const html = []
+  const typeCounters = { MULTIPLE_CHOICE: 0, TRUE_FALSE: 0, SHORT_ANSWER: 0 }
+  const distinctTypes = new Set(questions.map(q => q.question_type || q.questionType)).size
+  const hasMultipleSections = distinctTypes > 1
 
   questions.forEach(q => {
     const qNum = q.question_number || q.questionNumber
     const qType = q.question_type || q.questionType
     const partTitle = q.part_title || q.partTitle
+    typeCounters[qType] = (typeCounters[qType] || 0) + 1
+    const displayNum = hasMultipleSections ? typeCounters[qType] : qNum
 
     if (partTitle && partTitle !== currentPart) {
       currentPart = partTitle
@@ -198,7 +203,7 @@ function renderInteractiveQuestionsList(questions, studentAnswers) {
         <div class="question-meta-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="question-number-pill" style="background: #0066cc; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 13px;">
-              Câu ${qNum}
+              Câu ${displayNum}
             </span>
             <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">
               ${typeBadge}
@@ -222,9 +227,15 @@ function renderInteractiveQuestionsList(questions, studentAnswers) {
 }
 
 function renderPaletteButtons(questions, studentAnswers) {
+  const typeCounters = { MULTIPLE_CHOICE: 0, TRUE_FALSE: 0, SHORT_ANSWER: 0 }
+  const distinctTypes = new Set(questions.map(q => q.question_type || q.questionType)).size
+  const hasMultipleSections = distinctTypes > 1
+
   return questions.map(q => {
     const qNum = q.question_number || q.questionNumber
     const qType = q.question_type || q.questionType
+    typeCounters[qType] = (typeCounters[qType] || 0) + 1
+    const displayNum = hasMultipleSections ? typeCounters[qType] : qNum
     let stateClass = ''
 
     if (qType === 'MULTIPLE_CHOICE') {
@@ -238,9 +249,12 @@ function renderPaletteButtons(questions, studentAnswers) {
       if ((studentAnswers.sa[qNum] || '').trim() !== '') stateClass = 'state-answered'
     }
 
+    const typeName = qType === 'MULTIPLE_CHOICE' ? 'Phần I: Trắc nghiệm' : qType === 'TRUE_FALSE' ? 'Phần II: Đúng/Sai' : 'Phần III: Trả lời ngắn'
+    const tooltip = hasMultipleSections ? `${typeName} - Câu ${displayNum}` : `Câu ${displayNum}`
+
     return `
-      <button type="button" class="palette-btn-item ${stateClass}" data-qnum="${qNum}">
-        ${qNum}
+      <button type="button" class="palette-btn-item ${stateClass}" data-qnum="${qNum}" title="${tooltip}">
+        ${displayNum}
       </button>
     `
   }).join('')
@@ -544,12 +558,12 @@ export function renderHomeworkSolverView() {
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${mcQuestions.map(q => {
+                      ${mcQuestions.map((q, idx) => {
                         const qNum = q.question_number
                         const selected = studentAnswers.mc[qNum] || null
                         return `
                           <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
+                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${idx + 1}</span>
                             <div style="display:flex; gap:6px;">
                               ${['A', 'B', 'C', 'D'].map(opt => `
                                 <button type="button" class="student-mc-btn ${selected === opt ? 'selected' : ''}" data-qnum="${qNum}" data-option="${opt}" style="
@@ -575,12 +589,12 @@ export function renderHomeworkSolverView() {
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:12px;">
-                      ${tfQuestions.map(q => {
+                      ${tfQuestions.map((q, idx) => {
                         const qNum = q.question_number
                         const tfObj = studentAnswers.tf[qNum] || {}
                         return `
                           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
-                            <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${qNum}</div>
+                            <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${idx + 1}</div>
                             <div style="grid-template-columns:1fr 1fr; display:grid; gap:6px;">
                               ${['a', 'b', 'c', 'd'].map(sub => {
                                 const val = tfObj[sub]
@@ -620,12 +634,12 @@ export function renderHomeworkSolverView() {
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${saQuestions.map(q => {
+                      ${saQuestions.map((q, idx) => {
                         const qNum = q.question_number
                         const val = studentAnswers.sa[qNum] || ''
                         return `
                           <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
+                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${idx + 1}</span>
                             <input type="text" class="form-input student-sa-input" data-qnum="${qNum}" value="${val}" placeholder="Điền đáp án..." style="padding:6px 10px; font-size:13px; background:#ffffff;">
                           </div>
                         `

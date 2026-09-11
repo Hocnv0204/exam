@@ -224,7 +224,9 @@ export function renderCreateHwView() {
 
     mcAnswers = {}
     mcQ.forEach((q, index) => {
-      mcAnswers[q.question_number || (index + 1)] = q.answerKey?.mc_answer || 'A'
+      const ans = q.answerKey?.mc_answer || 'A'
+      mcAnswers[index + 1] = ans
+      if (q.question_number) mcAnswers[q.question_number] = ans
     })
 
     tfAnswers = {}
@@ -234,12 +236,16 @@ export function renderCreateHwView() {
       const b = val.b !== undefined ? val.b : (val.s2 !== undefined ? val.s2 : true)
       const c = val.c !== undefined ? val.c : (val.s3 !== undefined ? val.s3 : false)
       const d = val.d !== undefined ? val.d : (val.s4 !== undefined ? val.s4 : true)
-      tfAnswers[q.question_number || (index + 1)] = { a, b, c, d }
+      const parsedTf = { a, b, c, d }
+      tfAnswers[index + 1] = parsedTf
+      if (q.question_number) tfAnswers[q.question_number] = parsedTf
     })
 
     saAnswers = {}
     saQ.forEach((q, index) => {
-      saAnswers[q.question_number || (index + 1)] = q.answerKey?.sa_answer !== undefined && q.answerKey?.sa_answer !== null ? String(q.answerKey.sa_answer) : ''
+      const val = q.answerKey?.sa_answer !== undefined && q.answerKey?.sa_answer !== null ? String(q.answerKey.sa_answer) : ''
+      saAnswers[index + 1] = val
+      if (q.question_number) saAnswers[q.question_number] = val
     })
   }
 
@@ -1751,13 +1757,14 @@ export function bindCreateHwEvents() {
       for (let i = 1; i <= currentConfig.mcCount; i++) {
         const ans = mcAnswers[i]
         if (!ans) {
-          showToast(`Vui lòng chọn đáp án cho Câu ${globalIndex} (Phần I)`, 'error')
+          showToast(`Vui lòng chọn đáp án cho Câu ${i} (Phần I)`, 'error')
           return
         }
         questionsPayload.push({
           questionNumber: globalIndex,
           questionType: 'MULTIPLE_CHOICE',
-          prompt: `Câu hỏi số ${globalIndex}`,
+          partTitle: 'Phần I: Trắc nghiệm',
+          prompt: `Câu hỏi số ${i}`,
           mcAnswer: ans,
           points: 1.0
         })
@@ -1767,13 +1774,14 @@ export function bindCreateHwEvents() {
       for (let i = 1; i <= currentConfig.tfCount; i++) {
         const tf = tfAnswers[i] || {}
         if (tf.a === undefined || tf.b === undefined || tf.c === undefined || tf.d === undefined) {
-          showToast(`Vui lòng chọn đầy đủ Đúng/Sai cho Câu ${globalIndex} (Phần II)`, 'error')
+          showToast(`Vui lòng chọn đầy đủ Đúng/Sai cho Câu ${i} (Phần II)`, 'error')
           return
         }
         questionsPayload.push({
           questionNumber: globalIndex,
           questionType: 'TRUE_FALSE',
-          prompt: `Câu hỏi số ${globalIndex}`,
+          partTitle: 'Phần II: Đúng / Sai',
+          prompt: `Câu hỏi số ${i}`,
           tfAnswers: { a: tf.a, b: tf.b, c: tf.c, d: tf.d },
           points: 1.0
         })
@@ -1783,13 +1791,14 @@ export function bindCreateHwEvents() {
       for (let i = 1; i <= currentConfig.saCount; i++) {
         const ans = saAnswers[i]
         if (ans === undefined || ans === null || ans.trim() === '') {
-          showToast(`Vui lòng nhập đáp án cho Câu ${globalIndex} (Phần III)`, 'error')
+          showToast(`Vui lòng nhập đáp án cho Câu ${i} (Phần III)`, 'error')
           return
         }
         questionsPayload.push({
           questionNumber: globalIndex,
           questionType: 'SHORT_ANSWER',
-          prompt: `Câu hỏi số ${globalIndex}`,
+          partTitle: 'Phần III: Trả lời ngắn',
+          prompt: `Câu hỏi số ${i}`,
           saAnswer: ans.trim(),
           points: 1.0
         })
