@@ -1,0 +1,103 @@
+/**
+ * Math & Chemistry Renderer Component (KaTeX + mhchem)
+ */
+
+let katexReadyPromise = null
+
+export function ensureKatexLoaded() {
+  if (window.katex && window.renderMathInElement) {
+    return Promise.resolve()
+  }
+
+  if (katexReadyPromise) return katexReadyPromise
+
+  katexReadyPromise = new Promise((resolve) => {
+    const checkInterval = setInterval(() => {
+      if (window.katex && window.renderMathInElement) {
+        clearInterval(checkInterval)
+        resolve()
+      }
+    }, 50)
+
+    // Timeout fallback after 4 seconds
+    setTimeout(() => {
+      clearInterval(checkInterval)
+      resolve()
+    }, 4000)
+  })
+
+  return katexReadyPromise
+}
+
+/**
+ * Render toàn bộ công thức Toán học ($...$) và Hóa học (\ce{...}) trong một phần tử DOM
+ * @param {HTMLElement} element 
+ */
+export async function renderMath(element) {
+  if (!element) return
+
+  await ensureKatexLoaded()
+
+  if (!window.renderMathInElement) {
+    console.warn('[MathRenderer] KaTeX renderMathInElement not ready.')
+    return
+  }
+
+  // Pre-process: Tự động bọc các biểu thức \ce{...} đứng độc lập ngoài dấu $
+  // Ví dụ: \ce{CuSO4 <=> Cu+ + SO4^2-} -> $\ce{CuSO4 <=> Cu+ + SO4^2-}$
+  // Duyệt qua các text node an toàn
+  preprocessChemicalFormulas(element)
+
+  try {
+    window.renderMathInElement(element, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      throwOnError: false,
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+    })
+  } catch (err) {
+    console.warn('[MathRenderer] Error rendering math in element:', err)
+  }
+}
+
+/**
+ * Đảm bảo mọi thẻ \ce{...} độc lập đều được bọc trong $...$ để KaTeX parse
+ */
+function preprocessChemicalFormulas(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
+  const nodesToReplace = []
+
+  let node
+  while ((node = walker.nextNode())) {
+    if (node.nodeValue && node.nodeValue.includes('\\ce{')) {
+      nodesToReplace.push(node)
+    }
+  }
+
+  nodesToReplace.forEach(textNode => {
+    let val = textNode.nodeValue
+    
+    // Split by math delimiters: $$...$$, $...$, \[...\], \(...\)
+    const regex = /(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
+    const parts = val.split(regex);
+    
+    for (let i = 0; i < parts.length; i++) {
+      // Even indices are outside math mode
+      if (i % 2 === 0) {
+        // Replace \ce{...} that are outside math mode with $\ce{...}$
+        // Allow up to 1 level of nested curly braces inside \ce{...}
+        parts[i] = parts[i].replace(/\\ce\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$\\ce{$1}$');
+      }
+    }
+    
+    const replaced = parts.join('');
+
+    if (replaced !== val) {
+      textNode.nodeValue = replaced
+    }
+  })
+}

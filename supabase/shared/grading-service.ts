@@ -63,10 +63,23 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
   } else if (questionType === 'TRUE_FALSE') {
     correctAnswerSummary = tfAnswers
     if (givenAnswer.type === 'TRUE_FALSE' && givenAnswer.value && tfAnswers) {
-      const studentVal = givenAnswer.value as Record<string, boolean | undefined>
-      const correctVal = tfAnswers as Record<string, boolean | undefined>
+      let studentVal = givenAnswer.value as any
+      if (typeof studentVal === 'string') {
+        try { studentVal = JSON.parse(studentVal) } catch {}
+      }
+      let correctVal = tfAnswers as any
+      if (typeof correctVal === 'string') {
+        try { correctVal = JSON.parse(correctVal) } catch {}
+      }
+
       let correctStatementsCount = 0
       const stGrades = { a: false, b: false, c: false, d: false }
+
+      const getBool = (v: any) => {
+        if (v === true || v === 'true' || v === 1 || v === '1') return true
+        if (v === false || v === 'false' || v === 0 || v === '0') return false
+        return undefined
+      }
 
       const keysPairs = [
         ['a', 's1'],
@@ -76,8 +89,10 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
       ]
 
       for (const [k1, k2] of keysPairs) {
-        const sVal = studentVal[k1] !== undefined ? studentVal[k1] : studentVal[k2]
-        const cVal = correctVal[k1] !== undefined ? correctVal[k1] : correctVal[k2]
+        const sRaw = studentVal[k1] !== undefined ? studentVal[k1] : studentVal[k2]
+        const cRaw = correctVal[k1] !== undefined ? correctVal[k1] : correctVal[k2]
+        const sVal = getBool(sRaw)
+        const cVal = getBool(cRaw)
 
         const isStmtCorrect = sVal !== undefined && cVal !== undefined && sVal === cVal
         if (isStmtCorrect) {

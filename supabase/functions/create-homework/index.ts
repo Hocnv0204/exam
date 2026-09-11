@@ -274,7 +274,11 @@ serve(async (req: Request) => {
         homework_id: homework.id,
         question_number: q.questionNumber,
         question_type: q.questionType,
-        prompt: q.prompt,
+        prompt: q.prompt || '',
+        content: q.content || null,
+        options: q.options || null,
+        statements: q.statements || null,
+        part_title: q.partTitle || null,
         points: q.points,
       }))
 
@@ -299,6 +303,7 @@ serve(async (req: Request) => {
           tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
           sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? null : String(q.saAnswer)) : null,
           sa_tolerance: q.questionType === 'SHORT_ANSWER' ? q.saTolerance ?? 0 : 0,
+          explanation: q.explanation || null,
         }
       }).filter((a: any) => !!a.question_id)
 
@@ -392,7 +397,11 @@ serve(async (req: Request) => {
               homework_id: homeworkId,
               question_number: q.questionNumber,
               question_type: q.questionType,
-              prompt: q.prompt,
+              prompt: q.prompt || '',
+              content: q.content || null,
+              options: q.options || null,
+              statements: q.statements || null,
+              part_title: q.partTitle || null,
               points: q.points,
             })))
             .select('id, question_number')
@@ -414,7 +423,11 @@ serve(async (req: Request) => {
               .from('questions')
               .update({
                 question_type: q.questionType,
-                prompt: q.prompt,
+                prompt: q.prompt || '',
+                content: q.content || null,
+                options: q.options || null,
+                statements: q.statements || null,
+                part_title: q.partTitle || null,
                 points: q.points,
               })
               .eq('id', qId)
@@ -435,6 +448,7 @@ serve(async (req: Request) => {
             tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
             sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer === '' || q.saAnswer === null || q.saAnswer === undefined) ? null : String(q.saAnswer)) : null,
             sa_tolerance: q.questionType === 'SHORT_ANSWER' ? q.saTolerance ?? 0 : 0,
+            explanation: q.explanation || null,
           }
         }).filter((a: any) => !!a.question_id)
 

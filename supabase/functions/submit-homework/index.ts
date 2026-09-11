@@ -141,8 +141,9 @@ serve(async (req: Request) => {
     // 2. Fetch all questions for homework
     const { data: questions, error: qError } = await serviceRoleClient
       .from('questions')
-      .select('id, question_number, question_type, prompt, points')
+      .select('id, question_number, question_type, prompt, points, content, options, statements, part_title')
       .eq('homework_id', homeworkId)
+      .order('question_number', { ascending: true })
 
     if (qError || !questions || questions.length === 0) {
       return errorResponse('Homework contains no questions', 400)
@@ -152,7 +153,7 @@ serve(async (req: Request) => {
     const questionIds = questions.map((q) => q.id)
     const { data: answerKeys, error: keyError } = await serviceRoleClient
       .from('question_answers')
-      .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance')
+      .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
       .in('question_id', questionIds)
 
     if (keyError || !answerKeys) {
@@ -249,11 +250,22 @@ serve(async (req: Request) => {
         }
       }
 
+      const givenAnswerWithMeta = {
+        ...given,
+        statementGrades: gradeResult.statementGrades || null,
+      }
+
       questionReviews.push({
         questionNumber: q.question_number,
         prompt: reviewPrompt,
+        content: q.content,
+        options: q.options,
+        statements: q.statements,
+        partTitle: q.part_title,
+        explanation: shouldShowSolutions ? (key?.explanation || null) : null,
         questionType: q.question_type,
-        givenAnswer: given,
+        givenAnswer: givenAnswerWithMeta,
+        statementGrades: gradeResult.statementGrades || null,
         ...gradeResult,
         correctAnswerSummary: reviewCorrectAnswerSummary,
         feedback: reviewFeedback,
@@ -261,7 +273,7 @@ serve(async (req: Request) => {
 
       submissionAnswersToInsert.push({
         question_id: q.id,
-        given_answer: given,
+        given_answer: givenAnswerWithMeta,
         is_correct: gradeResult.isCorrect,
         score_earned: gradeResult.scoreEarned,
       })

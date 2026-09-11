@@ -310,6 +310,197 @@ function updateAutosaveIndicator(saved = true) {
   }
 }
 
+function renderInteractiveQuestionsList(questions, studentAnswers) {
+  let currentPart = null
+  const html = []
+  const typeCounters = { MULTIPLE_CHOICE: 0, TRUE_FALSE: 0, SHORT_ANSWER: 0 }
+  const distinctTypes = new Set(questions.map(q => q.question_type || q.questionType)).size
+  const hasMultipleSections = distinctTypes > 1
+
+  questions.forEach(q => {
+    const qNum = q.question_number || q.questionNumber
+    const qType = q.question_type || q.questionType
+    const partTitle = q.part_title || q.partTitle
+    typeCounters[qType] = (typeCounters[qType] || 0) + 1
+    const displayNum = hasMultipleSections ? typeCounters[qType] : qNum
+
+    if (partTitle && partTitle !== currentPart) {
+      currentPart = partTitle
+      html.push(`
+        <div class="question-part-title" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px 20px; font-weight: 800; font-size: 15px; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-layer-group" style="color: #2563eb;"></i> ${partTitle}
+        </div>
+      `)
+    }
+
+    let typeBadge = ''
+    let points = '0.25'
+    if (qType === 'MULTIPLE_CHOICE') {
+      typeBadge = 'TRẮC NGHIỆM'
+      points = q.points !== undefined && q.points !== null ? q.points : '0.25'
+    } else if (qType === 'TRUE_FALSE') {
+      typeBadge = 'ĐÚNG / SAI'
+      points = q.points !== undefined && q.points !== null ? q.points : '1.0'
+    } else {
+      typeBadge = 'TRẢ LỜI NGẮN'
+      points = q.points !== undefined && q.points !== null ? q.points : '0.5'
+    }
+
+    let interactiveHtml = ''
+    if (qType === 'MULTIPLE_CHOICE') {
+      const selected = studentAnswers.mc[qNum] || null
+      let optionsList = []
+      if (q.options) {
+        if (Array.isArray(q.options)) {
+          optionsList = q.options.map(opt => typeof opt === 'string' ? { key: '', text: opt } : opt)
+        } else if (typeof q.options === 'object') {
+          optionsList = ['A', 'B', 'C', 'D'].map(key => ({
+            key,
+            text: q.options[key] || ''
+          }))
+        }
+      }
+      if (optionsList.length === 0) {
+        optionsList = [
+          { key: 'A', text: '' },
+          { key: 'B', text: '' },
+          { key: 'C', text: '' },
+          { key: 'D', text: '' }
+        ]
+      }
+
+      interactiveHtml = `
+        <div class="choices-container" style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
+          ${optionsList.map(opt => {
+            const isSel = selected === opt.key
+            return `
+              <div class="choice-option-card ${isSel ? 'selected' : ''}" data-qnum="${qNum}" data-option="${opt.key}">
+                <span class="choice-key-badge">${opt.key}</span>
+                <div class="choice-text-content">${opt.text || ''}</div>
+              </div>
+            `
+          }).join('')}
+        </div>
+      `
+    } else if (qType === 'TRUE_FALSE') {
+      const tfObj = studentAnswers.tf[qNum] || {}
+      let statementsList = []
+      if (q.statements) {
+        if (Array.isArray(q.statements)) {
+          statementsList = q.statements.map((stmt, idx) => {
+            const key = stmt.key || ['a', 'b', 'c', 'd'][idx]
+            return { key, text: stmt.text || String(stmt) }
+          })
+        } else if (typeof q.statements === 'object') {
+          statementsList = ['a', 'b', 'c', 'd'].map(key => ({
+            key,
+            text: q.statements[key] || ''
+          }))
+        }
+      }
+      if (statementsList.length === 0) {
+        statementsList = ['a', 'b', 'c', 'd'].map(key => ({
+          key,
+          text: `Mệnh đề ${key}`
+        }))
+      }
+
+      interactiveHtml = `
+        <div class="tf-statements-list" style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
+          ${statementsList.map(stmt => {
+            const val = tfObj[stmt.key]
+            return `
+              <div class="tf-statement-row">
+                <div class="tf-statement-text">
+                  <strong style="color: #0284c7; margin-right: 4px;">${stmt.key})</strong> ${stmt.text || ''}
+                </div>
+                <div class="tf-toggle-group">
+                  <button type="button" class="tf-toggle-btn btn-true ${val === true ? 'selected' : ''}" data-qnum="${qNum}" data-sub="${stmt.key}" data-val="true">
+                    <i class="fa-solid fa-check"></i> Đúng
+                  </button>
+                  <button type="button" class="tf-toggle-btn btn-false ${val === false ? 'selected' : ''}" data-qnum="${qNum}" data-sub="${stmt.key}" data-val="false">
+                    <i class="fa-solid fa-xmark"></i> Sai
+                  </button>
+                </div>
+              </div>
+            `
+          }).join('')}
+        </div>
+      `
+    } else {
+      const val = studentAnswers.sa[qNum] || ''
+      interactiveHtml = `
+        <div class="sa-input-wrapper" style="margin-top: 14px;">
+          <input type="text" class="sa-input-field student-sa-input" data-qnum="${qNum}" value="${val}" placeholder="Nhập câu trả lời (số hoặc văn bản)...">
+          <div style="font-size: 12px; color: #64748b; margin-top: 6px;">
+            <i class="fa-solid fa-circle-info"></i> Nhập số thập phân (dùng dấu phẩy hoặc chấm) hoặc từ ngữ ngắn gọn.
+          </div>
+        </div>
+      `
+    }
+
+    html.push(`
+      <div class="card question-card-item" id="exam-question-${qNum}" style="padding: 20px; border-radius: 14px; background: #ffffff; border: 1.5px solid #e2e8f0; scroll-margin-top: 30px;">
+        <div class="question-meta-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="question-number-pill" style="background: #0066cc; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 13px;">
+              Câu ${displayNum}
+            </span>
+            <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">
+              ${typeBadge}
+            </span>
+          </div>
+          <span class="question-points-pill" style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 12px;">
+            ${points} điểm
+          </span>
+        </div>
+
+        <div class="question-prompt-text" style="font-size: 15px; color: #1e293b; line-height: 1.6;">
+          ${q.content || q.prompt || `Nội dung câu hỏi ${qNum}`}
+        </div>
+
+        ${interactiveHtml}
+      </div>
+    `)
+  })
+
+  return html.join('')
+}
+
+function renderPaletteButtons(questions, studentAnswers) {
+  const typeCounters = { MULTIPLE_CHOICE: 0, TRUE_FALSE: 0, SHORT_ANSWER: 0 }
+  const distinctTypes = new Set(questions.map(q => q.question_type || q.questionType)).size
+  const hasMultipleSections = distinctTypes > 1
+
+  return questions.map(q => {
+    const qNum = q.question_number || q.questionNumber
+    const qType = q.question_type || q.questionType
+    typeCounters[qType] = (typeCounters[qType] || 0) + 1
+    const displayNum = hasMultipleSections ? typeCounters[qType] : qNum
+    let stateClass = ''
+
+    if (qType === 'MULTIPLE_CHOICE') {
+      if (studentAnswers.mc[qNum]) stateClass = 'state-answered'
+    } else if (qType === 'TRUE_FALSE') {
+      const tfObj = studentAnswers.tf[qNum] || {}
+      const count = Object.values(tfObj).filter(v => v !== undefined && v !== null).length
+      if (count === 4) stateClass = 'state-answered'
+      else if (count > 0) stateClass = 'state-partial'
+    } else if (qType === 'SHORT_ANSWER') {
+      if ((studentAnswers.sa[qNum] || '').trim() !== '') stateClass = 'state-answered'
+    }
+
+    const typeName = qType === 'MULTIPLE_CHOICE' ? 'Phần I: Trắc nghiệm' : qType === 'TRUE_FALSE' ? 'Phần II: Đúng/Sai' : 'Phần III: Trả lời ngắn'
+    const tooltip = hasMultipleSections ? `${typeName} - Câu ${displayNum}` : `Câu ${displayNum}`
+
+    return `
+      <button type="button" class="palette-btn-item ${stateClass}" data-qnum="${qNum}" title="${tooltip}">
+        ${displayNum}
+      </button>
+    `
+  }).join('')
+}
+
 export function renderHomeworkSolverView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
   const hw = state.currentHomework?.homework
@@ -400,8 +591,8 @@ export function renderHomeworkSolverView() {
   const isInteractive = questions.some(q => {
     try {
       const p = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : null
-      return p && p.isInteractive
-    } catch (e) { return false }
+      return (p && p.isInteractive) || !!(q.content || q.options || q.statements)
+    } catch (e) { return !!(q.content || q.options || q.statements) }
   })
 
   if (isInteractive) {
@@ -410,20 +601,37 @@ export function renderHomeworkSolverView() {
       try {
         pObj = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : {}
       } catch (e) {}
+
+      let promptText = pObj.text || q.content || q.prompt || ''
+      let options = pObj.options || []
+      if (options.length === 0 && q.options) {
+        if (Array.isArray(q.options)) {
+          options = q.options.map(opt => typeof opt === 'string' ? { id: '', text: opt } : { id: opt.key || opt.id || '', text: opt.text || '' })
+        } else if (typeof q.options === 'object') {
+          options = Object.keys(q.options).map(k => ({ id: k, text: q.options[k] }))
+        }
+      }
+      if (options.length === 0 && q.statements) {
+        if (Array.isArray(q.statements)) {
+          options = q.statements.map((s, idx) => ({ id: s.key || ['a', 'b', 'c', 'd'][idx], text: s.text || String(s) }))
+        } else if (typeof q.statements === 'object') {
+          options = Object.keys(q.statements).map(k => ({ id: k, text: q.statements[k] }))
+        }
+      }
+
       return {
         id: q.id,
         questionNumber: q.question_number || q.questionNumber,
         questionType: q.question_type || q.questionType,
         points: q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
-        promptText: pObj.text || q.prompt || '',
+        promptText,
         imageUrl: pObj.imageUrl || '',
-        options: pObj.options || [],
-        explanation: pObj.explanation || ''
+        options,
+        explanation: pObj.explanation || q.explanation || ''
       }
     })
     return renderInteractiveSolverView(hw, parsedQuestionList, isTrial, isExpired, deadline)
   }
-
   return `
     <div class="app-layout">
       ${renderSidebar('homework-attempt')}
@@ -498,12 +706,12 @@ export function renderHomeworkSolverView() {
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${mcQuestions.map(q => {
+                      ${mcQuestions.map((q, idx) => {
                         const qNum = q.question_number
                         const selected = studentAnswers.mc[qNum] || null
                         return `
                           <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
+                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${idx + 1}</span>
                             <div style="display:flex; gap:6px;">
                               ${['A', 'B', 'C', 'D'].map(opt => `
                                 <button type="button" class="student-mc-btn ${selected === opt ? 'selected' : ''}" data-qnum="${qNum}" data-option="${opt}" style="
@@ -529,13 +737,13 @@ export function renderHomeworkSolverView() {
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:12px;">
-                      ${tfQuestions.map(q => {
+                      ${tfQuestions.map((q, idx) => {
                         const qNum = q.question_number
                         const tfObj = studentAnswers.tf[qNum] || {}
                         return `
                           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
-                            <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${qNum}</div>
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                            <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:8px;">Câu ${idx + 1}</div>
+                            <div style="grid-template-columns:1fr 1fr; display:grid; gap:6px;">
                               ${['a', 'b', 'c', 'd'].map(sub => {
                                 const val = tfObj[sub]
                                 return `
@@ -574,12 +782,12 @@ export function renderHomeworkSolverView() {
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${saQuestions.map(q => {
+                      ${saQuestions.map((q, idx) => {
                         const qNum = q.question_number
                         const val = studentAnswers.sa[qNum] || ''
                         return `
                           <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${qNum}</span>
+                            <span style="font-weight:700; font-size:13px; color:#334155; width:54px;">Câu ${idx + 1}</span>
                             <input type="text" class="form-input student-sa-input" data-qnum="${qNum}" value="${val}" placeholder="Điền đáp án..." style="padding:6px 10px; font-size:13px; background:#ffffff;">
                           </div>
                         `
@@ -1242,7 +1450,119 @@ export function bindHomeworkSolverEvents() {
   }
 
 
-  // Student MC click
+  // Math & Chemistry KaTeX rendering for interactive questions
+  const questionsStream = document.getElementById('exam-questions-stream')
+  if (questionsStream) {
+    renderMath(questionsStream)
+  }
+
+  const updatePaletteItem = (qNum) => {
+    const q = questions.find(item => (item.question_number || item.questionNumber) === qNum)
+    if (!q) return
+    const qType = q.question_type || q.questionType
+    const btn = document.querySelector(`.palette-btn-item[data-qnum="${qNum}"]`)
+    if (!btn) return
+
+    btn.classList.remove('state-answered', 'state-partial')
+
+    if (qType === 'MULTIPLE_CHOICE') {
+      if (studentAnswers.mc[qNum]) btn.classList.add('state-answered')
+    } else if (qType === 'TRUE_FALSE') {
+      const tfObj = studentAnswers.tf[qNum] || {}
+      const count = Object.values(tfObj).filter(v => v !== undefined && v !== null).length
+      if (count === 4) btn.classList.add('state-answered')
+      else if (count > 0) btn.classList.add('state-partial')
+    } else if (qType === 'SHORT_ANSWER') {
+      if ((studentAnswers.sa[qNum] || '').trim() !== '') btn.classList.add('state-answered')
+    }
+  }
+
+  const updateOverallProgress = () => {
+    let answered = 0
+    questions.forEach(q => {
+      const qNum = q.question_number || q.questionNumber
+      const qType = q.question_type || q.questionType
+      if (qType === 'MULTIPLE_CHOICE' && studentAnswers.mc[qNum]) answered++
+      else if (qType === 'TRUE_FALSE') {
+        const tfObj = studentAnswers.tf[qNum] || {}
+        if (Object.values(tfObj).filter(v => v !== undefined && v !== null).length === 4) answered++
+      } else if (qType === 'SHORT_ANSWER' && (studentAnswers.sa[qNum] || '').trim() !== '') answered++
+    })
+
+    const countEl = document.getElementById('answered-count')
+    if (countEl) countEl.textContent = String(answered)
+
+    const fillEl = document.getElementById('palette-progress-fill')
+    if (fillEl && questions.length > 0) {
+      fillEl.style.width = `${Math.round((answered / questions.length) * 100)}%`
+    }
+  }
+
+  // Interactive Choice Option Card click
+  document.querySelectorAll('.choice-option-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const qNum = parseInt(card.getAttribute('data-qnum'), 10)
+      const optKey = card.getAttribute('data-option')
+
+      if (studentAnswers.mc[qNum] === optKey) {
+        studentAnswers.mc[qNum] = null
+      } else {
+        studentAnswers.mc[qNum] = optKey
+      }
+
+      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+
+      document.querySelectorAll(`.choice-option-card[data-qnum="${qNum}"]`).forEach(c => {
+        const isSel = c.getAttribute('data-option') === studentAnswers.mc[qNum]
+        c.classList.toggle('selected', isSel)
+      })
+
+      // Sync legacy buttons if present
+      document.querySelectorAll(`.student-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
+        const isSel = b.getAttribute('data-option') === studentAnswers.mc[qNum]
+        b.style.background = isSel ? '#0066cc' : '#ffffff'
+        b.style.color = isSel ? '#ffffff' : '#334155'
+        b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
+      })
+
+      updatePaletteItem(qNum)
+      updateOverallProgress()
+    })
+  })
+
+  // Interactive TF toggle button click
+  document.querySelectorAll('.tf-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
+      const sub = btn.getAttribute('data-sub')
+      const val = btn.getAttribute('data-val') === 'true'
+
+      if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
+
+      if (studentAnswers.tf[qNum][sub] === val) {
+        delete studentAnswers.tf[qNum][sub]
+      } else {
+        studentAnswers.tf[qNum][sub] = val
+      }
+
+      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+
+      const group = btn.closest('.tf-toggle-group')
+      if (group) {
+        group.querySelectorAll('.tf-toggle-btn').forEach(b => {
+          const bVal = b.getAttribute('data-val') === 'true'
+          const currentVal = studentAnswers.tf[qNum][sub]
+          const isSel = currentVal !== undefined && currentVal === bVal
+          b.classList.toggle('selected', isSel)
+        })
+      }
+
+      updatePaletteItem(qNum)
+      updateOverallProgress()
+    })
+  })
+
+  // Legacy Student MC click
   document.querySelectorAll('.student-mc-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
@@ -1263,10 +1583,13 @@ export function bindHomeworkSolverEvents() {
         b.style.color = isSel ? '#ffffff' : '#334155'
         b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
       })
+
+      updatePaletteItem(qNum)
+      updateOverallProgress()
     })
   })
 
-  // Student TF click
+  // Legacy Student TF click
   document.querySelectorAll('.student-tf-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
@@ -1301,6 +1624,9 @@ export function bindHomeworkSolverEvents() {
           }
         })
       }
+
+      updatePaletteItem(qNum)
+      updateOverallProgress()
     })
   })
 
@@ -1314,9 +1640,56 @@ export function bindHomeworkSolverEvents() {
       clearTimeout(saDebounceTimer)
       saDebounceTimer = setTimeout(() => {
         saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+        updatePaletteItem(qNum)
+        updateOverallProgress()
       }, 400)
     })
   })
+
+  // Palette button scroll to question
+  document.querySelectorAll('.palette-btn-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qNum = btn.getAttribute('data-qnum')
+      const target = document.getElementById(`exam-question-${qNum}`)
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        target.style.outline = '2.5px solid #0066cc'
+        target.style.transition = 'outline 0.2s ease'
+        setTimeout(() => {
+          target.style.outline = 'none'
+        }, 1200)
+      }
+    })
+  })
+
+  // PDF Drawer Toggle
+  const togglePdfBtn = document.getElementById('toggle-exam-pdf-btn')
+  const pdfDrawer = document.getElementById('exam-pdf-drawer')
+  const closePdfBtn = document.getElementById('close-exam-pdf-btn')
+  const pdfEmbedWrapper = document.getElementById('exam-pdf-embed-wrapper')
+
+  if (togglePdfBtn && pdfDrawer && hw.pdfUrl) {
+    let pdfRendered = false
+    togglePdfBtn.addEventListener('click', () => {
+      const isVisible = pdfDrawer.style.display !== 'none'
+      if (!isVisible) {
+        pdfDrawer.style.display = 'block'
+        togglePdfBtn.innerHTML = `<i class="fa-solid fa-eye-slash" style="color:#ef4444;"></i> Đóng đề PDF`
+        if (!pdfRendered && pdfEmbedWrapper) {
+          const mappedUrl = (hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+          renderPdfViewer(pdfEmbedWrapper, mappedUrl)
+          pdfRendered = true
+        }
+      } else {
+        pdfDrawer.style.display = 'none'
+        togglePdfBtn.innerHTML = `<i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem đề PDF`
+      }
+    })
+    closePdfBtn?.addEventListener('click', () => {
+      pdfDrawer.style.display = 'none'
+      togglePdfBtn.innerHTML = `<i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem đề PDF`
+    })
+  }
 
   // Submit Homework Event
   document.getElementById('submit-answers-btn')?.addEventListener('click', () => {
