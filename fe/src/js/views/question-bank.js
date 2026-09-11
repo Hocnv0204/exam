@@ -647,21 +647,63 @@ async function fetchAndRenderQuestions() {
   }
 }
 
+// ========================================================
+// Helper: Parse & Unwrap Question Prompt
+// ========================================================
+export function parseQuestionPrompt(rawPrompt) {
+  let promptData = { text: '', imageUrl: '', options: [], statements: [], explanation: '' }
+  try {
+    if (typeof rawPrompt === 'string') {
+      const parsed = JSON.parse(rawPrompt)
+      if (parsed && typeof parsed === 'object') promptData = { ...promptData, ...parsed }
+      else promptData.text = rawPrompt
+    } else if (typeof rawPrompt === 'object' && rawPrompt !== null) {
+      promptData = { ...promptData, ...rawPrompt }
+    }
+  } catch (_) {
+    promptData.text = rawPrompt || ''
+  }
+
+  // Unwrap if promptData.text is itself a stringified JSON (prevent double-nested JSON bug)
+  let unwrapLimit = 0
+  while (typeof promptData.text === 'string' && promptData.text.trim().startsWith('{') && unwrapLimit < 3) {
+    try {
+      const inner = JSON.parse(promptData.text)
+      if (inner && typeof inner === 'object' && (inner.text !== undefined || inner.options || inner.statements)) {
+        promptData = {
+          ...promptData,
+          ...inner,
+          text: inner.text !== undefined ? inner.text : promptData.text,
+          options: (inner.options && inner.options.length) ? inner.options : promptData.options,
+          statements: (inner.statements && inner.statements.length) ? inner.statements : promptData.statements,
+          explanation: inner.explanation || promptData.explanation || '',
+          imageUrl: inner.imageUrl || promptData.imageUrl || ''
+        }
+        unwrapLimit++
+      } else {
+        break
+      }
+    } catch (_) {
+      break
+    }
+  }
+
+  if (!Array.isArray(promptData.options)) promptData.options = []
+  if (!Array.isArray(promptData.statements)) promptData.statements = []
+  if (promptData.text === undefined) promptData.text = ''
+
+  return promptData
+}
+
 // Render individual Question Card
 function renderQuestionCard(q, displayIndex) {
   // Parse prompt payload
-  let promptData = { text: '', imageUrl: '', options: [], statements: [], explanation: '' }
-  try {
-    if (typeof q.prompt === 'string') {
-      const parsed = JSON.parse(q.prompt)
-      if (parsed && typeof parsed === 'object') promptData = { ...promptData, ...parsed }
-      else promptData.text = q.prompt
-    } else if (typeof q.prompt === 'object' && q.prompt !== null) {
-      promptData = { ...promptData, ...q.prompt }
-    }
-  } catch (_) {
-    promptData.text = q.prompt || ''
-  }
+  const promptData = parseQuestionPrompt(q.prompt)
+
+  // Determine actual question type
+  const isTf = q.question_type === 'TRUE_FALSE' || (promptData.statements && promptData.statements.length > 0)
+  const isSa = q.question_type === 'SHORT_ANSWER'
+  const isMc = !isTf && !isSa
 
   // Type badge styling
   let typeLabel = 'Trắc nghiệm ABCD'
@@ -669,12 +711,12 @@ function renderQuestionCard(q, displayIndex) {
   let typeColor = '#0284c7'
   let typeBorder = '#bfdbfe'
 
-  if (q.question_type === 'TRUE_FALSE') {
+  if (isTf) {
     typeLabel = 'Đúng / Sai (4 ý)'
     typeBg = '#fffbeb'
     typeColor = '#d97706'
     typeBorder = '#fde68a'
-  } else if (q.question_type === 'SHORT_ANSWER') {
+  } else if (isSa) {
     typeLabel = 'Trả lời ngắn'
     typeBg = '#faf5ff'
     typeColor = '#9333ea'
@@ -774,35 +816,11 @@ function renderQuestionCard(q, displayIndex) {
 }
 
 function renderCardAnswers(q, promptData) {
-  // 1. Multiple Choice ABCD
-  if (q.question_type === 'MULTIPLE_CHOICE') {
-    const opts = promptData.options || []
-    const correctKey = (q.mc_answer || '').trim().toUpperCase()
-
-    return `
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
-        ${opts.map(o => {
-          const optKey = (o.id || o.key || '').trim().toUpperCase()
-          const isCorrect = (optKey === correctKey)
-          return `
-            <div style="display:flex; align-items:flex-start; gap:8px; padding:8px 12px; border-radius:8px; border:1px solid ${isCorrect ? '#86efac' : '#e2e8f0'}; background:${isCorrect ? '#f0fdf4' : '#f8fafc'}; font-size:14px;">
-              <span style="font-weight:700; width:22px; height:22px; border-radius:50%; background:${isCorrect ? '#22c55e' : '#cbd5e1'}; color:#ffffff; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;">
-                ${optKey}
-              </span>
-              <div class="math-content" style="color:${isCorrect ? '#15803d' : '#334155'}; font-weight:${isCorrect ? '600' : '400'}; flex:1;">
-                ${o.text || ''}
-              </div>
-              ${isCorrect ? `<i class="fa-solid fa-check" style="color:#22c55e; font-size:14px; margin-left:auto;"></i>` : ''}
-            </div>
-          `
-        }).join('')}
-      </div>
-    `
-  }
-
-  // 2. True / False (4 statements a, b, c, d)
-  if (q.question_type === 'TRUE_FALSE') {
-    const statements = promptData.statements || []
+  // 1. True / False (4 statements a, b, c, d)
+  if (q.question_type === 'TRUE_FALSE' || (promptData.statements && promptData.statements.length > 0)) {
+    const statements = (promptData.statements && promptData.statements.length > 0)
+      ? promptData.statements
+      : (promptData.options || [])
     let tfKeys = {}
     try {
       tfKeys = typeof q.tf_answers === 'string' ? JSON.parse(q.tf_answers) : (q.tf_answers || {})
@@ -822,6 +840,32 @@ function renderCardAnswers(q, promptData) {
               <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:${isTrue ? '#dcfce7' : '#fee2e2'}; color:${isTrue ? '#15803d' : '#b91c1c'}; border:1px solid ${isTrue ? '#bbf7d0' : '#fecaca'}; margin-left:12px; flex-shrink:0;">
                 ${isTrue ? 'ĐÚNG' : 'SAI'}
               </span>
+            </div>
+          `
+        }).join('')}
+      </div>
+    `
+  }
+
+  // 2. Multiple Choice ABCD
+  if (q.question_type === 'MULTIPLE_CHOICE' || (promptData.options && promptData.options.length > 0)) {
+    const opts = promptData.options || []
+    const correctKey = (q.mc_answer || '').trim().toUpperCase()
+
+    return `
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
+        ${opts.map(o => {
+          const optKey = (o.id || o.key || '').trim().toUpperCase()
+          const isCorrect = (optKey === correctKey)
+          return `
+            <div style="display:flex; align-items:flex-start; gap:8px; padding:8px 12px; border-radius:8px; border:1px solid ${isCorrect ? '#86efac' : '#e2e8f0'}; background:${isCorrect ? '#f0fdf4' : '#f8fafc'}; font-size:14px;">
+              <span style="font-weight:700; width:22px; height:22px; border-radius:50%; background:${isCorrect ? '#22c55e' : '#cbd5e1'}; color:#ffffff; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;">
+                ${optKey}
+              </span>
+              <div class="math-content" style="color:${isCorrect ? '#15803d' : '#334155'}; font-weight:${isCorrect ? '600' : '400'}; flex:1;">
+                ${o.text || ''}
+              </div>
+              ${isCorrect ? `<i class="fa-solid fa-check" style="color:#22c55e; font-size:14px; margin-left:auto;"></i>` : ''}
             </div>
           `
         }).join('')}
@@ -1883,13 +1927,7 @@ async function openMatrixGeneratorModal() {
 
     let html = ''
     generatorState.previewQuestions.forEach((q, idx) => {
-      let promptData = { text: '', imageUrl: '', options: [], statements: [], explanation: '' }
-      try {
-        if (typeof q.prompt === 'string') promptData = { ...promptData, ...JSON.parse(q.prompt) }
-        else if (typeof q.prompt === 'object') promptData = { ...promptData, ...q.prompt }
-      } catch (_) {
-        promptData.text = q.prompt || ''
-      }
+      const promptData = parseQuestionPrompt(q.prompt)
 
       let typeBadge = 'Trắc nghiệm'
       let typeBg = '#eff6ff'
@@ -2022,13 +2060,7 @@ function openEditQuestionModal(q) {
   const modalContainer = document.getElementById('qb-modal-container')
   if (!modalContainer) return
 
-  let promptData = { text: '', imageUrl: '', options: [], statements: [], explanation: '' }
-  try {
-    if (typeof q.prompt === 'string') promptData = { ...promptData, ...JSON.parse(q.prompt) }
-    else if (typeof q.prompt === 'object') promptData = { ...promptData, ...q.prompt }
-  } catch (_) {
-    promptData.text = q.prompt || ''
-  }
+  const promptData = parseQuestionPrompt(q.prompt)
 
   modalContainer.innerHTML = `
     <div class="modal-backdrop" id="edit-q-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
