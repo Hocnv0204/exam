@@ -26,6 +26,63 @@ async function getScopeTargetIds(
   return { classIds, chapterIds }
 }
 
+function normalizeBankPromptPayload(rawPrompt: any, fallbackData: any = {}): any {
+  let payload: any = null
+
+  if (typeof rawPrompt === 'object' && rawPrompt !== null) {
+    payload = { ...rawPrompt }
+  } else if (typeof rawPrompt === 'string') {
+    try {
+      const parsed = JSON.parse(rawPrompt)
+      if (parsed && typeof parsed === 'object') {
+        payload = parsed
+      }
+    } catch (_) {}
+  }
+
+  if (!payload) {
+    payload = {
+      isInteractive: true,
+      text: fallbackData.promptText || fallbackData.content || (typeof rawPrompt === 'string' ? rawPrompt : ''),
+      imageUrl: fallbackData.imageUrl || '',
+      partTitle: fallbackData.partTitle || '',
+      options: fallbackData.options || [],
+      statements: fallbackData.statements || [],
+      explanation: fallbackData.explanation || ''
+    }
+  }
+
+  // Unwrap if payload.text is itself a stringified JSON (prevent double-nested JSON)
+  let unwrapCount = 0
+  while (typeof payload.text === 'string' && payload.text.trim().startsWith('{') && unwrapCount < 3) {
+    try {
+      const inner = JSON.parse(payload.text)
+      if (inner && typeof inner === 'object' && (inner.text !== undefined || inner.options || inner.statements)) {
+        payload = {
+          ...payload,
+          ...inner,
+          text: inner.text !== undefined ? inner.text : payload.text,
+          options: (inner.options && inner.options.length) ? inner.options : payload.options,
+          statements: (inner.statements && inner.statements.length) ? inner.statements : payload.statements,
+          explanation: inner.explanation || payload.explanation || '',
+          imageUrl: inner.imageUrl || payload.imageUrl || ''
+        }
+        unwrapCount++
+      } else {
+        break
+      }
+    } catch (_) {
+      break
+    }
+  }
+
+  if (!Array.isArray(payload.options)) payload.options = []
+  if (!Array.isArray(payload.statements)) payload.statements = []
+  if (payload.text === undefined) payload.text = ''
+
+  return payload
+}
+
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
   if (corsRes) return corsRes
@@ -240,12 +297,23 @@ serve(async (req: Request) => {
       const totalItems = count !== null && count !== undefined ? count : (questions || []).length
       const totalPages = isPaginated ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1
 
+      const cleanQuestions = (questions || []).map((q: any) => {
+        if (q.prompt) {
+          const norm = normalizeBankPromptPayload(q.prompt)
+          return {
+            ...q,
+            prompt: JSON.stringify(norm)
+          }
+        }
+        return q
+      })
+
       if (!isPaginated) {
-        return jsonResponse(questions || [])
+        return jsonResponse(cleanQuestions)
       }
 
       return jsonResponse({
-        items: questions || [],
+        items: cleanQuestions,
         total: totalItems,
         page,
         pageSize,
@@ -286,30 +354,32 @@ serve(async (req: Request) => {
         if (!effectiveGradeBlock) effectiveGradeBlock = '12-Toán'
 
         const rowsToInsert = questions.map((q: any) => {
-          let promptPayload: any
-          if (typeof q.prompt === 'object' && q.prompt !== null) {
-            promptPayload = q.prompt
-          } else {
-            promptPayload = {
-              isInteractive: true,
-              text: q.promptText || q.content || q.prompt || '',
-              imageUrl: q.imageUrl || '',
-              partTitle: q.partTitle || '',
-              options: (q.options || []).map((o: any) => ({
-                id: o.id || o.key,
-                key: o.id || o.key,
-                text: o.text || ''
-              })),
-              statements: (q.statements || []).map((s: any) => ({
-                id: s.id || s.key,
-                key: s.id || s.key,
-                text: s.text || ''
-              })),
-              explanation: q.explanation || ''
-            }
-          }
+          const promptPayload = normalizeBankPromptPayload(q.prompt, {
+            promptText: q.promptText,
+            content: q.content,
+            imageUrl: q.imageUrl,
+            partTitle: q.partTitle,
+            options: (q.options || []).map((o: any) => ({
+              id: o.id || o.key,
+              key: o.id || o.key,
+              text: o.text || ''
+            })),
+            statements: (q.statements || []).map((s: any) => ({
+              id: s.id || s.key,
+              key: s.id || s.key,
+              text: s.text || ''
+            })),
+            explanation: q.explanation || ''
+          })
 
-          const qType = q.questionType || (q.options && q.options.length ? 'MULTIPLE_CHOICE' : (q.statements && q.statements.length ? 'TRUE_FALSE' : 'SHORT_ANSWER'))
+          const qType = q.questionType || (promptPayload.options && promptPayload.options.length ? 'MULTIPLE_CHOICE' : (promptPayload.statements && promptPayload.statements.length ? 'TRUE_FALSE' : 'SHORT_ANSWER'))
+
+          if (qType === 'TRUE_FALSE' && (!promptPayload.statements || promptPayload.statements.length === 0) && promptPayload.options.length > 0) {
+            promptPayload.statements = promptPayload.options
+          }
+          if (qType === 'MULTIPLE_CHOICE' && (!promptPayload.options || promptPayload.options.length === 0) && promptPayload.statements.length > 0) {
+            promptPayload.options = promptPayload.statements
+          }
 
           return {
             subject,
@@ -320,11 +390,11 @@ serve(async (req: Request) => {
             lesson_id: lessonId || null,
             question_type: qType,
             difficulty: q.difficulty || defaultDifficulty,
-            prompt: typeof promptPayload === 'string' ? promptPayload : JSON.stringify(promptPayload),
-            mc_answer: q.mcAnswer || null,
-            tf_answers: q.tfAnswers || null,
-            sa_answer: q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : null,
-            sa_tolerance: Number(q.saTolerance) || 0,
+            prompt: JSON.stringify(promptPayload),
+            mc_answer: q.mcAnswer || promptPayload.mcAnswer || null,
+            tf_answers: q.tfAnswers || promptPayload.tfAnswers || null,
+            sa_answer: q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : (promptPayload.saAnswer ? String(promptPayload.saAnswer) : null),
+            sa_tolerance: Number(q.saTolerance) || promptPayload.saTolerance || 0,
             points: Number(q.points) || (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
             tags: Array.isArray(q.tags) ? q.tags : [],
             usage_count: 0
@@ -467,50 +537,15 @@ serve(async (req: Request) => {
           const ans = (Array.isArray(q.question_answers) ? q.question_answers[0] : q.question_answers) || {}
 
           // Chuẩn hóa prompt payload
-          let promptPayload: any
-          let promptText = ''
-          if (q.prompt && typeof q.prompt === 'string') {
-            try {
-              const parsed = JSON.parse(q.prompt)
-              if (parsed && typeof parsed === 'object') {
-                promptPayload = {
-                  isInteractive: true,
-                  text: parsed.text || parsed.prompt || q.content || '',
-                  imageUrl: parsed.imageUrl || '',
-                  partTitle: q.part_title || parsed.partTitle || '',
-                  options: parsed.options || q.options || [],
-                  statements: parsed.statements || q.statements || [],
-                  explanation: parsed.explanation || ans.explanation || ''
-                }
-                promptText = promptPayload.text
-              } else {
-                promptText = q.prompt
-              }
-            } catch (_) {
-              promptText = q.prompt
-            }
-          }
-
-          if (!promptPayload) {
-            promptPayload = {
-              isInteractive: true,
-              text: promptText || q.content || '',
-              imageUrl: '',
-              partTitle: q.part_title || '',
-              options: (q.options || []).map((o: any) => ({
-                id: o.id || o.key,
-                key: o.id || o.key,
-                text: o.text || ''
-              })),
-              statements: (q.statements || []).map((s: any) => ({
-                id: s.id || s.key,
-                key: s.id || s.key,
-                text: s.text || ''
-              })),
-              explanation: ans.explanation || ''
-            }
-            promptText = promptPayload.text
-          }
+          const promptPayload = normalizeBankPromptPayload(q.prompt, {
+            content: q.content,
+            imageUrl: '',
+            partTitle: q.part_title,
+            options: q.options || [],
+            statements: q.statements || [],
+            explanation: ans.explanation || ''
+          })
+          const promptText = promptPayload.text || q.content || ''
 
           // Kiểm tra trùng lặp
           const sampleKey = promptText.trim().toLowerCase().slice(0, 100)
@@ -761,12 +796,7 @@ serve(async (req: Request) => {
         orderedQuestions.forEach((qbQ, idx) => {
           const qNum = idx + 1
           const questionId = crypto.randomUUID()
-          let parsedPrompt: any = {}
-          try {
-            parsedPrompt = typeof qbQ.prompt === 'string' ? JSON.parse(qbQ.prompt) : qbQ.prompt
-          } catch (_) {
-            parsedPrompt = { text: qbQ.prompt }
-          }
+          const parsedPrompt = normalizeBankPromptPayload(qbQ.prompt)
 
           let partTitle = ''
           if (qbQ.question_type === 'MULTIPLE_CHOICE') partTitle = 'Phần I: Câu hỏi trắc nghiệm nhiều phương án lựa chọn'
@@ -952,12 +982,7 @@ serve(async (req: Request) => {
         orderedQuestions.forEach((qbQ, idx) => {
           const qNum = idx + 1
           const questionId = crypto.randomUUID()
-          let parsedPrompt: any = {}
-          try {
-            parsedPrompt = typeof qbQ.prompt === 'string' ? JSON.parse(qbQ.prompt) : qbQ.prompt
-          } catch (_) {
-            parsedPrompt = { text: qbQ.prompt }
-          }
+          const parsedPrompt = normalizeBankPromptPayload(qbQ.prompt)
 
           let partTitle = ''
           if (qbQ.question_type === 'MULTIPLE_CHOICE') partTitle = 'Phần I: Câu hỏi trắc nghiệm nhiều phương án lựa chọn'
@@ -1085,8 +1110,9 @@ serve(async (req: Request) => {
       const { id, ...updates } = body
       if (!id) return errorResponse('Thiếu ID câu hỏi cần cập nhật', 400)
 
-      if (updates.prompt && typeof updates.prompt === 'object') {
-        updates.prompt = JSON.stringify(updates.prompt)
+      if (updates.prompt) {
+        const normalized = normalizeBankPromptPayload(updates.prompt)
+        updates.prompt = JSON.stringify(normalized)
       }
       if (updates.sa_answer !== undefined && updates.sa_answer !== null) {
         updates.sa_answer = String(updates.sa_answer)
