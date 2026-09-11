@@ -30,6 +30,9 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'students' ? 'active' : ''}" onclick="window.location.hash='#students'">
           <i class="fa-solid fa-users"></i> Quản lý học sinh
         </div>
+        <div class="nav-item ${currentRoute === 'grade-blocks' ? 'active' : ''}" onclick="window.location.hash='#grade-blocks'">
+          <i class="fa-solid fa-layer-group"></i> Quản lý khối học
+        </div>
         <div class="nav-item ${currentRoute === 'classes-admin' ? 'active' : ''}" onclick="window.location.hash='#classes-admin'">
           <i class="fa-solid fa-book-bookmark"></i> Quản lý lớp học
         </div>

@@ -37,6 +37,7 @@ export const createClassSchema = z.object({
   name: z.string().min(1, 'Class name is required'),
   description: z.string().optional(),
   tuitionFee: z.number().nonnegative().optional().default(0),
+  gradeBlock: z.string().min(1, 'Grade block is required').optional().default('12-Toán'),
 })
 
 export const updateClassSchema = z.object({
@@ -44,6 +45,7 @@ export const updateClassSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   tuitionFee: z.number().nonnegative().optional(),
+  gradeBlock: z.string().min(1).optional(),
 })
 
 export const deleteClassSchema = z.object({

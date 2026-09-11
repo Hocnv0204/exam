@@ -15,6 +15,8 @@ import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-de
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
 import { renderTrialView, bindTrialEvents } from './views/trial.js'
+import { renderQuestionBankView, bindQuestionBankEvents } from './views/question-bank.js'
+import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } from './views/grade-blocks.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
@@ -31,7 +33,9 @@ const routes = {
   'admin-history': { render: renderAdminHistoryView, bind: bindAdminHistoryEvents },
   'class-details': { render: renderClassDetailsView, bind: bindClassDetailsEvents },
   'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents },
-  'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents }
+  'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents },
+  'question-bank': { render: renderQuestionBankView, bind: bindQuestionBankEvents },
+  'grade-blocks': { render: renderGradeBlocksView, bind: bindGradeBlocksEvents }
 }
 
 async function router() {
@@ -90,7 +94,7 @@ async function router() {
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank']
     const studentOnlyRoutes = ['my-classes', 'homework-attempt', 'history']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
@@ -129,8 +133,13 @@ async function router() {
         }
       }
 
+      // Fetch Grade Blocks dynamically
+      if (hash === 'grade-blocks') {
+        await fetchGradeBlocksData()
+      }
+
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
-      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details'].includes(hash)) {
+      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank'].includes(hash)) {
         const classId = hash === 'my-classes' ? params.get('classId') : null
         const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
 
@@ -147,6 +156,7 @@ async function router() {
           state.classes = (rawClasses || []).map(c => ({
             id: c.id,
             name: c.name,
+            gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
             studentsCount: c.studentsCount || 0,
             tuitionFee: c.tuitionFee || 0,
             progress: 0
@@ -184,6 +194,7 @@ async function router() {
             state.classes = (rawClasses || []).map(c => ({
               id: c.id,
               name: c.name,
+              gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
               studentsCount: c.studentsCount || 0,
               tuitionFee: c.tuitionFee || 0,
               progress: 0
@@ -334,6 +345,7 @@ async function router() {
             state.classes = (rawClasses || []).map(c => ({
               id: c.id,
               name: c.name,
+              gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
               studentsCount: c.studentsCount || 0,
               tuitionFee: c.tuitionFee || 0,
               progress: 0

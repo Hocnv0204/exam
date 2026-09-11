@@ -2,6 +2,30 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin, requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 
+async function getScopeTargetIds(
+  serviceRoleClient: any,
+  gradeBlock?: string | null
+): Promise<{ classIds: string[]; chapterIds: string[] }> {
+  if (!gradeBlock) return { classIds: [], chapterIds: [] }
+
+  const { data: matchedClasses } = await serviceRoleClient
+    .from('classes')
+    .select('id')
+    .eq('grade_block', gradeBlock)
+  const classIds = (matchedClasses || []).map((c: any) => c.id)
+
+  let chapterIds: string[] = []
+  if (classIds.length > 0) {
+    const { data: matchedChapters } = await serviceRoleClient
+      .from('chapters')
+      .select('id')
+      .in('class_id', classIds)
+    chapterIds = (matchedChapters || []).map((ch: any) => ch.id)
+  }
+
+  return { classIds, chapterIds }
+}
+
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
   if (corsRes) return corsRes
@@ -16,10 +40,11 @@ serve(async (req: Request) => {
     const action = url.searchParams.get('action')
 
     // ========================================================
-    // GET: Truy vấn danh sách câu hỏi trong ngân hàng & Thống kê
+    // GET: Truy vấn danh sách câu hỏi & Thống kê & Kiểm tra số lượng
     // ========================================================
     if (req.method === 'GET') {
       const subject = url.searchParams.get('subject')
+      const gradeBlock = url.searchParams.get('gradeBlock')
       const gradeLevel = url.searchParams.get('gradeLevel')
       const classId = url.searchParams.get('classId')
       const chapterId = url.searchParams.get('chapterId')
@@ -29,12 +54,91 @@ serve(async (req: Request) => {
       const search = url.searchParams.get('search')
       const statsOnly = url.searchParams.get('stats') === 'true'
 
-      // Nếu chỉ yêu cầu thống kê
+      // Kiểm tra số lượng câu hỏi khả dụng theo phạm vi (Live availability check)
+      if (action === 'check-availability') {
+        const scopeType = url.searchParams.get('scopeType') || 'BLOCK'
+        const { classIds: avClassIds, chapterIds: avChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+        let baseQuery = serviceRoleClient
+          .from('question_bank')
+          .select('id, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id')
+
+        if (scopeType === 'LESSON' && lessonId) {
+          baseQuery = baseQuery.eq('lesson_id', lessonId)
+        } else if (scopeType === 'CHAPTER' && chapterId) {
+          baseQuery = baseQuery.eq('chapter_id', chapterId)
+        } else if (scopeType === 'CLASS' && classId) {
+          baseQuery = baseQuery.eq('class_id', classId)
+        } else if (lessonId) {
+          baseQuery = baseQuery.eq('lesson_id', lessonId)
+        } else if (chapterId) {
+          baseQuery = baseQuery.eq('chapter_id', chapterId)
+        } else if (classId) {
+          baseQuery = baseQuery.eq('class_id', classId)
+        } else if (gradeBlock) {
+          const orClauses = [`grade_block.eq.${gradeBlock}`]
+          if (avClassIds.length > 0) orClauses.push(`class_id.in.(${avClassIds.join(',')})`)
+          if (avChapterIds.length > 0) orClauses.push(`chapter_id.in.(${avChapterIds.join(',')})`)
+          baseQuery = baseQuery.or(orClauses.join(','))
+        }
+
+        const { data: rows, error: availErr } = await baseQuery
+        if (availErr) return errorResponse(availErr.message, 500)
+
+        const all = rows || []
+        const mc = all.filter(q => q.question_type === 'MULTIPLE_CHOICE').length
+        const tf = all.filter(q => q.question_type === 'TRUE_FALSE').length
+        const sa = all.filter(q => q.question_type === 'SHORT_ANSWER').length
+
+        // Phân nhóm theo bài học và chương
+        const byChapter: Record<string, { total: number; mc: number; tf: number; sa: number }> = {}
+        const byLesson: Record<string, { total: number; mc: number; tf: number; sa: number }> = {}
+
+        all.forEach(q => {
+          if (q.chapter_id) {
+            if (!byChapter[q.chapter_id]) byChapter[q.chapter_id] = { total: 0, mc: 0, tf: 0, sa: 0 }
+            byChapter[q.chapter_id].total++
+            if (q.question_type === 'MULTIPLE_CHOICE') byChapter[q.chapter_id].mc++
+            if (q.question_type === 'TRUE_FALSE') byChapter[q.chapter_id].tf++
+            if (q.question_type === 'SHORT_ANSWER') byChapter[q.chapter_id].sa++
+          }
+          if (q.lesson_id) {
+            if (!byLesson[q.lesson_id]) byLesson[q.lesson_id] = { total: 0, mc: 0, tf: 0, sa: 0 }
+            byLesson[q.lesson_id].total++
+            if (q.question_type === 'MULTIPLE_CHOICE') byLesson[q.lesson_id].mc++
+            if (q.question_type === 'TRUE_FALSE') byLesson[q.lesson_id].tf++
+            if (q.question_type === 'SHORT_ANSWER') byLesson[q.lesson_id].sa++
+          }
+        })
+
+        return jsonResponse({
+          total: all.length,
+          mc,
+          tf,
+          sa,
+          byChapter,
+          byLesson
+        })
+      }
+
+      // Nếu chỉ yêu cầu thống kê chung
       if (statsOnly) {
-        let baseQuery = serviceRoleClient.from('question_bank').select('id, subject, question_type, difficulty')
+        const { classIds: stClassIds, chapterIds: stChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+        let baseQuery = serviceRoleClient.from('question_bank').select('id, subject, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id')
         if (subject) baseQuery = baseQuery.eq('subject', subject)
         if (gradeLevel) baseQuery = baseQuery.eq('grade_level', parseInt(gradeLevel, 10))
-        if (chapterId) baseQuery = baseQuery.eq('chapter_id', chapterId)
+
+        if (lessonId) {
+          baseQuery = baseQuery.eq('lesson_id', lessonId)
+        } else if (chapterId) {
+          baseQuery = baseQuery.eq('chapter_id', chapterId)
+        } else if (classId) {
+          baseQuery = baseQuery.eq('class_id', classId)
+        } else if (gradeBlock) {
+          const orClauses = [`grade_block.eq.${gradeBlock}`]
+          if (stClassIds.length > 0) orClauses.push(`class_id.in.(${stClassIds.join(',')})`)
+          if (stChapterIds.length > 0) orClauses.push(`chapter_id.in.(${stChapterIds.join(',')})`)
+          baseQuery = baseQuery.or(orClauses.join(','))
+        }
 
         const { data: qData, error: qErr } = await baseQuery
         if (qErr) return errorResponse(qErr.message, 500)
@@ -55,12 +159,14 @@ serve(async (req: Request) => {
       }
 
       // Truy vấn chi tiết câu hỏi kèm thông tin Chương, Bài học, Lớp
+      const { classIds: qbClassIds, chapterIds: qbChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
       let query = serviceRoleClient
         .from('question_bank')
         .select(`
           id,
           subject,
           grade_level,
+          grade_block,
           class_id,
           chapter_id,
           lesson_id,
@@ -80,53 +186,87 @@ serve(async (req: Request) => {
             title,
             classes (
               id,
-              name
+              name,
+              grade_block
             )
           ),
           lessons (
             id,
             title
           )
-        `)
-        .order('created_at', { ascending: false })
+        `, { count: 'exact' })
 
       if (subject) query = query.eq('subject', subject)
       if (gradeLevel) query = query.eq('grade_level', parseInt(gradeLevel, 10))
-      if (classId) query = query.eq('class_id', classId)
-      if (chapterId) query = query.eq('chapter_id', chapterId)
-      if (lessonId) query = query.eq('lesson_id', lessonId)
       if (questionType) query = query.eq('question_type', questionType)
       if (difficulty) query = query.eq('difficulty', difficulty)
 
-      const limit = parseInt(url.searchParams.get('limit') || '100', 10)
-      query = query.limit(limit)
-
-      const { data: questions, error } = await query
-      if (error) return errorResponse(error.message, 500)
-
-      let result = questions || []
-      if (search && search.trim()) {
-        const term = search.trim().toLowerCase()
-        result = result.filter((q: any) => {
-          return (q.prompt || '').toLowerCase().includes(term) ||
-            (q.tags || []).some((t: string) => t.toLowerCase().includes(term))
-        })
+      if (lessonId) {
+        query = query.eq('lesson_id', lessonId)
+      } else if (chapterId) {
+        query = query.eq('chapter_id', chapterId)
+      } else if (classId) {
+        query = query.eq('class_id', classId)
+      } else if (gradeBlock) {
+        const orClauses = [`grade_block.eq.${gradeBlock}`]
+        if (qbClassIds.length > 0) orClauses.push(`class_id.in.(${qbClassIds.join(',')})`)
+        if (qbChapterIds.length > 0) orClauses.push(`chapter_id.in.(${qbChapterIds.join(',')})`)
+        query = query.or(orClauses.join(','))
       }
 
-      return jsonResponse(result)
+      if (search && search.trim()) {
+        query = query.ilike('prompt', `%${search.trim()}%`)
+      }
+
+      query = query.order('created_at', { ascending: false })
+
+      // Xử lý phân trang (hỗ trợ cả page/pageSize và limit/offset)
+      const isPaginated = url.searchParams.get('paginate') !== 'false' && url.searchParams.get('all') !== 'true'
+      const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
+      const pageSize = Math.max(1, Math.min(100, parseInt(url.searchParams.get('pageSize') || url.searchParams.get('limit') || '10', 10)))
+
+      if (isPaginated) {
+        const from = (page - 1) * pageSize
+        const to = from + pageSize - 1
+        query = query.range(from, to)
+      } else {
+        const limit = parseInt(url.searchParams.get('limit') || '500', 10)
+        query = query.limit(limit)
+      }
+
+      const { data: questions, count, error } = await query
+      if (error) return errorResponse(error.message, 500)
+
+      const totalItems = count !== null && count !== undefined ? count : (questions || []).length
+      const totalPages = isPaginated ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1
+
+      if (!isPaginated) {
+        return jsonResponse(questions || [])
+      }
+
+      return jsonResponse({
+        items: questions || [],
+        total: totalItems,
+        page,
+        pageSize,
+        totalPages
+      })
     }
 
     // ========================================================
-    // POST: Xử lý Bulk Import, Bốc đề ngẫu nhiên, Tạo câu lẻ
+    // POST: Nhập Markdown, Đồng bộ từ Bài tập cũ, Bốc đề ngẫu nhiên
     // ========================================================
     if (req.method === 'POST') {
       const body = await req.json()
 
+      // ----------------------------------------------------
       // Action 1: Nhập hàng loạt câu hỏi từ Markdown
+      // ----------------------------------------------------
       if (action === 'import') {
         const {
           subject = 'TOAN',
           gradeLevel = 12,
+          gradeBlock = null,
           classId = null,
           chapterId = null,
           lessonId = null,
@@ -138,34 +278,55 @@ serve(async (req: Request) => {
           return errorResponse('Danh sách câu hỏi nhập vào trống!', 400)
         }
 
+        let effectiveGradeBlock = gradeBlock
+        if (!effectiveGradeBlock && classId) {
+          const { data: cData } = await serviceRoleClient.from('classes').select('grade_block').eq('id', classId).single()
+          effectiveGradeBlock = cData?.grade_block || '12-Toán'
+        }
+        if (!effectiveGradeBlock) effectiveGradeBlock = '12-Toán'
+
         const rowsToInsert = questions.map((q: any) => {
-          const promptPayload = {
-            isInteractive: true,
-            text: q.promptText || '',
-            imageUrl: q.imageUrl || '',
-            options: (q.options || []).map((o: any) => ({
-              id: o.id || o.key,
-              key: o.id || o.key,
-              text: o.text || ''
-            })),
-            explanation: q.explanation || ''
+          let promptPayload: any
+          if (typeof q.prompt === 'object' && q.prompt !== null) {
+            promptPayload = q.prompt
+          } else {
+            promptPayload = {
+              isInteractive: true,
+              text: q.promptText || q.content || q.prompt || '',
+              imageUrl: q.imageUrl || '',
+              partTitle: q.partTitle || '',
+              options: (q.options || []).map((o: any) => ({
+                id: o.id || o.key,
+                key: o.id || o.key,
+                text: o.text || ''
+              })),
+              statements: (q.statements || []).map((s: any) => ({
+                id: s.id || s.key,
+                key: s.id || s.key,
+                text: s.text || ''
+              })),
+              explanation: q.explanation || ''
+            }
           }
+
+          const qType = q.questionType || (q.options && q.options.length ? 'MULTIPLE_CHOICE' : (q.statements && q.statements.length ? 'TRUE_FALSE' : 'SHORT_ANSWER'))
 
           return {
             subject,
-            grade_level: gradeLevel,
+            grade_level: Number(gradeLevel) || 12,
+            grade_block: effectiveGradeBlock,
             class_id: classId || null,
             chapter_id: chapterId || null,
             lesson_id: lessonId || null,
-            question_type: q.questionType,
+            question_type: qType,
             difficulty: q.difficulty || defaultDifficulty,
-            prompt: JSON.stringify(promptPayload),
+            prompt: typeof promptPayload === 'string' ? promptPayload : JSON.stringify(promptPayload),
             mc_answer: q.mcAnswer || null,
             tf_answers: q.tfAnswers || null,
-            sa_answer: q.saAnswer !== undefined ? String(q.saAnswer) : null,
-            sa_tolerance: q.saTolerance || 0,
-            points: q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
-            tags: q.tags || [],
+            sa_answer: q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : null,
+            sa_tolerance: Number(q.saTolerance) || 0,
+            points: Number(q.points) || (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
+            tags: Array.isArray(q.tags) ? q.tags : [],
             usage_count: 0
           }
         })
@@ -184,20 +345,246 @@ serve(async (req: Request) => {
         })
       }
 
-      // Action 2: Tạo đề ngẫu nhiên từ Ngân hàng đề (hoặc Preview bốc câu)
+      // ----------------------------------------------------
+      // Action 2: Trích xuất / Đồng bộ từ các Bài tập / Đề thi đã có
+      // ----------------------------------------------------
+      if (action === 'import-from-homework') {
+        const {
+          homeworkIds = [],
+          classId = null,
+          chapterId = null,
+          lessonId = null,
+          deduplicate = true
+        } = body
+
+        let hwQuery = serviceRoleClient
+          .from('homeworks')
+          .select(`
+            id,
+            title,
+            lesson_id,
+            lessons (
+              id,
+              title,
+              chapter_id,
+              chapters (
+                id,
+                title,
+                class_id,
+                classes (
+                  id,
+                  name,
+                  grade_block
+                )
+              )
+            )
+          `)
+
+        if (Array.isArray(homeworkIds) && homeworkIds.length > 0) {
+          hwQuery = hwQuery.in('id', homeworkIds)
+        } else if (classId) {
+          hwQuery = hwQuery.eq('lessons.chapters.class_id', classId)
+        }
+
+        const { data: targetHws, error: hwFetchErr } = await hwQuery
+        if (hwFetchErr) return errorResponse(hwFetchErr.message, 500)
+        if (!targetHws || targetHws.length === 0) {
+          return errorResponse('Không tìm thấy bài tập nào để trích xuất!', 404)
+        }
+
+        const validHwIds = targetHws.map(h => h.id)
+
+        // Lấy tất cả câu hỏi và đáp án từ các bài tập đã chọn
+        const { data: questionsWithAnswers, error: qFetchErr } = await serviceRoleClient
+          .from('questions')
+          .select(`
+            id,
+            homework_id,
+            question_number,
+            question_type,
+            prompt,
+            content,
+            options,
+            statements,
+            part_title,
+            points,
+            question_answers (
+              mc_answer,
+              tf_answers,
+              sa_answer,
+              sa_tolerance,
+              explanation
+            )
+          `)
+          .in('homework_id', validHwIds)
+          .order('question_number', { ascending: true })
+
+        if (qFetchErr) return errorResponse(qFetchErr.message, 500)
+        if (!questionsWithAnswers || questionsWithAnswers.length === 0) {
+          return errorResponse('Các bài tập đã chọn chưa có câu hỏi nào!', 400)
+        }
+
+        // Tạo map để tra cứu thông tin Lớp / Chương / Bài học từ homework_id
+        const hwMap = new Map<string, any>()
+        targetHws.forEach(h => {
+          const l = h.lessons as any
+          const ch = l?.chapters as any
+          const cl = ch?.classes as any
+          hwMap.set(h.id, {
+            classId: classId || cl?.id || null,
+            gradeBlock: cl?.grade_block || '12-Toán',
+            chapterId: chapterId || ch?.id || null,
+            lessonId: lessonId || l?.id || null,
+            title: h.title
+          })
+        })
+
+        // Nếu bật deduplicate: Lấy danh sách prompt tóm tắt hiện có trong ngân hàng để loại trừ
+        let existingPromptsSet = new Set<string>()
+        if (deduplicate) {
+          const { data: existingRows } = await serviceRoleClient
+            .from('question_bank')
+            .select('prompt')
+          if (existingRows) {
+            existingRows.forEach((r: any) => {
+              try {
+                const parsed = JSON.parse(r.prompt)
+                const text = (parsed.text || parsed.prompt || r.prompt || '').trim().toLowerCase().slice(0, 100)
+                if (text) existingPromptsSet.add(text)
+              } catch (_) {
+                const text = (r.prompt || '').trim().toLowerCase().slice(0, 100)
+                if (text) existingPromptsSet.add(text)
+              }
+            })
+          }
+        }
+
+        const rowsToInsert: any[] = []
+        let skippedCount = 0
+
+        questionsWithAnswers.forEach((q: any) => {
+          const hwInfo = hwMap.get(q.homework_id) || {}
+          const ans = (Array.isArray(q.question_answers) ? q.question_answers[0] : q.question_answers) || {}
+
+          // Chuẩn hóa prompt payload
+          let promptPayload: any
+          let promptText = ''
+          if (q.prompt && typeof q.prompt === 'string') {
+            try {
+              const parsed = JSON.parse(q.prompt)
+              if (parsed && typeof parsed === 'object') {
+                promptPayload = {
+                  isInteractive: true,
+                  text: parsed.text || parsed.prompt || q.content || '',
+                  imageUrl: parsed.imageUrl || '',
+                  partTitle: q.part_title || parsed.partTitle || '',
+                  options: parsed.options || q.options || [],
+                  statements: parsed.statements || q.statements || [],
+                  explanation: parsed.explanation || ans.explanation || ''
+                }
+                promptText = promptPayload.text
+              } else {
+                promptText = q.prompt
+              }
+            } catch (_) {
+              promptText = q.prompt
+            }
+          }
+
+          if (!promptPayload) {
+            promptPayload = {
+              isInteractive: true,
+              text: promptText || q.content || '',
+              imageUrl: '',
+              partTitle: q.part_title || '',
+              options: (q.options || []).map((o: any) => ({
+                id: o.id || o.key,
+                key: o.id || o.key,
+                text: o.text || ''
+              })),
+              statements: (q.statements || []).map((s: any) => ({
+                id: s.id || s.key,
+                key: s.id || s.key,
+                text: s.text || ''
+              })),
+              explanation: ans.explanation || ''
+            }
+            promptText = promptPayload.text
+          }
+
+          // Kiểm tra trùng lặp
+          const sampleKey = promptText.trim().toLowerCase().slice(0, 100)
+          if (deduplicate && sampleKey && existingPromptsSet.has(sampleKey)) {
+            skippedCount++
+            return
+          }
+          if (sampleKey) existingPromptsSet.add(sampleKey)
+
+          rowsToInsert.push({
+            subject: 'TOAN',
+            grade_level: 12,
+            grade_block: hwInfo.gradeBlock || '12-Toán',
+            class_id: hwInfo.classId || null,
+            chapter_id: hwInfo.chapterId || null,
+            lesson_id: hwInfo.lessonId || null,
+            question_type: q.question_type,
+            difficulty: 'THONG_HIEU',
+            prompt: JSON.stringify(promptPayload),
+            mc_answer: ans.mc_answer || null,
+            tf_answers: ans.tf_answers || null,
+            sa_answer: ans.sa_answer !== undefined && ans.sa_answer !== null ? String(ans.sa_answer) : null,
+            sa_tolerance: Number(ans.sa_tolerance) || 0,
+            points: Number(q.points) || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
+            tags: [hwInfo.title || 'Bài tập cũ'],
+            usage_count: 1
+          })
+        })
+
+        if (rowsToInsert.length === 0) {
+          return jsonResponse({
+            success: true,
+            importedCount: 0,
+            skippedCount,
+            message: `Tất cả ${skippedCount} câu hỏi từ các bài tập đã chọn đều đã tồn tại trong Ngân hàng đề!`
+          })
+        }
+
+        const { data: inserted, error: insertError } = await serviceRoleClient
+          .from('question_bank')
+          .insert(rowsToInsert)
+          .select('id')
+
+        if (insertError) return errorResponse(insertError.message, 500)
+
+        return jsonResponse({
+          success: true,
+          importedCount: (inserted || []).length,
+          skippedCount,
+          message: `Đã trích xuất và lưu thành công ${(inserted || []).length} câu hỏi vào Ngân hàng đề${skippedCount > 0 ? ` (bỏ qua ${skippedCount} câu trùng lặp)` : ''}!`
+        })
+      }
+
+      // ----------------------------------------------------
+      // Action 3: Bốc câu ngẫu nhiên theo Ma trận (Preview / Finalize)
+      // ----------------------------------------------------
       if (action === 'generate-exam') {
         const {
-          subject,
-          gradeLevel,
-          chapterIds = [],
-          classId,
+          scopeType = 'BLOCK', // 'BLOCK' | 'CLASS' | 'CHAPTER' | 'LESSON'
+          gradeBlock = null,
+          classId = null,
+          chapterId = null,
+          lessonId = null,
           targetLessonId,
           title,
           durationMinutes = 60,
           passScore = 5.0,
           maxScore = 10.0,
           type = 'PRACTICE',
+          deadline = null,
+          maxViolations = 3,
+          showSolutions = true,
           matrix = { mcCount: 12, tfCount: 4, saCount: 6 },
+          distribution = null, // Optional per-chapter or per-lesson breakdown: [ { chapterId, lessonId, mcCount, tfCount, saCount } ]
           previewOnly = false
         } = body
 
@@ -205,42 +592,9 @@ serve(async (req: Request) => {
           return errorResponse('Vui lòng chọn bài học đích và nhập tiêu đề đề thi!', 400)
         }
 
-        // Lấy toàn bộ câu hỏi thỏa mãn tiêu chí từ Ngân hàng
-        let candidateQuery = serviceRoleClient
-          .from('question_bank')
-          .select('*')
-
-        if (subject) candidateQuery = candidateQuery.eq('subject', subject)
-        if (gradeLevel) candidateQuery = candidateQuery.eq('grade_level', gradeLevel)
-        if (Array.isArray(chapterIds) && chapterIds.length > 0) {
-          candidateQuery = candidateQuery.in('chapter_id', chapterIds)
-        }
-
-        const { data: candidates, error: candError } = await candidateQuery
-        if (candError) return errorResponse(candError.message, 500)
-
-        const allCandidates = candidates || []
-        const mcPool = allCandidates.filter(q => q.question_type === 'MULTIPLE_CHOICE')
-        const tfPool = allCandidates.filter(q => q.question_type === 'TRUE_FALSE')
-        const saPool = allCandidates.filter(q => q.question_type === 'SHORT_ANSWER')
-
-        const mcRequested = Number(matrix.mcCount) || 0
-        const tfRequested = Number(matrix.tfCount) || 0
-        const saRequested = Number(matrix.saCount) || 0
-
-        if (mcPool.length < mcRequested) {
-          return errorResponse(`Không đủ câu hỏi Trắc nghiệm ABCD trong ngân hàng (yêu cầu ${mcRequested} câu, hiện có ${mcPool.length} câu)`, 400)
-        }
-        if (tfPool.length < tfRequested) {
-          return errorResponse(`Không đủ câu hỏi Đúng/Sai trong ngân hàng (yêu cầu ${tfRequested} câu, hiện có ${tfPool.length} câu)`, 400)
-        }
-        if (saPool.length < saRequested) {
-          return errorResponse(`Không đủ câu hỏi Trả lời ngắn trong ngân hàng (yêu cầu ${saRequested} câu, hiện có ${saPool.length} câu)`, 400)
-        }
-
         // Thuật toán bốc ngẫu nhiên có trọng số ưu tiên câu có usage_count thấp
         const pickRandomWeighted = (pool: any[], count: number) => {
-          // Sắp xếp tăng dần theo usage_count, thêm yếu tố ngẫu nhiên
+          if (count <= 0) return []
           const shuffled = [...pool].sort((a, b) => {
             const weightA = (a.usage_count || 0) + Math.random() * 0.8
             const weightB = (b.usage_count || 0) + Math.random() * 0.8
@@ -249,26 +603,135 @@ serve(async (req: Request) => {
           return shuffled.slice(0, count)
         }
 
-        const pickedMC = pickRandomWeighted(mcPool, mcRequested)
-        const pickedTF = pickRandomWeighted(tfPool, tfRequested)
-        const pickedSA = pickRandomWeighted(saPool, saRequested)
+        let combinedQuestions: any[] = []
 
-        const combinedQuestions = [...pickedMC, ...pickedTF, ...pickedSA]
+        // Kịch bản A: Có phân bổ chi tiết theo từng Chương hoặc từng Bài (distribution)
+        if (Array.isArray(distribution) && distribution.length > 0) {
+          const pickedIdsSet = new Set<string>()
 
-        // Nếu chỉ là Preview bốc ngẫu nhiên để giáo viên xem thử trước khi tạo
+          for (const item of distribution) {
+            const itemBlock = item.gradeBlock || gradeBlock
+            const { classIds: itClassIds, chapterIds: itChapterIds } = await getScopeTargetIds(serviceRoleClient, itemBlock)
+            let itemQuery = serviceRoleClient.from('question_bank').select('*')
+            if (item.lessonId) {
+              itemQuery = itemQuery.eq('lesson_id', item.lessonId)
+            } else if (item.chapterId) {
+              itemQuery = itemQuery.eq('chapter_id', item.chapterId)
+            } else if (item.classId) {
+              itemQuery = itemQuery.eq('class_id', item.classId)
+            } else if (itemBlock) {
+              const orClauses = [`grade_block.eq.${itemBlock}`]
+              if (itClassIds.length > 0) orClauses.push(`class_id.in.(${itClassIds.join(',')})`)
+              if (itChapterIds.length > 0) orClauses.push(`chapter_id.in.(${itChapterIds.join(',')})`)
+              itemQuery = itemQuery.or(orClauses.join(','))
+            }
+
+            const { data: itemCandidates, error: itemCandErr } = await itemQuery
+            if (itemCandErr) return errorResponse(itemCandErr.message, 500)
+
+            const pool = (itemCandidates || []).filter(q => !pickedIdsSet.has(q.id))
+            const mcPool = pool.filter(q => q.question_type === 'MULTIPLE_CHOICE')
+            const tfPool = pool.filter(q => q.question_type === 'TRUE_FALSE')
+            const saPool = pool.filter(q => q.question_type === 'SHORT_ANSWER')
+
+            const mcCount = Number(item.mcCount) || 0
+            const tfCount = Number(item.tfCount) || 0
+            const saCount = Number(item.saCount) || 0
+
+            if (mcPool.length < mcCount) {
+              return errorResponse(`Không đủ câu Trắc nghiệm cho ${item.title || 'phân mục đã chọn'} (cần ${mcCount} câu, hiện có ${mcPool.length} câu)`, 400)
+            }
+            if (tfPool.length < tfCount) {
+              return errorResponse(`Không đủ câu Đúng/Sai cho ${item.title || 'phân mục đã chọn'} (cần ${tfCount} câu, hiện có ${tfPool.length} câu)`, 400)
+            }
+            if (saPool.length < saCount) {
+              return errorResponse(`Không đủ câu Trả lời ngắn cho ${item.title || 'phân mục đã chọn'} (cần ${saCount} câu, hiện có ${saPool.length} câu)`, 400)
+            }
+
+            const pMC = pickRandomWeighted(mcPool, mcCount)
+            pMC.forEach(q => pickedIdsSet.add(q.id))
+            const pTF = pickRandomWeighted(tfPool, tfCount)
+            pTF.forEach(q => pickedIdsSet.add(q.id))
+            const pSA = pickRandomWeighted(saPool, saCount)
+            pSA.forEach(q => pickedIdsSet.add(q.id))
+
+            combinedQuestions.push(...pMC, ...pTF, ...pSA)
+          }
+        } else {
+          // Kịch bản B: Bốc theo Scope tổng (toàn Khối, toàn Lớp, toàn Chương, hoặc 1 Bài)
+          const { classIds: scClassIds, chapterIds: scChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+          let candidateQuery = serviceRoleClient.from('question_bank').select('*')
+
+          if (scopeType === 'LESSON' && lessonId) {
+            candidateQuery = candidateQuery.eq('lesson_id', lessonId)
+          } else if (scopeType === 'CHAPTER' && chapterId) {
+            candidateQuery = candidateQuery.eq('chapter_id', chapterId)
+          } else if (scopeType === 'CLASS' && classId) {
+            candidateQuery = candidateQuery.eq('class_id', classId)
+          } else if (lessonId) {
+            candidateQuery = candidateQuery.eq('lesson_id', lessonId)
+          } else if (chapterId) {
+            candidateQuery = candidateQuery.eq('chapter_id', chapterId)
+          } else if (classId) {
+            candidateQuery = candidateQuery.eq('class_id', classId)
+          } else if (gradeBlock) {
+            const orClauses = [`grade_block.eq.${gradeBlock}`]
+            if (scClassIds.length > 0) orClauses.push(`class_id.in.(${scClassIds.join(',')})`)
+            if (scChapterIds.length > 0) orClauses.push(`chapter_id.in.(${scChapterIds.join(',')})`)
+            candidateQuery = candidateQuery.or(orClauses.join(','))
+          }
+
+          const { data: candidates, error: candError } = await candidateQuery
+          if (candError) return errorResponse(candError.message, 500)
+
+          const allCandidates = candidates || []
+          const mcPool = allCandidates.filter(q => q.question_type === 'MULTIPLE_CHOICE')
+          const tfPool = allCandidates.filter(q => q.question_type === 'TRUE_FALSE')
+          const saPool = allCandidates.filter(q => q.question_type === 'SHORT_ANSWER')
+
+          const mcRequested = Number(matrix.mcCount) || 0
+          const tfRequested = Number(matrix.tfCount) || 0
+          const saRequested = Number(matrix.saCount) || 0
+
+          if (mcPool.length < mcRequested) {
+            return errorResponse(`Không đủ câu hỏi Trắc nghiệm ABCD trong phạm vi đã chọn (cần ${mcRequested} câu, hiện có ${mcPool.length} câu)`, 400)
+          }
+          if (tfPool.length < tfRequested) {
+            return errorResponse(`Không đủ câu hỏi Đúng/Sai trong phạm vi đã chọn (cần ${tfRequested} câu, hiện có ${tfPool.length} câu)`, 400)
+          }
+          if (saPool.length < saRequested) {
+            return errorResponse(`Không đủ câu hỏi Trả lời ngắn trong phạm vi đã chọn (cần ${saRequested} câu, hiện có ${saPool.length} câu)`, 400)
+          }
+
+          const pickedMC = pickRandomWeighted(mcPool, mcRequested)
+          const pickedTF = pickRandomWeighted(tfPool, tfRequested)
+          const pickedSA = pickRandomWeighted(saPool, saRequested)
+
+          combinedQuestions = [...pickedMC, ...pickedTF, ...pickedSA]
+        }
+
+        // Sắp xếp lại câu hỏi theo thứ tự chuẩn thi tốt nghiệp: Trắc nghiệm (Part I) -> Đúng/Sai (Part II) -> Trả lời ngắn (Part III)
+        const orderedQuestions = [
+          ...combinedQuestions.filter(q => q.question_type === 'MULTIPLE_CHOICE'),
+          ...combinedQuestions.filter(q => q.question_type === 'TRUE_FALSE'),
+          ...combinedQuestions.filter(q => q.question_type === 'SHORT_ANSWER')
+        ]
+
+        // Nếu chỉ là Preview để kiểm tra câu hỏi trước khi chốt
         if (previewOnly) {
           return jsonResponse({
-            previewQuestions: combinedQuestions,
+            previewQuestions: orderedQuestions,
             summary: {
-              mcPicked: pickedMC.length,
-              tfPicked: pickedTF.length,
-              saPicked: pickedSA.length,
-              total: combinedQuestions.length
+              mcPicked: orderedQuestions.filter(q => q.question_type === 'MULTIPLE_CHOICE').length,
+              tfPicked: orderedQuestions.filter(q => q.question_type === 'TRUE_FALSE').length,
+              saPicked: orderedQuestions.filter(q => q.question_type === 'SHORT_ANSWER').length,
+              total: orderedQuestions.length
             }
           })
         }
 
-        // Tạo bài tập mới trong bảng homeworks
+        // Tạo bài tập chính thức trong bảng homeworks
+        const finalMaxAttempts = type === 'EXAM' ? 1 : 3
         const { data: newHw, error: hwCreateError } = await serviceRoleClient
           .from('homeworks')
           .insert({
@@ -280,7 +743,10 @@ serve(async (req: Request) => {
             max_score: maxScore,
             is_published: true,
             type: type || 'PRACTICE',
-            max_attempts: type === 'EXAM' ? 1 : 3
+            max_attempts: finalMaxAttempts,
+            deadline: deadline || null,
+            max_violations: maxViolations || 3,
+            show_solutions: showSolutions !== false
           })
           .select('id')
           .single()
@@ -292,9 +758,20 @@ serve(async (req: Request) => {
         const questionsToInsert: any[] = []
         const answersToInsert: any[] = []
 
-        combinedQuestions.forEach((qbQ, idx) => {
+        orderedQuestions.forEach((qbQ, idx) => {
           const qNum = idx + 1
           const questionId = crypto.randomUUID()
+          let parsedPrompt: any = {}
+          try {
+            parsedPrompt = typeof qbQ.prompt === 'string' ? JSON.parse(qbQ.prompt) : qbQ.prompt
+          } catch (_) {
+            parsedPrompt = { text: qbQ.prompt }
+          }
+
+          let partTitle = ''
+          if (qbQ.question_type === 'MULTIPLE_CHOICE') partTitle = 'Phần I: Câu hỏi trắc nghiệm nhiều phương án lựa chọn'
+          else if (qbQ.question_type === 'TRUE_FALSE') partTitle = 'Phần II: Câu hỏi trắc nghiệm đúng sai'
+          else if (qbQ.question_type === 'SHORT_ANSWER') partTitle = 'Phần III: Câu hỏi trắc nghiệm trả lời ngắn'
 
           questionsToInsert.push({
             id: questionId,
@@ -302,6 +779,10 @@ serve(async (req: Request) => {
             question_number: qNum,
             question_type: qbQ.question_type,
             prompt: qbQ.prompt,
+            content: parsedPrompt.text || '',
+            options: parsedPrompt.options || null,
+            statements: parsedPrompt.statements || null,
+            part_title: parsedPrompt.partTitle || partTitle,
             points: qbQ.points || (qbQ.question_type === 'TRUE_FALSE' ? 1.0 : (qbQ.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
           })
 
@@ -309,40 +790,236 @@ serve(async (req: Request) => {
             question_id: questionId,
             mc_answer: qbQ.mc_answer || null,
             tf_answers: qbQ.tf_answers || null,
-            sa_answer: qbQ.sa_answer || null,
-            sa_tolerance: qbQ.sa_tolerance || 0
+            sa_answer: qbQ.sa_answer !== undefined && qbQ.sa_answer !== null ? String(qbQ.sa_answer) : null,
+            sa_tolerance: qbQ.sa_tolerance || 0,
+            explanation: parsedPrompt.explanation || null
           })
         })
 
         const { error: qInsertErr } = await serviceRoleClient.from('questions').insert(questionsToInsert)
-        if (qInsertErr) return errorResponse(qInsertErr.message, 500)
+        if (qInsertErr) {
+          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
+          return errorResponse(qInsertErr.message, 500)
+        }
 
         const { error: aInsertErr } = await serviceRoleClient.from('question_answers').insert(answersToInsert)
-        if (aInsertErr) return errorResponse(aInsertErr.message, 500)
+        if (aInsertErr) {
+          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
+          return errorResponse(aInsertErr.message, 500)
+        }
 
-        // Cập nhật usage_count cho các câu hỏi đã bốc
-        const pickedIds = combinedQuestions.map(q => q.id)
+        // Tăng usage_count cho các câu hỏi được chọn
+        const pickedIds = orderedQuestions.map(q => q.id)
         for (const qId of pickedIds) {
-          await serviceRoleClient.rpc('increment_qb_usage', { q_id: qId }).catch(async () => {
-            // Fallback nếu chưa có RPC
-            const curQ = combinedQuestions.find(q => q.id === qId)
-            const curCount = (curQ?.usage_count || 0) + 1
-            await serviceRoleClient.from('question_bank').update({ usage_count: curCount }).eq('id', qId)
-          })
+          const curQ = orderedQuestions.find(q => q.id === qId)
+          const curCount = (curQ?.usage_count || 0) + 1
+          await serviceRoleClient.from('question_bank').update({ usage_count: curCount }).eq('id', qId)
         }
 
         return jsonResponse({
           success: true,
           homeworkId,
-          totalQuestions: combinedQuestions.length,
-          message: `Đã tạo thành công đề thi "${title}" với ${combinedQuestions.length} câu hỏi ngẫu nhiên từ ngân hàng!`
+          totalQuestions: orderedQuestions.length,
+          message: `Đã tạo thành công đề thi "${title}" với ${orderedQuestions.length} câu hỏi ngẫu nhiên từ ngân hàng!`
         })
       }
 
-      // Action 3: Thêm một câu hỏi đơn lẻ
+      // ----------------------------------------------------
+      // Action 4: Đổi (Swap / Re-roll) 1 câu hỏi trong Preview
+      // ----------------------------------------------------
+      if (action === 'swap-question') {
+        const {
+          currentQuestionId,
+          excludeIds = [],
+          questionType,
+          scopeType = 'BLOCK',
+          gradeBlock = null,
+          classId = null,
+          chapterId = null,
+          lessonId = null
+        } = body
+
+        const { classIds: swClassIds, chapterIds: swChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+        let query = serviceRoleClient
+          .from('question_bank')
+          .select('*')
+          .eq('question_type', questionType)
+
+        if (scopeType === 'LESSON' && lessonId) {
+          query = query.eq('lesson_id', lessonId)
+        } else if (scopeType === 'CHAPTER' && chapterId) {
+          query = query.eq('chapter_id', chapterId)
+        } else if (scopeType === 'CLASS' && classId) {
+          query = query.eq('class_id', classId)
+        } else if (lessonId) {
+          query = query.eq('lesson_id', lessonId)
+        } else if (chapterId) {
+          query = query.eq('chapter_id', chapterId)
+        } else if (classId) {
+          query = query.eq('class_id', classId)
+        } else if (gradeBlock) {
+          const orClauses = [`grade_block.eq.${gradeBlock}`]
+          if (swClassIds.length > 0) orClauses.push(`class_id.in.(${swClassIds.join(',')})`)
+          if (swChapterIds.length > 0) orClauses.push(`chapter_id.in.(${swChapterIds.join(',')})`)
+          query = query.or(orClauses.join(','))
+        }
+
+        const { data: candidates, error: swapErr } = await query
+        if (swapErr) return errorResponse(swapErr.message, 500)
+
+        const allExclude = new Set([...(excludeIds || []), currentQuestionId])
+        const availablePool = (candidates || []).filter(q => !allExclude.has(q.id))
+
+        if (availablePool.length === 0) {
+          return errorResponse('Không còn câu hỏi thay thế nào khác phù hợp trong ngân hàng!', 404)
+        }
+
+        // Chọn ngẫu nhiên có trọng số
+        const sorted = [...availablePool].sort((a, b) => {
+          const weightA = (a.usage_count || 0) + Math.random() * 0.8
+          const weightB = (b.usage_count || 0) + Math.random() * 0.8
+          return weightA - weightB
+        })
+
+        const replacement = sorted[0]
+        return jsonResponse({
+          success: true,
+          replacement
+        })
+      }
+
+      // ----------------------------------------------------
+      // Action 5: Tạo bài tập từ danh sách câu hỏi cụ thể đã chọn
+      // ----------------------------------------------------
+      if (action === 'create-from-selected') {
+        const {
+          targetLessonId,
+          title,
+          durationMinutes = 60,
+          passScore = 5.0,
+          maxScore = 10.0,
+          type = 'PRACTICE',
+          deadline = null,
+          maxViolations = 3,
+          showSolutions = true,
+          questionBankIds = []
+        } = body
+
+        if (!targetLessonId || !title || !Array.isArray(questionBankIds) || questionBankIds.length === 0) {
+          return errorResponse('Thiếu thông tin bài tập hoặc danh sách câu hỏi!', 400)
+        }
+
+        const { data: qbQuestions, error: fetchErr } = await serviceRoleClient
+          .from('question_bank')
+          .select('*')
+          .in('id', questionBankIds)
+
+        if (fetchErr) return errorResponse(fetchErr.message, 500)
+        if (!qbQuestions || qbQuestions.length === 0) {
+          return errorResponse('Không tìm thấy các câu hỏi đã chọn trong ngân hàng!', 404)
+        }
+
+        // Sắp xếp lại theo đúng thứ tự mảng questionBankIds truyền vào
+        const qbMap = new Map(qbQuestions.map(q => [q.id, q]))
+        const orderedQuestions = questionBankIds.map(id => qbMap.get(id)).filter(Boolean)
+
+        const finalMaxAttempts = type === 'EXAM' ? 1 : 3
+        const { data: newHw, error: hwCreateError } = await serviceRoleClient
+          .from('homeworks')
+          .insert({
+            lesson_id: targetLessonId,
+            title,
+            pdf_path: '',
+            duration_minutes: durationMinutes,
+            pass_score: passScore,
+            max_score: maxScore,
+            is_published: true,
+            type: type || 'PRACTICE',
+            max_attempts: finalMaxAttempts,
+            deadline: deadline || null,
+            max_violations: maxViolations || 3,
+            show_solutions: showSolutions !== false
+          })
+          .select('id')
+          .single()
+
+        if (hwCreateError) return errorResponse(hwCreateError.message, 500)
+        const homeworkId = newHw.id
+
+        const questionsToInsert: any[] = []
+        const answersToInsert: any[] = []
+
+        orderedQuestions.forEach((qbQ, idx) => {
+          const qNum = idx + 1
+          const questionId = crypto.randomUUID()
+          let parsedPrompt: any = {}
+          try {
+            parsedPrompt = typeof qbQ.prompt === 'string' ? JSON.parse(qbQ.prompt) : qbQ.prompt
+          } catch (_) {
+            parsedPrompt = { text: qbQ.prompt }
+          }
+
+          let partTitle = ''
+          if (qbQ.question_type === 'MULTIPLE_CHOICE') partTitle = 'Phần I: Câu hỏi trắc nghiệm nhiều phương án lựa chọn'
+          else if (qbQ.question_type === 'TRUE_FALSE') partTitle = 'Phần II: Câu hỏi trắc nghiệm đúng sai'
+          else if (qbQ.question_type === 'SHORT_ANSWER') partTitle = 'Phần III: Câu hỏi trắc nghiệm trả lời ngắn'
+
+          questionsToInsert.push({
+            id: questionId,
+            homework_id: homeworkId,
+            question_number: qNum,
+            question_type: qbQ.question_type,
+            prompt: qbQ.prompt,
+            content: parsedPrompt.text || '',
+            options: parsedPrompt.options || null,
+            statements: parsedPrompt.statements || null,
+            part_title: parsedPrompt.partTitle || partTitle,
+            points: qbQ.points || (qbQ.question_type === 'TRUE_FALSE' ? 1.0 : (qbQ.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
+          })
+
+          answersToInsert.push({
+            question_id: questionId,
+            mc_answer: qbQ.mc_answer || null,
+            tf_answers: qbQ.tf_answers || null,
+            sa_answer: qbQ.sa_answer !== undefined && qbQ.sa_answer !== null ? String(qbQ.sa_answer) : null,
+            sa_tolerance: qbQ.sa_tolerance || 0,
+            explanation: parsedPrompt.explanation || null
+          })
+        })
+
+        const { error: qInsertErr } = await serviceRoleClient.from('questions').insert(questionsToInsert)
+        if (qInsertErr) {
+          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
+          return errorResponse(qInsertErr.message, 500)
+        }
+
+        const { error: aInsertErr } = await serviceRoleClient.from('question_answers').insert(answersToInsert)
+        if (aInsertErr) {
+          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
+          return errorResponse(aInsertErr.message, 500)
+        }
+
+        // Tăng usage_count
+        for (const qbQ of orderedQuestions) {
+          const curCount = (qbQ.usage_count || 0) + 1
+          await serviceRoleClient.from('question_bank').update({ usage_count: curCount }).eq('id', qbQ.id)
+        }
+
+        return jsonResponse({
+          success: true,
+          homeworkId,
+          totalQuestions: orderedQuestions.length,
+          message: `Đã tạo thành công đề thi "${title}" với ${orderedQuestions.length} câu hỏi đã chọn!`
+        })
+      }
+
+      // ----------------------------------------------------
+      // Action 6: Thêm một câu hỏi đơn lẻ
+      // ----------------------------------------------------
       const {
         subject = 'TOAN',
         gradeLevel = 12,
+        gradeBlock = '12-Toán',
         classId = null,
         chapterId = null,
         lessonId = null,
@@ -362,15 +1039,16 @@ serve(async (req: Request) => {
         .insert({
           subject,
           grade_level: gradeLevel,
+          grade_block: gradeBlock || '12-Toán',
           class_id: classId,
           chapter_id: chapterId,
           lesson_id: lessonId,
           question_type: questionType,
           difficulty,
-          prompt,
+          prompt: typeof prompt === 'string' ? prompt : JSON.stringify(prompt),
           mc_answer: mcAnswer,
           tf_answers: tfAnswers,
-          sa_answer: saAnswer,
+          sa_answer: saAnswer !== null && saAnswer !== undefined ? String(saAnswer) : null,
           sa_tolerance: saTolerance,
           points,
           tags,
@@ -407,6 +1085,13 @@ serve(async (req: Request) => {
       const { id, ...updates } = body
       if (!id) return errorResponse('Thiếu ID câu hỏi cần cập nhật', 400)
 
+      if (updates.prompt && typeof updates.prompt === 'object') {
+        updates.prompt = JSON.stringify(updates.prompt)
+      }
+      if (updates.sa_answer !== undefined && updates.sa_answer !== null) {
+        updates.sa_answer = String(updates.sa_answer)
+      }
+
       updates.updated_at = new Date().toISOString()
       const { data: updated, error: updateErr } = await serviceRoleClient
         .from('question_bank')
@@ -419,8 +1104,9 @@ serve(async (req: Request) => {
       return jsonResponse(updated)
     }
 
-    return errorResponse('Method Not Allowed', 405)
   } catch (err: any) {
-    return errorResponse(err.message || 'Lỗi xử lý ngân hàng câu hỏi', 500)
+    const isAuthErr = err.message?.includes('Authorization') || err.message?.includes('Unauthorized') || err.message?.includes('token')
+    const statusCode = isAuthErr ? 401 : 500
+    return errorResponse(err.message || 'Lỗi xử lý ngân hàng câu hỏi', statusCode)
   }
 })

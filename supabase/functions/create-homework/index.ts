@@ -316,6 +316,61 @@ serve(async (req: Request) => {
         return errorResponse(`Failed to insert answer keys: ${ansError.message}`, 500)
       }
 
+      // Tự động đồng bộ các câu hỏi vừa tạo vào Ngân hàng câu hỏi (question_bank)
+      try {
+        const { data: lessonData } = await serviceRoleClient
+          .from('lessons')
+          .select('id, chapter_id, chapters(id, class_id, classes(grade_block))')
+          .eq('id', lessonId)
+          .single()
+
+        const chId = lessonData?.chapter_id || null
+        const clId = (lessonData?.chapters as any)?.class_id || null
+        const grBlock = ((lessonData?.chapters as any)?.classes as any)?.grade_block || '12-Toán'
+
+        const bankRows = questions.map((q: any) => {
+          let promptPayload: any
+          if (typeof q.prompt === 'object' && q.prompt !== null) {
+            promptPayload = q.prompt
+          } else {
+            promptPayload = {
+              isInteractive: true,
+              text: q.content || q.prompt || '',
+              imageUrl: q.imageUrl || '',
+              partTitle: q.partTitle || '',
+              options: q.options || [],
+              statements: q.statements || [],
+              explanation: q.explanation || ''
+            }
+          }
+
+          return {
+            subject: 'TOAN',
+            grade_level: 12,
+            grade_block: grBlock,
+            class_id: clId,
+            chapter_id: chId,
+            lesson_id: lessonId,
+            question_type: q.questionType,
+            difficulty: 'THONG_HIEU',
+            prompt: typeof promptPayload === 'string' ? promptPayload : JSON.stringify(promptPayload),
+            mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || null : null,
+            tf_answers: q.questionType === 'TRUE_FALSE' ? q.tfAnswers || null : null,
+            sa_answer: q.questionType === 'SHORT_ANSWER' ? (q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : null) : null,
+            sa_tolerance: q.saTolerance || 0,
+            points: q.points || 0.25,
+            tags: [title],
+            usage_count: 1
+          }
+        })
+
+        if (bankRows.length > 0) {
+          await serviceRoleClient.from('question_bank').insert(bankRows)
+        }
+      } catch (syncErr) {
+        console.warn('[Auto-sync question_bank warning]:', syncErr)
+      }
+
       return jsonResponse(
         {
           homework,

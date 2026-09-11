@@ -18,6 +18,48 @@ serve(async (req: Request) => {
 
     // GET: List all classes or get study sessions
     if (req.method === 'GET') {
+      if (action === 'get-grade-blocks') {
+        const { data: blocks, error: bErr } = await serviceRoleClient
+          .from('grade_blocks')
+          .select('*')
+          .order('name', { ascending: true })
+
+        if (bErr) return errorResponse(bErr.message, 500)
+
+        // Get class counts and list of class names per grade block
+        const { data: classesData } = await serviceRoleClient
+          .from('classes')
+          .select('id, name, grade_block')
+
+        // Get question counts per grade block
+        const { data: qbData } = await serviceRoleClient
+          .from('question_bank')
+          .select('grade_block')
+
+        const classMap: Record<string, { count: number; names: string[] }> = {}
+        ;(classesData || []).forEach((c: any) => {
+          const gb = c.grade_block || '12-Toán'
+          if (!classMap[gb]) classMap[gb] = { count: 0, names: [] }
+          classMap[gb].count += 1
+          if (c.name) classMap[gb].names.push(c.name)
+        })
+
+        const qbCountMap: Record<string, number> = {}
+        ;(qbData || []).forEach((q: any) => {
+          const gb = q.grade_block || '12-Toán'
+          qbCountMap[gb] = (qbCountMap[gb] || 0) + 1
+        })
+
+        const enriched = (blocks || []).map((b: any) => ({
+          ...b,
+          classesCount: classMap[b.name]?.count || 0,
+          classesList: classMap[b.name]?.names || [],
+          questionsCount: qbCountMap[b.name] || 0,
+        }))
+
+        return jsonResponse(enriched)
+      }
+
       if (action === 'get-sessions') {
         const classId = url.searchParams.get('classId')
         const month = url.searchParams.get('month') // format: YYYY-MM
@@ -112,6 +154,7 @@ serve(async (req: Request) => {
           const { student_classes, ...rest } = c
           return {
             ...rest,
+            gradeBlock: c.grade_block || '12-Toán',
             tuitionFee: c.tuition_fee ? Number(c.tuition_fee) : 0,
             studentsCount: student_classes ? student_classes.length : 0
           }
@@ -146,6 +189,7 @@ serve(async (req: Request) => {
           const { student_classes, ...rest } = c
           return {
             ...rest,
+            gradeBlock: c.grade_block || '12-Toán',
             tuitionFee: c.tuition_fee ? Number(c.tuition_fee) : 0,
             studentsCount: student_classes ? student_classes.length : 0
           }
@@ -247,6 +291,31 @@ serve(async (req: Request) => {
 
 
 
+      if (action === 'create-grade-block') {
+        const body = await req.json()
+        const name = (body.name || '').trim()
+        const description = (body.description || '').trim() || null
+
+        if (!name) {
+          return errorResponse('Tên khối không được để trống', 400)
+        }
+
+        const { data: created, error: createErr } = await serviceRoleClient
+          .from('grade_blocks')
+          .insert({ name, description })
+          .select()
+          .single()
+
+        if (createErr) {
+          if (createErr.code === '23505') {
+            return errorResponse(`Khối "${name}" đã tồn tại trong hệ thống!`, 400)
+          }
+          return errorResponse(createErr.message, 500)
+        }
+
+        return jsonResponse(created, 201)
+      }
+
       // Create Class
       if (!action || action === 'create') {
         const body = await req.json()
@@ -255,7 +324,7 @@ serve(async (req: Request) => {
           return errorResponse('Validation error', 400, validation.error.format())
         }
 
-        const { name, description, tuitionFee } = validation.data
+        const { name, description, tuitionFee, gradeBlock } = validation.data
 
         const { data: newClass, error } = await serviceRoleClient
           .from('classes')
@@ -263,6 +332,7 @@ serve(async (req: Request) => {
             name,
             description: description || null,
             tuition_fee: tuitionFee || 0,
+            grade_block: gradeBlock || '12-Toán',
           })
           .select()
           .single()
@@ -270,13 +340,67 @@ serve(async (req: Request) => {
         if (error) return errorResponse(error.message, 500)
         return jsonResponse({
           ...newClass,
+          gradeBlock: newClass.grade_block || '12-Toán',
           tuitionFee: newClass.tuition_fee ? Number(newClass.tuition_fee) : 0
         }, 201)
       }
     }
 
-    // PUT / PATCH: Update Class or Telegram Config
-    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update' || action === 'update-telegram-config') {
+    // PUT / PATCH: Update Class, Grade Block, or Telegram Config
+    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update' || action === 'update-telegram-config' || action === 'update-grade-block') {
+      if (action === 'update-grade-block') {
+        const body = await req.json()
+        const id = body.id
+        const name = (body.name || '').trim()
+        const description = body.description !== undefined ? (body.description || '').trim() : undefined
+
+        if (!id || !name) {
+          return errorResponse('ID và tên khối là bắt buộc', 400)
+        }
+
+        const { data: oldBlock, error: getErr } = await serviceRoleClient
+          .from('grade_blocks')
+          .select('*')
+          .eq('id', id)
+          .single()
+
+        if (getErr || !oldBlock) {
+          return errorResponse('Khối học không tồn tại', 404)
+        }
+
+        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+        if (name) updateData.name = name
+        if (description !== undefined) updateData.description = description || null
+
+        const { data: updated, error: updateErr } = await serviceRoleClient
+          .from('grade_blocks')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single()
+
+        if (updateErr) {
+          if (updateErr.code === '23505') {
+            return errorResponse(`Tên khối "${name}" đã được sử dụng!`, 400)
+          }
+          return errorResponse(updateErr.message, 500)
+        }
+
+        // If name changed, cascade update to classes and question_bank!
+        if (oldBlock.name !== name) {
+          await serviceRoleClient
+            .from('classes')
+            .update({ grade_block: name })
+            .eq('grade_block', oldBlock.name)
+
+          await serviceRoleClient
+            .from('question_bank')
+            .update({ grade_block: name })
+            .eq('grade_block', oldBlock.name)
+        }
+
+        return jsonResponse(updated)
+      }
       if (action === 'update-telegram-config') {
         const body = await req.json()
         const { classId, chatId, chatTitle, isEnabled } = body
@@ -308,11 +432,12 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { classId, name, description, tuitionFee } = validation.data
+      const { classId, name, description, tuitionFee, gradeBlock } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (name) updateData.name = name
       if (description !== undefined) updateData.description = description
       if (tuitionFee !== undefined) updateData.tuition_fee = tuitionFee
+      if (gradeBlock !== undefined) updateData.grade_block = gradeBlock
 
       const { data: updatedClass, error } = await serviceRoleClient
         .from('classes')
@@ -324,12 +449,43 @@ serve(async (req: Request) => {
       if (error) return errorResponse(error.message, 500)
       return jsonResponse({
         ...updatedClass,
+        gradeBlock: updatedClass.grade_block || '12-Toán',
         tuitionFee: updatedClass.tuition_fee ? Number(updatedClass.tuition_fee) : 0
       })
     }
 
-    // DELETE: Delete Class or Telegram Config
-    if (req.method === 'DELETE' || action === 'delete' || action === 'delete-telegram-config') {
+    // DELETE: Delete Class, Telegram Config, or Grade Block
+    if (req.method === 'DELETE' || action === 'delete' || action === 'delete-telegram-config' || action === 'delete-grade-block') {
+      if (action === 'delete-grade-block') {
+        const blockId = url.searchParams.get('id')
+        if (!blockId) return errorResponse('ID khối là bắt buộc', 400)
+
+        const { data: targetBlock } = await serviceRoleClient
+          .from('grade_blocks')
+          .select('name')
+          .eq('id', blockId)
+          .single()
+
+        if (targetBlock) {
+          const { count } = await serviceRoleClient
+            .from('classes')
+            .select('id', { count: 'exact', head: true })
+            .eq('grade_block', targetBlock.name)
+
+          if (count && count > 0) {
+            return errorResponse(`Không thể xóa khối "${targetBlock.name}" vì đang có ${count} lớp học thuộc khối này!`, 400)
+          }
+        }
+
+        const { error: delErr } = await serviceRoleClient
+          .from('grade_blocks')
+          .delete()
+          .eq('id', blockId)
+
+        if (delErr) return errorResponse(delErr.message, 500)
+        return jsonResponse({ message: 'Xóa khối thành công' })
+      }
+
       if (action === 'delete-telegram-config') {
         const classId = url.searchParams.get('classId')
         if (!classId) return errorResponse('Class ID is required', 400)
