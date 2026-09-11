@@ -16,6 +16,9 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial'">
           <i class="fa-solid fa-sparkles"></i> Bài học thử
         </div>
+        <div class="nav-item ${currentRoute === 'trial-history' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=history'">
+          <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài
+        </div>
         <div class="nav-item" onclick="window.location.hash='#login'">
           <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập / Đăng ký
         </div>
@@ -35,6 +38,9 @@ export function renderSidebar(currentRoute) {
         </div>
         <div class="nav-item ${currentRoute === 'homework-mgmt' || currentRoute === 'create-homework' ? 'active' : ''}" onclick="window.location.hash='#homework-mgmt'">
           <i class="fa-solid fa-list-check"></i> Quản lý bài tập
+        </div>
+        <div class="nav-item ${currentRoute === 'question-bank' ? 'active' : ''}" onclick="window.location.hash='#question-bank'">
+          <i class="fa-solid fa-boxes-stacked"></i> Ngân hàng câu hỏi
         </div>
         <div class="nav-item ${currentRoute === 'admin-history' ? 'active' : ''}" onclick="window.location.hash='#admin-history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài

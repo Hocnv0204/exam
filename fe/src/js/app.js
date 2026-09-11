@@ -64,14 +64,27 @@ async function router() {
       }
     }
 
-    // Restore cached trial submission result on review page if present
-    if (hash === 'assignment-review' && !state.lastSubmissionResult) {
-      try {
-        const cached = sessionStorage.getItem('last_trial_submission')
-        if (cached) {
-          state.lastSubmissionResult = JSON.parse(cached)
+    // Restore cached trial submission result on review page if present, or fetch from API
+    if (hash === 'assignment-review') {
+      const submissionId = params.get('submissionId')
+      if (submissionId) {
+        try {
+          const detail = await api.getStudentHistory(`submissionId=${submissionId}`)
+          if (detail && !detail.error) {
+            state.lastSubmissionResult = detail
+          }
+        } catch (e) {
+          console.warn('[Router] Failed to fetch trial submission detail by ID:', e)
         }
-      } catch (e) {}
+      }
+      if (!state.lastSubmissionResult) {
+        try {
+          const cached = sessionStorage.getItem('last_trial_submission')
+          if (cached) {
+            state.lastSubmissionResult = JSON.parse(cached)
+          }
+        } catch (e) {}
+      }
     }
   }
 
@@ -274,9 +287,12 @@ async function router() {
       // 5. Fetch submission details for review view
       if (hash === 'assignment-review') {
         const submissionId = params.get('submissionId')
-        if (submissionId) {
+        const currentSubId = state.lastSubmissionResult?.submissionId || state.lastSubmissionResult?.submission?.id
+        if (submissionId && currentSubId !== submissionId) {
           const detail = await api.getStudentHistory(`submissionId=${submissionId}`)
-          state.lastSubmissionResult = detail
+          if (detail && !detail.error) {
+            state.lastSubmissionResult = detail
+          }
         }
       }
 
@@ -306,27 +322,31 @@ async function router() {
         })
       }
 
-      // 7. Fetch Admin History & Tracking Data (Parallelized with Classes loader, no extra students call)
+      // 7. Fetch Admin History & Tracking Data
       if (hash === 'admin-history') {
+        const mode = params.get('mode') || (params.get('classId') === 'TRIAL' ? 'trial' : '') || ''
         const classId = params.get('classId') || ''
         const homeworkId = params.get('homeworkId') || ''
 
-        const loadClassesTask = (!state.classes || state.classes.length === 0)
-          ? api.getClasses().then(rawClasses => {
-              state.classes = (rawClasses || []).map(c => ({
-                id: c.id,
-                name: c.name,
-                studentsCount: c.studentsCount || 0,
-                tuitionFee: c.tuitionFee || 0,
-                progress: 0
-              }))
-            })
-          : Promise.resolve()
+        if (!state.classes || state.classes.length === 0) {
+          try {
+            const rawClasses = await api.getClasses()
+            state.classes = (rawClasses || []).map(c => ({
+              id: c.id,
+              name: c.name,
+              studentsCount: c.studentsCount || 0,
+              tuitionFee: c.tuitionFee || 0,
+              progress: 0
+            }))
+          } catch (e) {}
+        }
 
-        await Promise.all([
-          loadClassesTask,
-          loadAdminHistoryData(classId, homeworkId)
-        ])
+        // In class mode, default to the first class so the screen is never blank
+        const targetClassId = (mode === 'trial' || classId === 'TRIAL')
+          ? 'TRIAL'
+          : (classId || (state.classes && state.classes.length > 0 ? state.classes[0].id : ''))
+
+        await loadAdminHistoryData(targetClassId, homeworkId, mode)
       }
     } catch (err) {
       console.warn('[Router] Failed to pre-fetch real data from backend:', err.message)

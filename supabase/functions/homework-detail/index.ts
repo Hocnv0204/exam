@@ -38,6 +38,7 @@ serve(async (req: Request) => {
         max_attempts,
         type,
         max_violations,
+        show_solutions,
         lessons (
           id,
           title,
@@ -158,6 +159,7 @@ serve(async (req: Request) => {
         maxAttempts: homework.max_attempts,
         type: homework.type || 'PRACTICE',
         maxViolations: homework.max_violations !== undefined ? homework.max_violations : 3,
+        showSolutions: homework.show_solutions !== false,
         lessonTitle: (homework.lessons as unknown as { title: string })?.title,
         chapterTitle: (homework.lessons as unknown as { chapters: { title: string } })?.chapters?.title,
         lessonId: homework.lesson_id,

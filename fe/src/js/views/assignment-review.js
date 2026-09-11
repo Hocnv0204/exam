@@ -2,7 +2,7 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { renderMath } from '../components/math-renderer.js'
+import { renderMath } from '../utils/exam-parser.js'
 
 export function renderAssignmentReviewView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
@@ -46,10 +46,12 @@ export function renderAssignmentReviewView() {
     wrongCount: result.wrongCount,
     submittedAt: result.submittedAt,
     isLate: result.isLate,
-    pdfUrl: result.pdfUrl
+    pdfUrl: result.pdfUrl,
+    showSolutions: result.showSolutions !== undefined ? result.showSolutions : result.show_solutions
   }
 
   const pdfUrl = sub.pdfUrl || result.pdfUrl || ''
+  const showSolutions = state.user?.role === 'ADMIN' || (result.showSolutions !== false && result.show_solutions !== false && sub.showSolutions !== false && sub.show_solutions !== false)
   
   const rawAnswers = result.questionReview ? result.questionReview.map(q => ({
     is_correct: q.isCorrect !== undefined ? q.isCorrect : q.is_correct,
@@ -311,6 +313,11 @@ export function renderAssignmentReviewView() {
                     <i class="fa-solid fa-clock-rotate-left"></i> Nộp muộn
                   </div>
                 ` : ''}
+                ${!showSolutions ? `
+                  <div style="font-size:13px; background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-eye-slash" style="color:#64748b;"></i> Ẩn đáp án & giải thích
+                  </div>
+                ` : ''}
               </div>
               
               <!-- Total Score prominently displayed -->
@@ -455,10 +462,10 @@ export function renderAssignmentReviewView() {
                   }
 
                   let correctStr = ''
-                  const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.questions?.question_answers
+                  const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.correctAnswer || ans.questions?.question_answers
                   
                   if (qType === 'MULTIPLE_CHOICE') {
-                    correctStr = corrKey?.mc_answer || corrKey || ''
+                    correctStr = corrKey?.mc_answer || (typeof corrKey === 'string' ? corrKey : '') || ''
                   } else if (qType === 'TRUE_FALSE') {
                     const val = corrKey?.tf_answers || corrKey || {}
                     const a = val.a !== undefined ? val.a : val.s1
@@ -474,6 +481,15 @@ export function renderAssignmentReviewView() {
                       : (corrKey?.answer !== undefined && corrKey?.answer !== null ? corrKey.answer : corrKey)
                     correctStr = val !== undefined && val !== null ? String(val) : ''
                   }
+
+                  let promptObj = null
+                  try {
+                    const rawP = ans.questions?.prompt || ans.prompt
+                    if (typeof rawP === 'string' && rawP.startsWith('{')) {
+                      const parsed = JSON.parse(rawP)
+                      if (parsed.isInteractive) promptObj = parsed
+                    }
+                  } catch (e) {}
 
                   const qContent = ans.questions?.content || ans.content || ans.questions?.prompt || ''
                   const qOptions = ans.questions?.options || ans.options || null
@@ -539,8 +555,9 @@ export function renderAssignmentReviewView() {
                       const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
                       const correctVal = correctMap[sub]
                       const correctValText = correctVal !== undefined ? (correctVal ? 'Đ' : 'S') : ''
-                      const stmtObj = stmtList.find(s => s.key === sub)
-                      const stmtText = stmtObj?.text || ''
+                      
+                      const stmtObj = (stmtList && stmtList.find(s => s.key === sub)) || promptObj?.options?.find(o => (o.id || o.key || '').toLowerCase() === sub.toLowerCase())
+                      const stmtText = stmtObj?.text || (typeof stmtObj === 'string' ? stmtObj : '')
 
                       return `
                         <div style="display:flex; flex-direction:column; gap:6px; padding:12px; background:${isStmtCorrect ? '#f0fdf4' : '#fef2f2'}; border:1.5px solid ${isStmtCorrect ? '#10b981' : '#ef4444'}; border-radius:8px; font-size:13px; transition:all 0.2s ease;">
@@ -559,7 +576,7 @@ export function renderAssignmentReviewView() {
                               <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:${isStmtCorrect ? '#dcfce7' : '#fee2e2'}; font-weight:700;">${isStmtCorrect ? 'Chính xác' : 'Chưa đúng'}</span>
                             </span>
                           </div>
-                          ${(state.user?.role === 'ADMIN' && correctValText) ? `
+                          ${(showSolutions && (state.user?.role === 'ADMIN' || !isStmtCorrect) && correctValText) ? `
                             <div style="font-size:11px; color:#475569; display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
                               <span>Đáp án đúng:</span>
                               <strong style="color:#15803d;">${correctValText === 'Đ' ? 'Đúng (Đ)' : 'Sai (S)'}</strong>
@@ -574,9 +591,14 @@ export function renderAssignmentReviewView() {
                         ${tfReviewHtml}
                       </div>
                     `
-                  } else if (qType === 'MULTIPLE_CHOICE' && qOptions) {
+                  } else if (qType === 'MULTIPLE_CHOICE' && ((promptObj?.options && promptObj.options.length > 0) || qOptions)) {
                     let optList = []
-                    if (Array.isArray(qOptions)) {
+                    if (promptObj?.options && promptObj.options.length > 0) {
+                      optList = promptObj.options.map(opt => ({
+                        key: (opt.id || opt.key || '').toUpperCase(),
+                        text: opt.text || ''
+                      }))
+                    } else if (Array.isArray(qOptions)) {
                       optList = qOptions.map(opt => typeof opt === 'string' ? { key: '', text: opt } : opt)
                     } else if (typeof qOptions === 'object' && qOptions) {
                       optList = ['A', 'B', 'C', 'D'].map(k => ({ key: k, text: qOptions[k] || '' }))
@@ -585,8 +607,9 @@ export function renderAssignmentReviewView() {
                     reviewBody = `
                       <div style="display:flex; flex-direction:column; gap:8px;">
                         ${optList.map(opt => {
-                          const isChosen = givenStr === opt.key
-                          const isRight = correctStr === opt.key
+                          const optKey = opt.key || ''
+                          const isChosen = String(givenAnswer?.value || givenStr || '').trim().toUpperCase() === optKey.trim().toUpperCase()
+                          const isRight = correctStr ? (correctStr.trim().toUpperCase() === optKey.trim().toUpperCase()) : (isChosen && isCorrect)
                           let optBorder = '#e2e8f0'
                           let optBg = '#ffffff'
                           let badge = ''
@@ -599,8 +622,8 @@ export function renderAssignmentReviewView() {
                             optBorder = '#ef4444'
                             optBg = '#fef2f2'
                             badge = `<span style="font-size:12px; font-weight:700; color:#b91c1c; background:#fee2e2; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-circle-xmark"></i> Bạn chọn (Sai)</span>`
-                          } else if (isRight && state.user?.role === 'ADMIN') {
-                            optBorder = '#10b981'
+                          } else if (showSolutions && !isChosen && isRight && (state.user?.role === 'ADMIN' || !isCorrect)) {
+                            optBorder = '#86efac'
                             optBg = '#f0fdf4'
                             badge = `<span style="font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:3px 8px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-check"></i> Đáp án đúng</span>`
                           }
@@ -608,8 +631,8 @@ export function renderAssignmentReviewView() {
                           return `
                             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border:1.5px solid ${optBorder}; background:${optBg}; border-radius:10px; gap:12px;">
                               <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                                <span style="width:28px; height:28px; border-radius:50%; background:${isChosen ? (isCorrect ? '#10b981' : '#ef4444') : (isRight && state.user?.role === 'ADMIN' ? '#10b981' : '#f1f5f9')}; color:${(isChosen || (isRight && state.user?.role === 'ADMIN')) ? '#ffffff' : '#334155'}; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                                  ${opt.key}
+                                <span style="width:28px; height:28px; border-radius:50%; background:${isChosen ? (isCorrect ? '#10b981' : '#ef4444') : (isRight && (state.user?.role === 'ADMIN' || showSolutions) ? '#10b981' : '#f1f5f9')}; color:${(isChosen || (isRight && (state.user?.role === 'ADMIN' || showSolutions))) ? '#ffffff' : '#334155'}; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                                  ${optKey}
                                 </span>
                                 <div style="font-size:14px; color:#1e293b; line-height:1.5;">${opt.text || ''}</div>
                               </div>
@@ -627,7 +650,7 @@ export function renderAssignmentReviewView() {
                             <i class="fa-solid ${isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> Đáp án của bạn: ${givenStr}
                           </div>
                         </div>
-                        ${(state.user?.role === 'ADMIN' && !isCorrect && correctStr) ? `
+                        ${(showSolutions && (!isCorrect || state.user?.role === 'ADMIN') && correctStr) ? `
                           <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#f0fdf4; border:1px solid #10b981; border-radius:10px;">
                             <div style="display:flex; align-items:center; gap:10px; font-weight:600; color:#15803d; font-size:14px;">
                               <i class="fa-solid fa-circle-check"></i> Đáp án đúng: ${correctStr}
@@ -638,14 +661,15 @@ export function renderAssignmentReviewView() {
                     `
                   }
 
+                  let explanationContent = promptObj?.explanation || qExplanation
                   let explanationHtml = ''
-                  if (qExplanation) {
+                  if (showSolutions && explanationContent) {
                     explanationHtml = `
-                      <div class="solution-explanation-box" style="background:#f8fafc; border:1px solid #cbd5e1; border-left:4px solid #10b981; border-radius:10px; padding:14px 18px; margin-top:14px; font-size:14px; color:#1e293b;">
-                        <div style="font-weight:700; color:#059669; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                      <div class="solution-explanation-box review-explanation-card" style="background:#eff6ff; border:1px solid #bfdbfe; border-left:4px solid #3b82f6; border-radius:10px; padding:14px 18px; margin-top:14px; font-size:14px; color:#1e3a8a; line-height:1.6;">
+                        <div style="font-weight:700; color:#1d4ed8; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
                           <i class="fa-solid fa-lightbulb" style="color:#eab308;"></i> Lời giải chi tiết:
                         </div>
-                        <div class="explanation-content" style="line-height:1.6;">${qExplanation}</div>
+                        <div class="explanation-content explanation-text" style="color:#1e293b; line-height:1.6;">${explanationContent}</div>
                       </div>
                     `
                   }
@@ -701,7 +725,16 @@ export function renderAssignmentReviewView() {
                         </span>
                       </div>
 
-                      ${!isGenericPlaceholder ? `
+                      ${promptObj ? `
+                        <div class="interactive-prompt-text" style="font-size:15px; font-weight:600; color:#0f172a; line-height:1.6; margin-bottom:12px;">
+                          ${promptObj.text || `Câu hỏi số ${qNum}`}
+                        </div>
+                        ${promptObj.imageUrl ? `
+                          <div style="text-align:center; margin-bottom:14px;">
+                            <img src="${promptObj.imageUrl}" alt="Hình minh họa câu ${qNum}" style="max-width:100%; max-height:260px; border-radius:8px; border:1px solid #e2e8f0; object-fit:contain; box-shadow:0 2px 6px rgba(0,0,0,0.06);" />
+                          </div>
+                        ` : ''}
+                      ` : (!isGenericPlaceholder ? `
                         <div class="question-prompt-text" style="font-size:15px; color:#0f172a; line-height:1.6; margin-bottom:14px;">
                           ${qContent}
                         </div>
@@ -709,7 +742,7 @@ export function renderAssignmentReviewView() {
                         <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">
                           Câu hỏi số ${qNum}
                         </div>
-                      `}
+                      `)}
 
                       ${reviewBody}
 
@@ -788,10 +821,9 @@ export function renderAssignmentReviewView() {
 export function bindAssignmentReviewEvents() {
   bindSidebarEvents()
 
-  // Render Math & Chemistry formulas in question review cards
-  const questionsGrid = document.getElementById('questions-grid')
-  if (questionsGrid) {
-    renderMath(questionsGrid)
+  const reviewContainer = document.getElementById('questions-grid') || document.querySelector('.content-body')
+  if (reviewContainer) {
+    renderMath(reviewContainer)
   }
 
   // Fetch and display exam logs if user is admin

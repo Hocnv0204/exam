@@ -38,6 +38,7 @@ serve(async (req: Request) => {
         max_attempts,
         pdf_path,
         type,
+        show_solutions,
         lessons (
           id,
           title,
@@ -226,17 +227,26 @@ serve(async (req: Request) => {
       correctCount += gradeResult.isCorrect ? 1 : 0
       wrongCount += gradeResult.isCorrect ? 0 : 1
 
-      let correctAnswerSummary: any = null
-      if (user?.role === 'ADMIN') {
-        if (q.question_type === 'MULTIPLE_CHOICE') {
-          correctAnswerSummary = key?.mc_answer || null
-        } else if (q.question_type === 'TRUE_FALSE') {
-          correctAnswerSummary = key?.tf_answers || null
-        } else if (q.question_type === 'SHORT_ANSWER') {
-          correctAnswerSummary = {
-            answer: key?.sa_answer,
-            tolerance: key?.sa_tolerance || 0
+      const shouldShowSolutions = homework.show_solutions !== false || (user && user.role === 'ADMIN')
+      let reviewPrompt = q.prompt
+      let reviewCorrectAnswerSummary = gradeResult.correctAnswerSummary
+      let reviewFeedback = gradeResult.feedback
+
+      if (!shouldShowSolutions) {
+        reviewCorrectAnswerSummary = null
+        if (typeof reviewPrompt === 'string' && reviewPrompt.startsWith('{')) {
+          try {
+            const pObj = JSON.parse(reviewPrompt)
+            if (pObj.explanation) {
+              pObj.explanation = ''
+              reviewPrompt = JSON.stringify(pObj)
+            }
+          } catch {
+            // keep as-is
           }
+        }
+        if (reviewFeedback && reviewFeedback.includes('Correct:')) {
+          reviewFeedback = gradeResult.isCorrect ? 'Đúng' : 'Sai'
         }
       }
 
@@ -247,17 +257,18 @@ serve(async (req: Request) => {
 
       questionReviews.push({
         questionNumber: q.question_number,
-        prompt: q.prompt,
+        prompt: reviewPrompt,
         content: q.content,
         options: q.options,
         statements: q.statements,
         partTitle: q.part_title,
-        explanation: key?.explanation || null,
+        explanation: shouldShowSolutions ? (key?.explanation || null) : null,
         questionType: q.question_type,
         givenAnswer: givenAnswerWithMeta,
         statementGrades: gradeResult.statementGrades || null,
         ...gradeResult,
-        correctAnswerSummary,
+        correctAnswerSummary: reviewCorrectAnswerSummary,
+        feedback: reviewFeedback,
       })
 
       submissionAnswersToInsert.push({
@@ -276,6 +287,11 @@ serve(async (req: Request) => {
     const finalScore = Math.round(totalScore * 10) / 10
 
     // 5. Save Submission record
+    // Only unauthenticated users or explicit guests without a user account are trial submissions
+    const isTrialSubmission = !user
+    const saveGuestName = isTrialSubmission ? (guestName || 'Học sinh trải nghiệm') : null
+    const saveGuestPhone = isTrialSubmission ? (guestPhone || null) : null
+
     const { data: submission, error: subError } = await serviceRoleClient
       .from('submissions')
       .insert({
@@ -287,9 +303,9 @@ serve(async (req: Request) => {
         wrong_count: wrongCount,
         duration_seconds_taken: durationSecondsTaken || 0,
         is_late: isLate,
-        is_trial: isTrialHomework,
-        guest_name: guestName || (user ? null : 'Học sinh trải nghiệm'),
-        guest_phone: guestPhone || null,
+        is_trial: isTrialSubmission,
+        guest_name: saveGuestName,
+        guest_phone: saveGuestPhone,
         status: 'SUBMITTED'
       })
       .select('id, submitted_at')
@@ -342,7 +358,7 @@ serve(async (req: Request) => {
         .single()
 
       if (telegramConfig.data) {
-        let studentDisplayName = 'Học sinh trải nghiệm'
+        let studentDisplayName = 'Học sinh'
         if (user) {
           const { data: studentProfile } = await serviceRoleClient
             .from('profiles')
@@ -350,8 +366,8 @@ serve(async (req: Request) => {
             .eq('id', user.id)
             .single()
           studentDisplayName = studentProfile?.full_name || 'Học sinh'
-        } else if (guestName) {
-          studentDisplayName = `${guestName} (Học thử)`
+        } else {
+          studentDisplayName = guestName ? `${guestName} (Học thử)` : 'Học sinh trải nghiệm (Học thử)'
         }
 
         const { data: classData } = await serviceRoleClient
@@ -374,16 +390,33 @@ serve(async (req: Request) => {
         const correctAnswers = questionReviews.filter((q) => q.isCorrect).length
         const wrongAnswers = questionReviews.length - correctAnswers
 
-        const phoneLine = guestPhone ? `\n📞 <b>SĐT:</b> ${guestPhone}` : ''
-        const titleHeader = isTrialHomework ? `🌟 <b>THÔNG BÁO HỌC THỬ (TIỀM NĂNG)</b>` : `📣 <b>THÔNG BÁO NỘP BÀI</b>`
+        const durSecs = durationSecondsTaken || 0
+        const durationFormatted = durSecs > 0 ? `${Math.floor(durSecs / 60)} phút ${durSecs % 60} giây` : 'Không xác định'
 
-        const message = `${titleHeader}
-🎓 <b>Học sinh:</b> ${studentDisplayName}${phoneLine}
+        let message = ''
+        if (isTrialSubmission) {
+          // Format message for Prospective / Trial Students
+          message = `🌟 <b>THÔNG BÁO HỌC THỬ (TIỀM NĂNG)</b>
+🎓 <b>Học sinh:</b> ${studentDisplayName}
+📞 <b>SĐT:</b> ${guestPhone || 'Chưa cung cấp'}
+🏫 <b>Lớp / Khóa:</b> ${classData?.name || 'Chung'}
+📝 <b>Bài tập:</b> ${homework.title}
+⏱ <b>Thời gian nộp:</b> ${submissionTime}
+📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})
+✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}
+⏳ <b>Thời gian làm bài:</b> ${durationFormatted}`
+        } else {
+          // Format message for Enrolled Class Students
+          const lateLine = isLate ? `\n⚠️ <b>Trạng thái:</b> Nộp muộn` : ''
+          message = `📣 <b>THÔNG BÁO NỘP BÀI</b>
+🎓 <b>Học sinh:</b> ${studentDisplayName}
 🏫 <b>Lớp:</b> ${classData?.name || 'N/A'}
 📝 <b>Bài tập:</b> ${homework.title}
 ⏱ <b>Thời gian nộp:</b> ${submissionTime}
 📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})
-✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}`
+✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}
+⏳ <b>Thời gian làm bài:</b> ${durationFormatted}${lateLine}`
+        }
 
         // Fire-and-forget: don't block the response
         sendTelegramNotification(telegramConfig.data.chat_id, message).catch((notifyErr) => {
@@ -410,6 +443,7 @@ serve(async (req: Request) => {
         wrongCount,
         questionReview: questionReviews,
         pdfUrl,
+        showSolutions: homework.show_solutions !== false,
       },
       200
     )

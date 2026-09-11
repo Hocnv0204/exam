@@ -168,9 +168,11 @@ async function request(endpoint, options = {}) {
   const isPublicEndpoint = endpoint.startsWith('login') ||
     endpoint.startsWith('refresh-token') ||
     endpoint.includes('isTrial=true') ||
+    endpoint.includes('trial=true') ||
     options.isPublic === true ||
     (endpoint.startsWith('homework-detail') && !state.token) ||
-    (endpoint.startsWith('submit-homework') && !state.token)
+    (endpoint.startsWith('submit-homework') && !state.token) ||
+    (endpoint.startsWith('student-history') && !state.token)
 
   // If access token is missing but refresh token exists, attempt refresh before sending request
   if (!state.token && !isPublicEndpoint && state.refreshToken && !isRefreshing) {
@@ -345,6 +347,12 @@ export const api = {
   getTelegramConfig: (classId) => request(`create-class?action=get-telegram-config&classId=${classId}`, { method: 'GET' }),
   updateTelegramConfig: (data) => request('create-class?action=update-telegram-config', { method: 'PUT', body: JSON.stringify(data) }),
   deleteTelegramConfig: (classId) => request(`create-class?action=delete-telegram-config&classId=${classId}`, { method: 'DELETE' }),
+  getQuestionBank: (params = '') => request(`question-bank${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
+  getQuestionBankStats: (params = '') => request(`question-bank?stats=true${params ? `&${params}` : ''}`, { method: 'GET' }),
+  importQuestionBank: (data) => request('question-bank?action=import', { method: 'POST', body: JSON.stringify(data) }),
+  generateRandomExam: (data) => request('question-bank?action=generate-exam', { method: 'POST', body: JSON.stringify(data) }),
+  deleteQuestionFromBank: (id) => request(`question-bank?id=${id}`, { method: 'DELETE' }),
+  updateQuestionInBank: (data) => request('question-bank', { method: 'PUT', body: JSON.stringify(data) }),
   uploadFile: async (file) => {
     const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
     showLoading()
