@@ -408,6 +408,20 @@ export function renderCreateHwView() {
             <!-- RIGHT COLUMN: CONFIG & ANSWER KEY MATRIX (40%) -->
             <div class="question-column" style="overflow-y:auto; max-height:calc(100vh - 120px); display:flex; flex-direction:column; gap:20px; padding-right:4px;">
               
+              <!-- Question Bank Shortcut Banner -->
+              <div style="background:linear-gradient(135deg, #eff6ff, #f0fdf4); border:1px solid #bfdbfe; border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:22px; color:#0284c7;"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                  <div>
+                    <div style="font-size:13px; font-weight:700; color:#0f172a;">Tạo đề ngẫu nhiên từ Ngân hàng đề?</div>
+                    <div style="font-size:12px; color:#64748b;">Bốc đề theo ma trận số câu, theo Lớp, Chương hoặc Bài học đã chuẩn bị sẵn.</div>
+                  </div>
+                </div>
+                <button type="button" onclick="window.location.hash='#question-bank'" style="padding:6px 14px; font-size:12px; font-weight:600; border-radius:8px; background:#0284c7; color:#ffffff; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(2,132,199,0.25);">
+                  <i class="fa-solid fa-boxes-stacked"></i> Mở Ngân hàng câu hỏi
+                </button>
+              </div>
+
               <!-- General Homework Info Card -->
               <div class="card" style="margin:0; padding:16px;">
                 <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px;">

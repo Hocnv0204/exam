@@ -40,7 +40,10 @@ export function renderHomeworkMgmtView() {
                 Tìm kiếm, phân loại theo lớp/chương/bài học và quản lý các bài tập trực tuyến
               </p>
             </div>
-            <div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn-secondary" id="btn-goto-question-bank" style="padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; border-radius:10px; background:#f0fdf4; border:1px solid #86efac; color:#15803d;">
+                <i class="fa-solid fa-boxes-stacked" style="color:#16a34a;"></i> Ngân hàng câu hỏi
+              </button>
               <button class="btn-primary" id="btn-create-homework" style="padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; border-radius:10px; background:#0066cc; color:#ffffff; border:none; box-shadow:0 2px 8px rgba(0,102,204,0.25);">
                 <i class="fa-solid fa-plus" style="font-size:14px;"></i> Tạo bài tập mới
               </button>
@@ -212,6 +215,11 @@ export function bindHomeworkMgmtEvents() {
   // Click handler for "Tạo bài tập mới" button -> Redirect to /create-homework
   document.getElementById('btn-create-homework')?.addEventListener('click', () => {
     window.location.hash = '#create-homework'
+  })
+
+  // Click handler for "Ngân hàng câu hỏi"
+  document.getElementById('btn-goto-question-bank')?.addEventListener('click', () => {
+    window.location.hash = '#question-bank'
   })
 
   loadData()
