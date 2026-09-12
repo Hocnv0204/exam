@@ -163,22 +163,25 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
         ` : (q.questionType === 'TRUE_FALSE' ? `
           <div class="tf-statements-container" style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
             ${tfStatements.map(sub => {
-              const val = studentAnswers.tf[qNum]?.[sub.id]
-              const displayText = sub.text ? escapeHtml(sub.text) : `<span style="color:#64748b; font-style:italic;">Ý ${sub.id.toUpperCase()}</span>`
-              const isSelected = val !== undefined
-              const isTrue = val === true
-              const isFalse = val === false
+              const subKey = String(sub.id || '').toLowerCase()
+              const val = studentAnswers.tf[qNum]?.[subKey] !== undefined 
+                ? studentAnswers.tf[qNum][subKey] 
+                : studentAnswers.tf[qNum]?.[sub.id]
+              const displayText = sub.text ? escapeHtml(sub.text) : `<span style="color:#64748b; font-style:italic;">Ý ${subKey.toUpperCase()}</span>`
+              const isTrue = val === true || val === 'true'
+              const isFalse = val === false || val === 'false'
+              const isSelected = isTrue || isFalse
 
               return `
                 <div class="tf-statement-row" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border:1.5px solid ${isSelected ? (isTrue ? '#86efac' : '#fca5a5') : '#e2e8f0'}; border-radius:10px; background:${isSelected ? (isTrue ? '#f0fdf4' : '#fef2f2') : '#ffffff'}; gap:12px; transition:all 0.15s ease;">
                   <div class="tf-statement-text" style="font-size:14px; color:#1e293b; line-height:1.5; flex:1;">
-                    <strong style="color:#0284c7; margin-right:4px;">${sub.id})</strong> ${displayText}
+                    <strong style="color:#0284c7; margin-right:4px;">${subKey})</strong> ${displayText}
                   </div>
                   <div class="tf-toggle-btns" style="display:flex; gap:6px; flex-shrink:0;">
-                    <button type="button" class="tf-toggle-btn true ${isTrue ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub.id}" data-val="true" style="padding:6px 14px; font-size:12.5px; font-weight:700; border-radius:7px; cursor:pointer; transition:all 0.15s ease; display:inline-flex; align-items:center; gap:4px; border:1px solid ${isTrue ? '#16a34a' : '#cbd5e1'}; background:${isTrue ? '#16a34a' : '#ffffff'}; color:${isTrue ? '#ffffff' : '#475569'}; box-shadow:${isTrue ? '0 2px 4px rgba(22,163,74,0.2)' : 'none'};">
+                    <button type="button" class="tf-toggle-btn true ${isTrue ? 'active' : ''}" data-qnum="${qNum}" data-sub="${subKey}" data-val="true" style="padding:6px 14px; font-size:12.5px; font-weight:700; border-radius:7px; cursor:pointer; transition:all 0.15s ease; display:inline-flex; align-items:center; gap:4px; border:1px solid ${isTrue ? '#16a34a' : '#cbd5e1'}; background:${isTrue ? '#16a34a' : '#ffffff'}; color:${isTrue ? '#ffffff' : '#475569'}; box-shadow:${isTrue ? '0 2px 4px rgba(22,163,74,0.2)' : 'none'};">
                       <i class="fa-solid fa-check"></i> Đúng
                     </button>
-                    <button type="button" class="tf-toggle-btn false ${isFalse ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub.id}" data-val="false" style="padding:6px 14px; font-size:12.5px; font-weight:700; border-radius:7px; cursor:pointer; transition:all 0.15s ease; display:inline-flex; align-items:center; gap:4px; border:1px solid ${isFalse ? '#dc2626' : '#cbd5e1'}; background:${isFalse ? '#dc2626' : '#ffffff'}; color:${isFalse ? '#ffffff' : '#475569'}; box-shadow:${isFalse ? '0 2px 4px rgba(220,38,38,0.2)' : 'none'};">
+                    <button type="button" class="tf-toggle-btn false ${isFalse ? 'active' : ''}" data-qnum="${qNum}" data-sub="${subKey}" data-val="false" style="padding:6px 14px; font-size:12.5px; font-weight:700; border-radius:7px; cursor:pointer; transition:all 0.15s ease; display:inline-flex; align-items:center; gap:4px; border:1px solid ${isFalse ? '#dc2626' : '#cbd5e1'}; background:${isFalse ? '#dc2626' : '#ffffff'}; color:${isFalse ? '#ffffff' : '#475569'}; box-shadow:${isFalse ? '0 2px 4px rgba(220,38,38,0.2)' : 'none'};">
                       <i class="fa-solid fa-xmark"></i> Sai
                     </button>
                   </div>
@@ -293,17 +296,20 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
                     const qNum = q.questionNumber
                     const isFlagged = flaggedQuestions.has(qNum)
                     let isAnswered = false
+                    let isPartial = false
                     if (q.questionType === 'MULTIPLE_CHOICE') {
                       isAnswered = !!studentAnswers.mc[qNum]
                     } else if (q.questionType === 'TRUE_FALSE') {
                       const tf = studentAnswers.tf[qNum] || {}
-                      isAnswered = ['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)
+                      const answeredCount = ['a', 'b', 'c', 'd'].filter(k => tf[k] !== undefined).length
+                      isAnswered = answeredCount === 4
+                      isPartial = answeredCount > 0 && answeredCount < 4
                     } else if (q.questionType === 'SHORT_ANSWER') {
                       isAnswered = studentAnswers.sa[qNum] !== undefined && String(studentAnswers.sa[qNum]).trim() !== ''
                     }
 
                     return `
-                      <button type="button" class="exam-nav-btn ${isAnswered ? 'answered' : ''} ${isFlagged ? 'flagged' : ''}" data-qnum="${qNum}" id="nav-btn-q-${qNum}">
+                      <button type="button" class="exam-nav-btn ${isAnswered ? 'answered' : (isPartial ? 'partial' : '')} ${isFlagged ? 'flagged' : ''}" data-qnum="${qNum}" id="nav-btn-q-${qNum}">
                         ${qNum}
                       </button>
                     `
@@ -311,9 +317,12 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
                 </div>
 
                 <!-- Legend -->
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid #f1f5f9; font-size:11px; color:#64748b;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid #f1f5f9; font-size:11px; color:#64748b; flex-wrap:wrap; gap:6px;">
                   <span style="display:inline-flex; align-items:center; gap:4px;">
-                    <span style="width:10px; height:10px; border-radius:3px; background:#0066cc; display:inline-block;"></span> Đã làm
+                    <span style="width:10px; height:10px; border-radius:3px; background:#0066cc; display:inline-block;"></span> Đã xong
+                  </span>
+                  <span style="display:inline-flex; align-items:center; gap:4px;">
+                    <span style="width:10px; height:10px; border-radius:3px; background:#e0f2fe; border:1px solid #0284c7; display:inline-block;"></span> Đang làm
                   </span>
                   <span style="display:inline-flex; align-items:center; gap:4px;">
                     <span style="width:10px; height:10px; border-radius:3px; border:1px solid #cbd5e1; background:#ffffff; display:inline-block;"></span> Chưa làm
@@ -393,196 +402,7 @@ function updateAutosaveIndicator(saved = true) {
   }
 }
 
-function renderInteractiveQuestionsList(questions, studentAnswers) {
-  let currentPart = null
-  const html = []
-  const typeCounters = { MULTIPLE_CHOICE: 0, TRUE_FALSE: 0, SHORT_ANSWER: 0 }
-  const distinctTypes = new Set(questions.map(q => q.question_type || q.questionType)).size
-  const hasMultipleSections = distinctTypes > 1
 
-  questions.forEach(q => {
-    const qNum = q.question_number || q.questionNumber
-    const qType = q.question_type || q.questionType
-    const partTitle = q.part_title || q.partTitle
-    typeCounters[qType] = (typeCounters[qType] || 0) + 1
-    const displayNum = hasMultipleSections ? typeCounters[qType] : qNum
-
-    if (partTitle && partTitle !== currentPart) {
-      currentPart = partTitle
-      html.push(`
-        <div class="question-part-title" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px 20px; font-weight: 800; font-size: 15px; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
-          <i class="fa-solid fa-layer-group" style="color: #2563eb;"></i> ${partTitle}
-        </div>
-      `)
-    }
-
-    let typeBadge = ''
-    let points = '0.25'
-    if (qType === 'MULTIPLE_CHOICE') {
-      typeBadge = 'TRẮC NGHIỆM'
-      points = q.points !== undefined && q.points !== null ? q.points : '0.25'
-    } else if (qType === 'TRUE_FALSE') {
-      typeBadge = 'ĐÚNG / SAI'
-      points = q.points !== undefined && q.points !== null ? q.points : '1.0'
-    } else {
-      typeBadge = 'TRẢ LỜI NGẮN'
-      points = q.points !== undefined && q.points !== null ? q.points : '0.5'
-    }
-
-    let interactiveHtml = ''
-    if (qType === 'MULTIPLE_CHOICE') {
-      const selected = studentAnswers.mc[qNum] || null
-      let optionsList = []
-      if (q.options) {
-        if (Array.isArray(q.options)) {
-          optionsList = q.options.map(opt => typeof opt === 'string' ? { key: '', text: opt } : opt)
-        } else if (typeof q.options === 'object') {
-          optionsList = ['A', 'B', 'C', 'D'].map(key => ({
-            key,
-            text: q.options[key] || ''
-          }))
-        }
-      }
-      if (optionsList.length === 0) {
-        optionsList = [
-          { key: 'A', text: '' },
-          { key: 'B', text: '' },
-          { key: 'C', text: '' },
-          { key: 'D', text: '' }
-        ]
-      }
-
-      interactiveHtml = `
-        <div class="choices-container" style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
-          ${optionsList.map(opt => {
-            const isSel = selected === opt.key
-            return `
-              <div class="choice-option-card ${isSel ? 'selected' : ''}" data-qnum="${qNum}" data-option="${opt.key}">
-                <span class="choice-key-badge">${opt.key}</span>
-                <div class="choice-text-content">${opt.text || ''}</div>
-              </div>
-            `
-          }).join('')}
-        </div>
-      `
-    } else if (qType === 'TRUE_FALSE') {
-      const tfObj = studentAnswers.tf[qNum] || {}
-      let statementsList = []
-      if (q.statements) {
-        if (Array.isArray(q.statements)) {
-          statementsList = q.statements.map((stmt, idx) => {
-            const key = stmt.key || ['a', 'b', 'c', 'd'][idx]
-            return { key, text: stmt.text || String(stmt) }
-          })
-        } else if (typeof q.statements === 'object') {
-          statementsList = ['a', 'b', 'c', 'd'].map(key => ({
-            key,
-            text: q.statements[key] || ''
-          }))
-        }
-      }
-      if (statementsList.length === 0) {
-        statementsList = ['a', 'b', 'c', 'd'].map(key => ({
-          key,
-          text: `Mệnh đề ${key}`
-        }))
-      }
-
-      interactiveHtml = `
-        <div class="tf-statements-list" style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
-          ${statementsList.map(stmt => {
-            const val = tfObj[stmt.key]
-            return `
-              <div class="tf-statement-row">
-                <div class="tf-statement-text">
-                  <strong style="color: #0284c7; margin-right: 4px;">${stmt.key})</strong> ${stmt.text || ''}
-                </div>
-                <div class="tf-toggle-group">
-                  <button type="button" class="tf-toggle-btn btn-true ${val === true ? 'selected' : ''}" data-qnum="${qNum}" data-sub="${stmt.key}" data-val="true">
-                    <i class="fa-solid fa-check"></i> Đúng
-                  </button>
-                  <button type="button" class="tf-toggle-btn btn-false ${val === false ? 'selected' : ''}" data-qnum="${qNum}" data-sub="${stmt.key}" data-val="false">
-                    <i class="fa-solid fa-xmark"></i> Sai
-                  </button>
-                </div>
-              </div>
-            `
-          }).join('')}
-        </div>
-      `
-    } else {
-      const val = studentAnswers.sa[qNum] || ''
-      interactiveHtml = `
-        <div class="sa-input-wrapper" style="margin-top: 14px;">
-          <input type="text" class="sa-input-field student-sa-input" data-qnum="${qNum}" value="${val}" placeholder="Nhập câu trả lời (số hoặc văn bản)...">
-          <div style="font-size: 12px; color: #64748b; margin-top: 6px;">
-            <i class="fa-solid fa-circle-info"></i> Nhập số thập phân (dùng dấu phẩy hoặc chấm) hoặc từ ngữ ngắn gọn.
-          </div>
-        </div>
-      `
-    }
-
-    html.push(`
-      <div class="card question-card-item" id="exam-question-${qNum}" style="padding: 20px; border-radius: 14px; background: #ffffff; border: 1.5px solid #e2e8f0; scroll-margin-top: 30px;">
-        <div class="question-meta-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="question-number-pill" style="background: #0066cc; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 13px;">
-              Câu ${displayNum}
-            </span>
-            <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">
-              ${typeBadge}
-            </span>
-          </div>
-          <span class="question-points-pill" style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 12px;">
-            ${points} điểm
-          </span>
-        </div>
-
-        <div class="question-prompt-text" style="font-size: 15px; color: #1e293b; line-height: 1.6;">
-          ${q.content || q.prompt || `Nội dung câu hỏi ${qNum}`}
-        </div>
-
-        ${interactiveHtml}
-      </div>
-    `)
-  })
-
-  return html.join('')
-}
-
-function renderPaletteButtons(questions, studentAnswers) {
-  const typeCounters = { MULTIPLE_CHOICE: 0, TRUE_FALSE: 0, SHORT_ANSWER: 0 }
-  const distinctTypes = new Set(questions.map(q => q.question_type || q.questionType)).size
-  const hasMultipleSections = distinctTypes > 1
-
-  return questions.map(q => {
-    const qNum = q.question_number || q.questionNumber
-    const qType = q.question_type || q.questionType
-    typeCounters[qType] = (typeCounters[qType] || 0) + 1
-    const displayNum = hasMultipleSections ? typeCounters[qType] : qNum
-    let stateClass = ''
-
-    if (qType === 'MULTIPLE_CHOICE') {
-      if (studentAnswers.mc[qNum]) stateClass = 'state-answered'
-    } else if (qType === 'TRUE_FALSE') {
-      const tfObj = studentAnswers.tf[qNum] || {}
-      const count = Object.values(tfObj).filter(v => v !== undefined && v !== null).length
-      if (count === 4) stateClass = 'state-answered'
-      else if (count > 0) stateClass = 'state-partial'
-    } else if (qType === 'SHORT_ANSWER') {
-      if ((studentAnswers.sa[qNum] || '').trim() !== '') stateClass = 'state-answered'
-    }
-
-    const typeName = qType === 'MULTIPLE_CHOICE' ? 'Phần I: Trắc nghiệm' : qType === 'TRUE_FALSE' ? 'Phần II: Đúng/Sai' : 'Phần III: Trả lời ngắn'
-    const tooltip = hasMultipleSections ? `${typeName} - Câu ${displayNum}` : `Câu ${displayNum}`
-
-    return `
-      <button type="button" class="palette-btn-item ${stateClass}" data-qnum="${qNum}" title="${tooltip}">
-        ${displayNum}
-      </button>
-    `
-  }).join('')
-}
 
 export function renderHomeworkSolverView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
@@ -670,8 +490,9 @@ export function renderHomeworkSolverView() {
   // Populate defaults for any question not in draft
   questions.forEach(q => {
     const qNum = q.question_number || q.questionNumber
+    const pObj = parsePromptPayload(q.prompt, q.content)
     const rawType = (q.question_type || q.questionType || '').toUpperCase()
-    const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF'
+    const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
     const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
 
     if (isTf && studentAnswers.tf[qNum] === undefined) {
@@ -961,12 +782,17 @@ export function bindHomeworkSolverEvents() {
       let answered = 0
       questions.forEach(q => {
         const qNum = q.question_number || q.questionNumber
-        const type = (q.question_type || q.questionType || '').toUpperCase()
-        if ((type === 'MULTIPLE_CHOICE' || type === 'MC') && studentAnswers.mc[qNum]) answered++
-        else if (type === 'TRUE_FALSE' || type === 'TF') {
+        const pObj = parsePromptPayload(q.prompt, q.content)
+        const rawType = (q.question_type || q.questionType || '').toUpperCase()
+        const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
+        const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+        const isMc = !isTf && !isSa
+
+        if (isMc && studentAnswers.mc[qNum]) answered++
+        else if (isTf) {
           const tf = studentAnswers.tf[qNum] || {}
           if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answered++
-        } else if ((type === 'SHORT_ANSWER' || type === 'SA') && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
+        } else if (isSa && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
           answered++
         }
       })
@@ -1002,9 +828,10 @@ export function bindHomeworkSolverEvents() {
 
     // TF toggle buttons click
     document.querySelectorAll('#interactive-solver-container .tf-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault()
         const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
-        const sub = btn.getAttribute('data-sub')
+        const sub = (btn.getAttribute('data-sub') || '').toLowerCase()
         const val = btn.getAttribute('data-val') === 'true'
 
         if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
@@ -1051,11 +878,8 @@ export function bindHomeworkSolverEvents() {
         const allDone = answeredStatementsCount === 4
         const navBtn = document.getElementById(`nav-btn-q-${qNum}`)
         if (navBtn) {
-          if (allDone) {
-            navBtn.classList.add('answered')
-          } else if (answeredStatementsCount === 0) {
-            navBtn.classList.remove('answered')
-          }
+          navBtn.classList.toggle('answered', allDone)
+          navBtn.classList.toggle('partial', !allDone && answeredStatementsCount > 0)
         }
 
         updateInteractiveProgress()
@@ -1128,6 +952,80 @@ export function bindHomeworkSolverEvents() {
       const mappedUrl = (hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       renderPdfViewer(pdfContainer, mappedUrl)
     }
+
+    // PDF Mode: MC options click
+    document.querySelectorAll('.student-mc-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
+        const opt = btn.getAttribute('data-option')
+
+        if (studentAnswers.mc[qNum] === opt) {
+          studentAnswers.mc[qNum] = null
+        } else {
+          studentAnswers.mc[qNum] = opt
+        }
+
+        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+
+        document.querySelectorAll(`.student-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
+          const isSel = b.getAttribute('data-option') === studentAnswers.mc[qNum]
+          b.style.background = isSel ? '#0066cc' : '#ffffff'
+          b.style.color = isSel ? '#ffffff' : '#334155'
+          b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
+        })
+      })
+    })
+
+    // PDF Mode: TF toggle click
+    document.querySelectorAll('.student-tf-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
+        const sub = (btn.getAttribute('data-sub') || '').toLowerCase()
+        const val = btn.getAttribute('data-val') === 'true'
+
+        if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
+        
+        if (studentAnswers.tf[qNum][sub] === val) {
+          delete studentAnswers.tf[qNum][sub]
+        } else {
+          studentAnswers.tf[qNum][sub] = val
+        }
+
+        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+
+        const parent = btn.parentElement
+        if (parent) {
+          parent.querySelectorAll('.student-tf-btn').forEach(b => {
+            const btnVal = b.getAttribute('data-val') === 'true'
+            const currentVal = studentAnswers.tf[qNum][sub]
+            const isSel = currentVal !== undefined && currentVal === btnVal
+            if (isSel) {
+              b.style.background = btnVal ? '#16a34a' : '#dc2626'
+              b.style.color = '#ffffff'
+              b.style.borderColor = btnVal ? '#16a34a' : '#dc2626'
+            } else {
+              b.style.background = '#ffffff'
+              b.style.color = '#475569'
+              b.style.borderColor = '#cbd5e1'
+            }
+          })
+        }
+      })
+    })
+
+    // PDF Mode: SA input change
+    document.querySelectorAll('.student-sa-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const qNum = parseInt(input.getAttribute('data-qnum'), 10)
+        studentAnswers.sa[qNum] = e.target.value
+
+        updateAutosaveIndicator(false)
+        clearTimeout(saDebounceTimer)
+        saDebounceTimer = setTimeout(() => {
+          saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+        }, 400)
+      })
+    })
   }
 
   const attemptsCount = state.currentHomework?.attemptsCount || 0
@@ -1143,8 +1041,13 @@ export function bindHomeworkSolverEvents() {
   const buildSubmissionAnswers = () => {
     return questions.map(q => {
       const qNum = q.question_number || q.questionNumber
-      const type = q.question_type || q.questionType
-      if (type === 'MULTIPLE_CHOICE') {
+      const pObj = parsePromptPayload(q.prompt, q.content)
+      const rawType = (q.question_type || q.questionType || '').toUpperCase()
+      const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
+      const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+      const isMc = !isTf && !isSa
+
+      if (isMc) {
         return {
           questionId: q.id,
           givenAnswer: {
@@ -1152,13 +1055,18 @@ export function bindHomeworkSolverEvents() {
             value: studentAnswers.mc[qNum] || null
           }
         }
-      } else if (type === 'TRUE_FALSE') {
+      } else if (isTf) {
         const tfObj = studentAnswers.tf[qNum] || {}
         const valObj = {}
-        if (tfObj.a !== undefined) valObj.a = tfObj.a
-        if (tfObj.b !== undefined) valObj.b = tfObj.b
-        if (tfObj.c !== undefined) valObj.c = tfObj.c
-        if (tfObj.d !== undefined) valObj.d = tfObj.d
+        const getBool = (v) => {
+          if (v === true || v === 'true' || v === 1 || v === '1') return true
+          if (v === false || v === 'false' || v === 0 || v === '0') return false
+          return undefined
+        }
+        ;['a', 'b', 'c', 'd'].forEach(k => {
+          const b = getBool(tfObj[k])
+          if (b !== undefined) valObj[k] = b
+        })
         return {
           questionId: q.id,
           givenAnswer: {
@@ -1171,7 +1079,7 @@ export function bindHomeworkSolverEvents() {
           questionId: q.id,
           givenAnswer: {
             type: 'SHORT_ANSWER',
-            value: studentAnswers.sa[qNum] || ''
+            value: studentAnswers.sa[qNum] !== undefined && studentAnswers.sa[qNum] !== null ? String(studentAnswers.sa[qNum]) : ''
           }
         }
       }
@@ -1610,246 +1518,6 @@ export function bindHomeworkSolverEvents() {
   }
 
 
-  // Math & Chemistry KaTeX rendering for interactive questions
-  const questionsStream = document.getElementById('exam-questions-stream')
-  if (questionsStream) {
-    renderMath(questionsStream)
-  }
-
-  const updatePaletteItem = (qNum) => {
-    const q = questions.find(item => (item.question_number || item.questionNumber) === qNum)
-    if (!q) return
-    const qType = q.question_type || q.questionType
-    const btn = document.querySelector(`.palette-btn-item[data-qnum="${qNum}"]`)
-    if (!btn) return
-
-    btn.classList.remove('state-answered', 'state-partial')
-
-    if (qType === 'MULTIPLE_CHOICE') {
-      if (studentAnswers.mc[qNum]) btn.classList.add('state-answered')
-    } else if (qType === 'TRUE_FALSE') {
-      const tfObj = studentAnswers.tf[qNum] || {}
-      const count = Object.values(tfObj).filter(v => v !== undefined && v !== null).length
-      if (count === 4) btn.classList.add('state-answered')
-      else if (count > 0) btn.classList.add('state-partial')
-    } else if (qType === 'SHORT_ANSWER') {
-      if ((studentAnswers.sa[qNum] || '').trim() !== '') btn.classList.add('state-answered')
-    }
-  }
-
-  const updateOverallProgress = () => {
-    let answered = 0
-    questions.forEach(q => {
-      const qNum = q.question_number || q.questionNumber
-      const qType = q.question_type || q.questionType
-      if (qType === 'MULTIPLE_CHOICE' && studentAnswers.mc[qNum]) answered++
-      else if (qType === 'TRUE_FALSE') {
-        const tfObj = studentAnswers.tf[qNum] || {}
-        if (Object.values(tfObj).filter(v => v !== undefined && v !== null).length === 4) answered++
-      } else if (qType === 'SHORT_ANSWER' && (studentAnswers.sa[qNum] || '').trim() !== '') answered++
-    })
-
-    const countEl = document.getElementById('answered-count')
-    if (countEl) countEl.textContent = String(answered)
-
-    const fillEl = document.getElementById('palette-progress-fill')
-    if (fillEl && questions.length > 0) {
-      fillEl.style.width = `${Math.round((answered / questions.length) * 100)}%`
-    }
-  }
-
-  // Interactive Choice Option Card click
-  document.querySelectorAll('.choice-option-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const qNum = parseInt(card.getAttribute('data-qnum'), 10)
-      const optKey = card.getAttribute('data-option')
-
-      if (studentAnswers.mc[qNum] === optKey) {
-        studentAnswers.mc[qNum] = null
-      } else {
-        studentAnswers.mc[qNum] = optKey
-      }
-
-      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-
-      document.querySelectorAll(`.choice-option-card[data-qnum="${qNum}"]`).forEach(c => {
-        const isSel = c.getAttribute('data-option') === studentAnswers.mc[qNum]
-        c.classList.toggle('selected', isSel)
-      })
-
-      // Sync legacy buttons if present
-      document.querySelectorAll(`.student-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
-        const isSel = b.getAttribute('data-option') === studentAnswers.mc[qNum]
-        b.style.background = isSel ? '#0066cc' : '#ffffff'
-        b.style.color = isSel ? '#ffffff' : '#334155'
-        b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
-      })
-
-      updatePaletteItem(qNum)
-      updateOverallProgress()
-    })
-  })
-
-  // Interactive TF toggle button click
-  document.querySelectorAll('.tf-toggle-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
-      const sub = btn.getAttribute('data-sub')
-      const val = btn.getAttribute('data-val') === 'true'
-
-      if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
-
-      if (studentAnswers.tf[qNum][sub] === val) {
-        delete studentAnswers.tf[qNum][sub]
-      } else {
-        studentAnswers.tf[qNum][sub] = val
-      }
-
-      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-
-      const group = btn.closest('.tf-toggle-group')
-      if (group) {
-        group.querySelectorAll('.tf-toggle-btn').forEach(b => {
-          const bVal = b.getAttribute('data-val') === 'true'
-          const currentVal = studentAnswers.tf[qNum][sub]
-          const isSel = currentVal !== undefined && currentVal === bVal
-          b.classList.toggle('selected', isSel)
-        })
-      }
-
-      updatePaletteItem(qNum)
-      updateOverallProgress()
-    })
-  })
-
-  // Legacy Student MC click
-  document.querySelectorAll('.student-mc-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
-      const opt = btn.getAttribute('data-option')
-
-      if (studentAnswers.mc[qNum] === opt) {
-        studentAnswers.mc[qNum] = null
-      } else {
-        studentAnswers.mc[qNum] = opt
-      }
-
-      // Auto-save draft immediately
-      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-
-      document.querySelectorAll(`.student-mc-btn[data-qnum="${qNum}"]`).forEach(b => {
-        const isSel = b.getAttribute('data-option') === studentAnswers.mc[qNum]
-        b.style.background = isSel ? '#0066cc' : '#ffffff'
-        b.style.color = isSel ? '#ffffff' : '#334155'
-        b.style.borderColor = isSel ? '#0066cc' : '#cbd5e1'
-      })
-
-      updatePaletteItem(qNum)
-      updateOverallProgress()
-    })
-  })
-
-  // Legacy Student TF click
-  document.querySelectorAll('.student-tf-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
-      const sub = btn.getAttribute('data-sub')
-      const val = btn.getAttribute('data-val') === 'true'
-
-      if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
-      
-      if (studentAnswers.tf[qNum][sub] === val) {
-        delete studentAnswers.tf[qNum][sub]
-      } else {
-        studentAnswers.tf[qNum][sub] = val
-      }
-
-      // Auto-save draft immediately
-      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-
-      const parent = btn.parentElement
-      if (parent) {
-        parent.querySelectorAll('.student-tf-btn').forEach(b => {
-          const btnVal = b.getAttribute('data-val') === 'true'
-          const currentVal = studentAnswers.tf[qNum][sub]
-          const isSel = currentVal !== undefined && currentVal === btnVal
-          if (isSel) {
-            b.style.background = btnVal ? '#16a34a' : '#dc2626'
-            b.style.color = '#ffffff'
-            b.style.borderColor = btnVal ? '#16a34a' : '#dc2626'
-          } else {
-            b.style.background = '#ffffff'
-            b.style.color = '#475569'
-            b.style.borderColor = '#cbd5e1'
-          }
-        })
-      }
-
-      updatePaletteItem(qNum)
-      updateOverallProgress()
-    })
-  })
-
-  // Student SA input change (debounced auto-save)
-  document.querySelectorAll('.student-sa-input').forEach(input => {
-    input.addEventListener('input', (e) => {
-      const qNum = parseInt(input.getAttribute('data-qnum'), 10)
-      studentAnswers.sa[qNum] = e.target.value
-
-      updateAutosaveIndicator(false)
-      clearTimeout(saDebounceTimer)
-      saDebounceTimer = setTimeout(() => {
-        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-        updatePaletteItem(qNum)
-        updateOverallProgress()
-      }, 400)
-    })
-  })
-
-  // Palette button scroll to question
-  document.querySelectorAll('.palette-btn-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qNum = btn.getAttribute('data-qnum')
-      const target = document.getElementById(`exam-question-${qNum}`)
-      if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        target.style.outline = '2.5px solid #0066cc'
-        target.style.transition = 'outline 0.2s ease'
-        setTimeout(() => {
-          target.style.outline = 'none'
-        }, 1200)
-      }
-    })
-  })
-
-  // PDF Drawer Toggle
-  const togglePdfBtn = document.getElementById('toggle-exam-pdf-btn')
-  const pdfDrawer = document.getElementById('exam-pdf-drawer')
-  const closePdfBtn = document.getElementById('close-exam-pdf-btn')
-  const pdfEmbedWrapper = document.getElementById('exam-pdf-embed-wrapper')
-
-  if (togglePdfBtn && pdfDrawer && hw.pdfUrl) {
-    let pdfRendered = false
-    togglePdfBtn.addEventListener('click', () => {
-      const isVisible = pdfDrawer.style.display !== 'none'
-      if (!isVisible) {
-        pdfDrawer.style.display = 'block'
-        togglePdfBtn.innerHTML = `<i class="fa-solid fa-eye-slash" style="color:#ef4444;"></i> Đóng đề PDF`
-        if (!pdfRendered && pdfEmbedWrapper) {
-          const mappedUrl = (hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
-          renderPdfViewer(pdfEmbedWrapper, mappedUrl)
-          pdfRendered = true
-        }
-      } else {
-        pdfDrawer.style.display = 'none'
-        togglePdfBtn.innerHTML = `<i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem đề PDF`
-      }
-    })
-    closePdfBtn?.addEventListener('click', () => {
-      pdfDrawer.style.display = 'none'
-      togglePdfBtn.innerHTML = `<i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem đề PDF`
-    })
-  }
 
   // Submit Homework Event
   document.getElementById('submit-answers-btn')?.addEventListener('click', () => {

@@ -2549,6 +2549,12 @@ body.review-split-mode .page-header {
   border-color: #0066cc;
   color: #ffffff;
 }
+.exam-nav-btn.partial {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0284c7;
+  font-weight: 800;
+}
 .exam-nav-btn.flagged::after {
   content: '';
   position: absolute;
@@ -2559,3 +2565,4 @@ body.review-split-mode .page-header {
   border-radius: 50%;
   background: #f59e0b;
 }
+
