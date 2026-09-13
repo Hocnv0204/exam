@@ -4,6 +4,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { openModal } from '../components/modal.js'
+import { renderMath } from '../utils/exam-parser.js'
 
 let currentMode = 'class' // 'class' | 'trial'
 let selectedClassId = ''
@@ -17,6 +18,136 @@ let unsubmittedStudents = []
 let unsubmittedFilter = 'ALL' // 'ALL' | 'NOT_STARTED' | 'IN_PROGRESS'
 let unsubmittedSearch = ''
 const classHomeworksCache = new Map()
+
+function parseQuestionPrompt(rawPrompt, qType) {
+  let text = ''
+  let options = []
+  let explanation = ''
+  let imageUrl = ''
+
+  if (!rawPrompt) return { text: '', options: [], explanation: '', imageUrl: '' }
+
+  if (typeof rawPrompt === 'string') {
+    const trimmed = rawPrompt.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        text = parsed.text || parsed.prompt || parsed.content || ''
+        options = Array.isArray(parsed.options) ? parsed.options : []
+        explanation = parsed.explanation || ''
+        imageUrl = parsed.imageUrl || parsed.image || ''
+        return { text, options, explanation, imageUrl }
+      } catch (e) {
+        text = rawPrompt
+      }
+    } else {
+      text = rawPrompt
+    }
+  } else if (typeof rawPrompt === 'object' && rawPrompt !== null) {
+    text = rawPrompt.text || rawPrompt.prompt || rawPrompt.content || ''
+    options = Array.isArray(rawPrompt.options) ? rawPrompt.options : []
+    explanation = rawPrompt.explanation || ''
+    imageUrl = rawPrompt.imageUrl || rawPrompt.image || ''
+    return { text, options, explanation, imageUrl }
+  }
+
+  return { text, options, explanation, imageUrl }
+}
+
+function renderQuestionPromptHtml(rawPrompt, qType) {
+  const { text, options, explanation, imageUrl } = parseQuestionPrompt(rawPrompt, qType)
+  
+  let html = ''
+  if (text) {
+    html += `<div class="math-content" style="font-size:13px; color:#1e293b; line-height:1.5; margin-bottom:8px; font-weight:500;">${text}</div>`
+  }
+  if (imageUrl) {
+    html += `<div style="margin-bottom:8px; text-align:center;"><img src="${imageUrl}" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid #e2e8f0;"></div>`
+  }
+  if (options && options.length > 0) {
+    html += `<div style="display:grid; grid-template-columns:1fr; gap:4px; margin-bottom:8px;">`
+    options.forEach(opt => {
+      const optId = opt.id || opt.key || ''
+      const optText = opt.text || (typeof opt === 'string' ? opt : '')
+      html += `
+        <div style="font-size:12px; color:#334155; padding:3px 6px; background:#f8fafc; border-radius:4px; border:1px solid #f1f5f9; display:flex; align-items:baseline; gap:6px;">
+          <strong style="color:#0284c7; min-width:16px;">${optId}.</strong>
+          <span class="math-content">${optText}</span>
+        </div>
+      `
+    })
+    html += `</div>`
+  }
+  if (explanation) {
+    html += `
+      <div style="font-size:11px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:6px 8px; color:#475569; margin-bottom:8px;">
+        <span style="font-weight:700; color:#0066cc;"><i class="fa-solid fa-lightbulb"></i> Lời giải:</span>
+        <div class="math-content" style="margin-top:2px;">${explanation}</div>
+      </div>
+    `
+  }
+  return html
+}
+
+function formatGivenAnswer(rawAnswer, qType) {
+  if (rawAnswer === undefined || rawAnswer === null || rawAnswer === '') {
+    return 'Bỏ trống (Chưa làm)'
+  }
+
+  let val = rawAnswer
+  if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+    try {
+      val = JSON.parse(val)
+    } catch {}
+  }
+
+  if (typeof val === 'object' && val !== null) {
+    if (val.value !== undefined) {
+      val = val.value
+    }
+  }
+
+  if (val === undefined || val === null || val === '' || val === 'null' || val === '{}') {
+    return 'Bỏ trống (Chưa làm)'
+  }
+
+  if (typeof val === 'object' && val !== null) {
+    if (qType === 'TRUE_FALSE') {
+      const getLetter = (v) => (v === true || v === 'true' || v === 1 || v === '1') ? 'Đ' : ((v === false || v === 'false' || v === 0 || v === '0') ? 'S' : '-')
+      const a = getLetter(val.a !== undefined ? val.a : val.s1)
+      const b = getLetter(val.b !== undefined ? val.b : val.s2)
+      const c = getLetter(val.c !== undefined ? val.c : val.s3)
+      const d = getLetter(val.d !== undefined ? val.d : val.s4)
+      return `a: ${a}, b: ${b}, c: ${c}, d: ${d}`
+    }
+    return JSON.stringify(val)
+  }
+
+  return String(val)
+}
+
+function formatCorrectAnswer(rawAns, qType) {
+  if (!rawAns || rawAns === 'N/A') return 'N/A'
+  if (typeof rawAns === 'object') {
+    if (qType === 'TRUE_FALSE') {
+      const getLetter = (v) => (v === true || v === 'true' || v === 1 || v === '1') ? 'Đ' : ((v === false || v === 'false' || v === 0 || v === '0') ? 'S' : '-')
+      const a = getLetter(rawAns.a !== undefined ? rawAns.a : rawAns.s1)
+      const b = getLetter(rawAns.b !== undefined ? rawAns.b : rawAns.s2)
+      const c = getLetter(rawAns.c !== undefined ? rawAns.c : rawAns.s3)
+      const d = getLetter(rawAns.d !== undefined ? rawAns.d : rawAns.s4)
+      return `a: ${a}, b: ${b}, c: ${c}, d: ${d}`
+    }
+    if (rawAns.answer !== undefined) return String(rawAns.answer)
+    return JSON.stringify(rawAns)
+  }
+  if (typeof rawAns === 'string' && rawAns.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(rawAns)
+      return formatCorrectAnswer(parsed, qType)
+    } catch {}
+  }
+  return String(rawAns)
+}
 
 function formatScore(val) {
   if (val === undefined || val === null) return '0'
@@ -473,47 +604,56 @@ export function renderAdminHistoryView() {
                     Chúc mừng! Chưa ghi nhận câu sai nào trong bài nộp của học sinh.
                   </div>
                 ` : `
-                  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px;">
+                  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap:16px;">
                     ${wrongQuestionsSummary.map(q => {
                       const qTypeStr = q.questionType === 'MULTIPLE_CHOICE' ? 'Trắc nghiệm ABCD' : (q.questionType === 'TRUE_FALSE' ? 'Đúng / Sai' : 'Trả lời ngắn')
+                      const promptHtml = renderQuestionPromptHtml(q.prompt, q.questionType)
+                      const correctAnsFormatted = formatCorrectAnswer(q.correctAnswer, q.questionType)
+
                       return `
-                        <div style="background:#ffffff; border:1px solid #fecaca; border-radius:10px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,0.03);">
-                          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                            <span style="background:#ef4444; color:#ffffff; padding:2px 8px; border-radius:4px; font-weight:700; font-size:12px;">Câu ${q.questionNumber}</span>
-                            <div style="display:flex; gap:4px; align-items:center;">
-                              ${q.wrongCount > 0 ? `
-                                <span style="font-size:11px; font-weight:700; color:#dc2626; background:#fee2e2; border:1px solid #fecaca; padding:2px 6px; border-radius:12px;">
-                                  <i class="fa-solid fa-xmark"></i> ${q.wrongCount} làm sai
-                                </span>
-                              ` : ''}
-                              ${q.unansweredCount > 0 ? `
-                                <span style="font-size:11px; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:2px 6px; border-radius:12px;">
-                                  <i class="fa-regular fa-square"></i> ${q.unansweredCount} bỏ trống
-                                </span>
-                              ` : ''}
+                        <div style="background:#ffffff; border:1px solid #fecaca; border-radius:10px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,0.03); display:flex; flex-direction:column; justify-content:space-between;">
+                          <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                              <span style="background:#ef4444; color:#ffffff; padding:2px 8px; border-radius:4px; font-weight:700; font-size:12px;">Câu ${q.questionNumber}</span>
+                              <div style="display:flex; gap:4px; align-items:center;">
+                                ${q.wrongCount > 0 ? `
+                                  <span style="font-size:11px; font-weight:700; color:#dc2626; background:#fee2e2; border:1px solid #fecaca; padding:2px 6px; border-radius:12px;">
+                                    <i class="fa-solid fa-xmark"></i> ${q.wrongCount} làm sai
+                                  </span>
+                                ` : ''}
+                                ${q.unansweredCount > 0 ? `
+                                  <span style="font-size:11px; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:2px 6px; border-radius:12px;">
+                                    <i class="fa-regular fa-square"></i> ${q.unansweredCount} bỏ trống
+                                  </span>
+                                ` : ''}
+                              </div>
+                            </div>
+
+                            <div style="font-size:12px; color:#64748b; font-weight:600; margin-bottom:6px;">${qTypeStr}</div>
+                            ${promptHtml}
+
+                            <div style="font-size:12px; background:#f0fdf4; border:1px solid #bbf7d0; padding:6px 10px; border-radius:6px; color:#15803d; font-weight:700; margin-bottom:10px;">
+                              <i class="fa-solid fa-circle-check"></i> Đáp án đúng: <span class="math-content">${correctAnsFormatted}</span>
                             </div>
                           </div>
 
-                          <div style="font-size:12px; color:#64748b; font-weight:600; margin-bottom:6px;">${qTypeStr}</div>
-                          ${q.prompt ? `<div style="font-size:13px; color:#334155; margin-bottom:8px; line-height:1.4;">${q.prompt}</div>` : ''}
-
-                          <div style="font-size:12px; background:#f0fdf4; border:1px solid #bbf7d0; padding:6px 10px; border-radius:6px; color:#15803d; font-weight:700; margin-bottom:8px;">
-                            <i class="fa-solid fa-circle-check"></i> Đáp án đúng: ${q.correctAnswer || 'N/A'}
-                          </div>
-
-                          <div style="border-top:1px dashed #e2e8f0; padding-top:6px; font-size:12px;">
+                          <div style="border-top:1px dashed #e2e8f0; padding-top:8px; font-size:12px;">
                             <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; display:block; margin-bottom:4px;">Học sinh chưa đạt:</span>
-                            <div style="display:flex; flex-direction:column; gap:4px; max-height:130px; overflow-y:auto; padding-right:4px;">
-                              ${q.students.map(st => `
-                                <div style="display:flex; justify-content:space-between; align-items:center; background:${st.isUnanswered ? '#fffbeb' : '#fef2f2'}; border:1px solid ${st.isUnanswered ? '#fde68a' : '#fee2e2'}; padding:4px 8px; border-radius:4px; font-size:11px;">
-                                  <span style="font-weight:700; color:#0f172a;">${st.studentName}</span>
-                                  ${st.isUnanswered ? `
-                                    <span style="color:#b45309; font-weight:700;"><i class="fa-regular fa-square"></i> Bỏ trống</span>
-                                  ` : `
-                                    <span style="color:#dc2626; font-weight:600;">Điền: <strong>${st.givenAnswer}</strong></span>
-                                  `}
-                                </div>
-                              `).join('')}
+                            <div style="display:flex; flex-direction:column; gap:4px; max-height:140px; overflow-y:auto; padding-right:4px;">
+                              ${q.students.map(st => {
+                                const ansFormatted = formatGivenAnswer(st.givenAnswer, q.questionType)
+                                const isUnans = st.isUnanswered || ansFormatted.startsWith('Bỏ trống')
+                                return `
+                                  <div style="display:flex; justify-content:space-between; align-items:center; background:${isUnans ? '#fffbeb' : '#fef2f2'}; border:1px solid ${isUnans ? '#fde68a' : '#fee2e2'}; padding:4px 8px; border-radius:4px; font-size:11px;">
+                                    <span style="font-weight:700; color:#0f172a;">${st.studentName}</span>
+                                    ${isUnans ? `
+                                      <span style="color:#b45309; font-weight:700;"><i class="fa-regular fa-square"></i> Bỏ trống</span>
+                                    ` : `
+                                      <span style="color:#dc2626; font-weight:600;">Điền: <strong class="math-content">${ansFormatted}</strong></span>
+                                    `}
+                                  </div>
+                                `
+                              }).join('')}
                             </div>
                           </div>
                         </div>
@@ -1042,27 +1182,34 @@ export function bindAdminHistoryEvents() {
           <div style="font-size:13px; color:#dc2626; font-weight:700; margin-top:4px;">Tổng số câu làm sai / chưa làm: ${wrongList.length} câu</div>
         </div>
         <div style="display:flex; flex-direction:column; gap:10px; max-height:450px; overflow-y:auto;">
-          ${wrongList.map(w => `
+          ${wrongList.map(w => {
+            const promptHtml = renderQuestionPromptHtml(w.prompt, w.questionType)
+            const corr = formatCorrectAnswer(w.correctAnswer, w.questionType)
+            const given = formatGivenAnswer(w.givenAnswer, w.questionType)
+            const isUnans = w.isUnanswered || given.startsWith('Bỏ trống')
+
+            return `
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                 <span style="font-weight:700; color:#ef4444; font-size:13px;">Câu ${w.questionNumber}</span>
-                <span style="font-size:11px; background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:4px; font-weight:600;">
-                  ${w.isUnanswered ? 'Chưa làm' : 'Sai'}
+                <span style="font-size:11px; background:${isUnans ? '#fef3c7' : '#fee2e2'}; color:${isUnans ? '#b45309' : '#991b1b'}; padding:2px 6px; border-radius:4px; font-weight:600;">
+                  ${isUnans ? 'Chưa làm' : 'Sai'}
                 </span>
               </div>
-              ${w.prompt ? `<div style="font-size:12px; color:#334155; margin-bottom:6px;">${w.prompt}</div>` : ''}
+              ${promptHtml}
               <div style="font-size:12px; margin-bottom:3px;">
                 <span style="color:#64748b;">Đáp án đã chọn:</span> 
-                <strong style="color:#dc2626;">${w.givenAnswer}</strong>
+                <strong style="color:#dc2626;" class="math-content">${given}</strong>
               </div>
               <div style="font-size:12px;">
                 <span style="color:#64748b;">Đáp án đúng:</span> 
-                <strong style="color:#16a34a;">${w.correctAnswer}</strong>
+                <strong style="color:#16a34a;" class="math-content">${corr}</strong>
               </div>
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
       `)
+      setTimeout(() => renderMath(document.querySelector('#modal-container')), 50)
     })
   })
 
@@ -1128,4 +1275,10 @@ export function bindAdminHistoryEvents() {
       }
     })
   })
+
+  // 14. Render KaTeX / Math / Chemical formulas on the page
+  setTimeout(() => {
+    const contentBody = document.querySelector('.content-body')
+    if (contentBody) renderMath(contentBody)
+  }, 50)
 }

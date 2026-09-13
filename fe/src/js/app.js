@@ -177,13 +177,13 @@ async function router() {
               homeworks: (l.homeworks || []).map(h => ({
                 id: h.id,
                 title: h.title,
-                lessonId: h.lesson_id || l.id,
-                pdfPath: h.pdf_path,
-                durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : 45,
-                passScore: h.pass_score !== undefined ? h.pass_score : 5,
-                maxScore: h.max_score !== undefined ? h.max_score : 10,
+                lessonId: h.lesson_id || h.lessonId || l.id,
+                pdfPath: h.pdf_path || h.pdfPath,
+                durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes !== undefined ? h.durationMinutes : 45),
+                passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore !== undefined ? h.passScore : 5),
+                maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore !== undefined ? h.maxScore : 10),
                 deadline: h.deadline,
-                maxAttempts: h.max_attempts,
+                maxAttempts: h.max_attempts !== undefined ? h.max_attempts : h.maxAttempts,
                 type: h.type
               }))
             }))
@@ -218,13 +218,13 @@ async function router() {
                 homeworks: (l.homeworks || []).map(h => ({
                   id: h.id,
                   title: h.title,
-                  lessonId: h.lesson_id || l.id,
-                  pdfPath: h.pdf_path,
-                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : 45,
-                  passScore: h.pass_score !== undefined ? h.pass_score : 5,
-                  maxScore: h.max_score !== undefined ? h.max_score : 10,
+                  lessonId: h.lesson_id || h.lessonId || l.id,
+                  pdfPath: h.pdf_path || h.pdfPath,
+                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes !== undefined ? h.durationMinutes : 45),
+                  passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore !== undefined ? h.passScore : 5),
+                  maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore !== undefined ? h.maxScore : 10),
                   deadline: h.deadline,
-                  maxAttempts: h.max_attempts,
+                  maxAttempts: h.max_attempts !== undefined ? h.max_attempts : h.maxAttempts,
                   type: h.type
                 }))
               }))
@@ -249,20 +249,29 @@ async function router() {
 
               if (foundLesson && Array.isArray(foundLesson.homeworks) && foundLesson.homeworks.length > 0) {
                 state.activeLessonHomeworks = foundLesson.homeworks
-              } else if (foundLesson && Array.isArray(foundLesson.homeworks) && foundLesson.homeworks.length === 0) {
-                state.activeLessonHomeworks = []
               } else {
-                const rawHomeworks = await api.getHomeworks(lessonId)
-                state.activeLessonHomeworks = (rawHomeworks || []).map(h => ({
-                  id: h.id,
-                  title: h.title,
-                  lessonId: h.lesson_id || h.lessonId,
-                  pdfPath: h.pdf_path || h.pdfPath,
-                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes || 45),
-                  passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore || 5),
-                  maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore || 10),
-                  deadline: h.deadline
-                }))
+                try {
+                  const rawHomeworks = await api.getHomeworks(lessonId)
+                  const mappedHws = (rawHomeworks || []).map(h => ({
+                    id: h.id,
+                    title: h.title,
+                    lessonId: h.lesson_id || h.lessonId || lessonId,
+                    pdfPath: h.pdf_path || h.pdfPath,
+                    durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes !== undefined ? h.durationMinutes : 45),
+                    passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore !== undefined ? h.passScore : 5),
+                    maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore !== undefined ? h.maxScore : 10),
+                    deadline: h.deadline,
+                    maxAttempts: h.max_attempts !== undefined ? h.max_attempts : h.maxAttempts,
+                    type: h.type
+                  }))
+                  state.activeLessonHomeworks = mappedHws
+                  if (foundLesson) {
+                    foundLesson.homeworks = mappedHws
+                  }
+                } catch (err) {
+                  console.error('[App] Failed to fetch homeworks for lesson:', err)
+                  state.activeLessonHomeworks = foundLesson?.homeworks || []
+                }
               }
             } else {
               state.activeLessonHomeworks = []

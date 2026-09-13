@@ -272,37 +272,42 @@ async function loadInitialData() {
       filterState.gradeBlock = urlGradeBlock
     }
 
-    // 1. Load classes for filters and modals
-    const rawClasses = await api.getClasses()
-    allClasses = rawClasses || []
-    await populateGradeBlockDropdowns()
+    // 1. Reuse existing classes from state if available, or fetch once
+    if (state.classes && state.classes.length > 0) {
+      allClasses = state.classes
+    } else {
+      const rawClasses = await api.getClasses()
+      allClasses = rawClasses || []
+      state.classes = (rawClasses || []).map(c => ({
+        id: c.id,
+        name: c.name,
+        gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+        studentsCount: c.studentsCount || 0,
+        tuitionFee: c.tuitionFee || 0,
+        progress: 0
+      }))
+    }
 
-    // 2. Load stats
-    await refreshStats()
+    // 2. Populate grade blocks synchronously from loaded classes
+    populateGradeBlockDropdowns()
 
-    // 3. Load question bank items
-    await fetchAndRenderQuestions()
+    // 3. Fetch question bank items AND statistics simultaneously in 1 single unified API request!
+    await fetchAndRenderQuestions({ includeStats: true })
   } catch (err) {
     console.error('[QuestionBank] Error loading initial data:', err)
     showToast('Không thể tải dữ liệu ngân hàng câu hỏi: ' + err.message, 'error')
   }
 }
 
-async function populateGradeBlockDropdowns() {
+function populateGradeBlockDropdowns() {
   const filterSelect = document.getElementById('qb-filter-grade-block')
   if (!filterSelect) return
 
-  try {
-    const res = await api.getGradeBlocks()
-    const blocks = Array.isArray(res) ? res : (res?.data || [])
-    cachedGradeBlocksList = blocks.map(b => b.name).filter(Boolean)
-  } catch (e) {
-    console.warn('[QuestionBank] Failed to load grade blocks from API:', e)
-  }
+  const custom = (allClasses || []).map(c => c.gradeBlock || c.grade_block).filter(Boolean)
+  cachedGradeBlocksList = Array.from(new Set(custom))
 
-  if (!cachedGradeBlocksList || cachedGradeBlocksList.length === 0) {
-    const custom = (allClasses || []).map(c => c.gradeBlock || c.grade_block).filter(Boolean)
-    cachedGradeBlocksList = Array.from(new Set(custom))
+  if (cachedGradeBlocksList.length === 0) {
+    cachedGradeBlocksList = ['12-Toán', '11-Toán', '10-Toán']
   }
 
   let html = '<option value="">-- Tất cả các Khối --</option>'
@@ -316,7 +321,7 @@ async function populateGradeBlockDropdowns() {
   if (filterState.gradeBlock) {
     const chapterSelect = document.getElementById('qb-filter-chapter')
     if (chapterSelect) {
-      await loadChaptersForGradeBlock(filterState.gradeBlock, chapterSelect)
+      loadChaptersForGradeBlock(filterState.gradeBlock, chapterSelect)
     }
   }
 }
@@ -376,8 +381,7 @@ function setupFilterListeners() {
     }
     lessonSelect.innerHTML = '<option value="">-- Tất cả Bài học --</option>'
 
-    await refreshStats()
-    await fetchAndRenderQuestions()
+    await fetchAndRenderQuestions({ includeStats: true })
   })
 
   // Cascading: Chapter changed
@@ -392,16 +396,14 @@ function setupFilterListeners() {
       lessonSelect.innerHTML = '<option value="">-- Tất cả Bài học --</option>'
     }
 
-    await refreshStats()
-    await fetchAndRenderQuestions()
+    await fetchAndRenderQuestions({ includeStats: true })
   })
 
   // Cascading: Lesson changed
   lessonSelect?.addEventListener('change', async (e) => {
     filterState.lessonId = e.target.value
     filterState.page = 1
-    await refreshStats()
-    await fetchAndRenderQuestions()
+    await fetchAndRenderQuestions({ includeStats: true })
   })
 
   // Type changed
@@ -449,8 +451,7 @@ function setupFilterListeners() {
     if (diffSelect) diffSelect.value = ''
     if (searchInput) searchInput.value = ''
 
-    await refreshStats()
-    await fetchAndRenderQuestions()
+    await fetchAndRenderQuestions({ includeStats: true })
   })
 }
 
@@ -532,7 +533,7 @@ async function loadLessonsForChapter(chapterId, targetSelect) {
 // ========================================================
 // Fetch & Render Question Cards
 // ========================================================
-async function fetchAndRenderQuestions() {
+async function fetchAndRenderQuestions(options = {}) {
   const container = document.getElementById('qb-questions-container')
   const countEl = document.getElementById('qb-current-count')
   const paginationContainer = document.getElementById('qb-pagination-container')
@@ -557,6 +558,10 @@ async function fetchAndRenderQuestions() {
     paramsObj.set('page', String(filterState.page || 1))
     paramsObj.set('pageSize', String(filterState.pageSize || 10))
 
+    if (options.includeStats) {
+      paramsObj.set('includeStats', 'true')
+    }
+
     const res = await api.getQuestionBank(paramsObj.toString())
     let questions = []
     let totalItems = 0
@@ -567,6 +572,10 @@ async function fetchAndRenderQuestions() {
     } else if (res && typeof res === 'object') {
       questions = res.items || []
       totalItems = res.total !== undefined ? res.total : questions.length
+      if (res.stats) {
+        statsState = res.stats
+        updateStatsUI()
+      }
     }
 
     allQuestions = questions
@@ -1197,8 +1206,7 @@ function openImportMarkdownModal() {
       const result = await api.importQuestionBank(payload)
       showToast(result.message || 'Đã nhập câu hỏi thành công!', 'success')
       closeModal()
-      await refreshStats()
-      await fetchAndRenderQuestions()
+      await fetchAndRenderQuestions({ includeStats: true })
     } catch (err) {
       showToast('Lỗi khi nhập câu hỏi: ' + err.message, 'error')
       submitBtn.disabled = false
@@ -1405,8 +1413,7 @@ async function openImportFromHomeworkModal() {
 
       showToast(res.message || 'Đã trích xuất câu hỏi thành công!', 'success')
       closeModal()
-      await refreshStats()
-      await fetchAndRenderQuestions()
+      await fetchAndRenderQuestions({ includeStats: true })
     } catch (err) {
       showToast('Lỗi khi trích xuất: ' + err.message, 'error')
       submitBtn.disabled = false
@@ -1424,15 +1431,8 @@ async function openMatrixGeneratorModal() {
 
   generatorState.previewQuestions = []
 
-  let blockNames = []
-  try {
-    const res = await api.getGradeBlocks()
-    const blocks = Array.isArray(res) ? res : (res?.data || [])
-    blockNames = blocks.map(b => b.name).filter(Boolean)
-  } catch (_) {}
-
   const customBlocks = (allClasses || []).map(c => c.gradeBlock || c.grade_block).filter(Boolean)
-  const uniqueBlocks = Array.from(new Set([...blockNames, ...customBlocks]))
+  const uniqueBlocks = Array.from(new Set([...(cachedGradeBlocksList || []), ...customBlocks]))
   if (!generatorState.gradeBlock && uniqueBlocks.length > 0) {
     generatorState.gradeBlock = uniqueBlocks[0]
   }

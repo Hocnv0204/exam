@@ -19,22 +19,25 @@ serve(async (req: Request) => {
 
     // 1. Single Homework Performance Statistics
     if (homeworkId) {
-      const { data: homework, error: hErr } = await serviceRoleClient
-        .from('homeworks')
-        .select('id, title, pass_score, max_score')
-        .eq('id', homeworkId)
-        .single()
+      const [hwRes, subRes] = await Promise.all([
+        serviceRoleClient
+          .from('homeworks')
+          .select('id, title, pass_score, max_score')
+          .eq('id', homeworkId)
+          .single(),
+        serviceRoleClient
+          .from('submissions')
+          .select('id, total_score, student_id')
+          .eq('homework_id', homeworkId)
+      ])
 
-      if (hErr || !homework) return errorResponse('Homework not found', 404)
+      if (hwRes.error || !hwRes.data) return errorResponse('Homework not found', 404)
+      if (subRes.error) return errorResponse(subRes.error.message, 500)
 
-      const { data: submissions, error: sErr } = await serviceRoleClient
-        .from('submissions')
-        .select('id, total_score, student_id')
-        .eq('homework_id', homeworkId)
+      const homework = hwRes.data
+      const submissions = subRes.data || []
 
-      if (sErr) return errorResponse(sErr.message, 500)
-
-      if (!submissions || submissions.length === 0) {
+      if (submissions.length === 0) {
         return jsonResponse({
           homework,
           totalSubmissions: 0,
@@ -82,22 +85,24 @@ serve(async (req: Request) => {
 
     // 2. Class Level Statistics
     if (classId) {
-      const { data: classData, error: cErr } = await serviceRoleClient
-        .from('classes')
-        .select('id, name, description')
-        .eq('id', classId)
-        .single()
+      const [classRes, studentsRes] = await Promise.all([
+        serviceRoleClient
+          .from('classes')
+          .select('id, name, description')
+          .eq('id', classId)
+          .single(),
+        serviceRoleClient
+          .from('profiles')
+          .select('id, username, full_name, student_classes!inner(class_id)')
+          .eq('student_classes.class_id', classId)
+          .eq('role', 'STUDENT')
+      ])
 
-      if (cErr || !classData) return errorResponse('Class not found', 404)
+      if (classRes.error || !classRes.data) return errorResponse('Class not found', 404)
+      if (studentsRes.error) return errorResponse(studentsRes.error.message, 500)
 
-      const { data: students, error: stErr } = await serviceRoleClient
-        .from('profiles')
-        .select('id, username, full_name, student_classes!inner(class_id)')
-        .eq('student_classes.class_id', classId)
-        .eq('role', 'STUDENT')
-
-      if (stErr) return errorResponse(stErr.message, 500)
-
+      const classData = classRes.data
+      const students = studentsRes.data || []
       const studentIds = students.map((s) => s.id)
       let submissions: Array<{ student_id: string; homework_id: string; total_score: number }> = []
 
@@ -140,40 +145,40 @@ serve(async (req: Request) => {
 
     // 3. Specific Student Statistics
     if (studentId) {
-      const { data: student, error: stErr } = await serviceRoleClient
-        .from('profiles')
-        .select(`
-          id,
-          username,
-          full_name,
-          student_classes (
-            class_id,
-            classes (name)
-          )
-        `)
-        .eq('id', studentId)
-        .single()
+      const [stRes, subRes] = await Promise.all([
+        serviceRoleClient
+          .from('profiles')
+          .select(`
+            id,
+            username,
+            full_name,
+            student_classes (
+              class_id,
+              classes (name)
+            )
+          `)
+          .eq('id', studentId)
+          .single(),
+        serviceRoleClient
+          .from('submissions')
+          .select('id, homework_id, total_score, max_score, submitted_at, homeworks(title)')
+          .eq('student_id', studentId)
+      ])
 
-      if (stErr || !student) return errorResponse('Student not found', 404)
+      if (stRes.error || !stRes.data) return errorResponse('Student not found', 404)
+      if (subRes.error) return errorResponse(subRes.error.message, 500)
 
-      const { data: submissions, error: subErr } = await serviceRoleClient
-        .from('submissions')
-        .select('id, homework_id, total_score, max_score, submitted_at, homeworks(title)')
-        .eq('student_id', studentId)
-
-      if (subErr) return errorResponse(subErr.message, 500)
-
-      const totalSubmissions = submissions?.length || 0
+      const student = stRes.data
+      const submissions = subRes.data || []
+      const totalSubmissions = submissions.length
 
       // Take highest score per homework for this student
       const bestScorePerHomework = new Map<string, number>()
-      if (submissions) {
-        for (const sub of submissions) {
-          const score = Number(sub.total_score)
-          const currentBest = bestScorePerHomework.get(sub.homework_id)
-          if (currentBest === undefined || score > currentBest) {
-            bestScorePerHomework.set(sub.homework_id, score)
-          }
+      for (const sub of submissions) {
+        const score = Number(sub.total_score)
+        const currentBest = bestScorePerHomework.get(sub.homework_id)
+        if (currentBest === undefined || score > currentBest) {
+          bestScorePerHomework.set(sub.homework_id, score)
         }
       }
 
@@ -192,7 +197,7 @@ serve(async (req: Request) => {
         },
         totalSubmissions,
         averageScore,
-        submissions: submissions || [],
+        submissions,
       })
     }
 

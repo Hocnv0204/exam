@@ -9,7 +9,10 @@ export const DEFAULT_GRADE_BLOCKS = ['12-Toán', '12-Hóa', '11-Toán', '11-Hóa
 
 let cachedGradeBlocks = []
 
-export async function fetchGradeBlocks() {
+export async function fetchGradeBlocks(forceRefresh = false) {
+  if (!forceRefresh && cachedGradeBlocks && cachedGradeBlocks.length > 0) {
+    return cachedGradeBlocks
+  }
   try {
     const res = await api.getGradeBlocks()
     if (Array.isArray(res)) {
@@ -142,7 +145,7 @@ export async function showCreateClassModal() {
             <i class="fa-solid fa-circle-plus"></i> + Tạo khối mới
           </button>
         </div>
-        <select id="modal-class-grade-block" class="form-input" style="width:100%; height:40px; cursor:pointer;" required>
+        <select id="modal-class-grade-block" class="form-input" required>
           ${blocks.map(b => `<option value="${b.name}">${b.name}${b.description ? ` (${b.description})` : ''}</option>`).join('')}
         </select>
 
@@ -152,8 +155,8 @@ export async function showCreateClassModal() {
             <i class="fa-solid fa-folder-plus"></i> Tạo nhanh khối học mới
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" id="inline-new-block-create-input" placeholder="Nhập tên khối mới (VD: 10-Toán, 10-Hóa...)" style="flex:1; height:36px; border:1px solid #cbd5e1; border-radius:6px; padding:0 10px; font-size:13px; background:#ffffff;" />
-            <button type="button" id="inline-btn-save-block-create" class="btn-primary" style="height:36px; padding:0 14px; font-size:12px; border-radius:6px; background:#0066cc; color:#fff; border:none; cursor:pointer; white-space:nowrap;">
+            <input type="text" id="inline-new-block-create-input" placeholder="Nhập tên khối mới (VD: 10-Toán, 10-Hóa...)" style="flex:1; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff; box-sizing:border-box;" />
+            <button type="button" id="inline-btn-save-block-create" class="btn-primary" style="height:38px; padding:0 14px; font-size:12px; border-radius:8px; background:#0066cc; color:#fff; border:none; cursor:pointer; white-space:nowrap; width:auto;">
               Lưu & Chọn
             </button>
           </div>
@@ -277,7 +280,7 @@ export async function showEditClassModal(classId) {
             <i class="fa-solid fa-circle-plus"></i> + Tạo khối mới
           </button>
         </div>
-        <select id="modal-class-grade-block" class="form-input" style="width:100%; height:40px; cursor:pointer;" required>
+        <select id="modal-class-grade-block" class="form-input" required>
           ${blocks.map(b => `<option value="${b.name}" ${b.name === (currentClass.gradeBlock || '12-Toán') ? 'selected' : ''}>${b.name}${b.description ? ` (${b.description})` : ''}</option>`).join('')}
         </select>
 
@@ -287,8 +290,8 @@ export async function showEditClassModal(classId) {
             <i class="fa-solid fa-folder-plus"></i> Tạo nhanh khối học mới
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" id="inline-new-block-edit-input" placeholder="Nhập tên khối mới (VD: 10-Toán, 10-Hóa...)" style="flex:1; height:36px; border:1px solid #cbd5e1; border-radius:6px; padding:0 10px; font-size:13px; background:#ffffff;" />
-            <button type="button" id="inline-btn-save-block-edit" class="btn-primary" style="height:36px; padding:0 14px; font-size:12px; border-radius:6px; background:#0066cc; color:#fff; border:none; cursor:pointer; white-space:nowrap;">
+            <input type="text" id="inline-new-block-edit-input" placeholder="Nhập tên khối mới (VD: 10-Toán, 10-Hóa...)" style="flex:1; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff; box-sizing:border-box;" />
+            <button type="button" id="inline-btn-save-block-edit" class="btn-primary" style="height:38px; padding:0 14px; font-size:12px; border-radius:8px; background:#0066cc; color:#fff; border:none; cursor:pointer; white-space:nowrap; width:auto;">
               Lưu & Chọn
             </button>
           </div>
@@ -434,12 +437,12 @@ export async function showGradeBlockManagementModal() {
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
           <div style="flex:1; min-width:180px;">
-            <input type="text" id="mgmt-new-block-name" class="form-input" placeholder="Tên khối (VD: 10-Toán, 10-Hóa...)" style="height:38px; width:100%;" required />
+            <input type="text" id="mgmt-new-block-name" class="form-input" placeholder="Tên khối (VD: 10-Toán, 10-Hóa...)" style="height:38px; width:100%; padding:0 12px; border-radius:8px;" required />
           </div>
           <div style="flex:1.5; min-width:200px;">
-            <input type="text" id="mgmt-new-block-desc" class="form-input" placeholder="Mô tả (tùy chọn)" style="height:38px; width:100%;" />
+            <input type="text" id="mgmt-new-block-desc" class="form-input" placeholder="Mô tả (tùy chọn)" style="height:38px; width:100%; padding:0 12px; border-radius:8px;" />
           </div>
-          <button type="button" id="mgmt-btn-add-block" class="btn-primary" style="height:38px; padding:0 16px; font-size:13px; border-radius:8px; background:#0066cc; color:#fff; border:none; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
+          <button type="button" id="mgmt-btn-add-block" class="btn-primary" style="height:38px; padding:0 16px; font-size:13px; border-radius:8px; background:#0066cc; color:#fff; border:none; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; width:auto;">
             <i class="fa-solid fa-plus"></i> Tạo khối
           </button>
         </div>
@@ -540,6 +543,7 @@ export async function showGradeBlockManagementModal() {
 export function bindClassMgmtEvents() {
   bindSidebarEvents()
   bindClassTableActionEvents()
+  fetchGradeBlocks().catch(() => {})
 
   const manageBlocksBtn = document.getElementById('open-manage-grade-blocks-btn')
   if (manageBlocksBtn) {

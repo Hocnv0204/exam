@@ -19,38 +19,54 @@ serve(async (req: Request) => {
     // GET: List all classes or get study sessions
     if (req.method === 'GET') {
       if (action === 'get-grade-blocks') {
-        const { data: blocks, error: bErr } = await serviceRoleClient
-          .from('grade_blocks')
-          .select('*')
-          .order('name', { ascending: true })
+        const includeStats = url.searchParams.get('includeStats') === 'true'
 
-        if (bErr) return errorResponse(bErr.message, 500)
+        if (!includeStats) {
+          const { data: blocks, error } = await serviceRoleClient
+            .from('grade_blocks')
+            .select('*')
+            .order('name', { ascending: true })
 
-        // Get class counts and list of class names per grade block
-        const { data: classesData } = await serviceRoleClient
-          .from('classes')
-          .select('id, name, grade_block')
+          if (error) return errorResponse(error.message, 500)
+          return jsonResponse(blocks || [])
+        }
 
-        // Get question counts per grade block
-        const { data: qbData } = await serviceRoleClient
-          .from('question_bank')
-          .select('grade_block')
+        // When stats are requested (e.g. for Grade Blocks Management view)
+        const [blocksRes, classesRes, qbRes] = await Promise.all([
+          serviceRoleClient
+            .from('grade_blocks')
+            .select('*')
+            .order('name', { ascending: true }),
+          serviceRoleClient
+            .from('classes')
+            .select('id, name, grade_block'),
+          serviceRoleClient
+            .from('question_bank')
+            .select('grade_block'),
+        ])
+
+        if (blocksRes.error) return errorResponse(blocksRes.error.message, 500)
+
+        const blocks = blocksRes.data || []
+        const classesData = classesRes.data || []
+        const qbData = qbRes.data || []
+
+        const qbCountMap: Record<string, number> = {}
+        qbData.forEach((q: any) => {
+          if (q.grade_block) {
+            qbCountMap[q.grade_block] = (qbCountMap[q.grade_block] || 0) + 1
+          }
+        })
 
         const classMap: Record<string, { count: number; names: string[] }> = {}
-        ;(classesData || []).forEach((c: any) => {
+        classesData.forEach((c: any) => {
           const gb = c.grade_block || '12-Toán'
           if (!classMap[gb]) classMap[gb] = { count: 0, names: [] }
           classMap[gb].count += 1
           if (c.name) classMap[gb].names.push(c.name)
         })
 
-        const qbCountMap: Record<string, number> = {}
-        ;(qbData || []).forEach((q: any) => {
-          const gb = q.grade_block || '12-Toán'
-          qbCountMap[gb] = (qbCountMap[gb] || 0) + 1
-        })
-
-        const enriched = (blocks || []).map((b: any) => ({
+        const enriched = blocks.map((b: any) => ({
           ...b,
           classesCount: classMap[b.name]?.count || 0,
           classesList: classMap[b.name]?.names || [],
@@ -161,17 +177,11 @@ serve(async (req: Request) => {
         })
         return jsonResponse(formatted)
       } else {
-        // STUDENT: Query student_classes table directly for user.id
-        const { data: stClasses, error: stErr } = await serviceRoleClient
-          .from('student_classes')
-          .select('class_id')
-          .eq('student_id', user.id)
-
-        if (stErr || !stClasses || stClasses.length === 0) {
+        // STUDENT: Use user.classIds from requireAuth context
+        const enrolledClassIds = user.classIds || []
+        if (enrolledClassIds.length === 0) {
           return jsonResponse([])
         }
-
-        const enrolledClassIds = stClasses.map(sc => sc.class_id)
 
         const { data: studentClasses, error } = await serviceRoleClient
           .from('classes')

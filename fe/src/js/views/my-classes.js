@@ -43,7 +43,7 @@ export function renderMyClassesView() {
     }
   }
 
-  const activeLessonHomeworks = (activeLesson && Array.isArray(activeLesson.homeworks))
+  const activeLessonHomeworks = (activeLesson && Array.isArray(activeLesson.homeworks) && activeLesson.homeworks.length > 0)
     ? activeLesson.homeworks
     : (state.activeLessonHomeworks || [])
 

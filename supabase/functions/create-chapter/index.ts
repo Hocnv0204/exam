@@ -28,7 +28,7 @@ serve(async (req: Request) => {
 
       let query = serviceRoleClient
         .from('chapters')
-        .select(includeLessons ? '*, lessons(*)' : '*')
+        .select(includeLessons ? '*, lessons(*, homeworks(*))' : '*')
         .order('order_index', { ascending: true })
 
       if (classId) {
@@ -42,6 +42,14 @@ serve(async (req: Request) => {
         chapters.forEach((ch: any) => {
           if (Array.isArray(ch.lessons)) {
             ch.lessons.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+            ch.lessons.forEach((l: any) => {
+              if (Array.isArray(l.homeworks)) {
+                if (user.role === 'STUDENT') {
+                  l.homeworks = l.homeworks.filter((h: any) => h.is_published !== false)
+                }
+                l.homeworks.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+              }
+            })
           }
         })
       }

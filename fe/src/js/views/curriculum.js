@@ -844,11 +844,13 @@ export function bindCurriculumEvents() {
             lesson.homeworks = (rawHomeworks || []).map(hw => ({
               id: hw.id,
               title: hw.title,
-              lessonId: hw.lesson_id,
-              pdfPath: hw.pdf_path,
-              durationMinutes: hw.duration_minutes,
-              passScore: hw.pass_score,
-              maxScore: hw.max_score
+              lessonId: hw.lesson_id || hw.lessonId || lessonId,
+              pdfPath: hw.pdf_path || hw.pdfPath,
+              durationMinutes: hw.duration_minutes !== undefined ? hw.duration_minutes : (hw.durationMinutes !== undefined ? hw.durationMinutes : 45),
+              passScore: hw.pass_score !== undefined ? hw.pass_score : (hw.passScore !== undefined ? hw.passScore : 5),
+              maxScore: hw.max_score !== undefined ? hw.max_score : (hw.maxScore !== undefined ? hw.maxScore : 10),
+              deadline: hw.deadline,
+              isPublished: hw.is_published !== undefined ? hw.is_published : (hw.isPublished !== undefined ? hw.isPublished : true)
             }))
           } catch (err) {
             console.error('Failed to load homeworks:', err)

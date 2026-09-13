@@ -348,34 +348,43 @@ serve(async (req: Request) => {
       }
     }
 
-    // 7. Send Telegram notification (fire-and-forget)
-    try {
-      const telegramConfig = await serviceRoleClient
-        .from('telegram_configs')
-        .select('chat_id, chat_title, is_enabled')
-        .eq('class_id', classIdOfHomework)
-        .eq('is_enabled', true)
-        .single()
+    // 7. Send Telegram notification asynchronously in background (fire-and-forget)
+    const notificationTask = (async () => {
+      try {
+        if (!classIdOfHomework) return
 
-      if (telegramConfig.data) {
+        const [telegramConfigRes, studentProfileRes, classDataRes] = await Promise.all([
+          serviceRoleClient
+            .from('telegram_configs')
+            .select('chat_id, chat_title, is_enabled')
+            .eq('class_id', classIdOfHomework)
+            .eq('is_enabled', true)
+            .maybeSingle(),
+          user
+            ? serviceRoleClient
+                .from('profiles')
+                .select('full_name')
+                .eq('id', user.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+          serviceRoleClient
+            .from('classes')
+            .select('name')
+            .eq('id', classIdOfHomework)
+            .maybeSingle()
+        ])
+
+        const telegramConfig = telegramConfigRes.data
+        if (!telegramConfig || !telegramConfig.chat_id) return
+
         let studentDisplayName = 'Học sinh'
         if (user) {
-          const { data: studentProfile } = await serviceRoleClient
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .single()
-          studentDisplayName = studentProfile?.full_name || 'Học sinh'
+          studentDisplayName = studentProfileRes.data?.full_name || 'Học sinh'
         } else {
           studentDisplayName = guestName ? `${guestName} (Học thử)` : 'Học sinh trải nghiệm (Học thử)'
         }
 
-        const { data: classData } = await serviceRoleClient
-          .from('classes')
-          .select('name')
-          .eq('id', classIdOfHomework)
-          .single()
-
+        const classData = classDataRes.data
         const submissionTime = new Date(submission.submitted_at).toLocaleString('vi-VN', {
           timeZone: 'Asia/Ho_Chi_Minh',
           day: '2-digit',
@@ -395,36 +404,39 @@ serve(async (req: Request) => {
 
         let message = ''
         if (isTrialSubmission) {
-          // Format message for Prospective / Trial Students
-          message = `🌟 <b>THÔNG BÁO HỌC THỬ (TIỀM NĂNG)</b>
-🎓 <b>Học sinh:</b> ${studentDisplayName}
-📞 <b>SĐT:</b> ${guestPhone || 'Chưa cung cấp'}
-🏫 <b>Lớp / Khóa:</b> ${classData?.name || 'Chung'}
-📝 <b>Bài tập:</b> ${homework.title}
-⏱ <b>Thời gian nộp:</b> ${submissionTime}
-📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})
-✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}
-⏳ <b>Thời gian làm bài:</b> ${durationFormatted}`
+          message = `🌟 <b>THÔNG BÁO HỌC THỬ (TIỀM NĂNG)</b>\n` +
+            `🎓 <b>Học sinh:</b> ${studentDisplayName}\n` +
+            `📞 <b>SĐT:</b> ${guestPhone || 'Chưa cung cấp'}\n` +
+            `🏫 <b>Lớp / Khóa:</b> ${classData?.name || 'Chung'}\n` +
+            `📝 <b>Bài tập:</b> ${homework.title}\n` +
+            `⏱ <b>Thời gian nộp:</b> ${submissionTime}\n` +
+            `📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})\n` +
+            `✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}\n` +
+            `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}`
         } else {
-          // Format message for Enrolled Class Students
           const lateLine = isLate ? `\n⚠️ <b>Trạng thái:</b> Nộp muộn` : ''
-          message = `📣 <b>THÔNG BÁO NỘP BÀI</b>
-🎓 <b>Học sinh:</b> ${studentDisplayName}
-🏫 <b>Lớp:</b> ${classData?.name || 'N/A'}
-📝 <b>Bài tập:</b> ${homework.title}
-⏱ <b>Thời gian nộp:</b> ${submissionTime}
-📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})
-✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}
-⏳ <b>Thời gian làm bài:</b> ${durationFormatted}${lateLine}`
+          message = `📣 <b>THÔNG BÁO NỘP BÀI</b>\n` +
+            `🎓 <b>Học sinh:</b> ${studentDisplayName}\n` +
+            `🏫 <b>Lớp:</b> ${classData?.name || 'N/A'}\n` +
+            `📝 <b>Bài tập:</b> ${homework.title}\n` +
+            `⏱ <b>Thời gian nộp:</b> ${submissionTime}\n` +
+            `📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})\n` +
+            `✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}\n` +
+            `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}${lateLine}`
         }
 
-        // Fire-and-forget: don't block the response
-        sendTelegramNotification(telegramConfig.data.chat_id, message).catch((notifyErr) => {
-          console.error('[submit-homework] Telegram notification failed:', notifyErr.message)
-        })
+        await sendTelegramNotification(telegramConfig.chat_id, message)
+      } catch (notifyErr: any) {
+        console.error('[submit-homework] Error sending notification:', notifyErr?.message)
       }
-    } catch (notifyErr) {
-      console.error('[submit-homework] Error sending notification:', notifyErr.message)
+    })()
+
+    // @ts-ignore EdgeRuntime waitUntil support
+    if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(notificationTask)
+    } else {
+      notificationTask.catch((err) => console.error('[submit-homework] Background notify error:', err))
     }
 
     // 8. Return complete submission result

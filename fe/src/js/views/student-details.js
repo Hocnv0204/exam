@@ -445,10 +445,22 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
 
       <!-- Score Trend Chart Card -->
       <div class="card" style="padding:20px; margin:0; border:1px solid #e2e8f0; border-radius:16px; background:#ffffff; display:flex; flex-direction:column;">
-        <h4 style="font-family:var(--font-heading); font-size:13px; font-weight:700; color:#475569; margin:0 0 16px 0; text-transform:uppercase; letter-spacing:0.5px;">
-          Đồ thị điểm số qua từng bài làm
-        </h4>
-        <div style="flex-grow:1; min-height:200px; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h4 style="font-family:var(--font-heading); font-size:14px; font-weight:700; color:#0f172a; margin:0 0 4px 0; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-chart-simple" style="color:#0284c7;"></i> Đồ thị điểm số qua từng bài làm
+            </h4>
+            <div style="font-size:12px; color:#64748b;">Diễn biến kết quả bài tập theo tiến trình thời gian</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; flex-wrap:wrap;">
+            <span style="display:inline-flex; align-items:center; gap:4px; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; padding:3px 8px; border-radius:6px;"><span style="width:8px; height:8px; background:#10b981; border-radius:2px;"></span> &ge; 9: Xuất sắc</span>
+            <span style="display:inline-flex; align-items:center; gap:4px; background:#f0f9ff; color:#075985; border:1px solid #bae6fd; padding:3px 8px; border-radius:6px;"><span style="width:8px; height:8px; background:#0284c7; border-radius:2px;"></span> 8-8.9: Giỏi</span>
+            <span style="display:inline-flex; align-items:center; gap:4px; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; padding:3px 8px; border-radius:6px;"><span style="width:8px; height:8px; background:#6366f1; border-radius:2px;"></span> 6.5-7.9: Khá</span>
+            <span style="display:inline-flex; align-items:center; gap:4px; background:#fffbeb; color:#92400e; border:1px solid #fde68a; padding:3px 8px; border-radius:6px;"><span style="width:8px; height:8px; background:#f59e0b; border-radius:2px;"></span> 5-6.4: TB</span>
+            <span style="display:inline-flex; align-items:center; gap:4px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; padding:3px 8px; border-radius:6px;"><span style="width:8px; height:8px; background:#ef4444; border-radius:2px;"></span> &lt; 5: Yếu</span>
+          </div>
+        </div>
+        <div style="flex-grow:1; min-height:220px; position:relative;">
           <canvas id="homework-scores-chart" style="height:100%; width:100%;"></canvas>
         </div>
       </div>
@@ -503,7 +515,7 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
       })
     }
 
-    // 2. Score Mixed Chart (Bar + Curve Line)
+    // 2. Score Mixed Chart (Bar + Curve Line with Parent-Friendly Colors & Badges)
     const scoresCtx = document.getElementById('homework-scores-chart')?.getContext('2d')
     if (scoresCtx && window.Chart) {
       const existingScores = window.Chart.getChart(scoresCtx.canvas)
@@ -525,8 +537,28 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
         (a, b) => new Date(a.submittedAt) - new Date(b.submittedAt)
       )
       
-      const labels = sortedSubs.map(s => s.homeworkTitle || 'Bài tập')
-      const scores = sortedSubs.map(s => s.score)
+      const getScoreColor = (score) => {
+        const s = Number(score || 0)
+        if (s >= 9.0) return { bg: '#10b981', hover: '#059669', label: 'Xuất sắc' }
+        if (s >= 8.0) return { bg: '#0284c7', hover: '#0369a1', label: 'Giỏi' }
+        if (s >= 6.5) return { bg: '#6366f1', hover: '#4f46e5', label: 'Khá' }
+        if (s >= 5.0) return { bg: '#f59e0b', hover: '#d97706', label: 'Trung bình' }
+        return { bg: '#ef4444', hover: '#dc2626', label: 'Cần cố gắng' }
+      }
+
+      const formatShortTitle = (title, idx) => {
+        if (!title) return `Bài ${idx + 1}`
+        let t = title.trim()
+        if (t.length > 12) {
+          t = t.substring(0, 11) + '…'
+        }
+        return `${idx + 1}. ${t}`
+      }
+
+      const labels = sortedSubs.map((s, idx) => formatShortTitle(s.homeworkTitle, idx))
+      const scores = sortedSubs.map(s => Number(s.score || 0))
+      const barColors = scores.map(s => getScoreColor(s).bg)
+      const barHoverColors = scores.map(s => getScoreColor(s).hover)
 
       new window.Chart(scoresCtx, {
         type: 'bar',
@@ -535,42 +567,39 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
           datasets: [
             {
               type: 'line',
-              label: 'Đường xu hướng (Điểm)',
+              label: 'Đường xu hướng',
               data: scores.length > 0 ? scores : [0],
-              borderColor: '#f43f5e',
-              borderWidth: 2.5,
-              tension: 0.4,
+              borderColor: '#475569',
+              borderWidth: 2,
+              cubicInterpolationMode: 'monotone',
+              tension: 0.25,
               fill: false,
-              pointBackgroundColor: '#ffffff',
-              pointBorderColor: '#f43f5e',
+              pointBackgroundColor: scores.length > 0 ? barColors : ['#cbd5e1'],
+              pointBorderColor: '#ffffff',
               pointBorderWidth: 2,
-              pointRadius: 4,
+              pointRadius: 5,
+              pointHoverRadius: 7,
               order: 1
             },
             {
               type: 'bar',
-              label: 'Điểm số đạt được',
+              label: 'Điểm số',
               data: scores.length > 0 ? scores : [0],
-              backgroundColor: 'rgba(14, 165, 233, 0.75)',
-              borderColor: '#0284c7',
-              borderWidth: 1,
+              backgroundColor: scores.length > 0 ? barColors : ['#cbd5e1'],
+              hoverBackgroundColor: scores.length > 0 ? barHoverColors : ['#94a3b8'],
               borderRadius: 6,
-              barThickness: 32,
+              barPercentage: 0.5,
+              categoryPercentage: 0.7,
               order: 2
             }
           ]
         },
         plugins: [
           {
-            id: 'chart-value-labels',
+            id: 'chart-score-pill-labels',
             afterDatasetsDraw(chart) {
               const { ctx } = chart
               ctx.save()
-              ctx.font = 'bold 11px sans-serif'
-              ctx.fillStyle = '#0f172a'
-              ctx.textAlign = 'center'
-              ctx.textBaseline = 'bottom'
-
               chart.data.datasets.forEach((dataset, datasetIndex) => {
                 if (dataset.type !== 'line') return
                 const meta = chart.getDatasetMeta(datasetIndex)
@@ -578,7 +607,33 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
                   const dataValue = dataset.data[index]
                   if (dataValue !== undefined && dataValue !== null) {
                     const pos = element.tooltipPosition()
-                    ctx.fillText(dataValue, pos.x, pos.y - 8)
+                    const text = Number(dataValue).toFixed(1).replace('.0', '')
+                    
+                    ctx.font = 'bold 11px sans-serif'
+                    const textWidth = ctx.measureText(text).width
+                    const pillW = textWidth + 8
+                    const pillH = 16
+                    const pillX = pos.x - pillW / 2
+                    const pillY = Math.max(2, pos.y - 20)
+
+                    // Draw pill background
+                    ctx.fillStyle = '#ffffff'
+                    ctx.strokeStyle = '#e2e8f0'
+                    ctx.lineWidth = 1
+                    ctx.beginPath()
+                    if (ctx.roundRect) {
+                      ctx.roundRect(pillX, pillY, pillW, pillH, 4)
+                    } else {
+                      ctx.rect(pillX, pillY, pillW, pillH)
+                    }
+                    ctx.fill()
+                    ctx.stroke()
+
+                    // Draw text
+                    ctx.fillStyle = '#0f172a'
+                    ctx.textAlign = 'center'
+                    ctx.textBaseline = 'middle'
+                    ctx.fillText(text, pos.x, pillY + pillH / 2)
                   }
                 })
               })
@@ -589,13 +644,43 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  const idx = items[0]?.dataIndex
+                  return sortedSubs[idx]?.homeworkTitle || 'Bài tập'
+                },
+                label: (ctx) => {
+                  const val = ctx.parsed.y
+                  const info = getScoreColor(val)
+                  return `Điểm đạt: ${val} / 10 (${info.label})`
+                },
+                afterLabel: (ctx) => {
+                  const sub = sortedSubs[ctx.dataIndex]
+                  if (!sub?.submittedAt) return ''
+                  return `Ngày nộp: ${new Date(sub.submittedAt).toLocaleDateString('vi-VN')}`
+                }
+              },
+              filter: (item) => item.datasetIndex === 1
+            }
+          },
           scales: {
             y: {
               beginAtZero: true,
-              max: 10,
+              max: 11.5,
               ticks: {
                 stepSize: 2,
+                callback: (val) => val <= 10 ? val + ' đ' : '',
                 font: {
+                  size: 11,
                   weight: '600'
                 }
               },
@@ -605,25 +690,16 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
             },
             x: {
               ticks: {
+                maxRotation: 0,
+                minRotation: 0,
+                autoSkip: false,
                 font: {
+                  size: 11,
                   weight: '600'
                 }
               },
               grid: {
                 display: false
-              }
-            }
-          },
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: {
-                boxWidth: 12,
-                usePointStyle: true,
-                font: {
-                  size: 11,
-                  weight: '600'
-                }
               }
             }
           }

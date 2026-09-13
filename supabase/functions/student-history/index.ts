@@ -109,62 +109,54 @@ serve(async (req: Request) => {
         return errorResponse('Unauthorized: Login required to view this submission', 401)
       }
 
-      // Fetch submission answers with questions
-      const { data: answers, error: ansErr } = await serviceRoleClient
-        .from('submission_answers')
-        .select(`
-          id,
-          question_id,
-          given_answer,
-          is_correct,
-          score_earned,
-          questions (
+      // Fetch submission answers with questions and generate signed PDF URL in parallel
+      const hwObj = sub.homeworks
+      const [answersRes, signedUrlRes] = await Promise.all([
+        serviceRoleClient
+          .from('submission_answers')
+          .select(`
             id,
-            question_number,
-            question_type,
-            prompt,
-            points,
-            content,
-            options,
-            statements,
-            part_title,
-            question_answers (
-              mc_answer,
-              tf_answers,
-              sa_answer,
-              sa_tolerance,
-              explanation
+            question_id,
+            given_answer,
+            is_correct,
+            score_earned,
+            questions (
+              id,
+              question_number,
+              question_type,
+              prompt,
+              points,
+              content,
+              options,
+              statements,
+              part_title,
+              question_answers (
+                mc_answer,
+                tf_answers,
+                sa_answer,
+                sa_tolerance,
+                explanation
+              )
             )
-          )
-        `)
-        .eq('submission_id', submissionId)
+          `)
+          .eq('submission_id', submissionId),
+        (hwObj?.pdf_path && !hwObj.pdf_path.startsWith('http'))
+          ? serviceRoleClient.storage.from('pdf-files').createSignedUrl(hwObj.pdf_path, 3600)
+          : Promise.resolve({ data: null, error: null })
+      ])
 
-      if (ansErr) {
-        return errorResponse(ansErr.message, 500)
+      if (answersRes.error) {
+        return errorResponse(answersRes.error.message, 500)
       }
 
-      // Fetch answer keys for questions
-      const questionIds = (answers || []).map((a: any) => a.question_id)
-      const { data: answerKeys } = await serviceRoleClient
-        .from('question_answers')
-        .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
-        .in('question_id', questionIds)
-
-      const keyMap = new Map((answerKeys || []).map((k: any) => [k.question_id, k]))
-
-      const hwObj = sub.homeworks
+      const answers = answersRes.data || []
       let pdfUrl = hwObj?.pdf_path
-      if (pdfUrl && !pdfUrl.startsWith('http')) {
-        const { data: signedUrlData } = await serviceRoleClient.storage
-          .from('pdf-files')
-          .createSignedUrl(hwObj.pdf_path, 3600)
-        if (signedUrlData) {
-          pdfUrl = signedUrlData.signedUrl
-        }
+      if (signedUrlRes.data?.signedUrl) {
+        pdfUrl = signedUrlRes.data.signedUrl
       }
 
       // Determine active grading structure
-      const totalQuestions = (answers || []).length
+      const totalQuestions = answers.length
       const mcCount = (answers || []).filter((a: any) => {
         const q = Array.isArray(a.questions) ? a.questions[0] : (a.questions || {})
         return (q.question_type || a.question_type) === 'MULTIPLE_CHOICE'
@@ -196,8 +188,8 @@ serve(async (req: Request) => {
         const qObj = Array.isArray(ans.questions) ? ans.questions[0] : (ans.questions || {})
         const qType = qObj.question_type || ans.question_type
         const qNum = qObj.question_number !== undefined ? qObj.question_number : ans.question_number
-        const qAnswers = qObj.question_answers?.[0] || qObj.question_answers || {}
-        const key = keyMap.get(ans.question_id) || qAnswers
+        const qAnswers = Array.isArray(qObj.question_answers) ? qObj.question_answers[0] : (qObj.question_answers || {})
+        const key = qAnswers
 
         let points = 1.0
         if (isAllMC) {
@@ -406,182 +398,255 @@ serve(async (req: Request) => {
     // 2. Query Submissions List
     let classHomeworks: any[] = []
     let classHwIds: string[] = []
+    let prefetchedEnrolledStudents: any[] | null = null
 
-    if (isTrialQuery) {
-      // Trial query: fetch all trial homeworks
-      const { data: trialHws } = await serviceRoleClient
-        .from('homeworks')
-        .select(`
-          id,
-          title,
-          type,
-          duration_minutes,
-          max_score,
-          pass_score,
-          deadline,
-          lessons (
+    // Prepare Homeworks Query Promise
+    const homeworksPromise = (async () => {
+      if (isTrialQuery) {
+        const { data: trialHws } = await serviceRoleClient
+          .from('homeworks')
+          .select(`
             id,
             title,
-            is_trial,
-            chapters (
+            type,
+            duration_minutes,
+            max_score,
+            pass_score,
+            deadline,
+            lessons (
               id,
               title,
-              class_id,
-              classes (id, name)
+              is_trial,
+              chapters (
+                id,
+                title,
+                class_id,
+                classes (id, name)
+              )
             )
-          )
-        `)
-        .eq('is_published', true)
+          `)
+          .eq('is_published', true)
 
-      classHomeworks = (trialHws || [])
-        .filter((h: any) => h.lessons?.is_trial === true)
-        .map((h: any) => ({
-          id: h.id,
-          title: h.title,
-          type: h.type,
-          durationMinutes: h.duration_minutes || 45,
-          maxScore: h.max_score || 10,
-          passScore: h.pass_score || 5,
-          deadline: h.deadline,
-          lessonTitle: h.lessons?.title || '',
-          className: h.lessons?.chapters?.classes?.name || 'Chung'
-        }))
-    } else if (classId && classId !== 'TRIAL') {
-      // Class query: fetch all homeworks belonging to this class
-      const { data: hws, error: hwErr } = await serviceRoleClient
-        .from('homeworks')
-        .select(`
-          id,
-          title,
-          type,
-          duration_minutes,
-          max_score,
-          pass_score,
-          deadline,
-          lessons!inner (
+        return (trialHws || [])
+          .filter((h: any) => h.lessons?.is_trial === true)
+          .map((h: any) => ({
+            id: h.id,
+            title: h.title,
+            type: h.type,
+            durationMinutes: h.duration_minutes || 45,
+            maxScore: h.max_score || 10,
+            passScore: h.pass_score || 5,
+            deadline: h.deadline,
+            lessonTitle: h.lessons?.title || '',
+            className: h.lessons?.chapters?.classes?.name || 'Chung'
+          }))
+      } else if (classId && classId !== 'TRIAL') {
+        const { data: hws, error: hwErr } = await serviceRoleClient
+          .from('homeworks')
+          .select(`
             id,
             title,
-            chapters!inner (
+            type,
+            duration_minutes,
+            max_score,
+            pass_score,
+            deadline,
+            lessons!inner (
               id,
               title,
-              class_id,
-              classes (id, name)
+              chapters!inner (
+                id,
+                title,
+                class_id,
+                classes (id, name)
+              )
             )
-          )
-        `)
-        .eq('lessons.chapters.class_id', classId)
-        .eq('is_published', true)
-        .order('created_at', { ascending: false })
+          `)
+          .eq('lessons.chapters.class_id', classId)
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
 
-      if (!hwErr && hws) {
-        classHomeworks = hws.map((h: any) => ({
-          id: h.id,
-          title: h.title,
-          type: h.type,
-          durationMinutes: h.duration_minutes || 45,
-          maxScore: h.max_score || 10,
-          passScore: h.pass_score || 5,
-          deadline: h.deadline,
-          lessonTitle: h.lessons?.title || '',
-          className: h.lessons?.chapters?.classes?.name || ''
-        }))
-        classHwIds = hws.map((h: any) => h.id)
-      }
-    }
-
-    let query = serviceRoleClient
-      .from('submissions')
-      .select(`
-        id,
-        homework_id,
-        student_id,
-        total_score,
-        max_score,
-        correct_count,
-        wrong_count,
-        duration_seconds_taken,
-        is_late,
-        is_trial,
-        guest_name,
-        guest_phone,
-        submitted_at,
-        profiles (id, username, full_name),
-        homeworks (
-          id,
-          title,
-          max_score,
-          pass_score,
-          deadline,
-          pdf_path,
-          type,
-          lessons (
-            id,
-            title,
-            is_trial,
-            chapters (
-              id,
-              title,
-              class_id,
-              classes (id, name)
-            )
-          )
-        )
-      `)
-      .eq('status', 'SUBMITTED')
-      .order('submitted_at', { ascending: false })
-
-    if (isTrialQuery || guestPhone) {
-      // STRICT FILTER FOR TRIAL STUDENTS:
-      // Only include actual trial/guest submissions (student_id is null or guest_phone is not null)
-      query = query.or('student_id.is.null,guest_phone.not.is.null')
-      if (guestPhone) {
-        const p = guestPhone.trim()
-        query = query.or(`guest_phone.ilike.%${p}%,guest_phone.eq.${p}`)
-      }
-      if (homeworkId) {
-        query = query.eq('homework_id', homeworkId)
-      }
-    } else {
-      // STRICT FILTER FOR CLASS STUDENTS:
-      // Must have student_id (enrolled formal student)
-      query = query.not('student_id', 'is', null)
-
-      // If target student is specified
-      if (studentId) {
-        if (user?.role === 'STUDENT' && studentId !== user.id) {
-          return errorResponse('Forbidden: You can only view your own history', 403)
+        if (!hwErr && hws) {
+          return hws.map((h: any) => ({
+            id: h.id,
+            title: h.title,
+            type: h.type,
+            durationMinutes: h.duration_minutes || 45,
+            maxScore: h.max_score || 10,
+            passScore: h.pass_score || 5,
+            deadline: h.deadline,
+            lessonTitle: h.lessons?.title || '',
+            className: h.lessons?.chapters?.classes?.name || ''
+          }))
         }
-        query = query.eq('student_id', studentId)
-      } else if (user?.role === 'STUDENT') {
-        query = query.eq('student_id', user.id)
       }
+      return []
+    })()
 
-      // If target class is specified
-      if (classId && classId !== 'TRIAL') {
-        if (classHwIds.length === 0) {
-          // Class has no homeworks -> return early empty
-          return jsonResponse({
-            classId,
-            homeworkId: homeworkId || undefined,
-            totalSubmissions: 0,
-            history: [],
-            classHomeworks: [],
-            submissionStats: null,
-            unsubmittedStudents: []
-          })
-        }
+    // If homeworkId is provided, we can immediately start the submissions query in parallel!
+    let rawSubmissions: any[] = []
+    let fetchErr: any = null
 
-        if (homeworkId) {
-          query = query.eq('homework_id', homeworkId)
+    if (homeworkId || studentId || isTrialQuery) {
+      const buildSubmissionsQuery = () => {
+        let q = serviceRoleClient
+          .from('submissions')
+          .select(`
+            id,
+            homework_id,
+            student_id,
+            total_score,
+            max_score,
+            correct_count,
+            wrong_count,
+            duration_seconds_taken,
+            is_late,
+            is_trial,
+            guest_name,
+            guest_phone,
+            submitted_at,
+            profiles (id, username, full_name),
+            homeworks (
+              id,
+              title,
+              max_score,
+              pass_score,
+              deadline,
+              pdf_path,
+              type,
+              lessons (
+                id,
+                title,
+                is_trial,
+                chapters (
+                  id,
+                  title,
+                  class_id,
+                  classes (id, name)
+                )
+              )
+            )
+          `)
+          .eq('status', 'SUBMITTED')
+          .order('submitted_at', { ascending: false })
+
+        if (isTrialQuery || guestPhone) {
+          q = q.or('student_id.is.null,guest_phone.not.is.null')
+          if (guestPhone) {
+            const p = guestPhone.trim()
+            q = q.or(`guest_phone.ilike.%${p}%,guest_phone.eq.${p}`)
+          }
+          if (homeworkId) {
+            q = q.eq('homework_id', homeworkId)
+          }
         } else {
-          query = query.in('homework_id', classHwIds)
+          q = q.not('student_id', 'is', null)
+          if (studentId) {
+            if (user?.role === 'STUDENT' && studentId !== user.id) {
+              throw new Error('Forbidden: You can only view your own history')
+            }
+            q = q.eq('student_id', studentId)
+          } else if (user?.role === 'STUDENT') {
+            q = q.eq('student_id', user.id)
+          }
+          if (homeworkId) {
+            q = q.eq('homework_id', homeworkId)
+          }
         }
-      } else if (homeworkId) {
-        query = query.eq('homework_id', homeworkId)
+        return q
       }
-    }
 
-    const { data: rawSubmissions, error: fetchErr } = await query
+      const enrolledPromise = (homeworkId && classId && classId !== 'TRIAL')
+        ? serviceRoleClient
+            .from('student_classes')
+            .select(`
+              student_id,
+              profiles (id, username, full_name)
+            `)
+            .eq('class_id', classId)
+        : Promise.resolve({ data: null, error: null })
+
+      const [hwsResult, subResult, enrolledResult] = await Promise.all([
+        homeworksPromise,
+        buildSubmissionsQuery(),
+        enrolledPromise
+      ])
+
+      classHomeworks = hwsResult
+      classHwIds = classHomeworks.map((h: any) => h.id)
+      rawSubmissions = subResult.data || []
+      fetchErr = subResult.error
+      prefetchedEnrolledStudents = enrolledResult.data || null
+    } else {
+      // Must wait for class homeworks to get classHwIds
+      classHomeworks = await homeworksPromise
+      classHwIds = classHomeworks.map((h: any) => h.id)
+
+      if (classId && classId !== 'TRIAL' && classHwIds.length === 0) {
+        return jsonResponse({
+          classId,
+          homeworkId: homeworkId || undefined,
+          totalSubmissions: 0,
+          history: [],
+          classHomeworks: [],
+          submissionStats: null,
+          unsubmittedStudents: []
+        })
+      }
+
+      let q = serviceRoleClient
+        .from('submissions')
+        .select(`
+          id,
+          homework_id,
+          student_id,
+          total_score,
+          max_score,
+          correct_count,
+          wrong_count,
+          duration_seconds_taken,
+          is_late,
+          is_trial,
+          guest_name,
+          guest_phone,
+          submitted_at,
+          profiles (id, username, full_name),
+          homeworks (
+            id,
+            title,
+            max_score,
+            pass_score,
+            deadline,
+            pdf_path,
+            type,
+            lessons (
+              id,
+              title,
+              is_trial,
+              chapters (
+                id,
+                title,
+                class_id,
+                classes (id, name)
+              )
+            )
+          )
+        `)
+        .eq('status', 'SUBMITTED')
+        .order('submitted_at', { ascending: false })
+        .not('student_id', 'is', null)
+
+      if (user?.role === 'STUDENT') {
+        q = q.eq('student_id', user.id)
+      }
+      if (classHwIds.length > 0) {
+        q = q.in('homework_id', classHwIds)
+      }
+
+      const subResult = await q
+      rawSubmissions = subResult.data || []
+      fetchErr = subResult.error
+    }
 
     if (fetchErr) {
       return errorResponse(fetchErr.message, 500)
@@ -641,26 +706,52 @@ serve(async (req: Request) => {
           if (qType === 'MULTIPLE_CHOICE') {
             correctAnsStr = qAns.mc_answer || 'N/A'
           } else if (qType === 'TRUE_FALSE') {
-            correctAnsStr = typeof qAns.tf_answers === 'object' ? JSON.stringify(qAns.tf_answers) : String(qAns.tf_answers || 'N/A')
+            let tfVal = qAns.tf_answers
+            if (typeof tfVal === 'string' && tfVal.startsWith('{')) {
+              try { tfVal = JSON.parse(tfVal) } catch {}
+            }
+            if (typeof tfVal === 'object' && tfVal !== null) {
+              const getL = (v: any) => (v === true || v === 'true' || v === 1 || v === '1') ? 'Đ' : ((v === false || v === 'false' || v === 0 || v === '0') ? 'S' : '-')
+              const a = getL(tfVal.a !== undefined ? tfVal.a : tfVal.s1)
+              const b = getL(tfVal.b !== undefined ? tfVal.b : tfVal.s2)
+              const c = getL(tfVal.c !== undefined ? tfVal.c : tfVal.s3)
+              const d = getL(tfVal.d !== undefined ? tfVal.d : tfVal.s4)
+              correctAnsStr = `a: ${a}, b: ${b}, c: ${c}, d: ${d}`
+            } else {
+              correctAnsStr = String(tfVal || 'N/A')
+            }
           } else if (qType === 'SHORT_ANSWER') {
             correctAnsStr = String(qAns.sa_answer ?? 'N/A')
           }
 
-          let givenStr = 'Chưa làm'
+          let givenStr = 'Bỏ trống (Chưa làm)'
           let isUnanswered = false
           if (sa.given_answer !== null && sa.given_answer !== undefined) {
-            if (typeof sa.given_answer === 'object') {
-              if (sa.given_answer.value !== undefined && sa.given_answer.value !== null && sa.given_answer.value !== '') {
-                givenStr = String(sa.given_answer.value)
-              } else {
-                givenStr = JSON.stringify(sa.given_answer)
-              }
-            } else {
-              givenStr = String(sa.given_answer).trim()
+            let val = sa.given_answer
+            if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+              try { val = JSON.parse(val) } catch {}
             }
-            if (!givenStr || givenStr === 'null' || givenStr === '""' || givenStr === '{}') {
+            if (typeof val === 'object' && val !== null) {
+              if (val.value !== undefined) {
+                val = val.value
+              }
+            }
+            if (val === null || val === undefined || val === '' || val === 'null' || val === '{}') {
               givenStr = 'Bỏ trống (Chưa làm)'
               isUnanswered = true
+            } else if (typeof val === 'object' && val !== null) {
+              if (qType === 'TRUE_FALSE') {
+                const getL = (v: any) => (v === true || v === 'true' || v === 1 || v === '1') ? 'Đ' : ((v === false || v === 'false' || v === 0 || v === '0') ? 'S' : '-')
+                const a = getL(val.a !== undefined ? val.a : val.s1)
+                const b = getL(val.b !== undefined ? val.b : val.s2)
+                const c = getL(val.c !== undefined ? val.c : val.s3)
+                const d = getL(val.d !== undefined ? val.d : val.s4)
+                givenStr = `a: ${a}, b: ${b}, c: ${c}, d: ${d}`
+              } else {
+                givenStr = JSON.stringify(val)
+              }
+            } else {
+              givenStr = String(val).trim()
             }
           } else {
             givenStr = 'Bỏ trống (Chưa làm)'
@@ -801,14 +892,18 @@ serve(async (req: Request) => {
       const targetHw = homeworkId ? classHomeworks.find((h: any) => h.id === homeworkId) : null
 
       if (homeworkId && targetHw) {
-        // Fetch all enrolled students in this class
-        const { data: enrolledStudents } = await serviceRoleClient
-          .from('student_classes')
-          .select(`
-            student_id,
-            profiles (id, username, full_name)
-          `)
-          .eq('class_id', classId)
+        // Use prefetched enrolled students if available, otherwise fetch
+        let enrolledStudents = prefetchedEnrolledStudents
+        if (!enrolledStudents) {
+          const { data: esData } = await serviceRoleClient
+            .from('student_classes')
+            .select(`
+              student_id,
+              profiles (id, username, full_name)
+            `)
+            .eq('class_id', classId)
+          enrolledStudents = esData || []
+        }
 
         const submittedStudentIds = new Set(history.map((s: any) => s.studentId).filter(Boolean))
         const isHwOverdue = targetHw.deadline ? new Date() > new Date(targetHw.deadline) : false

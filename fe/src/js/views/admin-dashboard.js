@@ -18,6 +18,16 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+// Module-level state for Student Attendance & Tuition Table filtering
+let studentFilterState = {
+  selectedMonth: 'all',
+  selectedClass: 'all',
+  selectedStatus: 'all',
+  searchQuery: '',
+  currentPage: 1,
+  pageSize: 10
+}
+
 export function renderAdminDashboardView() {
   const overview = state.dashboard?.overview || {
     totalStudents: 0,
@@ -35,6 +45,7 @@ export function renderAdminDashboardView() {
   }
   const monthlyStats = state.dashboard?.monthlyStats || []
   const recentSubmissions = state.dashboard?.recentSubmissions || []
+  const studentAttendanceStats = state.dashboard?.studentAttendanceStats || []
   const scoreDistribution = state.dashboard?.scoreDistribution || {
     excellent: 0, good: 0, fair: 0, average: 0, poor: 0
   }
@@ -70,6 +81,9 @@ export function renderAdminDashboardView() {
     scoreBadgeClass = 'pill-danger'
     scoreText = 'Cần cải thiện'
   }
+
+  // Get distinct classes for filter dropdown
+  const classOptions = Array.from(new Set(studentAttendanceStats.flatMap(s => s.classNames || []))).filter(Boolean)
 
   return `
     <div class="app-layout">
@@ -360,22 +374,22 @@ export function renderAdminDashboardView() {
               </div>
             </div>
 
-            <!-- Activity Trends: Teaching Sessions & Submissions -->
+            <!-- Activity Trends: Teaching Sessions -->
             <div class="dash-chart-card">
               <div class="dash-chart-header">
                 <div>
                   <h3 class="dash-chart-title">
-                    <i class="fa-solid fa-chart-line" style="color:#f59e0b;"></i>
-                    Xu Hướng Giảng Dạy & Nộp Bài
+                    <i class="fa-solid fa-chalkboard-user" style="color:#f59e0b;"></i>
+                    Xu Hướng Hoạt Động Giảng Dạy
                   </h3>
-                  <div class="dash-chart-desc">Số buổi đã dạy (cột) và lượt học sinh nộp bài (đường) theo tháng.</div>
+                  <div class="dash-chart-desc">Số buổi đã dạy (cột) và đường cong xu hướng qua các tháng.</div>
                 </div>
-                <div style="display:flex; align-items:center; gap:12px; font-size:12px; font-weight:600;">
+                <div style="display:flex; align-items:center; gap:14px; font-size:12px; font-weight:600;">
                   <span style="display:inline-flex; align-items:center; gap:6px;">
-                    <span style="width:10px; height:10px; background-color:#f59e0b; border-radius:3px;"></span> Buổi dạy
+                    <span style="width:10px; height:10px; background-color:#f59e0b; border-radius:3px;"></span> Buổi dạy (cột)
                   </span>
                   <span style="display:inline-flex; align-items:center; gap:6px;">
-                    <span style="width:10px; height:10px; background-color:#0284c7; border-radius:50%;"></span> Nộp bài
+                    <span style="width:14px; height:3px; background-color:#0284c7; border-radius:2px;"></span> Đường xu hướng
                   </span>
                 </div>
               </div>
@@ -385,7 +399,80 @@ export function renderAdminDashboardView() {
             </div>
           </div>
 
-          <!-- SECTION 5: DETAILED MONTHLY BREAKDOWN TABLE -->
+          <!-- SECTION 5: STUDENT ATTENDANCE & TUITION BREAKDOWN TABLE (NEW) -->
+          <div class="card" style="margin-bottom:28px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+              <div>
+                <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; color:#0f172a; margin:0 0 4px 0;">
+                  <i class="fa-solid fa-user-check" style="color:#0284c7; margin-right:8px;"></i>
+                  Thống Kê Điểm Danh & Học Phí Từng Học Sinh
+                </h3>
+                <p style="font-size:13px; color:#64748b; margin:0;">Chi tiết số buổi đã học, số buổi đã đóng tiền và công nợ học phí theo từng tháng hoặc tổng tất cả.</p>
+              </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; background:#f8fafc; padding:14px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:18px;">
+              <div style="flex:1; min-width:200px;">
+                <input type="text" id="dash-stu-search" class="form-input" placeholder="Tìm theo tên học sinh, username..." style="padding:8px 12px; font-size:13px; height:38px; border-radius:8px; background:#ffffff;">
+              </div>
+              <div style="min-width:180px;">
+                <select id="dash-stu-filter-month" class="form-input" style="padding:8px 12px; font-size:13px; height:38px; border-radius:8px; background:#ffffff;">
+                  <option value="all">📅 Tất cả các tháng (Tổng lũy kế)</option>
+                  ${monthlyStats.map(m => `<option value="${m.month}">📅 ${m.label || m.month}</option>`).join('')}
+                </select>
+              </div>
+              <div style="min-width:160px;">
+                <select id="dash-stu-filter-class" class="form-input" style="padding:8px 12px; font-size:13px; height:38px; border-radius:8px; background:#ffffff;">
+                  <option value="all">🏫 Tất cả lớp học</option>
+                  ${classOptions.map(cls => `<option value="${cls}">${cls}</option>`).join('')}
+                </select>
+              </div>
+              <div style="min-width:160px;">
+                <select id="dash-stu-filter-status" class="form-input" style="padding:8px 12px; font-size:13px; height:38px; border-radius:8px; background:#ffffff;">
+                  <option value="all">🏷️ Tất cả trạng thái</option>
+                  <option value="paid">✅ Đã đóng đủ</option>
+                  <option value="unpaid">⚠️ Còn nợ học phí</option>
+                  <option value="no_sessions">⚪ Chưa có buổi học</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Filtered KPI Summary Banner -->
+            <div id="dash-stu-kpi-summary" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:16px;">
+              <!-- Dynamic content updated in JS -->
+            </div>
+
+            <!-- Student Attendance Table Container -->
+            <div class="table-responsive">
+              <table class="data-table" style="font-size:13px;">
+                <thead>
+                  <tr>
+                    <th>Học sinh</th>
+                    <th>Lớp học</th>
+                    <th style="text-align:center;">Số buổi đã học</th>
+                    <th style="text-align:center;">Đã đóng tiền</th>
+                    <th style="text-align:center;">Chưa đóng / Nợ</th>
+                    <th style="text-align:right;">Học phí phát sinh</th>
+                    <th style="text-align:right;">Đã thanh toán</th>
+                    <th style="text-align:right;">Còn nợ</th>
+                    <th style="text-align:center;">Trạng thái</th>
+                    <th style="text-align:right;">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-stu-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Container -->
+            <div id="dash-stu-pagination" style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid #e2e8f0;">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- SECTION 6: DETAILED MONTHLY BREAKDOWN TABLE -->
           <div class="card" style="margin-bottom:28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:18px;">
               <div>
@@ -454,7 +541,7 @@ export function renderAdminDashboardView() {
             `}
           </div>
 
-          <!-- SECTION 6: RECENT SUBMISSIONS FEED -->
+          <!-- SECTION 7: RECENT SUBMISSIONS FEED -->
           <div class="card">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
               <div>
@@ -550,8 +637,276 @@ export function renderAdminDashboardView() {
   `
 }
 
+function renderStudentAttendanceTable() {
+  const allStudents = state.dashboard?.studentAttendanceStats || []
+  const selectedMonth = studentFilterState.selectedMonth
+  const selectedClass = studentFilterState.selectedClass
+  const selectedStatus = studentFilterState.selectedStatus
+  const searchQuery = studentFilterState.searchQuery.toLowerCase().trim()
+
+  // Filter students
+  const filtered = allStudents.filter(s => {
+    // Search query
+    if (searchQuery) {
+      const matchName = s.fullName && s.fullName.toLowerCase().includes(searchQuery)
+      const matchUser = s.username && s.username.toLowerCase().includes(searchQuery)
+      if (!matchName && !matchUser) return false
+    }
+
+    // Class filter
+    if (selectedClass !== 'all') {
+      if (!s.classNames || !s.classNames.includes(selectedClass)) return false
+    }
+
+    // Month & Status filter
+    const stats = selectedMonth === 'all'
+      ? s.total
+      : (s.monthly && s.monthly[selectedMonth] ? s.monthly[selectedMonth] : { attendedSessions: 0, paidSessions: 0, unpaidSessions: 0, tuitionFee: 0, paidTuitionFee: 0, unpaidTuitionFee: 0 })
+
+    if (selectedStatus === 'paid') {
+      if (stats.attendedSessions === 0 || stats.unpaidSessions > 0) return false
+    } else if (selectedStatus === 'unpaid') {
+      if (stats.unpaidSessions <= 0) return false
+    } else if (selectedStatus === 'no_sessions') {
+      if (stats.attendedSessions > 0) return false
+    }
+
+    return true
+  })
+
+  // Calculate filtered KPI Summary
+  let totalAttended = 0
+  let totalPaid = 0
+  let totalUnpaid = 0
+  let totalTuition = 0
+  let totalPaidFee = 0
+  let totalUnpaidFee = 0
+
+  filtered.forEach(s => {
+    const stats = selectedMonth === 'all'
+      ? s.total
+      : (s.monthly && s.monthly[selectedMonth] ? s.monthly[selectedMonth] : { attendedSessions: 0, paidSessions: 0, unpaidSessions: 0, tuitionFee: 0, paidTuitionFee: 0, unpaidTuitionFee: 0 })
+    
+    totalAttended += (stats.attendedSessions || 0)
+    totalPaid += (stats.paidSessions || 0)
+    totalUnpaid += (stats.unpaidSessions || 0)
+    totalTuition += (stats.tuitionFee || 0)
+    totalPaidFee += (stats.paidTuitionFee || 0)
+    totalUnpaidFee += (stats.unpaidTuitionFee || 0)
+  })
+
+  // Render KPI Summary
+  const kpiContainer = document.getElementById('dash-stu-kpi-summary')
+  if (kpiContainer) {
+    kpiContainer.innerHTML = `
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px;">
+        <div style="font-size:11px; font-weight:700; color:#1e40af; text-transform:uppercase;">Học sinh hiển thị</div>
+        <div style="font-size:18px; font-weight:800; color:#1d4ed8; margin-top:2px;">${filtered.length} <span style="font-size:12px; font-weight:600; color:#64748b;">học sinh</span></div>
+      </div>
+      <div style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:10px 14px;">
+        <div style="font-size:11px; font-weight:700; color:#92400e; text-transform:uppercase;">Tổng buổi đã học</div>
+        <div style="font-size:18px; font-weight:800; color:#b45309; margin-top:2px;">${totalAttended} <span style="font-size:12px; font-weight:600; color:#64748b;">buổi</span></div>
+      </div>
+      <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px;">
+        <div style="font-size:11px; font-weight:700; color:#065f46; text-transform:uppercase;">Buổi đã đóng / Tỷ lệ</div>
+        <div style="font-size:18px; font-weight:800; color:#059669; margin-top:2px;">${totalPaid} / ${totalAttended} <span style="font-size:12px; font-weight:600; color:#10b981;">(${totalAttended > 0 ? Math.round((totalPaid / totalAttended) * 100) : 100}%)</span></div>
+      </div>
+      <div style="background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px;">
+        <div style="font-size:11px; font-weight:700; color:#475569; text-transform:uppercase;">Học phí phát sinh</div>
+        <div style="font-size:16px; font-weight:800; color:#334155; margin-top:2px;">${totalTuition.toLocaleString('vi-VN')} đ</div>
+      </div>
+      <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px;">
+        <div style="font-size:11px; font-weight:700; color:#065f46; text-transform:uppercase;">Đã thu</div>
+        <div style="font-size:16px; font-weight:800; color:#059669; margin-top:2px;">${totalPaidFee.toLocaleString('vi-VN')} đ</div>
+      </div>
+      <div style="background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; padding:10px 14px;">
+        <div style="font-size:11px; font-weight:700; color:#9f1239; text-transform:uppercase;">Còn nợ</div>
+        <div style="font-size:16px; font-weight:800; color:#e11d48; margin-top:2px;">${totalUnpaidFee.toLocaleString('vi-VN')} đ</div>
+      </div>
+    `
+  }
+
+  // Pagination calculation
+  const totalPages = Math.max(1, Math.ceil(filtered.length / studentFilterState.pageSize))
+  if (studentFilterState.currentPage > totalPages) {
+    studentFilterState.currentPage = totalPages
+  }
+  const fromIndex = (studentFilterState.currentPage - 1) * studentFilterState.pageSize
+  const pagedStudents = filtered.slice(fromIndex, fromIndex + studentFilterState.pageSize)
+
+  // Render Table Body
+  const tbody = document.getElementById('dash-stu-table-body')
+  if (tbody) {
+    if (pagedStudents.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="10" style="text-align:center; padding:32px; color:#64748b;">
+            <i class="fa-solid fa-user-slash" style="font-size:28px; color:#cbd5e1; margin-bottom:8px; display:block;"></i>
+            Không tìm thấy học sinh nào phù hợp với bộ lọc hiện tại.
+          </td>
+        </tr>
+      `
+    } else {
+      tbody.innerHTML = pagedStudents.map((s, idx) => {
+        const initials = getInitials(s.fullName)
+        const avatarColor = getAvatarColor(s.fullName)
+
+        const stats = selectedMonth === 'all'
+          ? s.total
+          : (s.monthly && s.monthly[selectedMonth] ? s.monthly[selectedMonth] : { attendedSessions: 0, paidSessions: 0, unpaidSessions: 0, tuitionFee: 0, paidTuitionFee: 0, unpaidTuitionFee: 0 })
+
+        const attended = stats.attendedSessions || 0
+        const paid = stats.paidSessions || 0
+        const unpaid = stats.unpaidSessions || 0
+        const fee = stats.tuitionFee || 0
+        const paidFee = stats.paidTuitionFee || 0
+        const unpaidFee = stats.unpaidTuitionFee !== undefined ? stats.unpaidTuitionFee : (fee - paidFee)
+
+        let statusBadge = ''
+        if (attended === 0) {
+          statusBadge = `<span style="background:#f1f5f9; color:#64748b; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;">Chưa học</span>`
+        } else if (unpaid === 0) {
+          statusBadge = `<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-check"></i> Đã đóng đủ</span>`
+        } else if (paid > 0) {
+          statusBadge = `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-circle-half-stroke"></i> Đóng 1 phần</span>`
+        } else {
+          statusBadge = `<span style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-triangle-exclamation"></i> Chưa đóng</span>`
+        }
+
+        return `
+          <tr>
+            <td>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="avatar-chip" style="background:${avatarColor}; width:34px; height:34px; font-size:12px;">
+                  ${initials}
+                </div>
+                <div>
+                  <div style="font-weight:700; color:#0f172a;">${s.fullName}</div>
+                  <div style="font-size:12px; color:#64748b;">@${s.username}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div style="font-weight:600; color:#334155; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${s.className}">
+                ${s.className || 'Chưa vào lớp'}
+              </div>
+            </td>
+            <td style="text-align:center;">
+              <span style="background:#fef3c7; color:#b45309; padding:4px 10px; border-radius:12px; font-weight:700; font-size:12px; display:inline-block;">
+                ${attended} buổi
+              </span>
+            </td>
+            <td style="text-align:center;">
+              <span style="background:#dcfce7; color:#15803d; padding:4px 10px; border-radius:12px; font-weight:700; font-size:12px; display:inline-block;">
+                ${paid} buổi
+              </span>
+            </td>
+            <td style="text-align:center;">
+              ${unpaid > 0 ? `
+                <span style="background:#fee2e2; color:#b91c1c; padding:4px 10px; border-radius:12px; font-weight:700; font-size:12px; display:inline-block;">
+                  ${unpaid} buổi
+                </span>
+              ` : `
+                <span style="color:#94a3b8; font-weight:600; font-size:12px;">0 buổi</span>
+              `}
+            </td>
+            <td style="text-align:right; font-weight:700; color:#334155;">
+              ${fee.toLocaleString('vi-VN')} đ
+            </td>
+            <td style="text-align:right; font-weight:700; color:#059669;">
+              ${paidFee.toLocaleString('vi-VN')} đ
+            </td>
+            <td style="text-align:right; font-weight:700; color:${unpaidFee > 0 ? '#dc2626' : '#94a3b8'};">
+              ${unpaidFee.toLocaleString('vi-VN')} đ
+            </td>
+            <td style="text-align:center;">
+              ${statusBadge}
+            </td>
+            <td style="text-align:right;">
+              <a href="#student-details?studentId=${s.studentId}" class="btn-secondary" style="padding:4px 10px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">
+                <i class="fa-solid fa-circle-user"></i> Chi tiết
+              </a>
+            </td>
+          </tr>
+        `
+      }).join('')
+    }
+  }
+
+  // Render Pagination Controls
+  const paginationContainer = document.getElementById('dash-stu-pagination')
+  if (paginationContainer) {
+    if (filtered.length === 0) {
+      paginationContainer.innerHTML = ''
+    } else {
+      paginationContainer.innerHTML = `
+        <div style="font-size:12px; font-weight:600; color:#64748b;">
+          Hiển thị <strong>${fromIndex + 1}</strong> - <strong>${Math.min(fromIndex + studentFilterState.pageSize, filtered.length)}</strong> trong tổng số <strong>${filtered.length}</strong> học sinh
+        </div>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button id="dash-stu-prev-page" class="btn-secondary" style="padding:4px 10px; font-size:12px;" ${studentFilterState.currentPage <= 1 ? 'disabled' : ''}>
+            <i class="fa-solid fa-chevron-left"></i> Trước
+          </button>
+          <span style="font-size:12px; font-weight:700; color:#334155; padding:0 8px;">
+            Trang ${studentFilterState.currentPage} / ${totalPages}
+          </span>
+          <button id="dash-stu-next-page" class="btn-secondary" style="padding:4px 10px; font-size:12px;" ${studentFilterState.currentPage >= totalPages ? 'disabled' : ''}>
+            Sau <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      `
+
+      document.getElementById('dash-stu-prev-page')?.addEventListener('click', () => {
+        if (studentFilterState.currentPage > 1) {
+          studentFilterState.currentPage--
+          renderStudentAttendanceTable()
+        }
+      })
+
+      document.getElementById('dash-stu-next-page')?.addEventListener('click', () => {
+        if (studentFilterState.currentPage < totalPages) {
+          studentFilterState.currentPage++
+          renderStudentAttendanceTable()
+        }
+      })
+    }
+  }
+}
+
 export function bindAdminDashboardEvents() {
   bindSidebarEvents()
+
+  // Initial render of Student Attendance & Tuition Table
+  renderStudentAttendanceTable()
+
+  // Bind Student Attendance Table Filter Events
+  const searchInput = document.getElementById('dash-stu-search')
+  searchInput?.addEventListener('input', (e) => {
+    studentFilterState.searchQuery = e.target.value
+    studentFilterState.currentPage = 1
+    renderStudentAttendanceTable()
+  })
+
+  const monthSelect = document.getElementById('dash-stu-filter-month')
+  monthSelect?.addEventListener('change', (e) => {
+    studentFilterState.selectedMonth = e.target.value
+    studentFilterState.currentPage = 1
+    renderStudentAttendanceTable()
+  })
+
+  const classSelect = document.getElementById('dash-stu-filter-class')
+  classSelect?.addEventListener('change', (e) => {
+    studentFilterState.selectedClass = e.target.value
+    studentFilterState.currentPage = 1
+    renderStudentAttendanceTable()
+  })
+
+  const statusSelect = document.getElementById('dash-stu-filter-status')
+  statusSelect?.addEventListener('change', (e) => {
+    studentFilterState.selectedStatus = e.target.value
+    studentFilterState.currentPage = 1
+    renderStudentAttendanceTable()
+  })
 
   setTimeout(() => {
     if (!window.Chart) return
@@ -760,7 +1115,7 @@ export function bindAdminDashboardEvents() {
                   if (totalGraded === 0) return 'Chưa có bài nộp'
                   const val = ctx.parsed || 0
                   const pct = Math.round((val / totalGraded) * 100)
-                  return `${ctx.label}: ${val} bài (${pct}%)`
+                  return `${ctx.label}: ${val} học sinh (${pct}%)`
                 }
               }
             }
@@ -770,7 +1125,7 @@ export function bindAdminDashboardEvents() {
     }
 
     // ==========================================================
-    // CHART 4: TEACHING & SUBMISSIONS TREND (Buổi dạy & Nộp bài)
+    // CHART 4: TEACHING SESSIONS TREND (Số buổi dạy & Đường cong)
     // ==========================================================
     const canvasActivity = document.getElementById('chart-activity-trend')
     if (canvasActivity) {
@@ -784,16 +1139,18 @@ export function bindAdminDashboardEvents() {
           datasets: [
             {
               type: 'line',
-              label: 'Lượt nộp bài',
-              data: submissionData,
+              label: 'Đường xu hướng',
+              data: sessionData,
               borderColor: '#0284c7',
-              backgroundColor: 'rgba(2, 132, 199, 0.08)',
-              borderWidth: 3,
-              tension: 0.35,
-              fill: true,
+              borderWidth: 2.5,
+              cubicInterpolationMode: 'monotone',
+              tension: 0.3,
+              fill: false,
               pointBackgroundColor: '#0284c7',
-              pointRadius: 4,
-              yAxisID: 'ySubmissions',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 5,
+              pointHoverRadius: 7,
               order: 1
             },
             {
@@ -801,9 +1158,10 @@ export function bindAdminDashboardEvents() {
               label: 'Số buổi dạy',
               data: sessionData,
               backgroundColor: '#f59e0b',
+              hoverBackgroundColor: '#d97706',
               borderRadius: 6,
               barPercentage: 0.5,
-              yAxisID: 'ySessions',
+              categoryPercentage: 0.65,
               order: 2
             }
           ]
@@ -819,42 +1177,24 @@ export function bindAdminDashboardEvents() {
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (ctx) => {
-                  if (ctx.dataset.yAxisID === 'ySubmissions') {
-                    return `Lượt nộp bài: ${ctx.parsed.y} lượt`
-                  }
-                  return `Số buổi dạy: ${ctx.parsed.y} buổi`
-                }
-              }
+                label: (ctx) => `Số buổi dạy: ${ctx.parsed.y} buổi`
+              },
+              filter: (item) => item.datasetIndex === 1
             }
           },
           scales: {
             x: {
               grid: { display: false }
             },
-            ySessions: {
-              type: 'linear',
-              position: 'left',
+            y: {
               beginAtZero: true,
+              grace: '15%',
               title: {
                 display: true,
-                text: 'Buổi dạy',
+                text: 'Số buổi dạy',
                 color: '#d97706',
                 font: { size: 11, weight: 'bold' }
               },
-              ticks: { precision: 0 }
-            },
-            ySubmissions: {
-              type: 'linear',
-              position: 'right',
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Lượt nộp',
-                color: '#0284c7',
-                font: { size: 11, weight: 'bold' }
-              },
-              grid: { drawOnChartArea: false },
               ticks: { precision: 0 }
             }
           }

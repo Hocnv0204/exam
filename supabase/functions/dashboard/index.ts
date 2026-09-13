@@ -13,53 +13,188 @@ serve(async (req: Request) => {
 
     const { serviceRoleClient } = await requireAdmin(req)
 
-    // 1. Total Students Count
-    const { count: studentCount, error: sErr } = await serviceRoleClient
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'STUDENT')
+    // Execute all independent aggregate and list queries in parallel via Promise.all
+    const [
+      studentsRes,
+      classesRes,
+      studentClassesRes,
+      homeworkCountRes,
+      classSessionsRes,
+      studentSessionsRes,
+      submissionsRes,
+      recentSubmissionsRes
+    ] = await Promise.all([
+      // 1. All Students List
+      serviceRoleClient
+        .from('profiles')
+        .select('id, username, full_name, class_id')
+        .eq('role', 'STUDENT')
+        .order('full_name', { ascending: true }),
 
-    if (sErr) return errorResponse(sErr.message, 500)
+      // 2. All Classes
+      serviceRoleClient
+        .from('classes')
+        .select('id, name, tuition_fee, grade_block')
+        .order('name', { ascending: true }),
 
-    // 2. Total Classes Count
-    const { count: classCount, error: cErr } = await serviceRoleClient
-      .from('classes')
-      .select('*', { count: 'exact', head: true })
+      // 3. Student-Classes Mapping (many-to-many)
+      serviceRoleClient
+        .from('student_classes')
+        .select('student_id, class_id'),
 
-    if (cErr) return errorResponse(cErr.message, 500)
+      // 4. Total Homeworks Count
+      serviceRoleClient
+        .from('homeworks')
+        .select('*', { count: 'exact', head: true }),
 
-    // 3. Total Homeworks Count
-    const { count: homeworkCount, error: hErr } = await serviceRoleClient
-      .from('homeworks')
-      .select('*', { count: 'exact', head: true })
+      // 5. Class study sessions
+      serviceRoleClient
+        .from('class_sessions')
+        .select('class_id, session_date'),
 
-    if (hErr) return errorResponse(hErr.message, 500)
+      // 6. Student attendance sessions
+      serviceRoleClient
+        .from('student_sessions')
+        .select('student_id, class_id, session_date, is_paid'),
 
-    // 4. Fetch class_sessions and student_sessions to calculate total taught sessions & monthly breakdown according to unique (class_id, session_date) rule
-    const { data: classSessionsData, error: csErr } = await serviceRoleClient
-      .from('class_sessions')
-      .select('class_id, session_date')
+      // 7. Submissions for score calculation, monthly trends & timing
+      serviceRoleClient
+        .from('submissions')
+        .select('id, total_score, max_score, student_id, homework_id, is_late, submitted_at')
+        .order('submitted_at', { ascending: false }),
 
-    if (csErr) return errorResponse(csErr.message, 500)
+      // 8. Recent Submissions List (Top 10)
+      serviceRoleClient
+        .from('submissions')
+        .select(`
+          id,
+          total_score,
+          max_score,
+          correct_count,
+          wrong_count,
+          is_late,
+          submitted_at,
+          profiles (username, full_name),
+          homeworks (title, deadline)
+        `)
+        .order('submitted_at', { ascending: false })
+        .limit(10)
+    ])
 
-    const { data: classTuitions, error: ctErr } = await serviceRoleClient
-      .from('classes')
-      .select('id, tuition_fee')
-    if (ctErr) return errorResponse(ctErr.message, 500)
-    
-    const { data: studentSessions, error: ssErr } = await serviceRoleClient
-      .from('student_sessions')
-      .select('class_id, session_date, is_paid')
-    if (ssErr) return errorResponse(ssErr.message, 500)
+    if (studentsRes.error) return errorResponse(studentsRes.error.message, 500)
+    if (classesRes.error) return errorResponse(classesRes.error.message, 500)
+    if (studentClassesRes.error) return errorResponse(studentClassesRes.error.message, 500)
+    if (homeworkCountRes.error) return errorResponse(homeworkCountRes.error.message, 500)
+    if (classSessionsRes.error) return errorResponse(classSessionsRes.error.message, 500)
+    if (studentSessionsRes.error) return errorResponse(studentSessionsRes.error.message, 500)
+    if (submissionsRes.error) return errorResponse(submissionsRes.error.message, 500)
+    if (recentSubmissionsRes.error) return errorResponse(recentSubmissionsRes.error.message, 500)
 
-    // Set of unique "class_id|session_date" strings across all classes
+    const studentsData = studentsRes.data || []
+    const classesData = classesRes.data || []
+    const studentClassesData = studentClassesRes.data || []
+    const homeworkCount = homeworkCountRes.count || 0
+    const classSessionsData = classSessionsRes.data || []
+    const studentSessionsData = studentSessionsRes.data || []
+    const submissions = submissionsRes.data || []
+    const recentSubmissionsRaw = recentSubmissionsRes.data || []
+
+    const studentCount = studentsData.length
+    const classCount = classesData.length
+    const subCount = submissions.length
+
+    // Build Class Map and Tuition Map
+    const classMap = new Map<string, { id: string; name: string; tuitionFee: number; gradeBlock: string }>()
+    classesData.forEach(c => {
+      classMap.set(c.id, {
+        id: c.id,
+        name: c.name || 'Chưa đặt tên',
+        tuitionFee: Number(c.tuition_fee || 0),
+        gradeBlock: c.grade_block || ''
+      })
+    })
+
+    // Map student_classes
+    const studentClassIdsMap = new Map<string, Set<string>>()
+    studentClassesData.forEach(sc => {
+      if (!studentClassIdsMap.has(sc.student_id)) {
+        studentClassIdsMap.set(sc.student_id, new Set<string>())
+      }
+      studentClassIdsMap.get(sc.student_id)!.add(sc.class_id)
+    })
+
+    // Initialize Student Attendance & Tuition Map
+    interface StudentStats {
+      studentId: string
+      username: string
+      fullName: string
+      classIds: string[]
+      classNames: string[]
+      className: string
+      monthly: Record<string, {
+        month: string
+        label: string
+        attendedSessions: number
+        paidSessions: number
+        unpaidSessions: number
+        tuitionFee: number
+        paidTuitionFee: number
+        unpaidTuitionFee: number
+        isFullyPaid: boolean
+      }>
+      total: {
+        attendedSessions: number
+        paidSessions: number
+        unpaidSessions: number
+        tuitionFee: number
+        paidTuitionFee: number
+        unpaidTuitionFee: number
+        isFullyPaid: boolean
+      }
+    }
+
+    const studentStatsMap = new Map<string, StudentStats>()
+    studentsData.forEach(s => {
+      const classIdSet = studentClassIdsMap.get(s.id) || new Set<string>()
+      if (s.class_id && !classIdSet.has(s.class_id)) {
+        classIdSet.add(s.class_id)
+      }
+      const classIds = Array.from(classIdSet)
+      const classNames = classIds.map(cid => classMap.get(cid)?.name || '').filter(Boolean)
+
+      studentStatsMap.set(s.id, {
+        studentId: s.id,
+        username: s.username,
+        fullName: s.full_name || s.username,
+        classIds,
+        classNames,
+        className: classNames.join(', ') || 'Chưa vào lớp',
+        monthly: {},
+        total: {
+          attendedSessions: 0,
+          paidSessions: 0,
+          unpaidSessions: 0,
+          tuitionFee: 0,
+          paidTuitionFee: 0,
+          unpaidTuitionFee: 0,
+          isFullyPaid: true
+        }
+      })
+    })
+
+    // Monthly aggregates setup
     const uniqueClassSessionsSet = new Set<string>()
-
-    // Map month string (YYYY-MM) -> Set of "class_id|session_date"
     const monthlySessionsSetMap = new Map<string, Set<string>>()
-
-    // Map month string (YYYY-MM) -> monthly aggregate
-    const monthMap = new Map<string, { month: string; label: string; sessionCount: number; tuitionFee: number; paidTuitionFee: number; studentSessionCount: number }>()
+    const monthMap = new Map<string, {
+      month: string
+      label: string
+      sessionCount: number
+      submissionCount: number
+      tuitionFee: number
+      paidTuitionFee: number
+      unpaidTuitionFee: number
+      studentSessionCount: number
+    }>()
 
     const getOrInitMonth = (monthKey: string) => {
       if (!monthMap.has(monthKey)) {
@@ -69,8 +204,10 @@ serve(async (req: Request) => {
           month: monthKey,
           label,
           sessionCount: 0,
+          submissionCount: 0,
           tuitionFee: 0,
           paidTuitionFee: 0,
+          unpaidTuitionFee: 0,
           studentSessionCount: 0
         })
       }
@@ -90,107 +227,234 @@ serve(async (req: Request) => {
       monthlySessionsSetMap.get(monthKey)!.add(key)
     }
 
-    if (classSessionsData) {
-      classSessionsData.forEach(cs => {
-        if (cs.class_id && cs.session_date) {
-          addClassSessionDate(cs.class_id, cs.session_date)
-        }
-      })
-    }
+    classSessionsData.forEach(cs => {
+      if (cs.class_id && cs.session_date) {
+        addClassSessionDate(cs.class_id, cs.session_date)
+      }
+    })
 
-    if (studentSessions) {
-      studentSessions.forEach(ss => {
-        if (ss.class_id && ss.session_date) {
-          addClassSessionDate(ss.class_id, ss.session_date)
-        }
-      })
-    }
+    studentSessionsData.forEach(ss => {
+      if (ss.class_id && ss.session_date) {
+        addClassSessionDate(ss.class_id, ss.session_date)
+      }
+    })
 
     const totalTaughtSessions = uniqueClassSessionsSet.size
 
-    // Calculate tuition fees from student_sessions
-    const tuitionMap = new Map((classTuitions || []).map(c => [c.id, Number(c.tuition_fee || 0)]))
+    // Process student sessions for financial & individual attendance stats
     let totalTuitionFee = 0
     let totalPaidTuitionFee = 0
 
-    if (studentSessions) {
-      studentSessions.forEach(session => {
-        const fee = tuitionMap.get(session.class_id) || 0
-        totalTuitionFee += fee
-        const isPaid = session.is_paid === true || session.is_paid === 'true' || session.is_paid === 1
+    studentSessionsData.forEach(session => {
+      const fee = classMap.get(session.class_id)?.tuitionFee || 0
+      totalTuitionFee += fee
+      const isPaid = session.is_paid === true || session.is_paid === 'true' || session.is_paid === 1
+      if (isPaid) {
+        totalPaidTuitionFee += fee
+      }
+
+      const monthKey = session.session_date ? session.session_date.substring(0, 7) : null
+      if (monthKey) {
+        const item = getOrInitMonth(monthKey)
+        item.tuitionFee += fee
+        item.studentSessionCount++
         if (isPaid) {
-          totalPaidTuitionFee += fee
+          item.paidTuitionFee += fee
+        }
+      }
+
+      // Process per-student individual stats
+      if (session.student_id) {
+        let studentObj = studentStatsMap.get(session.student_id)
+        if (!studentObj) {
+          // In case student is not in profiles list
+          studentObj = {
+            studentId: session.student_id,
+            username: 'student',
+            fullName: 'Học sinh',
+            classIds: [session.class_id],
+            classNames: [classMap.get(session.class_id)?.name || ''],
+            className: classMap.get(session.class_id)?.name || '',
+            monthly: {},
+            total: {
+              attendedSessions: 0,
+              paidSessions: 0,
+              unpaidSessions: 0,
+              tuitionFee: 0,
+              paidTuitionFee: 0,
+              unpaidTuitionFee: 0,
+              isFullyPaid: true
+            }
+          }
+          studentStatsMap.set(session.student_id, studentObj)
         }
 
-        if (session.session_date) {
-          const monthKey = session.session_date.substring(0, 7)
-          const item = getOrInitMonth(monthKey)
-          item.tuitionFee += fee
-          item.studentSessionCount++
-          if (isPaid) {
-            item.paidTuitionFee += fee
-          }
+        // Increment student total
+        studentObj.total.attendedSessions++
+        studentObj.total.tuitionFee += fee
+        if (isPaid) {
+          studentObj.total.paidSessions++
+          studentObj.total.paidTuitionFee += fee
+        } else {
+          studentObj.total.unpaidSessions++
+          studentObj.total.unpaidTuitionFee += fee
         }
+        studentObj.total.isFullyPaid = studentObj.total.unpaidSessions === 0
+
+        // Increment student monthly
+        if (monthKey) {
+          if (!studentObj.monthly[monthKey]) {
+            const [year, m] = monthKey.split('-')
+            studentObj.monthly[monthKey] = {
+              month: monthKey,
+              label: `Tháng ${m}/${year}`,
+              attendedSessions: 0,
+              paidSessions: 0,
+              unpaidSessions: 0,
+              tuitionFee: 0,
+              paidTuitionFee: 0,
+              unpaidTuitionFee: 0,
+              isFullyPaid: true
+            }
+          }
+          const mObj = studentObj.monthly[monthKey]
+          mObj.attendedSessions++
+          mObj.tuitionFee += fee
+          if (isPaid) {
+            mObj.paidSessions++
+            mObj.paidTuitionFee += fee
+          } else {
+            mObj.unpaidSessions++
+            mObj.unpaidTuitionFee += fee
+          }
+          mObj.isFullyPaid = mObj.unpaidSessions === 0
+        }
+      }
+    })
+
+    // Process submissions for monthly submission count, timing and score distribution
+    const scoreDistribution = {
+      excellent: 0, // 9 - 10
+      good: 0,      // 8 - 8.9
+      fair: 0,      // 6.5 - 7.9
+      average: 0,   // 5 - 6.4
+      poor: 0       // < 5
+    }
+
+    let onTimeCount = 0
+    let lateCount = 0
+
+    // Compute student average scores across homeworks
+    const studentScoresMap = new Map<string, Map<string, number>>() // student_id -> homework_id -> best_scaled_score
+    submissions.forEach(s => {
+      // Monthly submission count
+      if (s.submitted_at) {
+        const monthKey = s.submitted_at.substring(0, 7)
+        const item = getOrInitMonth(monthKey)
+        item.submissionCount++
+      }
+
+      // Submission Timing
+      if (s.is_late) {
+        lateCount++
+      } else {
+        onTimeCount++
+      }
+
+      // Best Score per homework per student (scale of 10)
+      if (s.student_id && s.homework_id) {
+        const rawScore = Number(s.total_score || 0)
+        const maxScore = Number(s.max_score || 10) || 10
+        const scaledScore = Math.min(10, Math.max(0, (rawScore / maxScore) * 10))
+
+        if (!studentScoresMap.has(s.student_id)) {
+          studentScoresMap.set(s.student_id, new Map<string, number>())
+        }
+        const hwMap = studentScoresMap.get(s.student_id)!
+        const currentBest = hwMap.get(s.homework_id)
+        if (currentBest === undefined || scaledScore > currentBest) {
+          hwMap.set(s.homework_id, scaledScore)
+        }
+      }
+    })
+
+    // Calculate score distribution across students
+    let totalStudentAveragesSum = 0
+    let gradedStudentsCount = 0
+    let passedCount = 0
+
+    studentScoresMap.forEach((hwMap) => {
+      const scores = Array.from(hwMap.values())
+      if (scores.length > 0) {
+        const avg = scores.reduce((sum, val) => sum + val, 0) / scores.length
+        totalStudentAveragesSum += avg
+        gradedStudentsCount++
+
+        if (avg >= 5.0) passedCount++
+
+        if (avg >= 9.0) {
+          scoreDistribution.excellent++
+        } else if (avg >= 8.0) {
+          scoreDistribution.good++
+        } else if (avg >= 6.5) {
+          scoreDistribution.fair++
+        } else if (avg >= 5.0) {
+          scoreDistribution.average++
+        } else {
+          scoreDistribution.poor++
+        }
+      }
+    })
+
+    // If no students have submissions yet, fallback to single submission scores
+    if (gradedStudentsCount === 0 && submissions.length > 0) {
+      submissions.forEach(s => {
+        const rawScore = Number(s.total_score || 0)
+        const maxScore = Number(s.max_score || 10) || 10
+        const scaled = (rawScore / maxScore) * 10
+        if (scaled >= 5.0) passedCount++
+        if (scaled >= 9.0) scoreDistribution.excellent++
+        else if (scaled >= 8.0) scoreDistribution.good++
+        else if (scaled >= 6.5) scoreDistribution.fair++
+        else if (scaled >= 5.0) scoreDistribution.average++
+        else scoreDistribution.poor++
       })
     }
 
-    // Set sessionCount for each month based on unique (class_id, session_date) per month
+    const averageScore = gradedStudentsCount > 0
+      ? Number((totalStudentAveragesSum / gradedStudentsCount).toFixed(2))
+      : (submissions.length > 0
+          ? Number((submissions.reduce((a, b) => a + Number(b.total_score || 0), 0) / submissions.length).toFixed(2))
+          : 0)
+
+    const passRate = gradedStudentsCount > 0
+      ? Math.round((passedCount / gradedStudentsCount) * 100)
+      : (submissions.length > 0 ? Math.round((passedCount / submissions.length) * 100) : 0)
+
+    const onTimeRate = subCount > 0 ? Math.round((onTimeCount / subCount) * 100) : 100
+
+    // Set sessionCount and unpaidTuitionFee for each month
     monthMap.forEach((item, monthKey) => {
       const monthSessionsSet = monthlySessionsSetMap.get(monthKey)
       item.sessionCount = monthSessionsSet ? monthSessionsSet.size : 0
+      item.unpaidTuitionFee = item.tuitionFee - item.paidTuitionFee
     })
 
     const totalUnpaidTuitionFee = totalTuitionFee - totalPaidTuitionFee
+    const collectionRate = totalTuitionFee > 0 ? Math.round((totalPaidTuitionFee / totalTuitionFee) * 100) : 0
 
-    // Sort monthly stats chronologically and compute unpaidTuitionFee per month
-    const monthlyStats = Array.from(monthMap.values()).map(m => ({
-      ...m,
-      unpaidTuitionFee: m.tuitionFee - m.paidTuitionFee
-    })).sort((a, b) => a.month.localeCompare(b.month))
+    // Sort monthly stats chronologically
+    const monthlyStats = Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month))
 
-    // 6. Total Submissions Count & Average Score Calculation
-    const { data: submissions, count: subCount, error: subErr } = await serviceRoleClient
-      .from('submissions')
-      .select('id, total_score, submitted_at, homework_id, student_id')
-
-    if (subErr) return errorResponse(subErr.message, 500)
-
-    let averageScore = 0
-    if (submissions && submissions.length > 0) {
-      const bestScoreMap = new Map<string, number>()
-      for (const s of submissions) {
-        const key = `${s.student_id}_${s.homework_id}`
-        const score = Number(s.total_score)
-        const currentBest = bestScoreMap.get(key)
-        if (currentBest === undefined || score > currentBest) {
-          bestScoreMap.set(key, score)
-        }
+    // Format student attendance stats as array sorted by outstanding debt and attendance
+    const studentAttendanceStats = Array.from(studentStatsMap.values()).sort((a, b) => {
+      if (b.total.unpaidTuitionFee !== a.total.unpaidTuitionFee) {
+        return b.total.unpaidTuitionFee - a.total.unpaidTuitionFee
       }
-      const bestScores = Array.from(bestScoreMap.values())
-      const sum = bestScores.reduce((acc, curr) => acc + curr, 0)
-      averageScore = Number((sum / bestScores.length).toFixed(2))
-    }
+      return b.total.attendedSessions - a.total.attendedSessions
+    })
 
-    // 7. Recent Submissions List (Top 10)
-    const { data: recentSubmissionsRaw, error: recErr } = await serviceRoleClient
-      .from('submissions')
-      .select(`
-        id,
-        total_score,
-        max_score,
-        correct_count,
-        wrong_count,
-        is_late,
-        submitted_at,
-        profiles (username, full_name),
-        homeworks (title, deadline)
-      `)
-      .order('submitted_at', { ascending: false })
-      .limit(10)
-
-    if (recErr) return errorResponse(recErr.message, 500)
-
-    const recentSubmissions = recentSubmissionsRaw.map((sub) => {
+    const recentSubmissions = recentSubmissionsRaw.map((sub: any) => {
       const hwObj = sub.homeworks as unknown as { title: string; deadline?: string }
       const isLate = sub.is_late || (hwObj?.deadline ? new Date(sub.submitted_at) > new Date(hwObj.deadline) : false)
       return {
@@ -209,17 +473,28 @@ serve(async (req: Request) => {
 
     return jsonResponse({
       overview: {
-        totalStudents: studentCount || 0,
-        totalClasses: classCount || 0,
-        totalHomeworks: homeworkCount || 0,
-        totalSubmissions: subCount || 0,
+        totalStudents: studentCount,
+        totalClasses: classCount,
+        totalHomeworks: homeworkCount,
+        totalSubmissions: subCount,
         totalTaughtSessions,
         totalTuitionFee,
         totalPaidTuitionFee,
         totalUnpaidTuitionFee,
+        collectionRate,
         averageScore,
+        passRate,
+        onTimeRate,
+      },
+      scoreDistribution,
+      submissionTiming: {
+        total: subCount,
+        onTime: onTimeCount,
+        late: lateCount,
+        onTimeRate,
       },
       monthlyStats,
+      studentAttendanceStats,
       recentSubmissions,
     })
   } catch (err: unknown) {

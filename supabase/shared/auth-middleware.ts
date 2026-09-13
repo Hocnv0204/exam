@@ -32,26 +32,25 @@ export async function requireAuth(req: Request): Promise<{
 
   const userId = authData.user.id
 
-  // Retrieve User Profile using service role client to ensure profile data availability
-  const { data: profile, error: profileError } = await serviceRoleClient
-    .from('profiles')
-    .select('id, username, full_name, role, class_id')
-    .eq('id', userId)
-    .single()
-
-  if (profileError || !profile) {
-    throw new Error('User profile not found')
-  }
-
-  // Retrieve student classes
-  let classIds: string[] = []
-  if (profile.role === 'STUDENT') {
-    const { data: stClasses } = await serviceRoleClient
+  // Retrieve User Profile and Student Classes in parallel using service role client
+  const [profileRes, stClassesRes] = await Promise.all([
+    serviceRoleClient
+      .from('profiles')
+      .select('id, username, full_name, role, class_id')
+      .eq('id', userId)
+      .single(),
+    serviceRoleClient
       .from('student_classes')
       .select('class_id')
       .eq('student_id', userId)
-    classIds = stClasses?.map((c) => c.class_id) || []
+  ])
+
+  if (profileRes.error || !profileRes.data) {
+    throw new Error('User profile not found')
   }
+
+  const profile = profileRes.data
+  const classIds = profile.role === 'STUDENT' ? (stClassesRes.data?.map((c) => c.class_id) || []) : []
 
   const user: AuthenticatedUser = {
     id: profile.id,

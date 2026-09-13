@@ -14,7 +14,7 @@ let isLoading = false
 export async function fetchGradeBlocksData() {
   isLoading = true
   try {
-    const res = await api.getGradeBlocks()
+    const res = await api.getGradeBlocks({ includeStats: true })
     if (Array.isArray(res)) {
       cachedGradeBlocks = res
     } else if (res && Array.isArray(res.data)) {

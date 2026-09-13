@@ -26,45 +26,47 @@ serve(async (req: Request) => {
           return jsonResponse([])
         }
 
-        // Fetch all published homeworks for the student's classes
-        const { data: homeworks, error: hwError } = await serviceRoleClient
-          .from('homeworks')
-          .select(`
-            id,
-            title,
-            duration_minutes,
-            deadline,
-            max_attempts,
-            type,
-            created_at,
-            lessons!inner (
+        // Fetch all published homeworks and student submissions in parallel
+        const [hwRes, subRes] = await Promise.all([
+          serviceRoleClient
+            .from('homeworks')
+            .select(`
               id,
               title,
-              chapters!inner (
+              duration_minutes,
+              deadline,
+              max_attempts,
+              type,
+              created_at,
+              lessons!inner (
                 id,
                 title,
-                class_id,
-                classes!inner (
+                chapters!inner (
                   id,
-                  name
+                  title,
+                  class_id,
+                  classes!inner (
+                    id,
+                    name
+                  )
                 )
               )
-            )
-          `)
-          .eq('is_published', true)
-          .in('lessons.chapters.class_id', user.classIds)
-          .order('created_at', { ascending: false })
+            `)
+            .eq('is_published', true)
+            .in('lessons.chapters.class_id', user.classIds)
+            .order('created_at', { ascending: false }),
+          serviceRoleClient
+            .from('submissions')
+            .select('homework_id')
+            .eq('student_id', user.id)
+            .eq('status', 'SUBMITTED')
+        ])
 
-        if (hwError) return errorResponse(hwError.message, 500)
+        if (hwRes.error) return errorResponse(hwRes.error.message, 500)
+        if (subRes.error) return errorResponse(subRes.error.message, 500)
 
-        // Fetch student's submissions
-        const { data: submissions, error: subError } = await serviceRoleClient
-          .from('submissions')
-          .select('homework_id')
-          .eq('student_id', user.id)
-          .eq('status', 'SUBMITTED')
-
-        if (subError) return errorResponse(subError.message, 500)
+        const homeworks = hwRes.data || []
+        const submissions = subRes.data || []
 
         const submittedHwIds = new Set((submissions || []).map(s => s.homework_id))
         const todoHomeworks = (homeworks || []).filter(hw => !submittedHwIds.has(hw.id))

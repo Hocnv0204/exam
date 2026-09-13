@@ -86,63 +86,61 @@ serve(async (req: Request) => {
       }
     }
 
-    // 3. Count attempts for STUDENT
-    let attemptsCount = 0
-    if (user && user.role === 'STUDENT') {
-      const { count, error: countErr } = await serviceRoleClient
-        .from('submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('homework_id', homeworkId)
-        .eq('student_id', user.id)
-        .eq('status', 'SUBMITTED')
+    // 3. Concurrently fetch: Attempts Count, Signed PDF URL, and Questions
+    const attemptsPromise = (user && user.role === 'STUDENT')
+      ? serviceRoleClient
+          .from('submissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('homework_id', homeworkId)
+          .eq('student_id', user.id)
+          .eq('status', 'SUBMITTED')
+      : Promise.resolve({ count: 0, error: null })
 
-      if (!countErr && count !== null) {
-        attemptsCount = count
-      }
-    }
+    const pdfPromise = (homework.pdf_path && !homework.pdf_path.startsWith('http'))
+      ? serviceRoleClient.storage
+          .from('pdf-files')
+          .createSignedUrl(homework.pdf_path, 3600)
+      : Promise.resolve({ data: null, error: null })
 
-    // 4. Generate Signed URL for PDF storage file (if present)
-    let pdfUrl = homework.pdf_path || ''
-    if (pdfUrl && !pdfUrl.startsWith('http')) {
-      const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
-        .from('pdf-files')
-        .createSignedUrl(homework.pdf_path, 3600) // 1 hour signed URL
+    const isAdmin = user && user.role === 'ADMIN'
+    const questionsSelect = isAdmin
+      ? 'id, question_number, question_type, prompt, content, options, statements, part_title, points, question_answers (question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation)'
+      : 'id, question_number, question_type, prompt, content, options, statements, part_title, points'
 
-      if (!storageErr && signedUrlData) {
-        pdfUrl = signedUrlData.signedUrl
-      }
-    }
-
-    // 5. Fetch Questions
-    const { data: questions, error: qErr } = await serviceRoleClient
+    const questionsPromise = serviceRoleClient
       .from('questions')
-      .select('id, question_number, question_type, prompt, content, options, statements, part_title, points')
+      .select(questionsSelect)
       .eq('homework_id', homeworkId)
       .order('question_number', { ascending: true })
 
-    if (qErr) {
-      return errorResponse(qErr.message, 500)
+    const [attemptsRes, pdfRes, questionsRes] = await Promise.all([
+      attemptsPromise,
+      pdfPromise,
+      questionsPromise,
+    ])
+
+    let attemptsCount = attemptsRes.count ?? 0
+
+    let pdfUrl = homework.pdf_path || ''
+    if (pdfRes.data?.signedUrl) {
+      pdfUrl = pdfRes.data.signedUrl
     }
 
-    // 6. Security Enforcer: Answer keys inclusion based on Role
-    let questionsResult = questions
-
-    if (user && user.role === 'ADMIN') {
-      // Admins get question_answers
-      const qIds = (questions || []).map((q) => q.id)
-      const { data: answerKeys } = await serviceRoleClient
-        .from('question_answers')
-        .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
-        .in('question_id', qIds)
-
-      const keyMap = new Map(answerKeys?.map((k) => [k.question_id, k]) || [])
-
-      questionsResult = (questions || []).map((q) => ({
-        ...q,
-        answerKey: keyMap.get(q.id) || null,
-      }))
+    if (questionsRes.error) {
+      return errorResponse(questionsRes.error.message, 500)
     }
-    // Note: For STUDENT role, answerKey is NEVER attached!
+
+    let questionsResult = (questionsRes.data || []).map((q: any) => {
+      if (isAdmin) {
+        const qa = Array.isArray(q.question_answers) ? q.question_answers[0] : q.question_answers
+        const { question_answers, ...rest } = q
+        return {
+          ...rest,
+          answerKey: qa || null,
+        }
+      }
+      return q
+    })
 
     return jsonResponse({
       homework: {

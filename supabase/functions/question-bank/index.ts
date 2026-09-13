@@ -114,7 +114,6 @@ serve(async (req: Request) => {
       // Kiểm tra số lượng câu hỏi khả dụng theo phạm vi (Live availability check)
       if (action === 'check-availability') {
         const scopeType = url.searchParams.get('scopeType') || 'BLOCK'
-        const { classIds: avClassIds, chapterIds: avChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
         let baseQuery = serviceRoleClient
           .from('question_bank')
           .select('id, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id')
@@ -132,6 +131,7 @@ serve(async (req: Request) => {
         } else if (classId) {
           baseQuery = baseQuery.eq('class_id', classId)
         } else if (gradeBlock) {
+          const { classIds: avClassIds, chapterIds: avChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
           const orClauses = [`grade_block.eq.${gradeBlock}`]
           if (avClassIds.length > 0) orClauses.push(`class_id.in.(${avClassIds.join(',')})`)
           if (avChapterIds.length > 0) orClauses.push(`chapter_id.in.(${avChapterIds.join(',')})`)
@@ -179,7 +179,6 @@ serve(async (req: Request) => {
 
       // Nếu chỉ yêu cầu thống kê chung
       if (statsOnly) {
-        const { classIds: stClassIds, chapterIds: stChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
         let baseQuery = serviceRoleClient.from('question_bank').select('id, subject, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id')
         if (subject) baseQuery = baseQuery.eq('subject', subject)
         if (gradeLevel) baseQuery = baseQuery.eq('grade_level', parseInt(gradeLevel, 10))
@@ -191,6 +190,7 @@ serve(async (req: Request) => {
         } else if (classId) {
           baseQuery = baseQuery.eq('class_id', classId)
         } else if (gradeBlock) {
+          const { classIds: stClassIds, chapterIds: stChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
           const orClauses = [`grade_block.eq.${gradeBlock}`]
           if (stClassIds.length > 0) orClauses.push(`class_id.in.(${stClassIds.join(',')})`)
           if (stChapterIds.length > 0) orClauses.push(`chapter_id.in.(${stChapterIds.join(',')})`)
@@ -216,7 +216,12 @@ serve(async (req: Request) => {
       }
 
       // Truy vấn chi tiết câu hỏi kèm thông tin Chương, Bài học, Lớp
-      const { classIds: qbClassIds, chapterIds: qbChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+      const includeStats = url.searchParams.get('includeStats') === 'true' || url.searchParams.get('withStats') === 'true'
+      let qbScopeTargetIds: { classIds: string[]; chapterIds: string[] } = { classIds: [], chapterIds: [] }
+      if (gradeBlock && !lessonId && !chapterId && !classId) {
+        qbScopeTargetIds = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+      }
+
       let query = serviceRoleClient
         .from('question_bank')
         .select(`
@@ -266,8 +271,8 @@ serve(async (req: Request) => {
         query = query.eq('class_id', classId)
       } else if (gradeBlock) {
         const orClauses = [`grade_block.eq.${gradeBlock}`]
-        if (qbClassIds.length > 0) orClauses.push(`class_id.in.(${qbClassIds.join(',')})`)
-        if (qbChapterIds.length > 0) orClauses.push(`chapter_id.in.(${qbChapterIds.join(',')})`)
+        if (qbScopeTargetIds.classIds.length > 0) orClauses.push(`class_id.in.(${qbScopeTargetIds.classIds.join(',')})`)
+        if (qbScopeTargetIds.chapterIds.length > 0) orClauses.push(`chapter_id.in.(${qbScopeTargetIds.chapterIds.join(',')})`)
         query = query.or(orClauses.join(','))
       }
 
@@ -291,7 +296,35 @@ serve(async (req: Request) => {
         query = query.limit(limit)
       }
 
-      const { data: questions, count, error } = await query
+      // Stats promise if includeStats=true
+      let statsPromise = Promise.resolve({ data: null, error: null })
+      if (includeStats) {
+        let statsQuery = serviceRoleClient
+          .from('question_bank')
+          .select('id, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id')
+        if (subject) statsQuery = statsQuery.eq('subject', subject)
+        if (gradeLevel) statsQuery = statsQuery.eq('grade_level', parseInt(gradeLevel, 10))
+
+        if (lessonId) {
+          statsQuery = statsQuery.eq('lesson_id', lessonId)
+        } else if (chapterId) {
+          statsQuery = statsQuery.eq('chapter_id', chapterId)
+        } else if (classId) {
+          statsQuery = statsQuery.eq('class_id', classId)
+        } else if (gradeBlock) {
+          const orClauses = [`grade_block.eq.${gradeBlock}`]
+          if (qbScopeTargetIds.classIds.length > 0) orClauses.push(`class_id.in.(${qbScopeTargetIds.classIds.join(',')})`)
+          if (qbScopeTargetIds.chapterIds.length > 0) orClauses.push(`chapter_id.in.(${qbScopeTargetIds.chapterIds.join(',')})`)
+          statsQuery = statsQuery.or(orClauses.join(','))
+        }
+        statsPromise = statsQuery
+      }
+
+      const [{ data: questions, count, error }, statsRes] = await Promise.all([
+        query,
+        statsPromise
+      ])
+
       if (error) return errorResponse(error.message, 500)
 
       const totalItems = count !== null && count !== undefined ? count : (questions || []).length
@@ -308,6 +341,23 @@ serve(async (req: Request) => {
         return q
       })
 
+      let stats = null
+      if (includeStats && statsRes.data) {
+        const qData = statsRes.data
+        stats = {
+          total: qData.length,
+          mc: qData.filter((q: any) => q.question_type === 'MULTIPLE_CHOICE').length,
+          tf: qData.filter((q: any) => q.question_type === 'TRUE_FALSE').length,
+          sa: qData.filter((q: any) => q.question_type === 'SHORT_ANSWER').length,
+          diffCounts: {
+            NHAN_BIET: qData.filter((q: any) => q.difficulty === 'NHAN_BIET').length,
+            THONG_HIEU: qData.filter((q: any) => q.difficulty === 'THONG_HIEU').length,
+            VAN_DUNG: qData.filter((q: any) => q.difficulty === 'VAN_DUNG').length,
+            VAN_DUNG_CAO: qData.filter((q: any) => q.difficulty === 'VAN_DUNG_CAO').length,
+          }
+        }
+      }
+
       if (!isPaginated) {
         return jsonResponse(cleanQuestions)
       }
@@ -317,7 +367,8 @@ serve(async (req: Request) => {
         total: totalItems,
         page,
         pageSize,
-        totalPages
+        totalPages,
+        stats
       })
     }
 
