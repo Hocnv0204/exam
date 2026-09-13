@@ -37,18 +37,27 @@ export function renderAssignmentReviewView() {
   }
 
   const sub = result.submission || {
-    id: result.submissionId,
-    homeworkTitle: result.homeworkTitle,
-    score: result.score,
-    maxScore: result.maxScore,
-    passScore: result.passScore,
-    correctCount: result.correctCount,
-    wrongCount: result.wrongCount,
-    submittedAt: result.submittedAt,
-    isLate: result.isLate,
-    pdfUrl: result.pdfUrl,
-    showSolutions: result.showSolutions !== undefined ? result.showSolutions : result.show_solutions
+    id: result.submissionId || result.id,
+    homeworkTitle: result.homeworkTitle || result.homework?.title,
+    score: result.score !== undefined ? result.score : result.total_score,
+    maxScore: result.maxScore || result.max_score,
+    passScore: result.passScore || result.pass_score,
+    correctCount: result.correctCount || result.correct_count,
+    wrongCount: result.wrongCount || result.wrong_count,
+    submittedAt: result.submittedAt || result.submitted_at,
+    isLate: result.isLate || result.is_late,
+    pdfUrl: result.pdfUrl || result.pdf_url,
+    showSolutions: result.showSolutions !== undefined ? result.showSolutions : result.show_solutions,
+    student: result.student || result.profiles,
+    guest_name: result.guest_name || result.guestName,
+    guest_phone: result.guest_phone || result.guestPhone,
+    durationSecondsTaken: result.durationSecondsTaken || result.duration_seconds_taken
   }
+
+  const studentInfo = result.student || sub.student || sub.profiles || result.profiles || {}
+  const studentName = sub.guest_name || result.guestName || sub.guestName || studentInfo.full_name || studentInfo.fullName || studentInfo.name || studentInfo.username || ''
+  const studentPhone = sub.guest_phone || result.guestPhone || sub.guestPhone || studentInfo.phone || ''
+  const studentClass = sub.className || result.className || sub.homeworks?.lessons?.chapters?.classes?.name || ''
 
   const pdfUrl = sub.pdfUrl || result.pdfUrl || ''
   const showSolutions = state.user?.role === 'ADMIN' || (result.showSolutions !== false && result.show_solutions !== false && sub.showSolutions !== false && sub.show_solutions !== false)
@@ -269,14 +278,14 @@ export function renderAssignmentReviewView() {
 
   return `
     <div class="app-layout">
-      ${renderSidebar(isTrial ? 'trial' : 'history')}
+      ${renderSidebar(isTrial ? 'trial' : (state.user?.role === 'ADMIN' ? 'admin-history' : 'history'))}
       <div class="main-content">
-        ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : 'Nền tảng / Bảng điều khiển')}
+        ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : (state.user?.role === 'ADMIN' ? 'Quản trị / Chi tiết bài nộp học sinh' : 'Nền tảng / Bảng điều khiển'))}
         <div class="content-body">
           <div class="page-header">
             <div>
-              <h1 class="page-title">${isTrial ? 'Kết quả làm bài học thử' : 'Xem lại kết quả bài tập'}</h1>
-              <p class="page-description">${sub.homeworkTitle}</p>
+              <h1 class="page-title">${isTrial ? 'Kết quả làm bài học thử' : (state.user?.role === 'ADMIN' ? 'Xem lại bài làm của học sinh' : 'Xem lại kết quả bài tập')}</h1>
+              <p class="page-description">${sub.homeworkTitle || 'Bài tập'}</p>
             </div>
             <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
               ${state.user?.role === 'ADMIN' && sub.homeworkTitle ? `
@@ -296,17 +305,42 @@ export function renderAssignmentReviewView() {
                 </a>
               ` : ''}
               <button class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : (state.user?.role === 'ADMIN' ? '#admin-history' : '#history')}'" style="cursor:pointer; white-space:nowrap;">
-                <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại bài học thử' : 'Quay lại lịch sử'}
+                <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại bài học thử' : (state.user?.role === 'ADMIN' ? 'Quay lại danh sách nộp bài' : 'Quay lại lịch sử')}
               </button>
             </div>
           </div>
 
           <!-- Top Overview Banner -->
           <div id="overview-banner-card" class="card" style="display:flex; flex-direction:column; gap:20px; background:linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border:1px solid #e2e8f0; border-radius:16px; padding:24px;">
+            ${(state.user?.role === 'ADMIN' && studentName) ? `
+              <!-- Student Profile Banner for Admin -->
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; background:#eff6ff; border:1px solid #bfdbfe; padding:12px 18px; border-radius:12px;">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                  <div style="width:36px; height:36px; border-radius:50%; background:#0284c7; color:#ffffff; display:flex; align-items:center; justify-content:center; font-size:15px;">
+                    <i class="fa-solid fa-user-graduate"></i>
+                  </div>
+                  <div>
+                    <div style="font-size:14px; font-weight:800; color:#0f172a;">
+                      Học sinh: <span style="color:#0284c7;">${studentName}</span>
+                    </div>
+                    <div style="font-size:12px; color:#64748b; display:flex; align-items:center; gap:8px; margin-top:2px; flex-wrap:wrap;">
+                      ${studentClass ? `<span><i class="fa-solid fa-graduation-cap" style="color:#0066cc;"></i> Lớp: <strong>${studentClass}</strong></span>` : ''}
+                      ${studentPhone ? `<span>• <i class="fa-solid fa-phone" style="color:#64748b;"></i> ${studentPhone}</span>` : ''}
+                    </div>
+                  </div>
+                </div>
+                ${sub.submittedAt ? `
+                  <div style="font-size:12px; color:#475569; background:#ffffff; padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; display:flex; align-items:center; gap:6px;">
+                    <i class="fa-regular fa-clock" style="color:#0284c7;"></i> Nộp lúc: <strong>${new Date(sub.submittedAt).toLocaleString('vi-VN')}</strong>
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
+
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
               <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                 <div class="badge ${isPassed ? 'badge-graded' : 'badge-failed'}" style="font-size:13px; background:${isPassed ? '#dcfce7' : '#fee2e2'}; color:${isPassed ? '#15803d' : '#b91c1c'}; border:none; padding:8px 16px; border-radius:8px; font-weight:700;">
-                  <i class="fa-solid ${isPassed ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${isPassed ? 'Đã Đạt! Chúc mừng bạn đã hoàn thành bài tập.' : 'Chưa Đạt. Hãy cố gắng luyện tập thêm.'}
+                  <i class="fa-solid ${isPassed ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${isPassed ? (state.user?.role === 'ADMIN' ? 'Học sinh Đã Đạt bài tập' : 'Đã Đạt! Chúc mừng bạn đã hoàn thành bài tập.') : (state.user?.role === 'ADMIN' ? 'Học sinh Chưa Đạt bài tập' : 'Chưa Đạt. Hãy cố gắng luyện tập thêm.')}
                 </div>
                 ${(sub.isLate || sub.is_late || result.isLate) ? `
                   <div style="font-size:13px; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:8px 16px; border-radius:8px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">
@@ -753,10 +787,15 @@ export function renderAssignmentReviewView() {
               })()}
             </div>
 
-            <!-- Right Column: Question Navigator -->
-            <div>
-              <div class="card">
-                <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:12px;">Sơ đồ câu hỏi</h3>
+            <!-- Right Column: Question Navigator (Sticky sidebar follows user scroll) -->
+            <div class="review-sidebar-col">
+              <div class="card review-navigator-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; color:#0f172a;">
+                    <i class="fa-solid fa-map-location-dot" style="color:#0284c7;"></i> Sơ đồ câu hỏi
+                  </h3>
+                  <span style="font-size:11px; font-weight:700; color:#64748b; background:#f1f5f9; padding:2px 8px; border-radius:6px;">${totalQuestions} câu</span>
+                </div>
                 
                 ${hasMultipleSections ? `
                   ${renderNavSection('MULTIPLE_CHOICE', 'Phần I: Trắc nghiệm', mcCount)}
@@ -768,7 +807,7 @@ export function renderAssignmentReviewView() {
                   </div>
                 `}
 
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px; font-size:12px;">
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px; font-size:12px; padding-top:12px; border-top:1px solid #f1f5f9;">
                   <div style="display:flex; align-items:center; gap:6px;">
                     <div style="width:12px; height:12px; background:#dcfce7; border: 1px solid #10b981; border-radius:3px;"></div> Đúng hoàn toàn
                   </div>
@@ -781,14 +820,16 @@ export function renderAssignmentReviewView() {
                 </div>
               </div>
 
-              <!-- Refresher Card -->
-              <div class="card" style="background:${isTrial ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#0066cc'}; color:#ffffff; text-align:center;">
-                <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:8px;">${isTrial ? 'Trải nghiệm thêm' : 'Cần ôn tập thêm?'}</h3>
+              <!-- Refresher / Admin Action Card -->
+              <div class="card" style="background:${isTrial ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : (state.user?.role === 'ADMIN' ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : '#0066cc')}; color:#ffffff; text-align:center; margin-bottom:0;">
+                <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:8px;">
+                  ${isTrial ? 'Trải nghiệm thêm' : (state.user?.role === 'ADMIN' ? 'Quản lý lịch sử nộp bài' : 'Cần ôn tập thêm?')}
+                </h3>
                 <p style="font-size:13px; opacity:0.9; margin-bottom:16px;">
-                  ${isTrial ? 'Xem các bài học thử khác hoặc đăng nhập để tham gia khóa học chính thức.' : 'Quay lại giao diện học để ôn tập kỹ lý thuyết và bài tập.'}
+                  ${isTrial ? 'Xem các bài học thử khác hoặc đăng nhập để tham gia khóa học chính thức.' : (state.user?.role === 'ADMIN' ? 'Quay lại danh sách để xem báo cáo hoặc duyệt bài nộp của học sinh khác.' : 'Quay lại giao diện học để ôn tập kỹ lý thuyết và bài tập.')}
                 </p>
-                <button class="btn-secondary" style="width:100%; border:none; color:#0066cc; background:#ffffff; font-weight:700; cursor:pointer;" onclick="window.location.hash='${isTrial ? '#trial' : '#my-classes'}'">
-                  ${isTrial ? 'Danh sách học thử' : 'Đến trang lớp học'}
+                <button class="btn-secondary" style="width:100%; border:none; color:${state.user?.role === 'ADMIN' ? '#0f172a' : '#0066cc'}; background:#ffffff; font-weight:700; cursor:pointer;" onclick="window.location.hash='${isTrial ? '#trial' : (state.user?.role === 'ADMIN' ? '#admin-history' : '#my-classes')}'">
+                  ${isTrial ? 'Danh sách học thử' : (state.user?.role === 'ADMIN' ? 'Quay lại danh sách nộp bài' : 'Đến trang lớp học')}
                 </button>
               </div>
             </div>
@@ -994,8 +1035,11 @@ export function bindAssignmentReviewEvents() {
   }
   window.addEventListener('hashchange', cleanupSplitMode, { once: true })
 
-  // Question navigator click-to-scroll
-  document.querySelectorAll('.nav-grid-item').forEach(item => {
+  // Question navigator click-to-scroll & active question highlighting
+  const navItems = document.querySelectorAll('.nav-grid-item')
+  const questionCards = document.querySelectorAll('.review-question-card')
+
+  navItems.forEach(item => {
     item.addEventListener('click', () => {
       const targetId = item.getAttribute('data-target-id')
       const qNum = item.getAttribute('data-qnum')
@@ -1004,9 +1048,54 @@ export function bindAssignmentReviewEvents() {
         (qNum && document.querySelector(`[data-legacy-id="review-question-${qNum}"]`))
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        
+        // Brief flash highlight on target question card
+        questionCards.forEach(c => c.classList.remove('highlight-target'))
+        target.classList.add('highlight-target')
+        setTimeout(() => target.classList.remove('highlight-target'), 1600)
+
+        // Highlight active nav item
+        navItems.forEach(ni => ni.classList.remove('active-nav-question'))
+        item.classList.add('active-nav-question')
       }
     })
   })
+
+  // ScrollSpy with IntersectionObserver to highlight current question on user scroll
+  if (questionCards.length > 0 && navItems.length > 0 && 'IntersectionObserver' in window) {
+    const navMap = new Map()
+    navItems.forEach(item => {
+      const targetId = item.getAttribute('data-target-id')
+      const qNum = item.getAttribute('data-qnum')
+      if (targetId) navMap.set(targetId, item)
+      if (qNum) {
+        navMap.set(`review-question-${qNum}`, item)
+        navMap.set(qNum, item)
+      }
+    })
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const cardId = entry.target.id
+          const legacyId = entry.target.getAttribute('data-legacy-id')
+          const matchingNav = navMap.get(cardId) || 
+            (legacyId ? navMap.get(legacyId) : null) ||
+            document.querySelector(`.nav-grid-item[data-target-id="${cardId}"]`)
+          if (matchingNav) {
+            navItems.forEach(ni => ni.classList.remove('active-nav-question'))
+            matchingNav.classList.add('active-nav-question')
+          }
+        }
+      })
+    }, {
+      root: null,
+      rootMargin: '-84px 0px -65% 0px',
+      threshold: 0
+    })
+
+    questionCards.forEach(card => observer.observe(card))
+  }
 
   const togglePdfBtn = document.getElementById('toggle-pdf-btn')
   const downloadPdfBtn = document.getElementById('download-pdf-btn')

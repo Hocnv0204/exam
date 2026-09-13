@@ -33,7 +33,7 @@
 html, body {
   width: 100%;
   min-height: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-overflow-scrolling: touch;
   touch-action: manipulation;
 }
@@ -840,17 +840,113 @@ button, input, select, textarea {
 
 .nav-grid-item {
   height: 36px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 13px;
-  color: #ffffff;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.nav-grid-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  filter: brightness(0.96);
+}
+
+.nav-grid-item.active-nav-question {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2.5px #0284c7, 0 4px 12px rgba(2, 132, 199, 0.4) !important;
+  z-index: 2;
+  font-weight: 800;
 }
 
 .nav-grid-correct { background: #0066cc; }
 .nav-grid-wrong { background: #ef4444; }
+
+/* Sticky Question Map Sidebar in Assignment Review */
+#questions-grid {
+  align-items: start;
+}
+
+.review-sidebar-col {
+  position: -webkit-sticky !important;
+  position: sticky !important;
+  top: 84px !important;
+  align-self: start !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  padding-right: 2px;
+  z-index: 30;
+}
+
+.review-sidebar-col::-webkit-scrollbar {
+  width: 5px;
+}
+
+.review-sidebar-col::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.review-sidebar-col::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.review-sidebar-col::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.review-navigator-card {
+  margin-bottom: 0 !important;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+
+.review-navigator-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.review-question-card {
+  scroll-margin-top: 84px;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.review-question-card.highlight-target {
+  animation: reviewCardFlash 1.5s ease-out;
+}
+
+@keyframes reviewCardFlash {
+  0% {
+    box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.45), 0 8px 24px rgba(2, 132, 199, 0.25);
+    transform: translateY(-2px);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.3), 0 6px 18px rgba(2, 132, 199, 0.15);
+  }
+  100% {
+    box-shadow: var(--shadow-sm);
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .review-sidebar-col {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
 
 /* Toast & Modal */
 .toast-container {
