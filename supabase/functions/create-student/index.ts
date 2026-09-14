@@ -5,6 +5,7 @@ import {
   createStudentSchema,
   updateStudentSchema,
   deleteStudentSchema,
+  removeStudentFromClassSchema,
 } from '../../shared/validators.ts'
 
 serve(async (req: Request) => {
@@ -58,79 +59,125 @@ serve(async (req: Request) => {
       return jsonResponse(formattedStudents)
     }
 
-    // POST: Create student
-    if (req.method === 'POST' && (!action || action === 'create')) {
-      const body = await req.json()
-      const validation = createStudentSchema.safeParse(body)
-      if (!validation.success) {
-        return errorResponse('Validation error', 400, validation.error.format())
-      }
-
-      const { username, password, fullName, classId, classIds } = validation.data
-      const targetClassIds = classIds && classIds.length > 0 ? classIds : (classId ? [classId] : [])
-
-      // Check if username taken
-      const { data: existingProfile } = await serviceRoleClient
-        .from('profiles')
-        .select('id')
-        .eq('username', username)
-        .maybeSingle()
-
-      if (existingProfile) {
-        return errorResponse('Username already exists', 409)
-      }
-
-      const syntheticEmail = `${username.toLowerCase()}@system.local`
-
-      // Create Supabase Auth User
-      const { data: authUser, error: createAuthError } = await serviceRoleClient.auth.admin.createUser({
-        email: syntheticEmail,
-        password: password,
-        email_confirm: true,
-        user_metadata: { username, role: 'STUDENT' },
-      })
-
-      if (createAuthError || !authUser.user) {
-        return errorResponse(`Auth user creation failed: ${createAuthError?.message}`, 400)
-      }
-
-      const studentId = authUser.user.id
-
-      // Create Profile
-      const { data: profile, error: profileError } = await serviceRoleClient
-        .from('profiles')
-        .insert({
-          id: studentId,
-          username,
-          full_name: fullName,
-          role: 'STUDENT',
-          class_id: targetClassIds[0] || null,
-        })
-        .select('id, username, full_name, role, class_id, created_at')
-        .single()
-
-      if (profileError) {
-        // Rollback Auth user creation if profile insert fails
-        await serviceRoleClient.auth.admin.deleteUser(studentId)
-        return errorResponse(`Profile creation failed: ${profileError.message}`, 500)
-      }
-
-      // Link student classes
-      if (targetClassIds.length > 0) {
-        const joinInserts = targetClassIds.map((cid) => ({
-          student_id: studentId,
-          class_id: cid
-        }))
-        const { error: joinError } = await serviceRoleClient
-          .from('student_classes')
-          .insert(joinInserts)
-        
-        if (joinError) {
-          console.error('[create-student] Failed to insert student_classes:', joinError.message)
+    // POST: Create student or Remove from class
+    if (req.method === 'POST') {
+      if (action === 'remove-from-class' || action === 'remove-class' || action === 'remove-student') {
+        const body = await req.json()
+        const validation = removeStudentFromClassSchema.safeParse(body)
+        if (!validation.success) {
+          return errorResponse('Validation error', 400, validation.error.format())
         }
+
+        const { classId, studentId } = validation.data
+
+        const { error: deleteJoinError } = await serviceRoleClient
+          .from('student_classes')
+          .delete()
+          .eq('student_id', studentId)
+          .eq('class_id', classId)
+
+        if (deleteJoinError) {
+          return errorResponse(deleteJoinError.message, 500)
+        }
+
+        const { data: remainingClasses } = await serviceRoleClient
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', studentId)
+
+        const remainingClassId = remainingClasses && remainingClasses.length > 0
+          ? remainingClasses[0].class_id
+          : null
+
+        await serviceRoleClient
+          .from('profiles')
+          .update({
+            class_id: remainingClassId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', studentId)
+
+        return jsonResponse({
+          message: 'Student removed from class successfully',
+          studentId,
+          classId,
+          remainingClassIds: (remainingClasses || []).map((r: any) => r.class_id)
+        })
       }
 
-      return jsonResponse(profile, 201)
+      if (!action || action === 'create') {
+        const body = await req.json()
+        const validation = createStudentSchema.safeParse(body)
+        if (!validation.success) {
+          return errorResponse('Validation error', 400, validation.error.format())
+        }
+
+        const { username, password, fullName, classId, classIds } = validation.data
+        const targetClassIds = classIds && classIds.length > 0 ? classIds : (classId ? [classId] : [])
+
+        // Check if username taken
+        const { data: existingProfile } = await serviceRoleClient
+          .from('profiles')
+          .select('id')
+          .eq('username', username)
+          .maybeSingle()
+
+        if (existingProfile) {
+          return errorResponse('Username already exists', 409)
+        }
+
+        const syntheticEmail = `${username.toLowerCase()}@system.local`
+
+        // Create Supabase Auth User
+        const { data: authUser, error: createAuthError } = await serviceRoleClient.auth.admin.createUser({
+          email: syntheticEmail,
+          password: password,
+          email_confirm: true,
+          user_metadata: { username, role: 'STUDENT' },
+        })
+
+        if (createAuthError || !authUser.user) {
+          return errorResponse(`Auth user creation failed: ${createAuthError?.message}`, 400)
+        }
+
+        const studentId = authUser.user.id
+
+        // Create Profile
+        const { data: profile, error: profileError } = await serviceRoleClient
+          .from('profiles')
+          .insert({
+            id: studentId,
+            username,
+            full_name: fullName,
+            role: 'STUDENT',
+            class_id: targetClassIds[0] || null,
+          })
+          .select('id, username, full_name, role, class_id, created_at')
+          .single()
+
+        if (profileError) {
+          // Rollback Auth user creation if profile insert fails
+          await serviceRoleClient.auth.admin.deleteUser(studentId)
+          return errorResponse(`Profile creation failed: ${profileError.message}`, 500)
+        }
+
+        // Link student classes
+        if (targetClassIds.length > 0) {
+          const joinInserts = targetClassIds.map((cid) => ({
+            student_id: studentId,
+            class_id: cid
+          }))
+          const { error: joinError } = await serviceRoleClient
+            .from('student_classes')
+            .insert(joinInserts)
+          
+          if (joinError) {
+            console.error('[create-student] Failed to insert student_classes:', joinError.message)
+          }
+        }
+
+        return jsonResponse(profile, 201)
+      }
     }
 
     // PUT / PATCH: Update student
@@ -158,9 +205,11 @@ serve(async (req: Request) => {
       }
       if (fullName) updatePayload.full_name = fullName
       
-      const targetClassIds = classIds && classIds.length > 0 ? classIds : (classId ? [classId] : null)
-      if (targetClassIds && targetClassIds.length > 0) {
-        updatePayload.class_id = targetClassIds[0]
+      if (classIds !== undefined) {
+        const targetClassIds = Array.isArray(classIds) ? classIds : (classId ? [classId] : [])
+        updatePayload.class_id = targetClassIds.length > 0 ? targetClassIds[0] : null
+      } else if (classId !== undefined) {
+        updatePayload.class_id = classId || null
       }
 
       const { data: updatedProfile, error: updateError } = await serviceRoleClient
@@ -176,7 +225,9 @@ serve(async (req: Request) => {
       }
 
       // Update student classes
-      if (targetClassIds) {
+      if (classIds !== undefined) {
+        const targetClassIds = Array.isArray(classIds) ? classIds : (classId ? [classId] : [])
+        
         await serviceRoleClient
           .from('student_classes')
           .delete()
@@ -194,14 +245,73 @@ serve(async (req: Request) => {
             return errorResponse(`Failed to associate classes: ${joinError.message}`, 500)
           }
         }
+      } else if (classId !== undefined) {
+        await serviceRoleClient
+          .from('student_classes')
+          .delete()
+          .eq('student_id', studentId)
+
+        if (classId) {
+          const { error: joinError } = await serviceRoleClient
+            .from('student_classes')
+            .insert([{ student_id: studentId, class_id: classId }])
+          if (joinError) {
+            return errorResponse(`Failed to associate classes: ${joinError.message}`, 500)
+          }
+        }
       }
 
       return jsonResponse(updatedProfile)
     }
 
-    // DELETE: Delete student
-    if (req.method === 'DELETE' || action === 'delete') {
+    // DELETE: Delete student or Remove from class
+    if (req.method === 'DELETE' || action === 'delete' || action === 'remove-from-class' || action === 'remove-class' || action === 'remove-student') {
       const body = await req.json().catch(() => ({}))
+
+      if (action === 'remove-from-class' || action === 'remove-class' || action === 'remove-student') {
+        const classId = url.searchParams.get('classId') || body.classId
+        const studentId = url.searchParams.get('studentId') || body.studentId
+
+        const validation = removeStudentFromClassSchema.safeParse({ classId, studentId })
+        if (!validation.success) {
+          return errorResponse('Validation error', 400, validation.error.format())
+        }
+
+        const { error: deleteJoinError } = await serviceRoleClient
+          .from('student_classes')
+          .delete()
+          .eq('student_id', studentId)
+          .eq('class_id', classId)
+
+        if (deleteJoinError) {
+          return errorResponse(deleteJoinError.message, 500)
+        }
+
+        const { data: remainingClasses } = await serviceRoleClient
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', studentId)
+
+        const remainingClassId = remainingClasses && remainingClasses.length > 0
+          ? remainingClasses[0].class_id
+          : null
+
+        await serviceRoleClient
+          .from('profiles')
+          .update({
+            class_id: remainingClassId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', studentId)
+
+        return jsonResponse({
+          message: 'Student removed from class successfully',
+          studentId,
+          classId,
+          remainingClassIds: (remainingClasses || []).map((r: any) => r.class_id)
+        })
+      }
+
       const queryStudentId = url.searchParams.get('studentId') || body.studentId
 
       const validation = deleteStudentSchema.safeParse({ studentId: queryStudentId })

@@ -18,13 +18,18 @@ export const createStudentSchema = z.object({
 export const updateStudentSchema = z.object({
   studentId: z.string().uuid('Invalid Student ID'),
   fullName: z.string().min(1).optional(),
-  classId: z.string().uuid('Invalid Class ID').optional(),
+  classId: z.string().uuid('Invalid Class ID').optional().nullable(),
   classIds: z.array(z.string().uuid('Invalid Class ID')).optional(),
   password: z.string().min(6, 'Password must be at least 6 characters').optional().nullable(),
 })
 
 export const deleteStudentSchema = z.object({
   studentId: z.string().uuid('Invalid Student ID'),
+})
+
+export const removeStudentFromClassSchema = z.object({
+  studentId: z.string().uuid('Invalid Student ID'),
+  classId: z.string().uuid('Invalid Class ID'),
 })
 
 export const resetPasswordSchema = z.object({

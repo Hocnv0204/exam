@@ -5,6 +5,7 @@ import {
   createClassSchema,
   updateClassSchema,
   deleteClassSchema,
+  removeStudentFromClassSchema,
 } from '../../shared/validators.ts'
 
 serve(async (req: Request) => {
@@ -299,7 +300,52 @@ serve(async (req: Request) => {
         return jsonResponse({ message: 'Student sessions updated successfully' })
       }
 
+      if (action === 'remove-student' || action === 'remove-student-from-class') {
+        const body = await req.json()
+        const validation = removeStudentFromClassSchema.safeParse(body)
+        if (!validation.success) {
+          return errorResponse('Validation error', 400, validation.error.format())
+        }
 
+        const { classId, studentId } = validation.data
+
+        // 1. Delete relationship from student_classes
+        const { error: deleteJoinError } = await serviceRoleClient
+          .from('student_classes')
+          .delete()
+          .eq('student_id', studentId)
+          .eq('class_id', classId)
+
+        if (deleteJoinError) {
+          return errorResponse(deleteJoinError.message, 500)
+        }
+
+        // 2. Query remaining classes for this student
+        const { data: remainingClasses } = await serviceRoleClient
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', studentId)
+
+        const remainingClassId = remainingClasses && remainingClasses.length > 0
+          ? remainingClasses[0].class_id
+          : null
+
+        // 3. Update profile's fallback class_id
+        await serviceRoleClient
+          .from('profiles')
+          .update({
+            class_id: remainingClassId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', studentId)
+
+        return jsonResponse({
+          message: 'Student removed from class successfully',
+          studentId,
+          classId,
+          remainingClassIds: (remainingClasses || []).map((r: any) => r.class_id)
+        })
+      }
 
       if (action === 'create-grade-block') {
         const body = await req.json()
@@ -464,8 +510,55 @@ serve(async (req: Request) => {
       })
     }
 
-    // DELETE: Delete Class, Telegram Config, or Grade Block
-    if (req.method === 'DELETE' || action === 'delete' || action === 'delete-telegram-config' || action === 'delete-grade-block') {
+    if (req.method === 'DELETE' || action === 'delete' || action === 'delete-telegram-config' || action === 'delete-grade-block' || action === 'remove-student' || action === 'remove-student-from-class') {
+      if (action === 'remove-student' || action === 'remove-student-from-class') {
+        const body = await req.json().catch(() => ({}))
+        const classId = url.searchParams.get('classId') || body.classId
+        const studentId = url.searchParams.get('studentId') || body.studentId
+
+        const validation = removeStudentFromClassSchema.safeParse({ classId, studentId })
+        if (!validation.success) {
+          return errorResponse('Validation error', 400, validation.error.format())
+        }
+
+        // 1. Delete relationship from student_classes
+        const { error: deleteJoinError } = await serviceRoleClient
+          .from('student_classes')
+          .delete()
+          .eq('student_id', studentId)
+          .eq('class_id', classId)
+
+        if (deleteJoinError) {
+          return errorResponse(deleteJoinError.message, 500)
+        }
+
+        // 2. Query remaining classes for this student
+        const { data: remainingClasses } = await serviceRoleClient
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', studentId)
+
+        const remainingClassId = remainingClasses && remainingClasses.length > 0
+          ? remainingClasses[0].class_id
+          : null
+
+        // 3. Update profile's fallback class_id
+        await serviceRoleClient
+          .from('profiles')
+          .update({
+            class_id: remainingClassId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', studentId)
+
+        return jsonResponse({
+          message: 'Student removed from class successfully',
+          studentId,
+          classId,
+          remainingClassIds: (remainingClasses || []).map((r: any) => r.class_id)
+        })
+      }
+
       if (action === 'delete-grade-block') {
         const blockId = url.searchParams.get('id')
         if (!blockId) return errorResponse('ID khối là bắt buộc', 400)

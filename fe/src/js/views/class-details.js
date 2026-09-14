@@ -60,7 +60,7 @@ export function renderClassDetailsView() {
               <div style="display:flex; gap:32px;">
                 <div style="text-align:right;">
                   <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Tổng học sinh</div>
-                  <strong style="font-size:20px; color:#0f172a;"><i class="fa-solid fa-users" style="color:#64748b;"></i> ${classStudents.length}</strong>
+                  <strong id="class-students-count" style="font-size:20px; color:#0f172a;"><i class="fa-solid fa-users" style="color:#64748b;"></i> ${classStudents.length}</strong>
                 </div>
                 <div style="text-align:right;">
                   <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Học phí / Buổi</div>
@@ -87,7 +87,7 @@ export function renderClassDetailsView() {
                     <th>Thao tác</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody id="class-students-tbody">
                   ${classStudents.length === 0 ? `
                     <tr>
                       <td colspan="5" style="text-align:center; padding:32px; color:#64748b;">
@@ -291,35 +291,50 @@ export function bindClassDetailsEvents() {
         try {
           showToast('Đang xóa học sinh khỏi lớp...', 'info')
           
+          await api.removeStudentFromClass(classId, studentId)
+          
+          // Update local student state
           const studentObj = state.students.find(s => s.id === studentId)
-          if (!studentObj) throw new Error('Không tìm thấy học sinh trong hệ thống')
+          if (studentObj) {
+            const currentClassIds = studentObj.classIds || (studentObj.classId ? [studentObj.classId] : [])
+            const newClassIds = currentClassIds.filter(id => id !== classId)
+            
+            studentObj.classIds = newClassIds
+            studentObj.classId = newClassIds[0] || null
+            
+            const classes = state.classes.filter(c => newClassIds.includes(c.id))
+            studentObj.className = classes.map(c => c.name).join(', ') || 'Chưa phân lớp'
+          }
           
-          const currentClassIds = studentObj.classIds || (studentObj.classId ? [studentObj.classId] : [])
-          const newClassIds = currentClassIds.filter(id => id !== classId)
-          
-          await api.updateStudent({
-            studentId: studentId,
-            fullName: studentObj.fullName,
-            classIds: newClassIds
-          })
-          
-          studentObj.classIds = newClassIds
-          studentObj.classId = newClassIds[0] || null
-          
-          const classes = state.classes.filter(c => newClassIds.includes(c.id))
-          studentObj.className = classes.map(c => c.name).join(', ') || 'Chưa phân lớp'
-          
+          // Update class student count in state
           const currentClass = state.classes.find(c => c.id === classId)
           if (currentClass) {
-            currentClass.studentsCount = Math.max(0, currentClass.studentsCount - 1)
+            currentClass.studentsCount = Math.max(0, (currentClass.studentsCount || 1) - 1)
           }
 
+          // Remove table row
           btn.closest('tr')?.remove()
           
-          const totalCountEl = document.querySelector('strong[style*="color:#0f172a"]')
-          if (totalCountEl) {
-            const currentTotal = state.students.filter(s => s.classIds ? s.classIds.includes(classId) : (s.classId === classId)).length
-            totalCountEl.innerHTML = `<i class="fa-solid fa-users" style="color:#64748b;"></i> ${currentTotal}`
+          // Refresh student count in UI
+          const remainingStudents = state.students.filter(s => s.classIds ? s.classIds.includes(classId) : (s.classId === classId))
+          const countEl = document.getElementById('class-students-count')
+          if (countEl) {
+            countEl.innerHTML = `<i class="fa-solid fa-users" style="color:#64748b;"></i> ${remainingStudents.length}`
+          }
+
+          // Display empty placeholder if no students left
+          if (remainingStudents.length === 0) {
+            const tbody = document.getElementById('class-students-tbody')
+            if (tbody) {
+              tbody.innerHTML = `
+                <tr>
+                  <td colspan="5" style="text-align:center; padding:32px; color:#64748b;">
+                    <i class="fa-solid fa-users-slash" style="font-size:36px; color:#94a3b8; display:block; margin-bottom:12px;"></i>
+                    Chưa có học sinh nào được phân vào lớp học này.
+                  </td>
+                </tr>
+              `
+            }
           }
 
           showToast(`Đã xóa học sinh ${studentName} ra khỏi lớp`, 'success')

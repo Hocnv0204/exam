@@ -298,6 +298,7 @@ export const api = {
   updateClass: (data) => request('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),
   getClasses: (params = '') => request(`create-class${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
   deleteClass: (classId) => request(`create-class?classId=${classId}`, { method: 'DELETE' }),
+  removeStudentFromClass: (classId, studentId) => request('create-class?action=remove-student', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
   getGradeBlocks: (params = {}) => request(`create-class?action=get-grade-blocks${params?.includeStats ? '&includeStats=true' : ''}`, { method: 'GET' }),
   createGradeBlock: (data) => request('create-class?action=create-grade-block', { method: 'POST', body: JSON.stringify(data) }),
   updateGradeBlock: (data) => request('create-class?action=update-grade-block', { method: 'PUT', body: JSON.stringify(data) }),
