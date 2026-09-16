@@ -219,6 +219,10 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
 
   const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
 
+  const hasAttachedPdf = !!(hw && (hw.pdfUrl || (hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))))
+  const pdfDownloadUrl = (hw?.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+  const pdfDownloadName = (hw?.pdfPath && hw.pdfPath !== 'INTERACTIVE' && !hw.pdfPath.startsWith('http')) ? hw.pdfPath : `${hw.title || 'De_Bai'}.pdf`
+
   return `
     <div class="app-layout">
       ${renderSidebar('homework-attempt')}
@@ -255,7 +259,12 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
             </div>
 
             <!-- Timer & Actions -->
-            <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+              ${hasAttachedPdf && pdfDownloadUrl ? `
+                <button type="button" id="btn-download-solver-pdf" class="btn-secondary" style="padding:7px 14px; font-size:13px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; transition:all 0.15s ease;" title="Tải file PDF đề bài (${escapeHtml(pdfDownloadName)}) về máy">
+                  <i class="fa-solid fa-file-arrow-down" style="font-size:14px; color:#0066cc;"></i> Tải file PDF
+                </button>
+              ` : ''}
               <div class="timer-box" style="padding:8px 16px; font-size:16px; font-weight:700; border-radius:8px; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fa-regular fa-clock"></i> <span id="exam-timer-display">${hw.durationMinutes || 45}:00</span>
               </div>
@@ -612,7 +621,7 @@ export function renderHomeworkSolverView() {
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap; flex-shrink:0;">
                   <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
                   ${hw.pdfUrl ? `
-                    <a href="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" download="${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="padding:6px 14px; font-size:13px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; flex-shrink:0; cursor:pointer;" title="Tải file PDF bài tập về máy">
+                    <a id="btn-download-pdf-mode" href="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" download="${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="padding:6px 14px; font-size:13px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; flex-shrink:0; cursor:pointer;" title="Tải file PDF bài tập về máy">
                       <i class="fa-solid fa-download"></i> Tải PDF
                     </a>
                   ` : ''}
@@ -945,12 +954,75 @@ export function bindHomeworkSolverEvents() {
         }
       })
     })
+
+    // Download PDF in Interactive Solver mode
+    const downloadPdfBtn = document.getElementById('btn-download-solver-pdf')
+    if (downloadPdfBtn) {
+      downloadPdfBtn.addEventListener('click', async (e) => {
+        e.preventDefault()
+        const mappedUrl = (hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+        const downloadName = (hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && !hw.pdfPath.startsWith('http')) ? hw.pdfPath : `${hw.title || 'De_Bai'}.pdf`
+        
+        if (!mappedUrl) {
+          showToast('Bài tập này không có file PDF đính kèm!', 'warning')
+          return
+        }
+
+        try {
+          showToast('Đang tải file PDF đề bài về máy...', 'info')
+          const res = await fetch(mappedUrl)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const blob = await res.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = blobUrl
+          a.download = downloadName
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 2000)
+          showToast(`Đã tải file "${downloadName}" thành công!`, 'success')
+        } catch (err) {
+          console.warn('Fetch blob download failed, falling back to window.open:', err)
+          window.open(mappedUrl, '_blank')
+        }
+      })
+    }
   } else {
     // Render PDF using PDF.js for 100% smooth touch scrolling on Real Mobile/iPad
     const pdfContainer = document.querySelector('.pdf-iframe-wrapper')
     if (pdfContainer && hw.pdfUrl) {
       const mappedUrl = (hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       renderPdfViewer(pdfContainer, mappedUrl)
+    }
+
+    // Download PDF in PDF mode
+    const pdfModeDownloadBtn = document.getElementById('btn-download-pdf-mode')
+    if (pdfModeDownloadBtn) {
+      pdfModeDownloadBtn.addEventListener('click', async (e) => {
+        const href = pdfModeDownloadBtn.getAttribute('href')
+        if (!href || href === '#') return
+        e.preventDefault()
+        const downloadName = pdfModeDownloadBtn.getAttribute('download') || hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'
+        try {
+          showToast('Đang tải file PDF về máy...', 'info')
+          const res = await fetch(href)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const blob = await res.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = blobUrl
+          a.download = downloadName
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 2000)
+          showToast(`Đã tải file "${downloadName}" thành công!`, 'success')
+        } catch (err) {
+          console.warn('Fetch blob download failed, falling back to window.open:', err)
+          window.open(href, '_blank')
+        }
+      })
     }
 
     // PDF Mode: MC options click

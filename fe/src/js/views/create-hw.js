@@ -18,6 +18,10 @@ let currentConfig = {
 let currentMode = 'INTERACTIVE' // 'INTERACTIVE' | 'PDF'
 let interactiveMarkdown = MATH_TEMPLATE
 let interactiveQuestions = []
+let interactivePdfFile = null
+let interactivePdfUrl = ''
+let interactivePdfName = ''
+let isInteractivePdfRemoved = false
 
 // Initialize default parsed questions from MATH_TEMPLATE
 try {
@@ -53,6 +57,13 @@ export function resetCreateForm() {
   currentMode = 'INTERACTIVE'
   interactiveMarkdown = MATH_TEMPLATE
   interactiveQuestions = parseExamMarkdown(MATH_TEMPLATE).questions || []
+  if (interactivePdfUrl && interactivePdfUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(interactivePdfUrl)
+  }
+  interactivePdfFile = null
+  interactivePdfUrl = ''
+  interactivePdfName = ''
+  isInteractivePdfRemoved = false
   initAnswersState()
 }
 
@@ -195,6 +206,154 @@ function renderInteractiveCardsHtml() {
   `
 }
 
+function renderInteractivePdfAttachmentHtml() {
+  const hasFile = !!(interactivePdfFile || interactivePdfUrl)
+  const fileName = interactivePdfFile ? interactivePdfFile.name : (interactivePdfName || 'Tep_Dinh_Kem.pdf')
+  const fileSizeText = interactivePdfFile ? ` (${(interactivePdfFile.size / (1024 * 1024)).toFixed(2)} MB)` : ''
+
+  return `
+    <div class="interactive-pdf-attachment-bar" style="background:#ffffff; border:1px solid ${hasFile ? '#bfdbfe' : '#e2e8f0'}; border-radius:10px; padding:10px 14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+      <input type="file" id="hw-interactive-pdf-input" accept=".pdf" style="display:none;">
+      
+      <div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 auto; overflow:hidden;">
+        <div style="width:36px; height:36px; border-radius:8px; background:${hasFile ? '#eff6ff' : '#f8fafc'}; color:${hasFile ? '#ef4444' : '#94a3b8'}; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; border:1px solid ${hasFile ? '#dbeafe' : '#e2e8f0'};">
+          <i class="fa-solid fa-file-pdf"></i>
+        </div>
+        <div style="min-width:0; overflow:hidden;">
+          ${hasFile ? `
+            <div style="font-weight:700; font-size:13px; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(fileName)}">
+              ${escapeHtml(fileName)}<span style="font-size:11.5px; font-weight:normal; color:#64748b;">${fileSizeText}</span>
+            </div>
+            <div style="font-size:11px; color:#059669; display:flex; align-items:center; gap:4px; margin-top:2px;">
+              <i class="fa-solid fa-circle-check"></i> ${interactivePdfFile ? 'Đã chọn file từ máy (sẽ upload khi lưu bài tập)' : 'File PDF đính kèm của bài tập'}
+            </div>
+          ` : `
+            <div style="font-weight:600; font-size:13px; color:#334155;">
+              Đính kèm file PDF đề bài (Tùy chọn)
+            </div>
+            <div style="font-size:11px; color:#64748b; margin-top:1px;">
+              Giúp học sinh có thể xem hoặc tải file PDF đề bài gốc về máy trong lúc làm bài
+            </div>
+          `}
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
+        ${hasFile ? `
+          <button type="button" class="btn-secondary" id="btn-preview-interactive-pdf" style="padding:6px 12px; font-size:12px; font-weight:600; border-radius:6px; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Xem trước file PDF">
+            <i class="fa-solid fa-eye"></i> Xem preview
+          </button>
+          <button type="button" class="btn-secondary" id="btn-change-interactive-pdf" style="padding:6px 10px; font-size:12px; font-weight:600; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Chọn file PDF khác">
+            <i class="fa-solid fa-arrow-rotate-right"></i> Đổi file
+          </button>
+          <button type="button" class="btn-secondary" id="btn-remove-interactive-pdf" style="padding:6px 10px; font-size:12px; font-weight:600; border-radius:6px; color:#dc2626; border-color:#fca5a5; background:#fff1f2; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Xóa file PDF đính kèm">
+            <i class="fa-solid fa-trash"></i> Xóa
+          </button>
+        ` : `
+          <button type="button" class="btn-secondary" id="btn-select-interactive-pdf" style="padding:6px 14px; font-size:12.5px; font-weight:600; border-radius:6px; background:#f0f9ff; color:#0284c7; border:1px solid #bae6fd; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Tải file PDF
+          </button>
+        `}
+      </div>
+    </div>
+  `
+}
+
+function openPdfPreviewModal(pdfUrl, fileName) {
+  if (!pdfUrl) {
+    showToast('Chưa có file PDF nào để xem trước!', 'warning')
+    return
+  }
+
+  const modalBodyHtml = `
+    <div style="display:flex; flex-direction:column; height:72vh; width:100%; box-sizing:border-box;">
+      <div id="interactive-pdf-modal-container" class="pdf-viewer-container" style="flex:1; display:flex; flex-direction:column; border:1px solid #cbd5e1; border-radius:10px; overflow:hidden; background:#f8fafc; position:relative; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+        <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#f1f5f9; border-bottom:1px solid #cbd5e1; flex-shrink:0; flex-wrap:nowrap; gap:10px;">
+          <div style="font-weight:700; font-size:13px; color:#0f172a; display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto;">
+            <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:16px; flex-shrink:0;"></i>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(fileName || 'Xem_Truoc_De_Bai.pdf')}">${escapeHtml(fileName || 'Xem_Truoc_De_Bai.pdf')}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
+            <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
+            <a href="${pdfUrl}" download="${escapeHtml(fileName || 'De_Bai.pdf')}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="padding:5px 12px; font-size:12px; font-weight:600; border-radius:6px; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer; display:inline-flex; align-items:center; gap:5px; text-decoration:none;" title="Tải file về máy">
+              <i class="fa-solid fa-download"></i> Tải về
+            </a>
+          </div>
+        </div>
+        <div id="interactive-modal-pdf-viewport" class="pdf-iframe-wrapper" style="flex:1; width:100%; height:100%; min-height:0; position:relative; overflow:hidden; background:#334155; display:flex; justify-content:center; align-items:center;"></div>
+      </div>
+    </div>
+  `
+
+  openModal(`Xem trước File PDF Đề bài`, modalBodyHtml, null)
+  const mc = document.querySelector('#modal-container .modal-content')
+  if (mc) mc.style.maxWidth = '920px'
+
+  setTimeout(() => {
+    const viewport = document.getElementById('interactive-modal-pdf-viewport')
+    if (viewport) {
+      renderPdfViewer(viewport, pdfUrl)
+    }
+  }, 60)
+}
+
+function bindInteractivePdfEvents() {
+  const fileInput = document.getElementById('hw-interactive-pdf-input')
+  const selectBtn = document.getElementById('btn-select-interactive-pdf')
+  const changeBtn = document.getElementById('btn-change-interactive-pdf')
+  const removeBtn = document.getElementById('btn-remove-interactive-pdf')
+  const previewBtn = document.getElementById('btn-preview-interactive-pdf')
+
+  selectBtn?.addEventListener('click', () => fileInput?.click())
+  changeBtn?.addEventListener('click', () => fileInput?.click())
+
+  fileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0]
+    if (file && file.type === 'application/pdf') {
+      interactivePdfFile = file
+      interactivePdfName = file.name
+      isInteractivePdfRemoved = false
+      if (interactivePdfUrl && interactivePdfUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(interactivePdfUrl)
+      }
+      interactivePdfUrl = URL.createObjectURL(file)
+      
+      const container = document.getElementById('interactive-pdf-attachment-container')
+      if (container) {
+        container.innerHTML = renderInteractivePdfAttachmentHtml()
+        bindInteractivePdfEvents()
+      }
+      showToast(`Đã chọn file PDF: ${file.name}`, 'success')
+    }
+  })
+
+  removeBtn?.addEventListener('click', () => {
+    if (interactivePdfUrl && interactivePdfUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(interactivePdfUrl)
+    }
+    interactivePdfFile = null
+    interactivePdfUrl = ''
+    interactivePdfName = ''
+    isInteractivePdfRemoved = true
+    if (fileInput) fileInput.value = ''
+
+    const container = document.getElementById('interactive-pdf-attachment-container')
+    if (container) {
+      container.innerHTML = renderInteractivePdfAttachmentHtml()
+      bindInteractivePdfEvents()
+    }
+    showToast('Đã gỡ bỏ file PDF đính kèm!', 'info')
+  })
+
+  previewBtn?.addEventListener('click', () => {
+    if (interactivePdfUrl) {
+      openPdfPreviewModal(interactivePdfUrl, interactivePdfName || interactivePdfFile?.name)
+    } else {
+      showToast('Chưa có file PDF để xem trước!', 'warning')
+    }
+  })
+}
+
 function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
   return `
     <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -226,6 +385,11 @@ function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
       <!-- INTERACTIVE MARKDOWN & QUESTION PREVIEW -->
       <div class="interactive-creator-wrapper" style="display:flex; flex-direction:column; gap:14px; height:calc(100vh - 180px); overflow-y:auto; padding-right:6px;">
         
+        <!-- Attached PDF Section in Interactive Mode -->
+        <div id="interactive-pdf-attachment-container">
+          ${renderInteractivePdfAttachmentHtml()}
+        </div>
+
         <!-- Collapsible Markdown Input Box -->
         <div class="card" style="margin:0; padding:14px; border:1px solid #cbd5e1; border-radius:10px; background:#ffffff;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -313,6 +477,11 @@ export function renderCreateHwView() {
 
       if (hasInteractive) {
         currentMode = 'INTERACTIVE'
+        const hasPdf = !!(hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))
+        if (hasPdf && !isInteractivePdfRemoved) {
+          interactivePdfName = hw.pdfPath
+          interactivePdfUrl = hw.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''
+        }
         interactiveQuestions = questions.map(q => {
           let pObj = {}
           try {
@@ -919,6 +1088,7 @@ export function bindCreateHwEvents() {
       bindInteractiveToolbarEvents()
       if (currentMode === 'INTERACTIVE') {
         bindInteractiveCardEvents()
+        bindInteractivePdfEvents()
         syncCountsFromInteractive()
       } else {
         initPdfListeners()
@@ -989,6 +1159,7 @@ export function bindCreateHwEvents() {
   bindInteractiveToolbarEvents()
   if (currentMode === 'INTERACTIVE') {
     bindInteractiveCardEvents()
+    bindInteractivePdfEvents()
     syncCountsFromInteractive()
   }
 
@@ -1755,23 +1926,36 @@ export function bindCreateHwEvents() {
     const isEdit = !!state.editHomeworkData
     const hw = isEdit ? state.editHomeworkData.homework : null
 
-    const fileInput = document.getElementById('hw-pdf-file')
-    const file = fileInput?.files?.[0]
-    let pdfPath = hw ? (hw.pdfPath || hw.pdf_path || 'Homework_Attachment.pdf') : 'Homework_Attachment.pdf'
+    let pdfPath = 'INTERACTIVE'
+    let fileToUpload = null
 
-    if (currentMode === 'INTERACTIVE' && !file && (!hw || !hw.pdfPath || hw.pdfPath === 'Homework_Attachment.pdf')) {
-      pdfPath = 'INTERACTIVE'
+    if (currentMode === 'INTERACTIVE') {
+      if (interactivePdfFile) {
+        fileToUpload = interactivePdfFile
+      } else if (!isInteractivePdfRemoved && isEdit && hw && hw.pdfPath && hw.pdfPath !== 'INTERACTIVE') {
+        pdfPath = hw.pdfPath
+      } else {
+        pdfPath = 'INTERACTIVE'
+      }
+    } else {
+      const fileInput = document.getElementById('hw-pdf-file')
+      const file = fileInput?.files?.[0]
+      pdfPath = hw ? (hw.pdfPath || hw.pdf_path || 'Homework_Attachment.pdf') : 'Homework_Attachment.pdf'
+      if (file) {
+        fileToUpload = file
+      }
     }
 
     try {
-      if (file) {
-        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '_')
+      if (fileToUpload) {
+        const sanitizedName = fileToUpload.name.replace(/[^a-zA-Z0-9.]/g, '_')
         const isSameFile = hw && (hw.pdfPath || hw.pdf_path) && (hw.pdfPath || hw.pdf_path).endsWith(sanitizedName)
         if (!isSameFile) {
-          showToast('Đang tải file PDF mới lên kho lưu trữ...', 'info')
-          pdfPath = await api.uploadFile(file)
+          showToast('Đang tải file PDF lên kho lưu trữ...', 'info')
+          pdfPath = await api.uploadFile(fileToUpload)
         } else {
           console.log('[CreateHw] File name is identical to existing. Skipping upload.')
+          pdfPath = hw.pdfPath || hw.pdf_path
         }
       }
 
