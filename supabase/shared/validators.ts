@@ -203,4 +203,6 @@ export const submitHomeworkSchema = z.object({
   isTrial: z.boolean().optional(),
   guestName: z.string().optional(),
   guestPhone: z.string().optional(),
+  disqualified: z.boolean().optional(),
+  violationCount: z.number().optional(),
 })

@@ -44,10 +44,12 @@ async function request(endpoint, options = {}) {
       return Promise.resolve([
         {
           id: 'mock-hw-1',
-          title: 'Bài tập Demo trắc nghiệm & tự luận',
+          title: 'Bài thi thử nghiệm chính thức (Demo Exam)',
           deadline: new Date(Date.now() + 86400000).toISOString(),
           durationMinutes: 45,
           maxAttempts: 3,
+          type: 'EXAM',
+          maxViolations: 3,
           lessonTitle: 'Bài học mẫu',
           chapterTitle: 'Chương mẫu',
           className: 'Lớp học mẫu 12A'
@@ -88,39 +90,108 @@ async function request(endpoint, options = {}) {
     }
     if (endpoint.startsWith('homework-detail')) {
       return Promise.resolve({
-        id: 'mock-hw-1',
-        title: 'Bài tập Demo trắc nghiệm & tự luận',
-        durationMinutes: 45,
+        homework: {
+          id: 'mock-hw-1',
+          title: 'Bài thi thử nghiệm chính thức (Demo Exam)',
+          durationMinutes: 45,
+          passScore: 5,
+          maxScore: 10,
+          isPublished: true,
+          createdAt: new Date().toISOString(),
+          deadline: new Date(Date.now() + 86400000).toISOString(),
+          maxAttempts: 3,
+          type: 'EXAM',
+          maxViolations: 3,
+          showSolutions: true,
+          lessonTitle: 'Bài học mẫu',
+          chapterTitle: 'Chương mẫu',
+          lessonId: 'l1',
+          chapterId: 'ch1',
+          classId: 'c1',
+          pdfPath: '',
+          pdfUrl: ''
+        },
         questions: [
           {
             id: 'q1',
             question_number: 1,
             question_type: 'MULTIPLE_CHOICE',
-            prompt: 'Đáp án nào đúng nhất?',
+            prompt: JSON.stringify({
+              text: 'Cho hàm số $y = f(x)$ có bảng biến thiên như hình vẽ. Hàm số đồng biến trên khoảng nào sau đây?',
+              options: [
+                { id: 'A', text: '$(-\\infty; -1)$' },
+                { id: 'B', text: '$(-1; 1)$' },
+                { id: 'C', text: '$(1; +\\infty)$' },
+                { id: 'D', text: '$(0; 2)$' }
+              ]
+            }),
             points: 1
           },
           {
             id: 'q2',
             question_number: 2,
             question_type: 'TRUE_FALSE',
-            prompt: 'Chọn Đúng hoặc Sai cho các phát biểu sau:',
+            prompt: JSON.stringify({
+              text: 'Cho hình lăng trụ tam giác đều $ABC.A\'B\'C\'$ có tất cả các cạnh bằng $a$. Xét tính đúng sai của các khẳng định sau:',
+              statements: [
+                { key: 'a', text: 'Góc giữa $A\'B$ và $(ABC)$ bằng $45^\\circ$.' },
+                { key: 'b', text: 'Thể tích khối lăng trụ bằng $\\frac{a^3\\sqrt{3}}{4}$.' },
+                { key: 'c', text: 'Khoảng cách giữa $AA\'$ và $BC$ bằng $a\\frac{\\sqrt{3}}{2}$.' },
+                { key: 'd', text: 'Mặt phẳng $(A\'BC)$ vuông góc với mặt phẳng $(ABB\'A\')$.' }
+              ]
+            }),
             points: 1
           },
           {
             id: 'q3',
             question_number: 3,
             question_type: 'SHORT_ANSWER',
-            prompt: 'Kết quả của 1 + 1 bằng bao nhiêu?',
+            prompt: JSON.stringify({
+              text: 'Tìm giá trị lớn nhất của hàm số $f(x) = -x^2 + 4x + 5$ trên đoạn $[0; 3]$.'
+            }),
             points: 1
           }
-        ]
+        ],
+        attemptsCount: 0
       })
+    }
+    if (endpoint.startsWith('exam-session')) {
+      return Promise.resolve({
+        success: true,
+        resumed: false,
+        draftAnswers: null
+      })
+    }
+    if (endpoint.startsWith('exam-log')) {
+      try {
+        const body = options.body ? JSON.parse(options.body) : {}
+        const penalizedActions = ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM', 'DEVTOOLS', 'FULLSCREEN_EXIT', 'COPY', 'PASTE', 'SHORTCUT_DEVTOOLS']
+        let currentVio = parseInt(sessionStorage.getItem('mock_violations_count') || '0', 10)
+        if (penalizedActions.includes(body.action)) {
+          currentVio++
+          sessionStorage.setItem('mock_violations_count', String(currentVio))
+        }
+        const maxV = 3
+        return Promise.resolve({
+          success: true,
+          currentViolations: currentVio,
+          maxViolations: maxV,
+          autoSubmitted: currentVio >= maxV
+        })
+      } catch (e) {
+        return Promise.resolve({
+          success: true,
+          currentViolations: 0,
+          maxViolations: 3,
+          autoSubmitted: false
+        })
+      }
     }
     if (endpoint.startsWith('submit-homework')) {
       return Promise.resolve({
         submission: {
           id: "mock-submission-id",
-          homeworkTitle: "Bài tập Demo",
+          homeworkTitle: "Bài thi thử nghiệm chính thức",
           studentName: state.user?.fullName || "Nguyễn Văn An",
           score: 8.5,
           maxScore: 10,
@@ -134,7 +205,7 @@ async function request(endpoint, options = {}) {
         questionReview: [
           {
             questionNumber: 1,
-            prompt: "Đáp án nào đúng nhất?",
+            prompt: "Cho hàm số $y = f(x)$ có bảng biến thiên...",
             questionType: "MULTIPLE_CHOICE",
             givenAnswer: { type: "MULTIPLE_CHOICE", value: "A" },
             isCorrect: true,
@@ -143,7 +214,7 @@ async function request(endpoint, options = {}) {
           },
           {
             questionNumber: 2,
-            prompt: "Chọn Đúng hoặc Sai cho các phát biểu sau:",
+            prompt: "Cho hình lăng trụ tam giác đều $ABC.A'B'C'$...",
             questionType: "TRUE_FALSE",
             givenAnswer: { type: "TRUE_FALSE", value: { a: true, b: false, c: true, d: false } },
             isCorrect: false,
@@ -152,9 +223,9 @@ async function request(endpoint, options = {}) {
           },
           {
             questionNumber: 3,
-            prompt: "Kết quả của 1 + 1 bằng bao nhiêu?",
+            prompt: "Tìm giá trị lớn nhất của hàm số...",
             questionType: "SHORT_ANSWER",
-            givenAnswer: { type: "SHORT_ANSWER", value: "2" },
+            givenAnswer: { type: "SHORT_ANSWER", value: "9" },
             isCorrect: true,
             scoreEarned: 1.0,
             pointsPossible: 1.0
@@ -216,10 +287,18 @@ async function request(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
   }
 
-  showLoading()
+  const isSilent = Boolean(options.silent || options.skipLoading)
+  const fetchOptions = { ...options }
+  delete fetchOptions.silent
+  delete fetchOptions.skipLoading
+  delete fetchOptions.isPublic
+
+  if (!isSilent) {
+    showLoading()
+  }
   try {
     let response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
-      ...options,
+      ...fetchOptions,
       headers
     })
 
@@ -245,7 +324,7 @@ async function request(endpoint, options = {}) {
               // Retry the original request with the new access token
               headers['Authorization'] = `Bearer ${accessToken}`
               response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
-                ...options,
+                ...fetchOptions,
                 headers
               })
             }
@@ -270,7 +349,10 @@ async function request(endpoint, options = {}) {
 
     const result = await response.json()
     if (!response.ok || result.success === false) {
-      const errMsg = result.error || `HTTP ${response.status}`
+      const errMsg = (typeof result.error === 'string' && result.error) ||
+        result.message ||
+        (typeof result.data === 'object' && (result.data?.message || result.data?.error)) ||
+        `HTTP ${response.status}`
       if (response.status === 401 || errMsg.includes('Authorization') || errMsg.includes('Unauthorized')) {
         if (!isPublicEndpoint) {
           logout()
@@ -285,7 +367,9 @@ async function request(endpoint, options = {}) {
     console.warn(`[API] Edge Function call ${endpoint} failed:`, err.message)
     throw err
   } finally {
-    hideLoading()
+    if (!isSilent) {
+      hideLoading()
+    }
   }
 }
 
@@ -337,16 +421,17 @@ export const api = {
   },
   getTodoHomeworks: (params = '') => request(`create-homework?todoOnly=true${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
-  submitExamLog: (data) => request('exam-log', { method: 'POST', body: JSON.stringify(data) }),
-  getExamLogs: (homeworkId, params = '') => request(`exam-log?homeworkId=${homeworkId}${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
-  reopenSubmission: (homeworkId, studentId, resetTimer, resetAnswers) => request(`reopen-submission`, { method: 'POST', body: JSON.stringify({ homeworkId, studentId, resetTimer, resetAnswers }) }),
-  initExamSession: (homeworkId, sessionToken) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }) }),
-  heartbeatExamSession: (homeworkId, sessionToken) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'heartbeat', homeworkId, sessionToken }) }),
-  autosaveExamSession: (homeworkId, sessionToken, draftAnswers) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'autosave', homeworkId, sessionToken, draftAnswers }) }),
+  submitExamLog: (data, options = {}) => request('exam-log', { method: 'POST', body: JSON.stringify(data), keepalive: true, silent: true, ...options }),
+  getExamLogs: (homeworkId, params = '', options = {}) => request(`exam-log?homeworkId=${homeworkId}${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET', ...options }),
+  getExamSessions: (homeworkId, options = {}) => request(`exam-session?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
+  reopenSubmission: (homeworkId, studentId, resetTimer, resetAnswers, options = {}) => request(`reopen-submission`, { method: 'POST', body: JSON.stringify({ homeworkId, studentId, resetTimer, resetAnswers }), ...options }),
+  initExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }), silent: true, ...options }),
+  heartbeatExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'heartbeat', homeworkId, sessionToken }), silent: true, ...options }),
+  autosaveExamSession: (homeworkId, sessionToken, draftAnswers, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'autosave', homeworkId, sessionToken, draftAnswers }), silent: true, ...options }),
   getDashboard: () => request('dashboard', { method: 'GET' }),
   getStatistics: (params = '') => request(`statistics?${params}`, { method: 'GET' }),
   getStudentHistory: (params = '') => request(`student-history${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
-  getHomeworkDetail: (homeworkId) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET' }),
+  getHomeworkDetail: (homeworkId, options = {}) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
   getStudents: (params = '') => request(`create-student${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
   getTelegramConfig: (classId) => request(`create-class?action=get-telegram-config&classId=${classId}`, { method: 'GET' }),

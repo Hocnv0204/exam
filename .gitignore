@@ -114,6 +114,7 @@ dist
 .supabase/
 supabase/.temp/
 supabase/functions/.env.local
+supabase/cloud_*.sql
 
 # OS Files
 .DS_Store

@@ -5,7 +5,13 @@ import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { openModal } from '../components/modal.js'
 import { api, SUPABASE_URL } from '../api.js'
 
-window.confirmStartHomework = (homeworkId) => {
+window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
+  if (type === 'EXAM') {
+    sessionStorage.removeItem(`exam_active_${homeworkId}`)
+    window.location.hash = `#exam-room?homeworkId=${homeworkId}`
+    return
+  }
+
   openModal(
     'Xác nhận làm bài tập',
     `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">
@@ -195,8 +201,8 @@ export function renderMyClassesView() {
                                     <span><i class="fa-regular fa-clock"></i> Thời gian: ${hw.durationMinutes || 45} phút</span>
                                     ${deadlineHtml}
                                   </div>
-                                  <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px; background: ${isExpired ? '#d97706' : ''}; border-color: ${isExpired ? '#d97706' : ''};">
-                                    ${isExpired ? 'Vào làm bài (Nộp muộn) <i class="fa-solid fa-arrow-right"></i>' : 'Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>'}
+                                  <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}', '${hw.type || 'PRACTICE'}')" style="padding:6px 12px; font-size:12px; width:100%; cursor:pointer; border-radius:6px; background: ${hw.type === 'EXAM' ? '#dc2626' : (isExpired ? '#d97706' : '')}; border-color: ${hw.type === 'EXAM' ? '#dc2626' : (isExpired ? '#d97706' : '')};">
+                                    ${hw.type === 'EXAM' ? '<i class="fa-solid fa-shield-cat"></i> Vào phòng thi' : (isExpired ? 'Vào làm bài (Nộp muộn) <i class="fa-solid fa-arrow-right"></i>' : 'Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>')}
                                   </button>
                                 </div>
                               `
@@ -509,8 +515,8 @@ async function loadTodoHomeworks() {
                   ${deadlineHtml}
                 </div>
               </div>
-              <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}')" style="padding:8px 14px; font-size:12px; width:100%; cursor:pointer; margin-top:4px;">
-                Bắt đầu làm bài <i class="fa-solid fa-arrow-right"></i>
+              <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}', '${hw.type || 'PRACTICE'}')" style="padding:8px 14px; font-size:12px; width:100%; cursor:pointer; margin-top:4px; background: ${hw.type === 'EXAM' ? '#dc2626' : ''}; border-color: ${hw.type === 'EXAM' ? '#dc2626' : ''};">
+                ${hw.type === 'EXAM' ? '<i class="fa-solid fa-shield-cat"></i> Vào phòng thi' : 'Bắt đầu làm bài <i class="fa-solid fa-arrow-right"></i>'}
               </button>
             </div>
           `

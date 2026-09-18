@@ -21,7 +21,7 @@ serve(async (req: Request) => {
       return errorResponse('Validation error', 400, validation.error.format())
     }
 
-    const { homeworkId, answers, durationSecondsTaken, sessionToken, guestName, guestPhone } = validation.data
+    const { homeworkId, answers, durationSecondsTaken, sessionToken, guestName, guestPhone, disqualified, violationCount } = validation.data
     const serviceRoleClient = createServiceRoleClient()
 
     // 1. Fetch homework and verify lesson trial status
@@ -39,6 +39,7 @@ serve(async (req: Request) => {
         pdf_path,
         type,
         show_solutions,
+        duration_minutes,
         lessons (
           id,
           title,
@@ -82,21 +83,43 @@ serve(async (req: Request) => {
 
       const { data: session } = await serviceRoleClient
         .from('exam_sessions')
-        .select('id, session_token')
+        .select('id, session_token, created_at, status')
         .eq('homework_id', homeworkId)
         .eq('student_id', user.id)
-        .eq('status', 'ACTIVE')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
 
       if (!session) {
-        return errorResponse('No active exam session found', 404)
+        return errorResponse('No exam session found', 404)
       }
+
       if (session.session_token !== sessionToken) {
         return jsonResponse({
           error: 'INVALID_TOKEN',
           message: 'Phiên làm bài không hợp lệ hoặc đã bị ghi đè.'
         }, 403)
       }
+
+      // Idempotency: If session is already SUBMITTED (e.g. server auto-submitted on violation), return existing submission
+      if (session.status === 'SUBMITTED') {
+        const { data: existingSub } = await serviceRoleClient
+          .from('submissions')
+          .select('id, total_score, max_score, submitted_at')
+          .eq('homework_id', homeworkId)
+          .eq('student_id', user.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        return jsonResponse({
+          submissionId: existingSub?.id || null,
+          alreadySubmitted: true,
+          score: existingSub?.total_score || 0,
+          message: 'Bài thi đã được ghi nhận nộp thành công.'
+        })
+      }
+
       examSessionId = session.id
     }
 
@@ -348,18 +371,53 @@ serve(async (req: Request) => {
       }
     }
 
-    // 7. Send Telegram notification asynchronously in background (fire-and-forget)
-    const notificationTask = (async () => {
+    // 7. Send Telegram notification
+    const sendNotification = async () => {
       try {
-        if (!classIdOfHomework) return
+        // 1. Determine all relevant class IDs for this homework and student
+        const classIdsToSearch: string[] = []
+        if (classIdOfHomework) {
+          classIdsToSearch.push(classIdOfHomework)
+        } else if (homework.lesson_id) {
+          const { data: lessonData } = await serviceRoleClient
+            .from('lessons')
+            .select('chapter_id, chapters(class_id)')
+            .eq('id', homework.lesson_id)
+            .maybeSingle()
+          const resolvedCid = (lessonData?.chapters as any)?.class_id
+          if (resolvedCid) classIdsToSearch.push(resolvedCid)
+        }
 
-        const [telegramConfigRes, studentProfileRes, classDataRes] = await Promise.all([
-          serviceRoleClient
-            .from('telegram_configs')
-            .select('chat_id, chat_title, is_enabled')
-            .eq('class_id', classIdOfHomework)
-            .eq('is_enabled', true)
-            .maybeSingle(),
+        // Also include user's enrolled classes if homework's class didn't yield a config
+        if (user) {
+          if (user.classId && !classIdsToSearch.includes(user.classId)) {
+            classIdsToSearch.push(user.classId)
+          }
+          if (Array.isArray(user.classIds)) {
+            for (const cid of user.classIds) {
+              if (cid && !classIdsToSearch.includes(cid)) classIdsToSearch.push(cid)
+            }
+          }
+        }
+
+        if (classIdsToSearch.length === 0) return
+
+        // 2. Fetch all enabled telegram configs for these classes
+        const { data: tgConfigs } = await serviceRoleClient
+          .from('telegram_configs')
+          .select('class_id, chat_id, chat_title, is_enabled')
+          .in('class_id', classIdsToSearch)
+          .eq('is_enabled', true)
+
+        if (!tgConfigs || tgConfigs.length === 0) return
+
+        // Deduplicate target chat IDs
+        const targetChatIds = [...new Set(tgConfigs.map(c => c.chat_id).filter(Boolean))]
+        if (targetChatIds.length === 0) return
+
+        // 3. Resolve student name and class name
+        const effectiveClassId = classIdOfHomework || classIdsToSearch[0]
+        const [studentProfileRes, classDataRes] = await Promise.all([
           user
             ? serviceRoleClient
                 .from('profiles')
@@ -367,24 +425,23 @@ serve(async (req: Request) => {
                 .eq('id', user.id)
                 .maybeSingle()
             : Promise.resolve({ data: null, error: null }),
-          serviceRoleClient
-            .from('classes')
-            .select('name')
-            .eq('id', classIdOfHomework)
-            .maybeSingle()
+          effectiveClassId
+            ? serviceRoleClient
+                .from('classes')
+                .select('name')
+                .eq('id', effectiveClassId)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null })
         ])
-
-        const telegramConfig = telegramConfigRes.data
-        if (!telegramConfig || !telegramConfig.chat_id) return
 
         let studentDisplayName = 'Học sinh'
         if (user) {
-          studentDisplayName = studentProfileRes.data?.full_name || 'Học sinh'
+          studentDisplayName = studentProfileRes.data?.full_name || user.fullName || user.username || 'Học sinh'
         } else {
           studentDisplayName = guestName ? `${guestName} (Học thử)` : 'Học sinh trải nghiệm (Học thử)'
         }
 
-        const classData = classDataRes.data
+        const className = classDataRes.data?.name || 'N/A'
         const submissionTime = new Date(submission.submitted_at).toLocaleString('vi-VN', {
           timeZone: 'Asia/Ho_Chi_Minh',
           day: '2-digit',
@@ -402,41 +459,72 @@ serve(async (req: Request) => {
         const durSecs = durationSecondsTaken || 0
         const durationFormatted = durSecs > 0 ? `${Math.floor(durSecs / 60)} phút ${durSecs % 60} giây` : 'Không xác định'
 
+        const safeStudent = escapeHtmlForTelegram(studentDisplayName)
+        const safeClass = escapeHtmlForTelegram(className)
+        const safeTitle = escapeHtmlForTelegram(homework.title)
+        const safePhone = escapeHtmlForTelegram(guestPhone || 'Chưa cung cấp')
+
         let message = ''
         if (isTrialSubmission) {
           message = `🌟 <b>THÔNG BÁO HỌC THỬ (TIỀM NĂNG)</b>\n` +
-            `🎓 <b>Học sinh:</b> ${studentDisplayName}\n` +
-            `📞 <b>SĐT:</b> ${guestPhone || 'Chưa cung cấp'}\n` +
-            `🏫 <b>Lớp / Khóa:</b> ${classData?.name || 'Chung'}\n` +
-            `📝 <b>Bài tập:</b> ${homework.title}\n` +
+            `🎓 <b>Học sinh:</b> ${safeStudent}\n` +
+            `📞 <b>SĐT:</b> ${safePhone}\n` +
+            `🏫 <b>Lớp / Khóa:</b> ${safeClass}\n` +
+            `📝 <b>Bài tập:</b> ${safeTitle}\n` +
             `⏱ <b>Thời gian nộp:</b> ${submissionTime}\n` +
             `📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})\n` +
             `✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}\n` +
             `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}`
+        } else if (disqualified) {
+          const maxV = homework.max_violations || 3
+          const vioCount = violationCount || maxV
+          message = `🚨 <b>THÔNG BÁO ĐÌNH CHỈ THI (VI PHẠM QUY CHẾ)</b>\n` +
+            `🎓 <b>Học sinh:</b> ${safeStudent}\n` +
+            `🏫 <b>Lớp:</b> ${safeClass}\n` +
+            `📝 <b>Bài thi:</b> ${safeTitle}\n` +
+            `⚠️ <b>Lý do:</b> Vi phạm quy chế thi (${vioCount}/${maxV} lần) - Hệ thống tự động thu bài\n` +
+            `⏱ <b>Thời gian thu bài:</b> ${submissionTime}\n` +
+            `📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})\n` +
+            `✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}\n` +
+            `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}`
+        } else if (homework.type === 'EXAM') {
+          const lateLine = isLate ? `\n⚠️ <b>Trạng thái:</b> Nộp muộn` : ''
+          message = `📑 <b>THÔNG BÁO NỘP BÀI THI CHÍNH THỨC</b>\n` +
+            `🎓 <b>Học sinh:</b> ${safeStudent}\n` +
+            `🏫 <b>Lớp:</b> ${safeClass}\n` +
+            `📝 <b>Bài thi:</b> ${safeTitle}\n` +
+            `⏱ <b>Thời gian nộp:</b> ${submissionTime}\n` +
+            `📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})\n` +
+            `✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}\n` +
+            `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}${lateLine}`
         } else {
           const lateLine = isLate ? `\n⚠️ <b>Trạng thái:</b> Nộp muộn` : ''
-          message = `📣 <b>THÔNG BÁO NỘP BÀI</b>\n` +
-            `🎓 <b>Học sinh:</b> ${studentDisplayName}\n` +
-            `🏫 <b>Lớp:</b> ${classData?.name || 'N/A'}\n` +
-            `📝 <b>Bài tập:</b> ${homework.title}\n` +
+          message = `📣 <b>THÔNG BÁO NỘP BÀI TẬP</b>\n` +
+            `🎓 <b>Học sinh:</b> ${safeStudent}\n` +
+            `🏫 <b>Lớp:</b> ${safeClass}\n` +
+            `📝 <b>Bài tập:</b> ${safeTitle}\n` +
             `⏱ <b>Thời gian nộp:</b> ${submissionTime}\n` +
             `📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})\n` +
             `✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}\n` +
             `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}${lateLine}`
         }
 
-        await sendTelegramNotification(telegramConfig.chat_id, message)
+        for (const chatId of targetChatIds) {
+          await sendTelegramNotification(chatId, message)
+        }
       } catch (notifyErr: any) {
         console.error('[submit-homework] Error sending notification:', notifyErr?.message)
       }
-    })()
+    }
 
-    // @ts-ignore EdgeRuntime waitUntil support
-    if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
-      // @ts-ignore
-      EdgeRuntime.waitUntil(notificationTask)
-    } else {
-      notificationTask.catch((err) => console.error('[submit-homework] Background notify error:', err))
+    // Await notification with a 3.5s timeout so edge function reliably completes sending
+    try {
+      await Promise.race([
+        sendNotification(),
+        new Promise((resolve) => setTimeout(resolve, 3500))
+      ])
+    } catch (e) {
+      console.warn('[submit-homework] sendNotification timed out or failed:', e)
     }
 
     // 8. Return complete submission result
@@ -472,6 +560,14 @@ serve(async (req: Request) => {
     return errorResponse(msg || 'Internal Server Error', 500)
   }
 })
+
+function escapeHtmlForTelegram(str: string): string {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 async function sendTelegramNotification(chatId: string, text: string): Promise<void> {
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN')

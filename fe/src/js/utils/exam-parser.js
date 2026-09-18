@@ -228,6 +228,107 @@ export function renderMath(container) {
 }
 
 /**
+ * Parses Markdown syntax into safe HTML while preserving KaTeX Math ($...$, $$...$$, \ce{...})
+ */
+export function renderMarkdown(text) {
+  if (!text) return ''
+  let str = String(text)
+
+  // 1. Shield math blocks and chemistry formulas
+  const mathTokens = []
+  const shieldMath = (match) => {
+    const placeholder = `@@MATHXTOKENX${mathTokens.length}XTOKENXMATH@@`
+    mathTokens.push(match)
+    return placeholder
+  }
+
+  // Display math $$...$$ and \[...\]
+  str = str.replace(/\$\$[\s\S]*?\$\$/g, shieldMath)
+  str = str.replace(/\\\[[\s\S]*?\\\]/g, shieldMath)
+  
+  // Chemistry formula \ce{...} (including nested balanced braces)
+  str = str.replace(/\\ce\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, shieldMath)
+
+  // Inline math $...$ (avoid matching across newlines) and \(...\)
+  str = str.replace(/\$(?!\s)[^$\n]+(?<!\s)\$/g, shieldMath)
+  str = str.replace(/\\\([\s\S]*?\\\)/g, shieldMath)
+
+  // 2. Escape standard HTML entities
+  str = str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+
+  // 3. Images: ![alt](url)
+  str = str.replace(/!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" class="md-img" style="max-width:100%; max-height:360px; object-fit:contain; border-radius:8px; margin:8px 0; border:1px solid #e2e8f0; display:block;" />')
+
+  // 4. Links: [text](url)
+  str = str.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#0284c7; text-decoration:underline;">$1</a>')
+
+  // 5. Headings: ###, ##, #
+  str = str.replace(/^### (.*$)/gim, '<h4 style="font-size:15px; font-weight:700; margin:8px 0 4px 0; color:#0f172a;">$1</h4>')
+  str = str.replace(/^## (.*$)/gim, '<h3 style="font-size:16px; font-weight:700; margin:10px 0 6px 0; color:#0f172a;">$1</h3>')
+  str = str.replace(/^# (.*$)/gim, '<h2 style="font-size:18px; font-weight:800; margin:12px 0 8px 0; color:#0f172a;">$1</h2>')
+
+  // 6. Bold & Italic
+  str = str.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+  str = str.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+  str = str.replace(/__([\s\S]*?)__/g, '<strong>$1</strong>')
+  str = str.replace(/\*(.*?)\*/g, '<em>$1</em>')
+  str = str.replace(/_([^_]+)_/g, '<em>$1</em>')
+
+  // 7. Inline code: `code`
+  str = str.replace(/`([^`]+)`/g, '<code style="background:#f1f5f9; color:#0f172a; padding:2px 6px; border-radius:4px; font-family:monospace; font-size:12.5px;">$1</code>')
+
+  // 8. Blockquotes: &gt; quote
+  str = str.replace(/^&gt; (.*$)/gim, '<blockquote style="border-left:3px solid #0284c7; padding:4px 12px; margin:6px 0; background:#f0f9ff; color:#0369a1; border-radius:0 6px 6px 0;">$1</blockquote>')
+
+  // 9. Markdown lists: lines starting with - or *
+  str = str.replace(/^\s*[-*]\s+(.*)$/gim, '<li style="margin-left:20px; line-height:1.6;">$1</li>')
+  str = str.replace(/(<li[\s\S]*?<\/li>)+/g, '<ul style="margin:6px 0; padding-left:4px;">$&</ul>')
+
+  // 10. Simple Tables
+  const tableRegex = /((?:\|[^\n]+\|\r?\n)+)/g
+  str = str.replace(tableRegex, (tableBlock) => {
+    const rows = tableBlock.trim().split(/\r?\n/)
+    if (rows.length < 2) return tableBlock
+    let tableHtml = '<table class="md-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px; border:1px solid #cbd5e1;">'
+    let isHeader = true
+    for (const row of rows) {
+      if (/^\|\s*[-:]+[-| :]*\|$/.test(row)) {
+        isHeader = false
+        continue
+      }
+      const cells = row.split('|').slice(1, -1)
+      tableHtml += '<tr>'
+      for (const cell of cells) {
+        const tag = isHeader ? 'th' : 'td'
+        const cellStyle = isHeader 
+          ? 'background:#f1f5f9; font-weight:700; padding:8px 12px; border:1px solid #cbd5e1; text-align:left;' 
+          : 'padding:8px 12px; border:1px solid #e2e8f0;'
+        tableHtml += `<${tag} style="${cellStyle}">${cell.trim()}</${tag}>`
+      }
+      tableHtml += '</tr>'
+      if (isHeader) isHeader = false
+    }
+    tableHtml += '</table>'
+    return tableHtml
+  })
+
+  // 11. Convert double linebreaks to spacing, single linebreaks to <br>
+  str = str.replace(/\r?\n\r?\n/g, '<div style="height:8px;"></div>')
+  str = str.replace(/\r?\n/g, '<br>')
+
+  // 12. Restore Math blocks
+  for (let i = 0; i < mathTokens.length; i++) {
+    str = str.replace(`@@MATHXTOKENX${i}XTOKENXMATH@@`, mathTokens[i])
+  }
+
+  return str
+}
+
+/**
  * Compresses an image File or Blob to an optimized WebP/JPEG data URL
  * Max dimensions: 900x900, quality: 0.82
  */

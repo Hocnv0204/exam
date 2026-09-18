@@ -415,10 +415,10 @@ function updateAutosaveIndicator(saved = true) {
 
 export function renderHomeworkSolverView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
-  const hw = state.currentHomework?.homework
+  const hw = state.currentHomework?.homework || state.currentHomework
   const questions = state.currentHomework?.questions || []
 
-  if (!hw) {
+  if (!hw || !hw.id) {
     return `
       <div class="app-layout">
         ${renderSidebar('homework-attempt')}
@@ -1255,8 +1255,21 @@ export function bindHomeworkSolverEvents() {
     updateAutosaveIndicator(true)
   }
 
-  const startTimer = () => {
+  const updateTimerDisplay = () => {
     const timerDisplay = document.getElementById('exam-timer-display')
+    if (!timerDisplay) return
+    const safeSeconds = Math.max(0, timeLeftSeconds)
+    const minutes = Math.floor(safeSeconds / 60)
+    const seconds = safeSeconds % 60
+    timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    if (safeSeconds <= 300) {
+      timerDisplay.style.color = '#ef4444'
+      timerDisplay.style.fontWeight = '700'
+    }
+  }
+
+  const startTimer = () => {
+    updateTimerDisplay()
     if (timerInterval) clearInterval(timerInterval)
 
     timerInterval = setInterval(() => {
@@ -1268,6 +1281,7 @@ export function bindHomeworkSolverEvents() {
       }
 
       timeLeftSeconds--
+      updateTimerDisplay()
 
       if (timeLeftSeconds % 10 === 0) {
         saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
@@ -1275,16 +1289,6 @@ export function bindHomeworkSolverEvents() {
 
       if (timeLeftSeconds === 300) {
         showToast('Thời gian làm bài của bạn còn lại 5 phút!', 'warning')
-      }
-
-      const minutes = Math.floor(timeLeftSeconds / 60)
-      const seconds = timeLeftSeconds % 60
-      if (timerDisplay) {
-        timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-        if (timeLeftSeconds <= 300) {
-          timerDisplay.style.color = '#ef4444'
-          timerDisplay.style.fontWeight = '700'
-        }
       }
     }, 1000)
   }

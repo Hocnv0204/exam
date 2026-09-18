@@ -10,18 +10,14 @@ serve(async (req: Request) => {
     const { user, serviceRoleClient } = await requireAuth(req)
     const url = new URL(req.url)
 
-    // GET: Admin fetches logs for a homework
+    // GET: Admin fetches logs (or student fetches their own logs)
     if (req.method === 'GET') {
-      if (user.role !== 'ADMIN') {
-        return errorResponse('Forbidden: Only admins can view exam logs', 403)
-      }
-
       const homeworkId = url.searchParams.get('homeworkId')
       if (!homeworkId) {
         return errorResponse('homeworkId is required', 400)
       }
 
-      const { data: logs, error } = await serviceRoleClient
+      let query = serviceRoleClient
         .from('exam_logs')
         .select(`
           id,
@@ -33,6 +29,16 @@ serve(async (req: Request) => {
         .eq('homework_id', homeworkId)
         .order('created_at', { ascending: false })
 
+      if (user.role === 'STUDENT') {
+        query = query.eq('student_id', user.id)
+      } else if (user.role === 'ADMIN') {
+        const studentId = url.searchParams.get('studentId')
+        if (studentId) query = query.eq('student_id', studentId)
+      } else {
+        return errorResponse('Forbidden: Invalid role', 403)
+      }
+
+      const { data: logs, error } = await query
       if (error) return errorResponse(error.message, 500)
 
       return jsonResponse(logs)
@@ -40,8 +46,8 @@ serve(async (req: Request) => {
 
     // POST: Student submits an exam log (cheat attempt / warning)
     if (req.method === 'POST') {
-      if (user.role !== 'STUDENT') {
-        return errorResponse('Forbidden: Only students can submit exam logs', 403)
+      if (user.role !== 'STUDENT' && user.role !== 'ADMIN') {
+        return errorResponse('Forbidden: Only students and administrators can submit exam logs', 403)
       }
 
       const body = await req.json()
@@ -72,38 +78,45 @@ serve(async (req: Request) => {
       
       const maxV = hw?.max_violations ?? 3
 
-      // Count current violations
-      const penalizedActions = ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM']
-      const { count } = await serviceRoleClient
+      // Get active exam session
+      const { data: session } = await serviceRoleClient
+        .from('exam_sessions')
+        .select('id, session_token, draft_answers, status, created_at')
+        .eq('homework_id', homeworkId)
+        .eq('student_id', user.id)
+        .eq('status', 'ACTIVE')
+        .maybeSingle()
+
+      // Count current violations for this specific exam session
+      const penalizedActions = ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM', 'DEVTOOLS', 'FULLSCREEN_EXIT']
+      let countQuery = serviceRoleClient
         .from('exam_logs')
         .select('*', { count: 'exact', head: true })
         .eq('homework_id', homeworkId)
         .eq('student_id', user.id)
         .in('action', penalizedActions)
 
+      if (session?.created_at) {
+        countQuery = countQuery.gte('created_at', session.created_at)
+      }
+
+      const { count } = await countQuery
       const currentViolations = count || 0
 
       if (penalizedActions.includes(action) && currentViolations >= maxV) {
-        // Trigger server-side auto-submit
-        const { data: session } = await serviceRoleClient
-          .from('exam_sessions')
-          .select('session_token, draft_answers, status')
-          .eq('homework_id', homeworkId)
-          .eq('student_id', user.id)
-          .eq('status', 'ACTIVE')
-          .maybeSingle()
-          
         if (session) {
           const authHeader = req.headers.get('Authorization')
           const draftAnswers = Array.isArray(session.draft_answers) ? session.draft_answers : []
           
-          // Invoke submit-homework
-          const { error: invokeErr } = await serviceRoleClient.functions.invoke('submit-homework', {
+          // Invoke submit-homework with disqualified = true
+          const { data: subData, error: invokeErr } = await serviceRoleClient.functions.invoke('submit-homework', {
             body: {
               homeworkId,
               answers: draftAnswers,
               durationSecondsTaken: 0,
-              sessionToken: session.session_token
+              sessionToken: session.session_token,
+              disqualified: true,
+              violationCount: currentViolations
             },
             headers: {
               Authorization: authHeader || ''
@@ -111,7 +124,14 @@ serve(async (req: Request) => {
           })
 
           if (!invokeErr) {
-            return jsonResponse({ success: true, log: data, autoSubmitted: true, currentViolations, maxViolations: maxV })
+            return jsonResponse({
+              success: true,
+              log: data,
+              autoSubmitted: true,
+              currentViolations,
+              maxViolations: maxV,
+              submission: subData?.data || subData
+            })
           }
         }
       }

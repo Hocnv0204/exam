@@ -615,6 +615,11 @@ function renderFilteredHomeworks() {
         </td>
         <td style="padding:12px 16px; text-align:center;">
           <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+            ${isExam ? `
+              <button class="btn-secondary btn-proctor-hw" data-id="${hw.id}" title="Giám sát phòng thi trực tuyến" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626;">
+                <i class="fa-solid fa-desktop"></i>
+              </button>
+            ` : ''}
             <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem lịch sử & câu sai" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
               <i class="fa-solid fa-chart-pie"></i>
             </button>
@@ -684,6 +689,16 @@ function renderFilteredHomeworks() {
         hash += `?homeworkId=${hwId}&tab=unsubmitted`
       }
       window.location.hash = hash
+    })
+  })
+
+  // Attach Proctoring buttons listeners -> Redirect to /exam-proctoring?homeworkId=...
+  tableBody.querySelectorAll('.btn-proctor-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hwId = btn.getAttribute('data-id')
+      if (hwId) {
+        window.location.hash = `#exam-proctoring?homeworkId=${hwId}`
+      }
     })
   })
 

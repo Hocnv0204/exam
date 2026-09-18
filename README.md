@@ -2,6 +2,8 @@
 
 A production-ready, highly secure, scalable serverless backend for an **Online Homework Management System** built with **Supabase**, **PostgreSQL**, and **TypeScript Edge Functions**.
 
+> 📖 **Xem hướng dẫn chi tiết tiếng Việt**: [HUONG_DAN_SUPABASE.md](HUONG_DAN_SUPABASE.md) (Chạy local, quản lý migration & quy trình deploy lên Supabase Cloud).
+
 ---
 
 ## Table of Contents

@@ -17,6 +17,8 @@ import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework
 import { renderTrialView, bindTrialEvents } from './views/trial.js'
 import { renderQuestionBankView, bindQuestionBankEvents } from './views/question-bank.js'
 import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } from './views/grade-blocks.js'
+import { renderExamRoomView, bindExamRoomEvents } from './views/exam-room.js'
+import { renderExamProctoringView, bindExamProctoringEvents } from './views/exam-proctoring.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
@@ -35,7 +37,9 @@ const routes = {
   'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents },
   'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents },
   'question-bank': { render: renderQuestionBankView, bind: bindQuestionBankEvents },
-  'grade-blocks': { render: renderGradeBlocksView, bind: bindGradeBlocksEvents }
+  'grade-blocks': { render: renderGradeBlocksView, bind: bindGradeBlocksEvents },
+  'exam-room': { render: renderExamRoomView, bind: bindExamRoomEvents },
+  'exam-proctoring': { render: renderExamProctoringView, bind: bindExamProctoringEvents }
 }
 
 async function router() {
@@ -94,8 +98,8 @@ async function router() {
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank']
-    const studentOnlyRoutes = ['my-classes', 'homework-attempt', 'history']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring']
+    const studentOnlyRoutes = ['my-classes', 'homework-attempt', 'history', 'exam-room']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
       window.location.hash = '#my-classes'
@@ -112,12 +116,29 @@ async function router() {
   // Pre-fetch state data if user is logged in
   if (state.token) {
     try {
+      // Fetch Exam Room Details dynamically
+      if (hash === 'exam-room') {
+        const homeworkId = params.get('homeworkId')
+        if (homeworkId) {
+          const hwData = await api.getHomeworkDetail(homeworkId)
+          state.currentHomework = hwData
+          if (hwData?.homework?.type && hwData.homework.type !== 'EXAM') {
+            window.location.hash = `#homework-attempt?homeworkId=${homeworkId}`
+            return
+          }
+        }
+      }
+
       // Fetch Homework Attempt Details dynamically
       if (hash === 'homework-attempt') {
         const homeworkId = params.get('homeworkId')
         if (homeworkId) {
           const hwData = await api.getHomeworkDetail(homeworkId)
           state.currentHomework = hwData
+          if (hwData?.homework?.type === 'EXAM') {
+            window.location.hash = `#exam-room?homeworkId=${homeworkId}`
+            return
+          }
         }
       }
 

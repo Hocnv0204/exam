@@ -7,9 +7,53 @@ serve(async (req: Request) => {
   if (corsRes) return corsRes
 
   try {
+    const { user, serviceRoleClient } = await requireAuth(req)
+
+    // GET: Admin fetches sessions for a homework
+    if (req.method === 'GET') {
+      if (user.role !== 'ADMIN') {
+        return errorResponse('Forbidden: Only admins can view exam sessions', 403)
+      }
+      const url = new URL(req.url)
+      const homeworkId = url.searchParams.get('homeworkId')
+      if (!homeworkId) return errorResponse('homeworkId is required', 400)
+
+      const { data: sessions, error } = await serviceRoleClient
+        .from('exam_sessions')
+        .select(`
+          id,
+          student_id,
+          status,
+          created_at,
+          last_heartbeat_at
+        `)
+        .eq('homework_id', homeworkId)
+        .order('created_at', { ascending: false })
+
+      if (error) return errorResponse(error.message, 500)
+
+      const studentIds = [...new Set((sessions || []).map(s => s.student_id))]
+      let profilesMap: Record<string, any> = {}
+      if (studentIds.length > 0) {
+        const { data: profiles } = await serviceRoleClient
+          .from('profiles')
+          .select('id, full_name, username')
+          .in('id', studentIds)
+        if (profiles) {
+          profilesMap = profiles.reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
+        }
+      }
+
+      const sessionsWithProfiles = (sessions || []).map(s => ({
+        ...s,
+        profiles: profilesMap[s.student_id] || { full_name: 'Học sinh', username: 'student' }
+      }))
+
+      return jsonResponse(sessionsWithProfiles)
+    }
+
     if (req.method !== 'POST') return errorResponse('Method not allowed', 405)
 
-    const { user, serviceRoleClient } = await requireAuth(req)
     const body = await req.json()
     const { action, homeworkId, sessionToken } = body
 
@@ -28,27 +72,52 @@ serve(async (req: Request) => {
         .maybeSingle()
 
       if (existingSession) {
-        // Check heartbeat
-        const lastHeartbeat = new Date(existingSession.last_heartbeat_at).getTime()
-        const now = Date.now()
-        if (now - lastHeartbeat <= 90000) { // 90 seconds
-          return jsonResponse({
-            error: 'CONFLICT',
-            message: 'Bài thi đang mở ở thiết bị/tab khác. Vui lòng đóng tab cũ hoặc chờ 90 giây để tiếp tục.'
-          }, 409)
-        } else {
-          // Takeover: Update the session token
-          const { error: updateErr } = await serviceRoleClient
+        const getViolationsCount = async (createdAt: string) => {
+          const { count } = await serviceRoleClient
+            .from('exam_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('homework_id', homeworkId)
+            .eq('student_id', user.id)
+            .gte('created_at', createdAt)
+            .in('action', ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM', 'DEVTOOLS', 'FULLSCREEN_EXIT'])
+          return count || 0
+        }
+
+        // If student reloads (F5) or reconnects with the same session token, resume immediately
+        if (existingSession.session_token === sessionToken) {
+          await serviceRoleClient
             .from('exam_sessions')
-            .update({ 
-              session_token: sessionToken, 
-              last_heartbeat_at: new Date().toISOString() 
-            })
+            .update({ last_heartbeat_at: new Date().toISOString() })
             .eq('id', existingSession.id)
 
-          if (updateErr) return errorResponse('Takeover failed', 500)
-          return jsonResponse({ success: true, takeover: true })
+          const currentViolations = await getViolationsCount(existingSession.created_at)
+
+          return jsonResponse({
+            success: true,
+            resumed: true,
+            currentViolations,
+            draftAnswers: existingSession.draft_answers || null
+          })
         }
+
+        // Seamless Takeover: Update session token to new token and restore existing drafts
+        const { error: updateErr } = await serviceRoleClient
+          .from('exam_sessions')
+          .update({ 
+            session_token: sessionToken, 
+            last_heartbeat_at: new Date().toISOString() 
+          })
+          .eq('id', existingSession.id)
+
+        if (updateErr) return errorResponse('Takeover failed', 500)
+        const currentViolations = await getViolationsCount(existingSession.created_at)
+
+        return jsonResponse({
+          success: true,
+          takeover: true,
+          currentViolations,
+          draftAnswers: existingSession.draft_answers || null
+        })
       }
 
       // No active session exists, try to insert (will fail if race condition happens thanks to partial unique index)
