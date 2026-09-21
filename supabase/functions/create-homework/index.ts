@@ -89,98 +89,138 @@ serve(async (req: Request) => {
         return jsonResponse(formatted)
       }
 
-      const classIdQuery = url.searchParams.get('classId')
-      if (classIdQuery) {
-        const { data: homeworks, error } = await serviceRoleClient
-          .from('homeworks')
-          .select(`
-            id,
-            lesson_id,
-            title,
-            pdf_path,
-            duration_minutes,
-            pass_score,
-            max_score,
-            is_published,
-            created_at,
-            deadline,
-            max_attempts,
-            type,
-            show_solutions,
-            lessons!inner (
-              id,
-              title,
-              chapter_id,
-              chapters!inner (
-                id,
-                title,
-                class_id
-              )
-            )
-          `)
-          .eq('lessons.chapters.class_id', classIdQuery)
-          .order('created_at', { ascending: false })
-
-        if (error) return errorResponse(error.message, 500)
-
-        const formatted = (homeworks || []).map((hw: any) => ({
-          id: hw.id,
-          lessonId: hw.lesson_id,
-          title: hw.title,
-          pdfPath: hw.pdf_path,
-          durationMinutes: hw.duration_minutes,
-          passScore: hw.pass_score,
-          maxScore: hw.max_score,
-          isPublished: hw.is_published,
-          createdAt: hw.created_at,
-          deadline: hw.deadline,
-          maxAttempts: hw.max_attempts,
-          type: hw.type,
-          showSolutions: hw.show_solutions !== false,
-          lessonTitle: hw.lessons?.title || '',
-          chapterTitle: hw.lessons?.chapters?.title || ''
-        }))
-
-        return jsonResponse(formatted)
-      }
-
+      // Parameters for Querying, Filtering & Pagination
+      const classId = url.searchParams.get('classId')
+      const chapterId = url.searchParams.get('chapterId')
       const lessonId = url.searchParams.get('lessonId')
-      let query = serviceRoleClient
-        .from('homeworks')
-        .select(`
+      const type = url.searchParams.get('type')
+      const search = url.searchParams.get('search')
+      const sortBy = url.searchParams.get('sortBy') || 'newest'
+      const pageParam = url.searchParams.get('page')
+      const pageSizeParam = url.searchParams.get('pageSize') || url.searchParams.get('limit')
+      const isPaginated = url.searchParams.get('paginate') === 'true' || !!pageParam || !!pageSizeParam
+      const includeStats = url.searchParams.get('includeStats') === 'true' || isPaginated
+
+      const page = Math.max(1, parseInt(pageParam || '1', 10))
+      const pageSize = Math.max(1, Math.min(100, parseInt(pageSizeParam || '10', 10)))
+
+      const needsInnerLesson = !!classId || !!chapterId
+      const selectClause = `
+        id,
+        lesson_id,
+        title,
+        pdf_path,
+        duration_minutes,
+        pass_score,
+        max_score,
+        is_published,
+        created_at,
+        deadline,
+        max_attempts,
+        type,
+        max_violations,
+        show_solutions,
+        lessons${needsInnerLesson ? '!inner' : ''} (
           id,
-          lesson_id,
           title,
-          pdf_path,
-          duration_minutes,
-          pass_score,
-          max_score,
-          is_published,
-          created_at,
-          deadline,
-          max_attempts,
-          type,
-          max_violations,
-          show_solutions,
-          lessons (
+          chapter_id,
+          chapters${classId ? '!inner' : ''} (
             id,
             title,
-            chapter_id,
-            chapters (
+            class_id,
+            classes (
               id,
-              title,
-              class_id,
-              classes (
-                id,
-                name
-              )
+              name
             )
           )
-        `)
+        )
+      `
+
+      let query = serviceRoleClient
+        .from('homeworks')
+        .select(selectClause, { count: 'exact' })
+
       if (lessonId) {
         query = query.eq('lesson_id', lessonId)
+      } else if (chapterId) {
+        query = query.eq('lessons.chapter_id', chapterId)
+      } else if (classId) {
+        query = query.eq('lessons.chapters.class_id', classId)
       }
-      const { data: homeworks, error } = await query.order('created_at', { ascending: false })
+
+      if (type) {
+        query = query.eq('type', type)
+      }
+
+      if (search && search.trim()) {
+        const cleanSearch = search.trim()
+        query = query.ilike('title', `%${cleanSearch}%`)
+      }
+
+      // Sort
+      switch (sortBy) {
+        case 'oldest':
+          query = query.order('created_at', { ascending: true })
+          break
+        case 'title-asc':
+          query = query.order('title', { ascending: true })
+          break
+        case 'title-desc':
+          query = query.order('title', { ascending: false })
+          break
+        case 'duration-desc':
+          query = query.order('duration_minutes', { ascending: false })
+          break
+        case 'duration-asc':
+          query = query.order('duration_minutes', { ascending: true })
+          break
+        case 'newest':
+        default:
+          query = query.order('created_at', { ascending: false })
+          break
+      }
+
+      if (isPaginated) {
+        const from = (page - 1) * pageSize
+        const to = from + pageSize - 1
+        query = query.range(from, to)
+      }
+
+      // Stats promise executed concurrently
+      let statsPromise: Promise<{ total: number; practiceCount: number; examCount: number; classesCount: number } | null> = Promise.resolve(null)
+      if (includeStats) {
+        statsPromise = (async () => {
+          try {
+            const { data: allHws } = await serviceRoleClient
+              .from('homeworks')
+              .select('id, type, lessons(chapters(class_id))')
+
+            const list = allHws || []
+            const total = list.length
+            const practiceCount = list.filter((h: any) => (h.type || 'PRACTICE') === 'PRACTICE').length
+            const examCount = list.filter((h: any) => h.type === 'EXAM').length
+            const classIdSet = new Set<string>()
+            list.forEach((h: any) => {
+              const cId = h.lessons?.chapters?.class_id
+              if (cId) classIdSet.add(cId)
+            })
+            return {
+              total,
+              practiceCount,
+              examCount,
+              classesCount: classIdSet.size
+            }
+          } catch (_) {
+            return null
+          }
+        })()
+      }
+
+      const [{ data: homeworks, count, error }, stats] = await Promise.all([
+        query,
+        statsPromise
+      ])
+
       if (error) return errorResponse(error.message, 500)
 
       const formatted = (homeworks || []).map((hw: any) => {
@@ -193,9 +233,9 @@ serve(async (req: Request) => {
           lessonId: hw.lesson_id,
           title: hw.title,
           pdfPath: hw.pdf_path,
-          durationMinutes: hw.duration_minutes,
-          passScore: hw.pass_score,
-          maxScore: hw.max_score,
+          durationMinutes: hw.duration_minutes !== undefined ? hw.duration_minutes : 45,
+          passScore: hw.pass_score !== undefined ? hw.pass_score : 5.0,
+          maxScore: hw.max_score !== undefined ? hw.max_score : 10.0,
           isPublished: hw.is_published,
           createdAt: hw.created_at,
           deadline: hw.deadline,
@@ -211,7 +251,26 @@ serve(async (req: Request) => {
         }
       })
 
-      return jsonResponse(formatted)
+      if (!isPaginated) {
+        return jsonResponse(formatted)
+      }
+
+      const total = count !== null && count !== undefined ? count : formatted.length
+      const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+      return jsonResponse({
+        items: formatted,
+        total,
+        page,
+        pageSize,
+        totalPages,
+        stats: stats || {
+          total,
+          practiceCount: formatted.filter((h: any) => h.type === 'PRACTICE').length,
+          examCount: formatted.filter((h: any) => h.type === 'EXAM').length,
+          classesCount: 0
+        }
+      })
     }
 
     // Role Guard: POST, PUT, PATCH, DELETE are Admin-only

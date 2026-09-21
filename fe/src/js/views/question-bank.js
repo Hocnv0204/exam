@@ -1329,14 +1329,21 @@ async function openImportFromHomeworkModal() {
     `
   }
 
-  // Filter homeworks by class
+  // Filter homeworks by class (server-side filter)
   document.getElementById('hw-filter-class-sel')?.addEventListener('change', async (e) => {
     const clId = e.target.value
-    let filtered = rawHomeworks
-    if (clId) {
-      filtered = rawHomeworks.filter(h => (h.classId === clId || h.lessons?.chapters?.class_id === clId))
+    const tbody = document.getElementById('hw-list-tbody')
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải bài tập...</td></tr>`
     }
-    renderHomeworkTable(filtered)
+    try {
+      const filtered = await api.getHomeworks('', clId)
+      renderHomeworkTable(filtered)
+    } catch (err) {
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#dc2626;">Lỗi tải bài tập: ${err.message}</td></tr>`
+      }
+    }
   })
 
   function renderHomeworkTable(list) {

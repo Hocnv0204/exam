@@ -6,7 +6,9 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
-let allHomeworks = []
+let currentHomeworks = []
+let totalHomeworks = 0
+let globalStats = { total: 0, practiceCount: 0, examCount: 0, classesCount: 0 }
 let allClasses = []
 let chaptersCache = {} // classId -> chapters array
 let lessonsCache = {}  // chapterId -> lessons array
@@ -228,61 +230,136 @@ export function bindHomeworkMgmtEvents() {
 async function loadData() {
   const tableBody = document.getElementById('hw-table-body')
   try {
-    // 1. Single API call for Homeworks (with joined class & lesson metadata from backend)
-    const hwData = await api.getHomeworks()
-
-    // 2. Normalize raw response
-    allHomeworks = (hwData || []).map(raw => {
-      const lessonInfo = raw.lessons || raw.lesson
-      const chapterInfo = lessonInfo?.chapters || raw.chapters
-      const classInfo = chapterInfo?.classes || raw.classes
-
-      return {
-        id: raw.id,
-        lessonId: raw.lessonId || raw.lesson_id,
-        title: raw.title,
-        pdfPath: raw.pdfPath || raw.pdf_path || '',
-        durationMinutes: raw.durationMinutes !== undefined ? raw.durationMinutes : (raw.duration_minutes || 45),
-        passScore: raw.passScore !== undefined ? raw.passScore : (raw.pass_score || 5.0),
-        maxScore: raw.maxScore !== undefined ? raw.maxScore : (raw.max_score || 10.0),
-        isPublished: raw.isPublished !== undefined ? raw.isPublished : (raw.is_published !== false),
-        createdAt: raw.createdAt || raw.created_at,
-        deadline: raw.deadline,
-        maxAttempts: raw.maxAttempts !== undefined ? raw.maxAttempts : raw.max_attempts,
-        type: raw.type || 'PRACTICE',
-        maxViolations: raw.maxViolations !== undefined ? raw.maxViolations : raw.max_violations,
-        lessonTitle: raw.lessonTitle || lessonInfo?.title || '',
-        chapterId: raw.chapterId || chapterInfo?.id || lessonInfo?.chapter_id || null,
-        chapterTitle: raw.chapterTitle || chapterInfo?.title || '',
-        classId: raw.classId || classInfo?.id || chapterInfo?.class_id || null,
-        className: raw.className || classInfo?.name || ''
-      }
-    })
-
-    // 3. Populate allClasses: use state.classes if cached, or derive directly from allHomeworks (zero extra API call)
+    // 1. Populate allClasses: use state.classes if cached, or fetch via api.getClasses()
     if (state.classes && state.classes.length > 0) {
       allClasses = state.classes
     } else {
-      const classMap = new Map()
-      allHomeworks.forEach(h => {
-        if (h.classId && !classMap.has(h.classId)) {
-          classMap.set(h.classId, { id: h.classId, name: h.className || 'Lớp học' })
-        }
-      })
-      allClasses = Array.from(classMap.values())
+      const cls = await api.getClasses()
+      allClasses = cls || []
+      state.classes = allClasses
     }
 
-    // Populate stats
-    updateStats()
-
-    // Populate Class Filter dropdown
+    // 2. Populate Class Filter dropdown
     populateClassDropdown()
 
-    // Render list
-    renderFilteredHomeworks()
-
-    // Attach Filter Event Listeners
+    // 3. Attach Filter Event Listeners
     attachFilterListeners()
+
+    // 4. Fetch initial paginated data (Page 1)
+    await fetchHomeworksData()
+
+  } catch (err) {
+    if (tableBody) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="7" style="padding:40px; text-align:center; color:#ef4444;">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size:32px; margin-bottom:12px; display:block;"></i>
+            Lỗi khi tải dữ liệu bài tập: ${err.message}
+          </td>
+        </tr>
+      `
+    }
+  }
+}
+
+async function fetchHomeworksData() {
+  const tableBody = document.getElementById('hw-table-body')
+  const countBadge = document.getElementById('hw-filtered-count')
+  const paginationWrapper = document.getElementById('hw-pagination-wrapper')
+
+  if (!tableBody) return
+
+  // Show loading indicator
+  tableBody.innerHTML = `
+    <tr>
+      <td colspan="7" style="padding:40px; text-align:center; color:#64748b;">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:#0066cc; margin-bottom:8px; display:block;"></i>
+        Đang tải danh sách bài tập...
+      </td>
+    </tr>
+  `
+
+  try {
+    const params = {
+      page: filterState.page,
+      pageSize: filterState.pageSize,
+      sortBy: filterState.sortBy,
+      includeStats: 'true'
+    }
+    if (filterState.search) params.search = filterState.search
+    if (filterState.classId) params.classId = filterState.classId
+    if (filterState.chapterId) params.chapterId = filterState.chapterId
+    if (filterState.lessonId) params.lessonId = filterState.lessonId
+    if (filterState.type) params.type = filterState.type
+
+    const res = await api.getHomeworks(params)
+
+    if (Array.isArray(res)) {
+      currentHomeworks = res
+      totalHomeworks = res.length
+    } else if (res && typeof res === 'object') {
+      currentHomeworks = res.items || []
+      totalHomeworks = res.total !== undefined ? res.total : currentHomeworks.length
+      if (res.stats) {
+        globalStats = res.stats
+      }
+    } else {
+      currentHomeworks = []
+      totalHomeworks = 0
+    }
+
+    // Update stats UI
+    updateStats()
+
+    // Update count badge
+    if (countBadge) {
+      countBadge.textContent = totalHomeworks
+    }
+
+    // Empty state
+    if (currentHomeworks.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="7" style="padding:40px; text-align:center; color:#64748b;">
+            <i class="fa-regular fa-folder-open" style="font-size:40px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
+            <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px;">Không tìm thấy bài tập nào</div>
+            <p style="font-size:13px; color:#64748b; margin:0;">Thử điều chỉnh từ khóa tìm kiếm hoặc các bộ lọc lớp / chương / bài học.</p>
+          </td>
+        </tr>
+      `
+      if (paginationWrapper) paginationWrapper.innerHTML = ''
+      return
+    }
+
+    // Render table rows
+    const fromIndex = (filterState.page - 1) * filterState.pageSize
+    renderHomeworkTableRows(currentHomeworks, tableBody, fromIndex)
+
+    // Render pagination
+    if (paginationWrapper) {
+      paginationWrapper.innerHTML = renderPaginationBar({
+        currentPage: filterState.page,
+        totalItems: totalHomeworks,
+        pageSize: filterState.pageSize,
+        containerId: 'hw-pagination-container',
+        pageSizeOptions: [10, 20, 50]
+      })
+      bindPaginationEvents({
+        containerId: 'hw-pagination-container',
+        onPageChange: (newPage) => {
+          filterState.page = newPage
+          fetchHomeworksData()
+        },
+        onPageSizeChange: (newSize) => {
+          filterState.pageSize = newSize
+          filterState.page = 1
+          fetchHomeworksData()
+        }
+      })
+    }
+
+    // Attach row button actions
+    attachRowActions(tableBody)
 
   } catch (err) {
     if (tableBody) {
@@ -304,17 +381,10 @@ function updateStats() {
   const statExam = document.getElementById('stat-exam-hw')
   const statClasses = document.getElementById('stat-classes-count')
 
-  if (statTotal) statTotal.textContent = allHomeworks.length
-  
-  const practiceCount = allHomeworks.filter(h => (h.type || 'PRACTICE') === 'PRACTICE').length
-  const examCount = allHomeworks.filter(h => h.type === 'EXAM').length
-
-  if (statPractice) statPractice.textContent = practiceCount
-  if (statExam) statExam.textContent = examCount
-
-  // Count unique class IDs
-  const uniqueClassIds = new Set(allHomeworks.map(h => h.classId).filter(Boolean))
-  if (statClasses) statClasses.textContent = uniqueClassIds.size || allClasses.length
+  if (statTotal) statTotal.textContent = globalStats.total || 0
+  if (statPractice) statPractice.textContent = globalStats.practiceCount || 0
+  if (statExam) statExam.textContent = globalStats.examCount || 0
+  if (statClasses) statClasses.textContent = globalStats.classesCount || allClasses.length || 0
 }
 
 function populateClassDropdown() {
@@ -332,21 +402,20 @@ async function handleClassChange(classId) {
   filterState.classId = classId
   filterState.chapterId = ''
   filterState.lessonId = ''
+  filterState.page = 1
 
   const chapterSelect = document.getElementById('hw-filter-chapter')
   const lessonSelect = document.getElementById('hw-filter-lesson')
 
-  if (!chapterSelect || !lessonSelect) return
-
   if (!classId) {
-    chapterSelect.innerHTML = '<option value="">Tất cả chương</option>'
-    lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
-    renderFilteredHomeworks()
+    if (chapterSelect) chapterSelect.innerHTML = '<option value="">Tất cả chương</option>'
+    if (lessonSelect) lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
+    fetchHomeworksData()
     return
   }
 
-  chapterSelect.innerHTML = '<option value="">Đang tải chương...</option>'
-  lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
+  if (chapterSelect) chapterSelect.innerHTML = '<option value="">Đang tải chương...</option>'
+  if (lessonSelect) lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
 
   try {
     if (!chaptersCache[classId]) {
@@ -359,28 +428,28 @@ async function handleClassChange(classId) {
     chapters.forEach(ch => {
       chHtml += `<option value="${ch.id}">${ch.title}</option>`
     })
-    chapterSelect.innerHTML = chHtml
+    if (chapterSelect) chapterSelect.innerHTML = chHtml
   } catch (e) {
-    chapterSelect.innerHTML = '<option value="">Lỗi khi tải chương</option>'
+    if (chapterSelect) chapterSelect.innerHTML = '<option value="">Lỗi khi tải chương</option>'
   }
 
-  renderFilteredHomeworks()
+  fetchHomeworksData()
 }
 
 async function handleChapterChange(chapterId) {
   filterState.chapterId = chapterId
   filterState.lessonId = ''
+  filterState.page = 1
 
   const lessonSelect = document.getElementById('hw-filter-lesson')
-  if (!lessonSelect) return
 
   if (!chapterId) {
-    lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
-    renderFilteredHomeworks()
+    if (lessonSelect) lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
+    fetchHomeworksData()
     return
   }
 
-  lessonSelect.innerHTML = '<option value="">Đang tải bài học...</option>'
+  if (lessonSelect) lessonSelect.innerHTML = '<option value="">Đang tải bài học...</option>'
 
   try {
     if (!lessonsCache[chapterId]) {
@@ -393,12 +462,12 @@ async function handleChapterChange(chapterId) {
     lessons.forEach(l => {
       lHtml += `<option value="${l.id}">${l.title}</option>`
     })
-    lessonSelect.innerHTML = lHtml
+    if (lessonSelect) lessonSelect.innerHTML = lHtml
   } catch (e) {
-    lessonSelect.innerHTML = '<option value="">Lỗi khi tải bài học</option>'
+    if (lessonSelect) lessonSelect.innerHTML = '<option value="">Lỗi khi tải bài học</option>'
   }
 
-  renderFilteredHomeworks()
+  fetchHomeworksData()
 }
 
 function attachFilterListeners() {
@@ -414,38 +483,36 @@ function attachFilterListeners() {
   searchInput?.addEventListener('input', (e) => {
     clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
-      filterState.search = e.target.value.trim().toLowerCase()
+      filterState.search = e.target.value.trim()
       filterState.page = 1
-      renderFilteredHomeworks()
+      fetchHomeworksData()
     }, 250)
   })
 
   classSelect?.addEventListener('change', (e) => {
-    filterState.page = 1
     handleClassChange(e.target.value)
   })
 
   chapterSelect?.addEventListener('change', (e) => {
-    filterState.page = 1
     handleChapterChange(e.target.value)
   })
 
   lessonSelect?.addEventListener('change', (e) => {
     filterState.lessonId = e.target.value
     filterState.page = 1
-    renderFilteredHomeworks()
+    fetchHomeworksData()
   })
 
   typeSelect?.addEventListener('change', (e) => {
     filterState.type = e.target.value
     filterState.page = 1
-    renderFilteredHomeworks()
+    fetchHomeworksData()
   })
 
   sortSelect?.addEventListener('change', (e) => {
     filterState.sortBy = e.target.value
     filterState.page = 1
-    renderFilteredHomeworks()
+    fetchHomeworksData()
   })
 
   resetBtn?.addEventListener('click', () => {
@@ -467,106 +534,13 @@ function attachFilterListeners() {
     if (typeSelect) typeSelect.value = ''
     if (sortSelect) sortSelect.value = 'newest'
 
-    renderFilteredHomeworks()
+    fetchHomeworksData()
   })
 }
 
-function renderFilteredHomeworks() {
-  const tableBody = document.getElementById('hw-table-body')
-  const countBadge = document.getElementById('hw-filtered-count')
-
-  if (!tableBody) return
-
-  // 1. Filter logic
-  let filtered = allHomeworks.filter(hw => {
-    // Search matching
-    if (filterState.search) {
-      const titleMatch = (hw.title || '').toLowerCase().includes(filterState.search)
-      const lessonMatch = (hw.lessonTitle || '').toLowerCase().includes(filterState.search)
-      const chapterMatch = (hw.chapterTitle || '').toLowerCase().includes(filterState.search)
-      const classMatch = (hw.className || '').toLowerCase().includes(filterState.search)
-
-      if (!titleMatch && !lessonMatch && !chapterMatch && !classMatch) {
-        return false
-      }
-    }
-
-    // Class filter
-    if (filterState.classId && hw.classId !== filterState.classId) {
-      return false
-    }
-
-    // Chapter filter
-    if (filterState.chapterId && hw.chapterId !== filterState.chapterId) {
-      return false
-    }
-
-    // Lesson filter
-    if (filterState.lessonId && hw.lessonId !== filterState.lessonId) {
-      return false
-    }
-
-    // Type filter
-    if (filterState.type) {
-      const hwType = hw.type || 'PRACTICE'
-      if (hwType !== filterState.type) return false
-    }
-
-    return true
-  })
-
-  // 2. Sort logic
-  filtered.sort((a, b) => {
-    if (filterState.sortBy === 'newest') {
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-    }
-    if (filterState.sortBy === 'oldest') {
-      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
-    }
-    if (filterState.sortBy === 'title-asc') {
-      return (a.title || '').localeCompare(b.title || '', 'vi')
-    }
-    if (filterState.sortBy === 'title-desc') {
-      return (b.title || '').localeCompare(a.title || '', 'vi')
-    }
-    if (filterState.sortBy === 'duration-desc') {
-      return (b.durationMinutes || 0) - (a.durationMinutes || 0)
-    }
-    if (filterState.sortBy === 'duration-asc') {
-      return (a.durationMinutes || 0) - (b.durationMinutes || 0)
-    }
-    return 0
-  })
-
-  const totalItems = filtered.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / filterState.pageSize))
-  if (filterState.page > totalPages) filterState.page = Math.max(1, totalPages)
-
-  if (countBadge) {
-    countBadge.textContent = totalItems
-  }
-
-  const paginationWrapper = document.getElementById('hw-pagination-wrapper')
-
-  if (filtered.length === 0) {
-    tableBody.innerHTML = `
-      <tr>
-        <td colspan="7" style="padding:40px; text-align:center; color:#64748b;">
-          <i class="fa-regular fa-folder-open" style="font-size:40px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
-          <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px;">Không tìm thấy bài tập nào</div>
-          <p style="font-size:13px; color:#64748b; margin:0;">Thử điều chỉnh từ khóa tìm kiếm hoặc các bộ lọc lớp / chương / bài học.</p>
-        </td>
-      </tr>
-    `
-    if (paginationWrapper) paginationWrapper.innerHTML = ''
-    return
-  }
-
-  const from = (filterState.page - 1) * filterState.pageSize
-  const pagedList = filtered.slice(from, from + filterState.pageSize)
-
+function renderHomeworkTableRows(list, tableBody, fromIndex) {
   let html = ''
-  pagedList.forEach((hw, index) => {
+  list.forEach((hw, index) => {
     const isExam = hw.type === 'EXAM'
     const typeBadge = isExam
       ? `<span class="badge" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px;"><i class="fa-solid fa-shield-halved"></i> BÀI THI</span>`
@@ -577,7 +551,7 @@ function renderFilteredHomeworks() {
 
     html += `
       <tr style="border-bottom:1px solid #f1f5f9; transition:background 0.15s ease;">
-        <td style="padding:12px 16px; text-align:center; font-weight:700; color:#64748b;">${from + index + 1}</td>
+        <td style="padding:12px 16px; text-align:center; font-weight:700; color:#64748b;">${fromIndex + index + 1}</td>
         <td style="padding:12px 16px;">
           <div style="display:flex; flex-direction:column; gap:4px;">
             <div style="display:flex; align-items:center; gap:8px;">
@@ -639,29 +613,9 @@ function renderFilteredHomeworks() {
   })
 
   tableBody.innerHTML = html
+}
 
-  if (paginationWrapper) {
-    paginationWrapper.innerHTML = renderPaginationBar({
-      currentPage: filterState.page,
-      totalItems,
-      pageSize: filterState.pageSize,
-      containerId: 'hw-pagination-container',
-      pageSizeOptions: [10, 20, 50]
-    })
-    bindPaginationEvents({
-      containerId: 'hw-pagination-container',
-      onPageChange: (newPage) => {
-        filterState.page = newPage
-        renderFilteredHomeworks()
-      },
-      onPageSizeChange: (newSize) => {
-        filterState.pageSize = newSize
-        filterState.page = 1
-        renderFilteredHomeworks()
-      }
-    })
-  }
-
+function attachRowActions(tableBody) {
   // Attach History buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...
   tableBody.querySelectorAll('.btn-history-hw').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -728,11 +682,7 @@ function renderFilteredHomeworks() {
           try {
             await api.deleteHomework(hwId)
             showToast(`Đã xóa bài tập "${hwTitle}" thành công!`, 'success')
-            
-            // Remove from array and update view
-            allHomeworks = allHomeworks.filter(h => h.id !== hwId)
-            updateStats()
-            renderFilteredHomeworks()
+            await fetchHomeworksData()
             return true
           } catch (err) {
             showToast(`Xóa bài tập thất bại: ${err.message}`, 'error')

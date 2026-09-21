@@ -418,9 +418,17 @@ export const api = {
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),
   deleteHomework: (homeworkId) => request(`create-homework?homeworkId=${homeworkId}`, { method: 'DELETE' }),
-  getHomeworks: (lessonIdOrQuery = '', classId = '', extraParams = '') => {
+  getHomeworks: (lessonIdOrQuery = '', classId = '', extraParams = '', options = {}) => {
     let query = ''
-    if (typeof lessonIdOrQuery === 'string' && lessonIdOrQuery.includes('=')) {
+    if (lessonIdOrQuery && typeof lessonIdOrQuery === 'object') {
+      const sp = new URLSearchParams()
+      Object.entries(lessonIdOrQuery).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          sp.set(k, v)
+        }
+      })
+      query = sp.toString()
+    } else if (typeof lessonIdOrQuery === 'string' && lessonIdOrQuery.includes('=')) {
       query = lessonIdOrQuery.startsWith('?') ? lessonIdOrQuery.substring(1) : lessonIdOrQuery
     } else if (lessonIdOrQuery) {
       query = `lessonId=${lessonIdOrQuery}`
@@ -432,7 +440,7 @@ export const api = {
       const extra = extraParams.startsWith('?') ? extraParams.substring(1) : extraParams
       query += `${query ? '&' : ''}${extra}`
     }
-    return request(`create-homework${query ? `?${query}` : ''}`, { method: 'GET' })
+    return request(`create-homework${query ? `?${query}` : ''}`, { method: 'GET', ...options })
   },
   getTodoHomeworks: (params = '') => request(`create-homework?todoOnly=true${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
