@@ -20,7 +20,7 @@ export function renderSidebar(currentRoute) {
           <i class="fa-solid fa-wand-magic-sparkles" style="color:#16a34a;"></i> Bài học thử
         </div>
         <div class="nav-item" onclick="window.location.hash='#login'">
-          <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập / Đăng ký
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập
         </div>
       ` : (role === 'ADMIN' ? `
         <div class="nav-section-title">Quản trị viên</div>

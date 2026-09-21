@@ -846,8 +846,8 @@ export function renderAssignmentReviewView() {
                 <button class="btn-secondary" onclick="window.location.hash='#trial'" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer;">
                   <i class="fa-solid fa-sparkles"></i> Bài học thử khác
                 </button>
-                <button class="btn-primary" onclick="window.location.hash='#login'" style="background: #f59e0b; border: none; color: #ffffff; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);">
-                  <i class="fa-solid fa-user-plus"></i> Đăng ký / Đăng nhập ngay
+                <button class="btn-primary" onclick="window.showTrialRegistrationModal()" style="background: #f59e0b; border: none; color: #ffffff; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);">
+                  <i class="fa-solid fa-user-plus"></i> Đăng ký học chính thức
                 </button>
               </div>
             </div>

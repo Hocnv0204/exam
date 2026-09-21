@@ -19,6 +19,7 @@ import { renderQuestionBankView, bindQuestionBankEvents } from './views/question
 import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } from './views/grade-blocks.js'
 import { renderExamRoomView, bindExamRoomEvents } from './views/exam-room.js'
 import { renderExamProctoringView, bindExamProctoringEvents } from './views/exam-proctoring.js'
+import { showTrialRegistrationModal } from './components/modal.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },

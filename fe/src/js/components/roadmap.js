@@ -907,9 +907,9 @@ export function renderRoadmap(options = {}) {
           <button type="button" class="h12r__btn h12r__btn--light" id="btn-foot-start-entrance">
             <i class="fa-solid fa-play"></i> Bắt đầu bài kiểm tra đầu vào ngay
           </button>
-          <a class="h12r__btn h12r__btn--ghost" href="#login" style="color:#ffffff; border-color:#ffffff;">
-            <i class="fa-solid fa-user-plus"></i> Đăng ký tài khoản chính thức
-          </a>
+          <button type="button" class="h12r__btn h12r__btn--ghost" id="btn-foot-register" style="color:#ffffff; border-color:#ffffff; cursor:pointer;">
+            <i class="fa-solid fa-user-plus"></i> Đăng ký học chính thức
+          </button>
         </div>
         <ul class="h12r__srcs">
           ${M.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">📄 ${esc(s.label)}</a></li>`).join('')}
@@ -1039,6 +1039,11 @@ export function bindRoadmapEvents(root, options = {}) {
   root.querySelector('#btn-hero-start-entrance')?.addEventListener('click', startEntranceTest)
   root.querySelector('#btn-foot-start-entrance')?.addEventListener('click', startEntranceTest)
   root.querySelector('#btn-week1-entrance')?.addEventListener('click', startEntranceTest)
+  root.querySelector('#btn-foot-register')?.addEventListener('click', () => {
+    if (typeof window.showTrialRegistrationModal === 'function') {
+      window.showTrialRegistrationModal()
+    }
+  })
   root.querySelector('#btn-hero-goto-lessons')?.addEventListener('click', () => {
     window.location.hash = '#trial?tab=lessons'
   })

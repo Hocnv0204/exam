@@ -440,8 +440,8 @@ export function renderTrialView() {
                   </div>
 
                   <div>
-                    <button class="btn-primary" onclick="window.location.hash='#login'" style="padding: 8px 16px; font-size: 13px; font-weight: 600; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
-                      <i class="fa-solid fa-user-plus"></i> Đăng ký lớp chính thức
+                    <button class="btn-primary" onclick="window.showTrialRegistrationModal()" style="padding: 8px 16px; font-size: 13px; font-weight: 600; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <i class="fa-solid fa-user-plus"></i> Đăng ký học chính thức
                     </button>
                   </div>
                 </div>
@@ -678,18 +678,6 @@ export function renderTrialView() {
                       </div>
                     </div>
                   </div>
-
-                  <div class="card" style="padding: 20px; background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 1px solid #bfdbfe;">
-                    <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 8px;">
-                      Yêu thích chương trình học?
-                    </div>
-                    <p style="font-size: 12px; color: #475569; line-height: 1.5; margin-bottom: 14px;">
-                      Đăng ký tài khoản ngay để theo dõi tiến độ học tập, làm đầy đủ bài tập và nhận hỗ trợ từ thầy cô.
-                    </p>
-                    <button class="btn-primary" onclick="window.location.hash='#login'" style="width: 100%; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                      Đăng ký ngay <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                  </div>
                 </div>
               </div>
             `}
@@ -777,8 +765,8 @@ export function renderTrialView() {
                 </p>
               </div>
               <div>
-                <button class="btn-primary" onclick="window.location.hash='#login'" style="padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 8px;">
-                  Đăng ký tài khoản ngay <i class="fa-solid fa-arrow-right"></i>
+                <button class="btn-primary" onclick="window.showTrialRegistrationModal()" style="padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 8px;">
+                  Đăng ký học chính thức <i class="fa-solid fa-arrow-right"></i>
                 </button>
               </div>
             </div>
