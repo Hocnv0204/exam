@@ -94,6 +94,11 @@ button, input, select, textarea {
   font-size: inherit;
 }
 
+/* FontAwesome 6 Free alias for fa-sparkles */
+.fa-sparkles::before {
+  content: "\e2ca" !important;
+}
+
 /* =========================================================
    LOGIN SCREEN (Image 1 - Learn & Grow)
    ========================================================= */

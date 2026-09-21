@@ -17,7 +17,7 @@ export function renderSidebar(currentRoute) {
           <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình 8+ (90 ngày)
         </div>
         <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=lessons'">
-          <i class="fa-solid fa-sparkles" style="color:#16a34a;"></i> Bài học thử
+          <i class="fa-solid fa-wand-magic-sparkles" style="color:#16a34a;"></i> Bài học thử
         </div>
         <div class="nav-item" onclick="window.location.hash='#login'">
           <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập / Đăng ký
