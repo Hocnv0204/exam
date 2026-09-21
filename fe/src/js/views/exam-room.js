@@ -745,7 +745,7 @@ export function bindExamRoomEvents() {
     return questions.map(q => {
       const qNum = q.question_number || q.questionNumber
       const rawType = (q.question_type || q.questionType || '').toUpperCase()
-      const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF'
+      const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (Array.isArray(q.statements) && q.statements.length > 0)
       const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
 
       if (isTf) {
@@ -789,6 +789,20 @@ export function bindExamRoomEvents() {
         el.disabled = true
         el.style.pointerEvents = 'none'
       }
+    })
+
+    // Specifically disable interactive markdown option cards, toggle buttons, and nav palette
+    const interactiveCards = root.querySelectorAll('.exam-option-card, .tf-toggle-btn, .tf-statement-row, .btn-flag-question, .exam-nav-btn')
+    interactiveCards.forEach(card => {
+      card.style.pointerEvents = 'none'
+      card.style.cursor = 'not-allowed'
+    })
+
+    // Freeze question containers
+    const questionContainers = root.querySelectorAll('#exam-questions-container, .exam-room-body, .exam-sidebar-palette')
+    questionContainers.forEach(qc => {
+      qc.style.pointerEvents = 'none'
+      qc.style.opacity = '0.75'
     })
   }
 

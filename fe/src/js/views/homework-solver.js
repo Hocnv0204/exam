@@ -1171,6 +1171,20 @@ export function bindHomeworkSolverEvents() {
         el.style.pointerEvents = 'none'
       }
     })
+
+    // Specifically disable interactive markdown option cards and toggle buttons
+    const interactiveCards = root.querySelectorAll('.exam-option-card, .tf-toggle-btn, .tf-statement-row, .student-mc-btn, .student-tf-btn, .btn-flag-question')
+    interactiveCards.forEach(card => {
+      card.style.pointerEvents = 'none'
+      card.style.cursor = 'not-allowed'
+    })
+
+    // Freeze entire interactive question containers
+    const questionContainers = root.querySelectorAll('#interactive-solver-container, .interactive-solver-body, .exam-container, .exam-questions-scroll')
+    questionContainers.forEach(qc => {
+      qc.style.pointerEvents = 'none'
+      qc.style.opacity = '0.75'
+    })
   }
 
   // Shared submit helper
