@@ -813,22 +813,32 @@ export function bindHomeworkSolverEvents() {
       if (barEl) barEl.style.width = `${pct}%`
     }
 
-    // MC options click
+    // MC options click (clicking selected option again deselects it)
     document.querySelectorAll('#interactive-solver-container .exam-option-card').forEach(card => {
       card.addEventListener('click', () => {
         const qNum = parseInt(card.getAttribute('data-qnum'), 10)
         const optId = card.getAttribute('data-optid')
-        studentAnswers.mc[qNum] = optId
+        const isAlreadySelected = studentAnswers.mc[qNum] === optId
 
         const parent = card.parentElement
-        if (parent) {
-          parent.querySelectorAll('.exam-option-card').forEach(c => {
-            c.classList.toggle('selected', c.getAttribute('data-optid') === optId)
-          })
+        if (isAlreadySelected) {
+          // Bỏ chọn đáp án khi click lại
+          studentAnswers.mc[qNum] = null
+          card.classList.remove('selected')
+        } else {
+          studentAnswers.mc[qNum] = optId
+          if (parent) {
+            parent.querySelectorAll('.exam-option-card').forEach(c => {
+              c.classList.toggle('selected', c.getAttribute('data-optid') === optId)
+            })
+          }
         }
 
         const navBtn = document.getElementById(`nav-btn-q-${qNum}`)
-        if (navBtn) navBtn.classList.add('answered')
+        if (navBtn) {
+          if (studentAnswers.mc[qNum]) navBtn.classList.add('answered')
+          else navBtn.classList.remove('answered')
+        }
 
         updateInteractiveProgress()
         saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)

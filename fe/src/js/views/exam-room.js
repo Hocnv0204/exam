@@ -587,7 +587,7 @@ export function bindExamRoomEvents() {
     setTimeout(() => renderMath(qContainer), 150)
   }
 
-  // Answer selection handlers
+  // Answer selection handlers (clicking selected option again deselects it)
   document.querySelectorAll('.exam-option-card').forEach(card => {
     card.addEventListener('click', () => {
       if (!examStarted) {
@@ -596,21 +596,27 @@ export function bindExamRoomEvents() {
       }
       const qNum = parseInt(card.dataset.qnum, 10)
       const optId = card.dataset.optid
+      const isAlreadySelected = studentAnswers.mc[qNum] === optId
 
-      studentAnswers.mc[qNum] = optId
+      if (isAlreadySelected) {
+        // Bỏ chọn đáp án khi click lại lần 2
+        studentAnswers.mc[qNum] = null
+        card.classList.remove('selected')
+        updatePaletteButton(qNum, false)
+      } else {
+        studentAnswers.mc[qNum] = optId
+        // Update card visual
+        document.querySelectorAll(`.exam-option-card[data-qnum="${qNum}"]`).forEach(c => c.classList.remove('selected'))
+        card.classList.add('selected')
+        updatePaletteButton(qNum, true)
+      }
 
-      // Update card visual
-      document.querySelectorAll(`.exam-option-card[data-qnum="${qNum}"]`).forEach(c => c.classList.remove('selected'))
-      card.classList.add('selected')
-
-      // Update palette & progress
-      updatePaletteButton(qNum, true)
       updateExamProgress(questions.length)
       saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
     })
   })
 
-  // True/False toggle buttons
+  // True/False toggle buttons (clicking active button again deselects it)
   document.querySelectorAll('.tf-toggle-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -623,24 +629,42 @@ export function bindExamRoomEvents() {
       const val = btn.dataset.val === 'true'
 
       if (!studentAnswers.tf[qNum]) studentAnswers.tf[qNum] = {}
-      studentAnswers.tf[qNum][sub] = val
-
-      // Update button styling
+      const currentVal = studentAnswers.tf[qNum][sub]
       const row = btn.closest('.tf-statement-row')
-      if (row) {
-        row.querySelectorAll('.tf-toggle-btn').forEach(b => {
-          b.style.background = '#ffffff'
-          b.style.color = '#475569'
-          b.style.borderColor = '#cbd5e1'
-        })
-        btn.style.background = val ? '#16a34a' : '#dc2626'
-        btn.style.color = '#ffffff'
-        btn.style.borderColor = val ? '#16a34a' : '#dc2626'
-        row.style.background = val ? '#f0fdf4' : '#fef2f2'
-        row.style.borderColor = val ? '#86efac' : '#fca5a5'
+
+      if (currentVal === val) {
+        // Bỏ chọn đáp án Đúng/Sai khi click lại
+        delete studentAnswers.tf[qNum][sub]
+        btn.classList.remove('active')
+        btn.style.background = '#ffffff'
+        btn.style.color = '#475569'
+        btn.style.borderColor = '#cbd5e1'
+        btn.style.boxShadow = 'none'
+        if (row) {
+          row.style.background = '#ffffff'
+          row.style.borderColor = '#e2e8f0'
+        }
+      } else {
+        studentAnswers.tf[qNum][sub] = val
+        if (row) {
+          row.querySelectorAll('.tf-toggle-btn').forEach(b => {
+            b.classList.remove('active')
+            b.style.background = '#ffffff'
+            b.style.color = '#475569'
+            b.style.borderColor = '#cbd5e1'
+            b.style.boxShadow = 'none'
+          })
+          btn.classList.add('active')
+          btn.style.background = val ? '#16a34a' : '#dc2626'
+          btn.style.color = '#ffffff'
+          btn.style.borderColor = val ? '#16a34a' : '#dc2626'
+          btn.style.boxShadow = val ? '0 2px 4px rgba(22,163,74,0.2)' : '0 2px 4px rgba(220,38,38,0.2)'
+          row.style.background = val ? '#f0fdf4' : '#fef2f2'
+          row.style.borderColor = val ? '#86efac' : '#fca5a5'
+        }
       }
 
-      // Check if all 4 answered
+      // Check how many of 4 answered
       const tfCount = ['a', 'b', 'c', 'd'].filter(k => studentAnswers.tf[qNum][k] !== undefined).length
       updatePaletteButton(qNum, tfCount === 4, tfCount > 0 && tfCount < 4)
       updateExamProgress(questions.length)
