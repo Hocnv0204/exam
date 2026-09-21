@@ -23,6 +23,7 @@ import { renderExamProctoringView, bindExamProctoringEvents } from './views/exam
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
   trial: { render: renderTrialView, bind: bindTrialEvents },
+  roadmap: { render: renderTrialView, bind: bindTrialEvents },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
@@ -47,13 +48,13 @@ async function router() {
   const [routePath, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   
-  const defaultPage = state.token ? (state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes') : 'login'
+  const defaultPage = state.token ? (state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes') : 'roadmap'
   let hash = routePath || defaultPage
 
   // Guest & Unauthenticated Access Guard
   if (!state.token) {
-    const isTrialMode = params.get('trial') === 'true' || hash === 'trial'
-    const guestRoutes = ['login', 'trial', 'homework-attempt', 'assignment-review']
+    const isTrialMode = params.get('trial') === 'true' || hash === 'trial' || hash === 'roadmap'
+    const guestRoutes = ['login', 'trial', 'roadmap', 'homework-attempt', 'assignment-review']
     if (!guestRoutes.includes(hash)) {
       window.location.hash = '#login'
       return

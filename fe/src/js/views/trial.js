@@ -4,12 +4,42 @@ import { renderNavbar } from '../components/navbar.js'
 import { openModal } from '../components/modal.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { showToast } from '../components/toast.js'
+import { renderRoadmap, bindRoadmapEvents, ENTRANCE_TEST_HOMEWORK_ID } from '../components/roadmap.js'
 
 let cachedTrialLessons = []
 let isLoadingTrial = false
 let trialLoaded = false
 let serverTrialHistory = []
 let isSyncingPhone = false
+
+function renderTrialTabSwitcher(activeTab, historyCount = 0) {
+  return `
+    <!-- Tab Switcher Header -->
+    <div style="display:flex; gap:12px; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:14px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'roadmap' ? 'background:#0284c7; color:#fff; border-color:#0284c7;' : 'background:#fff;'};">
+          <i class="fa-solid fa-route" style="${activeTab === 'roadmap' ? 'color:#fff;' : 'color:#0284c7;'}"></i> Lộ trình 8+ (90 ngày)
+        </button>
+        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'lessons' ? 'background:#16a34a; color:#fff; border-color:#16a34a;' : 'background:#fff;'};">
+          <i class="fa-solid fa-sparkles" style="${activeTab === 'lessons' ? 'color:#fff;' : 'color:#16a34a;'}"></i> Bài học & Luyện tập
+        </button>
+        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-history" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'history' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : 'background:#fff;'};">
+          <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài
+          <span style="font-size:11px; padding:2px 7px; border-radius:10px; ${activeTab === 'history' ? 'background:#ffffff; color:#0f172a;' : 'background:#cbd5e1; color:#0f172a;'} font-weight:800;">${historyCount}</span>
+        </button>
+      </div>
+
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button class="btn-primary" onclick="window.confirmStartTrialHomework('${ENTRANCE_TEST_HOMEWORK_ID}')" style="padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; border-radius:8px; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:6px; box-shadow: 0 2px 8px rgba(22,163,74,0.2);">
+          <i class="fa-solid fa-play"></i> Kiểm tra đầu vào (Miễn phí)
+        </button>
+        <button class="btn-secondary" onclick="window.location.hash='#login'" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; color:#0066cc; border-color:#bfdbfe; background:#eff6ff; border-radius:8px;">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập / Đăng ký
+        </button>
+      </div>
+    </div>
+  `
+}
 
 function getEmbedUrl(url) {
   if (!url) return null
@@ -121,15 +151,39 @@ function formatDuration(seconds = 0) {
 
 export function renderTrialView() {
   const hashUrl = window.location.hash.replace('#', '')
-  const [_, queryString] = hashUrl.split('?')
+  const [routePath, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   let classId = params.get('classId')
   const lessonId = params.get('lessonId')
-  const activeTab = params.get('tab') || 'lessons' // 'lessons' | 'history'
+
+  let activeTab = 'roadmap'
+  if (routePath === 'roadmap') {
+    activeTab = 'roadmap'
+  } else if (params.has('tab')) {
+    activeTab = params.get('tab')
+  } else if (classId || lessonId) {
+    activeTab = 'lessons'
+  }
 
   const classes = groupTrialLessonsByClass(cachedTrialLessons)
   const historyList = getAllMergedTrialHistory()
   const savedPhone = localStorage.getItem('trial_guest_phone') || ''
+
+  // TAB 0: ROADMAP (90 NGÀY LÊN 8+)
+  if (activeTab === 'roadmap') {
+    return `
+      <div class="app-layout">
+        ${renderSidebar('roadmap')}
+        <div class="main-content">
+          ${renderNavbar('Lộ trình Hóa 12: từ mất gốc lên 8+ trong 90 ngày')}
+          <div class="content-body" style="padding-top:16px;">
+            ${renderTrialTabSwitcher('roadmap', historyList.length)}
+            ${renderRoadmap()}
+          </div>
+        </div>
+      </div>
+    `
+  }
 
   // If lessonId is given without classId, try to find classId from lesson
   if (!classId && lessonId) {
@@ -147,17 +201,20 @@ export function renderTrialView() {
     activeLesson = classLessons.find(l => l.id === lessonId) || cachedTrialLessons.find(l => l.id === lessonId)
   }
 
-  // Loading state
+  // Loading state for lessons
   if (isLoadingTrial || (!trialLoaded && cachedTrialLessons.length === 0)) {
     return `
       <div class="app-layout">
         ${renderSidebar('trial')}
         <div class="main-content">
           ${renderNavbar('Học thử / Đang tải dữ liệu...')}
-          <div class="content-body" style="text-align: center; padding: 80px 20px;">
-            <div style="display: inline-block; width: 44px; height: 44px; border: 3px solid #e2e8f0; border-top-color: #16a34a; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;"></div>
-            <h3 style="font-family: var(--font-heading); color: #0f172a; font-size: 18px; margin: 0 0 8px 0;">Đang tải danh sách bài học thử...</h3>
-            <p style="color: #64748b; font-size: 14px; margin: 0;">Vui lòng đợi trong giây lát</p>
+          <div class="content-body" style="padding-top:16px;">
+            ${renderTrialTabSwitcher('lessons', historyList.length)}
+            <div style="text-align: center; padding: 70px 20px;">
+              <div style="display: inline-block; width: 44px; height: 44px; border: 3px solid #e2e8f0; border-top-color: #16a34a; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;"></div>
+              <h3 style="font-family: var(--font-heading); color: #0f172a; font-size: 18px; margin: 0 0 8px 0;">Đang tải danh sách bài học thử...</h3>
+              <p style="color: #64748b; font-size: 14px; margin: 0;">Vui lòng đợi trong giây lát</p>
+            </div>
           </div>
         </div>
       </div>
@@ -178,26 +235,8 @@ export function renderTrialView() {
         ${renderSidebar('trial-history')}
         <div class="main-content">
           ${renderNavbar('Học thử / Lịch sử làm bài')}
-          <div class="content-body">
-            
-            <!-- Tab Switcher Header -->
-            <div style="display:flex; gap:12px; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-              <div style="display:flex; gap:10px;">
-                <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:8px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
-                  <i class="fa-solid fa-sparkles" style="color:#16a34a;"></i> Bài học & Luyện tập
-                </button>
-                <button class="btn-primary tab-trial-nav" id="btn-tab-trial-history" style="padding:8px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; background:#16a34a; border-color:#16a34a;">
-                  <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài của bạn
-                  <span style="font-size:11px; padding:2px 7px; border-radius:10px; background:#ffffff; color:#16a34a; font-weight:800;">${totalDone}</span>
-                </button>
-              </div>
-
-              <div>
-                <button class="btn-secondary" onclick="window.location.hash='#login'" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; color:#0066cc; border-color:#bfdbfe; background:#eff6ff;">
-                  <i class="fa-solid fa-user-plus"></i> Đăng ký tài khoản chính thức
-                </button>
-              </div>
-            </div>
+          <div class="content-body" style="padding-top:16px;">
+            ${renderTrialTabSwitcher('history', historyList.length)}
 
             <!-- Page Title Header -->
             <div class="page-header" style="margin-bottom:20px;">
@@ -378,24 +417,7 @@ export function renderTrialView() {
           ${renderNavbar(`Học thử / ${selectedClass.name}`)}
           <div class="content-body">
 
-            <!-- Tab Switcher Header -->
-            <div style="display:flex; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-              <div style="display:flex; gap:10px;">
-                <button class="btn-primary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:8px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; background:#16a34a; border-color:#16a34a;">
-                  <i class="fa-solid fa-sparkles"></i> Bài học & Luyện tập
-                </button>
-                <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-history" style="padding:8px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
-                  <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài của bạn
-                  <span style="font-size:11px; padding:2px 7px; border-radius:10px; background:#cbd5e1; color:#0f172a; font-weight:800;">${historyList.length}</span>
-                </button>
-              </div>
-
-              <div>
-                <button class="btn-secondary" onclick="window.location.hash='#login'" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; color:#0066cc; border-color:#bfdbfe; background:#eff6ff;">
-                  <i class="fa-solid fa-user-plus"></i> Đăng ký tài khoản chính thức
-                </button>
-              </div>
-            </div>
+            ${renderTrialTabSwitcher('lessons', historyList.length)}
 
             ${activeLesson ? '' : `
               <!-- Back button to class list -->
@@ -695,24 +717,7 @@ export function renderTrialView() {
         ${renderNavbar('Học thử / Danh sách lớp trải nghiệm')}
         <div class="content-body">
 
-          <!-- Tab Switcher Header -->
-          <div style="display:flex; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-            <div style="display:flex; gap:10px;">
-              <button class="btn-primary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:8px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; background:#16a34a; border-color:#16a34a;">
-                <i class="fa-solid fa-sparkles"></i> Bài học & Luyện tập
-              </button>
-              <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-history" style="padding:8px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
-                <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài của bạn
-                <span style="font-size:11px; padding:2px 7px; border-radius:10px; background:#cbd5e1; color:#0f172a; font-weight:800;">${historyList.length}</span>
-              </button>
-            </div>
-
-            <div>
-              <button class="btn-secondary" onclick="window.location.hash='#login'" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; color:#0066cc; border-color:#bfdbfe; background:#eff6ff;">
-                <i class="fa-solid fa-user-plus"></i> Đăng ký tài khoản chính thức
-              </button>
-            </div>
-          </div>
+          ${renderTrialTabSwitcher('lessons', historyList.length)}
 
           <!-- Page Header -->
           <div class="page-header" style="margin-bottom: 24px;">
@@ -803,9 +808,14 @@ export function bindTrialEvents() {
   bindSidebarEvents()
 
   const hashUrl = window.location.hash.replace('#', '')
-  const [_, queryString] = hashUrl.split('?')
+  const [routePath, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   let classId = params.get('classId')
+
+  // Switch Tab to Roadmap
+  document.getElementById('btn-tab-trial-roadmap')?.addEventListener('click', () => {
+    window.location.hash = '#roadmap'
+  })
 
   // Switch Tab to Lessons
   document.getElementById('btn-tab-trial-lessons')?.addEventListener('click', () => {
@@ -816,6 +826,12 @@ export function bindTrialEvents() {
   document.getElementById('btn-tab-trial-history')?.addEventListener('click', () => {
     window.location.hash = '#trial?tab=history'
   })
+
+  // Bind Roadmap events if roadmap element is in DOM
+  const roadmapEl = document.getElementById('hoa12-roadmap')
+  if (roadmapEl) {
+    bindRoadmapEvents(roadmapEl)
+  }
 
   // Phone sync / lookup button in Trial History
   document.getElementById('btn-sync-phone-history')?.addEventListener('click', async () => {

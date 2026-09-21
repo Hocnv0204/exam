@@ -6,15 +6,18 @@ export function renderSidebar(currentRoute) {
 
   return `
     <aside class="sidebar">
-      <div class="brand-logo" onclick="window.location.hash='${isGuest ? '#trial' : (role === 'ADMIN' ? '#admin-dashboard' : '#my-classes')}'" style="cursor:pointer;">
+      <div class="brand-logo" onclick="window.location.hash='${isGuest ? '#roadmap' : (role === 'ADMIN' ? '#admin-dashboard' : '#my-classes')}'" style="cursor:pointer;">
         <i class="fa-solid fa-graduation-cap"></i>
         <span>EduPortal</span>
       </div>
 
       ${isGuest ? `
         <div class="nav-section-title">Trải nghiệm học thử</div>
-        <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial'">
-          <i class="fa-solid fa-sparkles"></i> Bài học thử
+        <div class="nav-item ${currentRoute === 'roadmap' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
+          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình 8+ (90 ngày)
+        </div>
+        <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=lessons'">
+          <i class="fa-solid fa-sparkles" style="color:#16a34a;"></i> Bài học thử
         </div>
         <div class="nav-item ${currentRoute === 'trial-history' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài
@@ -50,6 +53,9 @@ export function renderSidebar(currentRoute) {
         </div>
       ` : `
         <div class="nav-section-title">Dành cho học sinh</div>
+        <div class="nav-item ${currentRoute === 'roadmap' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
+          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình 8+ (90 ngày)
+        </div>
         <div class="nav-item ${currentRoute === 'my-classes' ? 'active' : ''}" onclick="window.location.hash='#my-classes'">
           <i class="fa-solid fa-graduation-cap"></i> Lớp học của tôi
         </div>
