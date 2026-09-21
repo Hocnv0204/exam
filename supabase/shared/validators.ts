@@ -1,4 +1,4 @@
-import { z } from 'https://esm.sh/zod@3.23.8'
+import { z } from 'npm:zod@3.23.8'
 
 // Login Validator
 export const loginSchema = z.object({

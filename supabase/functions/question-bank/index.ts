@@ -4,26 +4,54 @@ import { handleCors, jsonResponse, errorResponse } from '../../shared/response-h
 
 async function getScopeTargetIds(
   serviceRoleClient: any,
-  gradeBlock?: string | null
+  gradeBlock?: string | null,
+  scopeCache?: Map<string, { classIds: string[]; chapterIds: string[] }>
 ): Promise<{ classIds: string[]; chapterIds: string[] }> {
   if (!gradeBlock) return { classIds: [], chapterIds: [] }
+  if (scopeCache && scopeCache.has(gradeBlock)) {
+    return scopeCache.get(gradeBlock)!
+  }
 
   const { data: matchedClasses } = await serviceRoleClient
     .from('classes')
-    .select('id')
+    .select('id, chapters (id)')
     .eq('grade_block', gradeBlock)
-  const classIds = (matchedClasses || []).map((c: any) => c.id)
 
-  let chapterIds: string[] = []
-  if (classIds.length > 0) {
-    const { data: matchedChapters } = await serviceRoleClient
-      .from('chapters')
-      .select('id')
-      .in('class_id', classIds)
-    chapterIds = (matchedChapters || []).map((ch: any) => ch.id)
+  const classIds: string[] = []
+  const chapterIds: string[] = []
+
+  if (matchedClasses) {
+    for (const c of matchedClasses) {
+      classIds.push(c.id)
+      if (Array.isArray(c.chapters)) {
+        for (const ch of c.chapters) {
+          chapterIds.push(ch.id)
+        }
+      }
+    }
   }
 
-  return { classIds, chapterIds }
+  const result = { classIds, chapterIds }
+  if (scopeCache) {
+    scopeCache.set(gradeBlock, result)
+  }
+  return result
+}
+
+async function bumpQuestionUsage(serviceRoleClient: any, ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return
+  const { error } = await serviceRoleClient.rpc('fn_bump_qb_usage', { p_ids: ids })
+  if (error) {
+    console.warn('[bumpQuestionUsage RPC fallback]', error.message)
+    await Promise.all(
+      ids.map(id =>
+        serviceRoleClient
+          .from('question_bank')
+          .update({ usage_count: 1 })
+          .eq('id', id)
+      )
+    )
+  }
 }
 
 function normalizeBankPromptPayload(rawPrompt: any, fallbackData: any = {}): any {
@@ -692,33 +720,41 @@ serve(async (req: Request) => {
         let combinedQuestions: any[] = []
 
         // Kịch bản A: Có phân bổ chi tiết theo từng Chương hoặc từng Bài (distribution)
+        const scopeCache = new Map<string, { classIds: string[]; chapterIds: string[] }>()
+
         if (Array.isArray(distribution) && distribution.length > 0) {
           const pickedIdsSet = new Set<string>()
 
-          for (const item of distribution) {
-            const itemBlock = item.gradeBlock || gradeBlock
-            const { classIds: itClassIds, chapterIds: itChapterIds } = await getScopeTargetIds(serviceRoleClient, itemBlock)
-            let itemQuery = serviceRoleClient.from('question_bank').select('*')
-            if (item.lessonId) {
-              itemQuery = itemQuery.eq('lesson_id', item.lessonId)
-            } else if (item.chapterId) {
-              itemQuery = itemQuery.eq('chapter_id', item.chapterId)
-            } else if (item.classId) {
-              itemQuery = itemQuery.eq('class_id', item.classId)
-            } else if (itemBlock) {
-              const orClauses = [`grade_block.eq.${itemBlock}`]
-              if (itClassIds.length > 0) orClauses.push(`class_id.in.(${itClassIds.join(',')})`)
-              if (itChapterIds.length > 0) orClauses.push(`chapter_id.in.(${itChapterIds.join(',')})`)
-              itemQuery = itemQuery.or(orClauses.join(','))
-            }
+          // Fetch all candidate pools for distribution items in parallel
+          const candidateResults = await Promise.all(
+            distribution.map(async (item) => {
+              const itemBlock = item.gradeBlock || gradeBlock
+              const { classIds: itClassIds, chapterIds: itChapterIds } = await getScopeTargetIds(serviceRoleClient, itemBlock, scopeCache)
+              let itemQuery = serviceRoleClient.from('question_bank').select('*')
+              if (item.lessonId) {
+                itemQuery = itemQuery.eq('lesson_id', item.lessonId)
+              } else if (item.chapterId) {
+                itemQuery = itemQuery.eq('chapter_id', item.chapterId)
+              } else if (item.classId) {
+                itemQuery = itemQuery.eq('class_id', item.classId)
+              } else if (itemBlock) {
+                const orClauses = [`grade_block.eq.${itemBlock}`]
+                if (itClassIds.length > 0) orClauses.push(`class_id.in.(${itClassIds.join(',')})`)
+                if (itChapterIds.length > 0) orClauses.push(`chapter_id.in.(${itChapterIds.join(',')})`)
+                itemQuery = itemQuery.or(orClauses.join(','))
+              }
+              const { data: itemCandidates, error: itemCandErr } = await itemQuery
+              return { item, itemCandidates, itemCandErr }
+            })
+          )
 
-            const { data: itemCandidates, error: itemCandErr } = await itemQuery
-            if (itemCandErr) return errorResponse(itemCandErr.message, 500)
-
-            const pool = (itemCandidates || []).filter(q => !pickedIdsSet.has(q.id))
-            const mcPool = pool.filter(q => q.question_type === 'MULTIPLE_CHOICE')
-            const tfPool = pool.filter(q => q.question_type === 'TRUE_FALSE')
-            const saPool = pool.filter(q => q.question_type === 'SHORT_ANSWER')
+          for (const res of candidateResults) {
+            if (res.itemCandErr) return errorResponse(res.itemCandErr.message, 500)
+            const item = res.item
+            const pool = (res.itemCandidates || []).filter((q: any) => !pickedIdsSet.has(q.id))
+            const mcPool = pool.filter((q: any) => q.question_type === 'MULTIPLE_CHOICE')
+            const tfPool = pool.filter((q: any) => q.question_type === 'TRUE_FALSE')
+            const saPool = pool.filter((q: any) => q.question_type === 'SHORT_ANSWER')
 
             const mcCount = Number(item.mcCount) || 0
             const tfCount = Number(item.tfCount) || 0
@@ -735,17 +771,17 @@ serve(async (req: Request) => {
             }
 
             const pMC = pickRandomWeighted(mcPool, mcCount)
-            pMC.forEach(q => pickedIdsSet.add(q.id))
+            pMC.forEach((q: any) => pickedIdsSet.add(q.id))
             const pTF = pickRandomWeighted(tfPool, tfCount)
-            pTF.forEach(q => pickedIdsSet.add(q.id))
+            pTF.forEach((q: any) => pickedIdsSet.add(q.id))
             const pSA = pickRandomWeighted(saPool, saCount)
-            pSA.forEach(q => pickedIdsSet.add(q.id))
+            pSA.forEach((q: any) => pickedIdsSet.add(q.id))
 
             combinedQuestions.push(...pMC, ...pTF, ...pSA)
           }
         } else {
           // Kịch bản B: Bốc theo Scope tổng (toàn Khối, toàn Lớp, toàn Chương, hoặc 1 Bài)
-          const { classIds: scClassIds, chapterIds: scChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+          const { classIds: scClassIds, chapterIds: scChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock, scopeCache)
           let candidateQuery = serviceRoleClient.from('question_bank').select('*')
 
           if (scopeType === 'LESSON' && lessonId) {
@@ -889,13 +925,9 @@ serve(async (req: Request) => {
           return errorResponse(aInsertErr.message, 500)
         }
 
-        // Tăng usage_count cho các câu hỏi được chọn
+        // Tăng usage_count cho các câu hỏi được chọn bằng RPC nguyên tử
         const pickedIds = orderedQuestions.map(q => q.id)
-        for (const qId of pickedIds) {
-          const curQ = orderedQuestions.find(q => q.id === qId)
-          const curCount = (curQ?.usage_count || 0) + 1
-          await serviceRoleClient.from('question_bank').update({ usage_count: curCount }).eq('id', qId)
-        }
+        await bumpQuestionUsage(serviceRoleClient, pickedIds)
 
         return jsonResponse({
           success: true,
@@ -1075,11 +1107,9 @@ serve(async (req: Request) => {
           return errorResponse(aInsertErr.message, 500)
         }
 
-        // Tăng usage_count
-        for (const qbQ of orderedQuestions) {
-          const curCount = (qbQ.usage_count || 0) + 1
-          await serviceRoleClient.from('question_bank').update({ usage_count: curCount }).eq('id', qbQ.id)
-        }
+        // Tăng usage_count bằng RPC nguyên tử
+        const pickedIds = orderedQuestions.map((q: any) => q.id)
+        await bumpQuestionUsage(serviceRoleClient, pickedIds)
 
         return jsonResponse({
           success: true,

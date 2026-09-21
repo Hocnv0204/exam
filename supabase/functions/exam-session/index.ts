@@ -144,28 +144,23 @@ serve(async (req: Request) => {
     if (action === 'heartbeat') {
       if (!sessionToken) return errorResponse('sessionToken is required', 400)
       
-      const { data: session } = await serviceRoleClient
+      const { data: updated, error } = await serviceRoleClient
         .from('exam_sessions')
-        .select('id, session_token')
+        .update({ last_heartbeat_at: new Date().toISOString() })
         .eq('homework_id', homeworkId)
         .eq('student_id', user.id)
         .eq('status', 'ACTIVE')
+        .eq('session_token', sessionToken)
+        .select('id')
         .maybeSingle()
-
-      if (!session) return errorResponse('No active session found', 404)
-      if (session.session_token !== sessionToken) {
+      
+      if (error) return errorResponse('Failed to update heartbeat', 500)
+      if (!updated) {
         return jsonResponse({
           error: 'INVALID_TOKEN',
           message: 'Phiên không hợp lệ hoặc đã bị ghi đè.'
         }, 403)
       }
-
-      const { error } = await serviceRoleClient
-        .from('exam_sessions')
-        .update({ last_heartbeat_at: new Date().toISOString() })
-        .eq('id', session.id)
-      
-      if (error) return errorResponse('Failed to update heartbeat', 500)
 
       return jsonResponse({ success: true })
     }
@@ -175,31 +170,26 @@ serve(async (req: Request) => {
       const { draftAnswers } = body
       if (!draftAnswers) return errorResponse('draftAnswers is required', 400)
 
-      const { data: session } = await serviceRoleClient
-        .from('exam_sessions')
-        .select('id, session_token')
-        .eq('homework_id', homeworkId)
-        .eq('student_id', user.id)
-        .eq('status', 'ACTIVE')
-        .maybeSingle()
-
-      if (!session) return errorResponse('No active session found', 404)
-      if (session.session_token !== sessionToken) {
-        return jsonResponse({
-          error: 'INVALID_TOKEN',
-          message: 'Phiên không hợp lệ hoặc đã bị ghi đè.'
-        }, 403)
-      }
-
-      const { error } = await serviceRoleClient
+      const { data: updated, error } = await serviceRoleClient
         .from('exam_sessions')
         .update({ 
           draft_answers: draftAnswers,
           last_heartbeat_at: new Date().toISOString() 
         })
-        .eq('id', session.id)
+        .eq('homework_id', homeworkId)
+        .eq('student_id', user.id)
+        .eq('status', 'ACTIVE')
+        .eq('session_token', sessionToken)
+        .select('id')
+        .maybeSingle()
       
       if (error) return errorResponse('Failed to autosave', 500)
+      if (!updated) {
+        return jsonResponse({
+          error: 'INVALID_TOKEN',
+          message: 'Phiên không hợp lệ hoặc đã bị ghi đè.'
+        }, 403)
+      }
 
       return jsonResponse({ success: true })
     }

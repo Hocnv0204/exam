@@ -17,9 +17,42 @@ serve(async (req: Request) => {
     const url = new URL(req.url)
     const action = url.searchParams.get('action')
 
-    // GET: List all students
+    // GET: List all students or filter by classId / search
     if (req.method === 'GET') {
-      const { data: students, error } = await serviceRoleClient
+      const classId = url.searchParams.get('classId') || url.searchParams.get('class_id')
+      const search = (url.searchParams.get('search') || url.searchParams.get('q') || '').trim()
+
+      let studentIdsInClass: string[] | null = null
+      if (classId) {
+        // 2 truy vấn độc lập -> chạy SONG SONG để tiết kiệm 1 round-trip
+        // (mỗi round-trip tới Data API tốn ~160ms trên hạ tầng hiện tại).
+        const [joinsRes, legacyRes] = await Promise.all([
+          serviceRoleClient
+            .from('student_classes')
+            .select('student_id')
+            .eq('class_id', classId),
+          serviceRoleClient
+            .from('profiles')
+            .select('id')
+            .eq('class_id', classId)
+            .eq('role', 'STUDENT'),
+        ])
+
+        if (joinsRes.error) return errorResponse(joinsRes.error.message, 500)
+        if (legacyRes.error) return errorResponse(legacyRes.error.message, 500)
+
+        const idSet = new Set<string>()
+        for (const j of joinsRes.data || []) idSet.add(j.student_id)
+        for (const p of legacyRes.data || []) idSet.add(p.id)
+        studentIdsInClass = Array.from(idSet)
+
+        // If no students belong to this class, return empty list immediately
+        if (studentIdsInClass.length === 0) {
+          return jsonResponse([])
+        }
+      }
+
+      let query = serviceRoleClient
         .from('profiles')
         .select(`
           id,
@@ -34,7 +67,21 @@ serve(async (req: Request) => {
           )
         `)
         .eq('role', 'STUDENT')
-        .order('created_at', { ascending: false })
+
+      if (studentIdsInClass !== null) {
+        query = query.in('id', studentIdsInClass)
+      }
+
+      if (search) {
+        const cleanSearch = search.replace(/[,()]/g, '').trim()
+        if (cleanSearch) {
+          query = query.or(`full_name.ilike.%${cleanSearch}%,username.ilike.%${cleanSearch}%`)
+        }
+      }
+
+      query = query.order('created_at', { ascending: false })
+
+      const { data: students, error } = await query
 
       if (error) return errorResponse(error.message, 500)
 
@@ -115,20 +162,14 @@ serve(async (req: Request) => {
         const { username, password, fullName, classId, classIds } = validation.data
         const targetClassIds = classIds && classIds.length > 0 ? classIds : (classId ? [classId] : [])
 
-        // Check if username taken
-        const { data: existingProfile } = await serviceRoleClient
-          .from('profiles')
-          .select('id')
-          .eq('username', username)
-          .maybeSingle()
-
-        if (existingProfile) {
-          return errorResponse('Username already exists', 409)
-        }
-
         const syntheticEmail = `${username.toLowerCase()}@system.local`
 
         // Create Supabase Auth User
+        //
+        // LƯU Ý HIỆU NĂNG: trước đây có 1 truy vấn `profiles.select('id').eq('username')`
+        // để báo lỗi trùng username, tốn thêm 1 round-trip (~160ms). Email tổng hợp
+        // `${username}@system.local` là duy nhất theo username nên GoTrue tự chặn trùng;
+        // ta chỉ cần map lỗi đó về 409 như hành vi cũ.
         const { data: authUser, error: createAuthError } = await serviceRoleClient.auth.admin.createUser({
           email: syntheticEmail,
           password: password,
@@ -137,7 +178,11 @@ serve(async (req: Request) => {
         })
 
         if (createAuthError || !authUser.user) {
-          return errorResponse(`Auth user creation failed: ${createAuthError?.message}`, 400)
+          const authErrorMessage = createAuthError?.message || 'Unknown error'
+          if (/(already|registered|exists|duplicate)/i.test(authErrorMessage)) {
+            return errorResponse('Username already exists', 409)
+          }
+          return errorResponse(`Auth user creation failed: ${authErrorMessage}`, 400)
         }
 
         const studentId = authUser.user.id
@@ -190,16 +235,6 @@ serve(async (req: Request) => {
 
       const { studentId, fullName, classId, classIds, password } = validation.data
 
-      // Update password if provided
-      if (password) {
-        const { error: passError } = await serviceRoleClient.auth.admin.updateUserById(studentId, {
-          password: password
-        })
-        if (passError) {
-          return errorResponse(`Failed to update password: ${passError.message}`, 400)
-        }
-      }
-
       const updatePayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
@@ -212,15 +247,30 @@ serve(async (req: Request) => {
         updatePayload.class_id = classId || null
       }
 
-      const { data: updatedProfile, error: updateError } = await serviceRoleClient
-        .from('profiles')
-        .update(updatePayload)
-        .eq('id', studentId)
-        .eq('role', 'STUDENT')
-        .select('id, username, full_name, role, class_id, updated_at')
-        .single()
+      // Đổi mật khẩu (GoTrue) và cập nhật profile (PostgREST) là 2 việc ĐỘC LẬP
+      // => chạy song song, tiết kiệm 1 round-trip (~160ms).
+      const passwordUpdate: Promise<{ error: { message: string } | null }> = password
+        ? serviceRoleClient.auth.admin.updateUserById(studentId, { password })
+        : Promise.resolve({ error: null })
 
-      if (updateError || !updatedProfile) {
+      const [passwordRes, profileRes] = await Promise.all([
+        passwordUpdate,
+        serviceRoleClient
+          .from('profiles')
+          .update(updatePayload)
+          .eq('id', studentId)
+          .eq('role', 'STUDENT')
+          .select('id, username, full_name, role, class_id, updated_at')
+          .single(),
+      ])
+
+      if (passwordRes.error) {
+        return errorResponse(`Failed to update password: ${passwordRes.error.message}`, 400)
+      }
+
+      const updatedProfile = profileRes.data
+
+      if (profileRes.error || !updatedProfile) {
         return errorResponse('Student not found or update failed', 404)
       }
 

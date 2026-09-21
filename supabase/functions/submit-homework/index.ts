@@ -24,8 +24,8 @@ serve(async (req: Request) => {
     const { homeworkId, answers, durationSecondsTaken, sessionToken, guestName, guestPhone, disqualified, violationCount } = validation.data
     const serviceRoleClient = createServiceRoleClient()
 
-    // 1. Fetch homework and verify lesson trial status
-    const { data: homework, error: homeworkError } = await serviceRoleClient
+    const authHeader = req.headers.get('Authorization')
+    const hwPromise = serviceRoleClient
       .from('homeworks')
       .select(`
         id,
@@ -53,20 +53,21 @@ serve(async (req: Request) => {
       .eq('id', homeworkId)
       .single()
 
+    const authPromise = authHeader ? requireStudent(req).catch((e: any) => ({ error: e })) : Promise.resolve(null)
+
+    const [{ data: homework, error: homeworkError }, studentAuthResult] = await Promise.all([hwPromise, authPromise])
+
     if (homeworkError || !homework || !homework.is_published) {
       return errorResponse('Homework not found or not published', 404)
     }
 
     const isTrialHomework = (homework.lessons as any)?.is_trial === true
-    const authHeader = req.headers.get('Authorization')
-
     let user: any = null
-    if (authHeader) {
-      try {
-        const studentResult = await requireStudent(req)
-        user = studentResult.user
-      } catch (e) {
-        if (!isTrialHomework) throw e
+    if (studentAuthResult) {
+      if ('error' in studentAuthResult && studentAuthResult.error) {
+        if (!isTrialHomework) throw studentAuthResult.error
+      } else if ('user' in studentAuthResult) {
+        user = studentAuthResult.user
       }
     } else if (!isTrialHomework) {
       return errorResponse('Unauthorized: Missing token', 401)
@@ -509,22 +510,18 @@ serve(async (req: Request) => {
             `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}${lateLine}`
         }
 
-        for (const chatId of targetChatIds) {
-          await sendTelegramNotification(chatId, message)
-        }
+        await Promise.all(targetChatIds.map((chatId) => sendTelegramNotification(chatId, message)))
       } catch (notifyErr: any) {
         console.error('[submit-homework] Error sending notification:', notifyErr?.message)
       }
     }
 
-    // Await notification with a 3.5s timeout so edge function reliably completes sending
-    try {
-      await Promise.race([
-        sendNotification(),
-        new Promise((resolve) => setTimeout(resolve, 3500))
-      ])
-    } catch (e) {
-      console.warn('[submit-homework] sendNotification timed out or failed:', e)
+    // Send notification in background without blocking response
+    // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+    if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+      EdgeRuntime.waitUntil(sendNotification())
+    } else {
+      sendNotification().catch((e) => console.warn('[submit-homework] Background notify error:', e))
     }
 
     // 8. Return complete submission result

@@ -5,6 +5,19 @@ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0
 
 const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 
+// Region chạy Edge Function.
+//
+// Mặc định Supabase thực thi function ở region GẦN NGƯỜI DÙNG (từ VN thường là
+// ap-northeast-2/Seoul), trong khi Database + Auth của project nằm ở region của
+// project (project này: ap-southeast-2/Sydney). Mỗi lời gọi Supabase bên trong
+// function vì thế là 1 round-trip xuyên region ~160ms => các API nhiều truy vấn
+// (create-student, create-class, dashboard...) bị cộng thêm 0.3~0.8s.
+// Pin về đúng region của DB đã đo được: create-student?classId giảm 1.09s -> 0.54s.
+// Override bằng VITE_SUPABASE_FUNCTION_REGION nếu project đổi region.
+// Ghi chú: khi chỉ định region, request sẽ KHÔNG được tự động chuyển vùng khi
+// region đó gặp sự cố (theo tài liệu Supabase).
+const FUNCTION_REGION = import.meta.env.VITE_SUPABASE_FUNCTION_REGION || 'ap-southeast-2'
+
 let activeRequests = 0
 let loadingOverlay = null
 let isRefreshing = false
@@ -252,7 +265,7 @@ async function request(endpoint, options = {}) {
       console.log('[API] Access Token missing. Attempting silent token refresh before request...')
       const refreshRes = await fetch(`${SUPABASE_FUNCTIONS_URL}/refresh-token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-region': FUNCTION_REGION },
         body: JSON.stringify({ refreshToken: state.refreshToken })
       })
       if (refreshRes.ok) {
@@ -277,6 +290,8 @@ async function request(endpoint, options = {}) {
 
   const headers = {
     'Content-Type': 'application/json',
+    // Pin Edge Function về đúng region của Database (xem FUNCTION_REGION)
+    'x-region': FUNCTION_REGION,
     ...(import.meta.env.VITE_SUPABASE_ANON_KEY ? { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY } : {}),
     ...(options.headers || {})
   }
@@ -310,7 +325,7 @@ async function request(endpoint, options = {}) {
           console.log('[API] Access Token expired. Attempting silent token refresh...')
           const refreshRes = await fetch(`${SUPABASE_FUNCTIONS_URL}/refresh-token`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-region': FUNCTION_REGION },
             body: JSON.stringify({ refreshToken: state.refreshToken })
           })
 
@@ -431,8 +446,25 @@ export const api = {
   getDashboard: () => request('dashboard', { method: 'GET' }),
   getStatistics: (params = '') => request(`statistics?${params}`, { method: 'GET' }),
   getStudentHistory: (params = '') => request(`student-history${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
+  getStudents: (params = '', options = {}) => {
+    let qs = ''
+    if (typeof params === 'string') {
+      qs = params ? (params.startsWith('?') ? params : `?${params}`) : ''
+    } else if (params && typeof params === 'object') {
+      const sp = new URLSearchParams()
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          sp.set(k, v)
+        }
+      })
+      const str = sp.toString()
+      qs = str ? `?${str}` : ''
+    }
+    return request(`create-student${qs}`, { method: 'GET', ...options })
+  },
+  // 2 hàm dưới đây vẫn đang được gọi ở app.js / exam-proctoring.js / student-mgmt.js
+  // nên giữ lại để tránh lỗi runtime "api.xxx is not a function".
   getHomeworkDetail: (homeworkId, options = {}) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
-  getStudents: (params = '') => request(`create-student${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
   getTelegramConfig: (classId) => request(`create-class?action=get-telegram-config&classId=${classId}`, { method: 'GET' }),
   updateTelegramConfig: (data) => request('create-class?action=update-telegram-config', { method: 'PUT', body: JSON.stringify(data) }),

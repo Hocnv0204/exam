@@ -10,26 +10,32 @@ let currentPage = 1
 let pageSize = 10
 let searchQuery = ''
 let selectedClass = ''
+let filteredStudents = null
+let filterDebounceTimer = null
+let currentFilterReqId = 0
 
-function getFilteredStudents() {
-  const q = searchQuery.toLowerCase().trim()
-  return (state.students || []).filter(s => {
-    const matchQuery = !q || (s.fullName && s.fullName.toLowerCase().includes(q)) || 
-      (s.studentCode && s.studentCode.toLowerCase().includes(q)) || 
-      (s.username && s.username.toLowerCase().includes(q))
-    const matchClass = !selectedClass || s.classId === selectedClass || (s.classIds && s.classIds.includes(selectedClass))
-    return matchQuery && matchClass
-  })
+function getCurrentStudents() {
+  return filteredStudents !== null ? filteredStudents : (state.students || [])
 }
 
 export function renderStudentMgmtView() {
-  const filtered = getFilteredStudents()
-  const totalItems = filtered.length
+  // Khi vào trang: khởi tạo lại bộ lọc và hiển thị tất cả học sinh như hiện tại
+  currentPage = 1
+  searchQuery = ''
+  selectedClass = ''
+  filteredStudents = null
+  if (filterDebounceTimer) {
+    clearTimeout(filterDebounceTimer)
+    filterDebounceTimer = null
+  }
+
+  const currentList = getCurrentStudents()
+  const totalItems = currentList.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
   if (currentPage > totalPages) currentPage = totalPages
 
   const from = (currentPage - 1) * pageSize
-  const pagedStudents = filtered.slice(from, from + pageSize)
+  const pagedStudents = currentList.slice(from, from + pageSize)
 
   return `
     <div class="app-layout">
@@ -320,9 +326,22 @@ export function showEditStudentModal(studentId) {
       student.classId = classIds[0]
       student.classIds = classIds
 
-      // Re-render student list by triggering filter refresh
-      const searchInput = document.getElementById('student-search-input')
-      searchInput?.dispatchEvent(new Event('input'))
+      if (filteredStudents !== null) {
+        const item = filteredStudents.find(s => s.id === studentId)
+        if (item) {
+          item.fullName = fullName
+          item.className = classNames
+          item.classId = classIds[0]
+          item.classIds = classIds
+        }
+      }
+
+      if (window._refreshStudentMgmtTable) {
+        window._refreshStudentMgmtTable(false)
+      } else {
+        const searchInput = document.getElementById('student-search-input')
+        searchInput?.dispatchEvent(new Event('input'))
+      }
 
       showToast(`Đã cập nhật thành công thông tin học sinh "${fullName}"!`, 'success')
     } catch (err) {
@@ -332,8 +351,22 @@ export function showEditStudentModal(studentId) {
       student.classId = classIds[0]
       student.classIds = classIds
       
-      const searchInput = document.getElementById('student-search-input')
-      searchInput?.dispatchEvent(new Event('input'))
+      if (filteredStudents !== null) {
+        const item = filteredStudents.find(s => s.id === studentId)
+        if (item) {
+          item.fullName = fullName
+          item.className = classNames
+          item.classId = classIds[0]
+          item.classIds = classIds
+        }
+      }
+
+      if (window._refreshStudentMgmtTable) {
+        window._refreshStudentMgmtTable(false)
+      } else {
+        const searchInput = document.getElementById('student-search-input')
+        searchInput?.dispatchEvent(new Event('input'))
+      }
       showToast(`Đã cập nhật thông tin học sinh "${fullName}" (Chế độ Demo)!`, 'success')
     }
   })
@@ -357,14 +390,29 @@ export function bindStudentMgmtEvents() {
   const searchInput = document.getElementById('student-search-input')
   const filterSelect = document.getElementById('class-filter-select')
 
-  const refreshTable = () => {
-    const filtered = getFilteredStudents()
-    const totalItems = filtered.length
+  const bindPagination = () => {
+    bindPaginationEvents({
+      containerId: 'student-pagination-container',
+      onPageChange: (newPage) => {
+        currentPage = newPage
+        refreshTable(false)
+      },
+      onPageSizeChange: (newSize) => {
+        pageSize = newSize
+        currentPage = 1
+        refreshTable(true)
+      }
+    })
+  }
+
+  const refreshTable = (rebindPagination = true) => {
+    const currentList = getCurrentStudents()
+    const totalItems = currentList.length
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
     if (currentPage > totalPages) currentPage = Math.max(1, totalPages)
 
     const from = (currentPage - 1) * pageSize
-    const pagedStudents = filtered.slice(from, from + pageSize)
+    const pagedStudents = currentList.slice(from, from + pageSize)
 
     const tbody = document.getElementById('students-table-body')
     if (tbody) {
@@ -382,47 +430,98 @@ export function bindStudentMgmtEvents() {
         containerId: 'student-pagination-container',
         pageSizeOptions: [10, 20, 50]
       })
-      bindPagination()
+      if (rebindPagination) {
+        bindPagination()
+      }
     }
 
     bindTableActionEvents()
   }
 
-  const bindPagination = () => {
-    bindPaginationEvents({
-      containerId: 'student-pagination-container',
-      onPageChange: (newPage) => {
-        currentPage = newPage
-        refreshTable()
-      },
-      onPageSizeChange: (newSize) => {
-        pageSize = newSize
-        currentPage = 1
-        refreshTable()
-      }
-    })
+  const executeFilter = async () => {
+    const q = searchQuery.trim()
+    const cls = selectedClass
+
+    // Khi không có bộ lọc: hiển thị lại toàn bộ học sinh ban đầu
+    if (!q && !cls) {
+      filteredStudents = null
+      currentPage = 1
+      refreshTable(true)
+      return
+    }
+
+    const reqId = ++currentFilterReqId
+    const tbody = document.getElementById('students-table-body')
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center; padding:32px; color:#0284c7;">
+            <i class="fa-solid fa-spinner fa-spin" style="margin-right:8px; font-size:16px;"></i> Đang tải dữ liệu học sinh theo bộ lọc...
+          </td>
+        </tr>
+      `
+    }
+
+    try {
+      const params = {}
+      if (q) params.search = q
+      if (cls) params.classId = cls
+
+      // Thực hiện gọi tiếp API get theo filter
+      const data = await api.getStudents(params, { silent: true })
+      if (reqId !== currentFilterReqId) return
+
+      filteredStudents = Array.isArray(data) ? data : []
+      currentPage = 1
+      refreshTable(true)
+    } catch (err) {
+      if (reqId !== currentFilterReqId) return
+      console.error('[student-mgmt] Lỗi gọi API filter:', err)
+      showToast(`Không thể tải dữ liệu theo bộ lọc: ${err.message}`, 'error')
+
+      // Dự phòng bộ lọc cục bộ nếu API gặp sự cố
+      const qLower = q.toLowerCase()
+      filteredStudents = (state.students || []).filter(s => {
+        const matchQuery = !qLower || 
+          (s.fullName && s.fullName.toLowerCase().includes(qLower)) || 
+          (s.studentCode && s.studentCode.toLowerCase().includes(qLower)) || 
+          (s.username && s.username.toLowerCase().includes(qLower))
+        const matchClass = !cls || s.classId === cls || (s.classIds && s.classIds.includes(cls))
+        return matchQuery && matchClass
+      })
+      currentPage = 1
+      refreshTable(true)
+    }
   }
 
   // Initial pagination bind
   bindPagination()
 
   searchInput?.addEventListener('input', (e) => {
-    searchQuery = e.target.value.trim()
-    currentPage = 1
-    refreshTable()
+    searchQuery = e.target.value
+    if (filterDebounceTimer) clearTimeout(filterDebounceTimer)
+    filterDebounceTimer = setTimeout(() => {
+      executeFilter()
+    }, 300)
   })
 
   filterSelect?.addEventListener('change', (e) => {
     selectedClass = e.target.value
-    currentPage = 1
-    refreshTable()
+    if (filterDebounceTimer) clearTimeout(filterDebounceTimer)
+    executeFilter()
   })
+
+  window._refreshStudentMgmtTable = refreshTable
+  window._executeStudentFilter = executeFilter
 }
 
 function updateTable(newStudent) {
   currentPage = 1
-  const searchInput = document.getElementById('student-search-input')
-  searchInput?.dispatchEvent(new Event('input'))
+  if (window._executeStudentFilter && filteredStudents !== null) {
+    window._executeStudentFilter()
+  } else if (window._refreshStudentMgmtTable) {
+    window._refreshStudentMgmtTable(true)
+  }
 }
 
 function bindTableActionEvents() {
@@ -442,7 +541,14 @@ function bindTableActionEvents() {
           showToast('Đang xóa học sinh...', 'info')
           await api.deleteStudent(id)
           state.students = state.students.filter(s => s.id !== id)
-          document.getElementById(`row-student-${id}`)?.remove()
+          if (filteredStudents !== null) {
+            filteredStudents = filteredStudents.filter(s => s.id !== id)
+          }
+          if (window._refreshStudentMgmtTable) {
+            window._refreshStudentMgmtTable(true)
+          } else {
+            document.getElementById(`row-student-${id}`)?.remove()
+          }
           showToast(`Đã xóa học sinh ${name}`, 'success')
         } catch (err) {
           showToast(`Xóa học sinh thất bại: ${err.message}`, 'error')
@@ -450,5 +556,4 @@ function bindTableActionEvents() {
       }
     }
   })
-
 }

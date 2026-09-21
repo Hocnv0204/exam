@@ -21,40 +21,45 @@ serve(async (req: Request) => {
     const { username, password } = validation.data
     const serviceRoleClient = createServiceRoleClient()
 
-    // Debug: log env vars to diagnose connection issue
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'MISSING'
-    const svcKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'MISSING'
-    console.log('[login] SUPABASE_URL:', supabaseUrl, '| SERVICE_KEY prefix:', svcKey.substring(0, 20))
 
-    // Find profile by username to retrieve user's auth record/id
-    const { data: profile, error: profileError } = await serviceRoleClient
+    const syntheticEmail = `${username.toLowerCase()}@system.local`
+    const anonClient = createAnonClient()
+
+    // 1. Parallel: Try signIn with synthetic email + fetch profile
+    const profilePromise = serviceRoleClient
       .from('profiles')
       .select('id, username, full_name, role, class_id')
       .eq('username', username)
       .maybeSingle()
 
-    if (profileError || !profile) {
-      console.error('[login] Profile lookup failed:', profileError?.message, 'profile:', profile)
-      return errorResponse('Invalid username or password', 401)
-    }
-
-    // Lookup user email in auth.users via admin API
-    const { data: authUser, error: getUserError } = await serviceRoleClient.auth.admin.getUserById(profile.id)
-    if (getUserError || !authUser.user || !authUser.user.email) {
-      console.error('[login] getUserById failed:', getUserError?.message)
-      return errorResponse('Authentication account mapping error', 500)
-    }
-
-    // Authenticate password using email mapping (must use anon client, not service role)
-    const anonClient = createAnonClient()
-    const { data: sessionData, error: signInError } = await anonClient.auth.signInWithPassword({
-      email: authUser.user.email,
+    const signInPromise = anonClient.auth.signInWithPassword({
+      email: syntheticEmail,
       password: password,
     })
 
-    if (signInError || !sessionData.session) {
-      console.error('[login] signInWithPassword failed:', signInError?.message)
+    const [profileRes, signInRes] = await Promise.all([profilePromise, signInPromise])
+
+    const profile = profileRes.data
+    if (!profile) {
       return errorResponse('Invalid username or password', 401)
+    }
+
+    let sessionData = signInRes.data
+
+    // Fallback: If sign-in with synthetic email failed (legacy or custom email)
+    if (signInRes.error || !sessionData?.session) {
+      const { data: authUser, error: getUserError } = await serviceRoleClient.auth.admin.getUserById(profile.id)
+      if (getUserError || !authUser?.user?.email) {
+        return errorResponse('Invalid username or password', 401)
+      }
+      const retrySignIn = await anonClient.auth.signInWithPassword({
+        email: authUser.user.email,
+        password: password,
+      })
+      if (retrySignIn.error || !retrySignIn.data?.session) {
+        return errorResponse('Invalid username or password', 401)
+      }
+      sessionData = retrySignIn.data
     }
 
     // Get all classIds for students

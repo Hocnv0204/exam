@@ -56,3 +56,15 @@ verify_jwt = false
 
 [functions.question-bank]
 verify_jwt = false
+
+[functions.refresh-token]
+verify_jwt = false
+
+[functions.exam-session]
+verify_jwt = true
+
+[functions.exam-log]
+verify_jwt = true
+
+[functions.reopen-submission]
+verify_jwt = true

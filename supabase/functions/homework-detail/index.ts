@@ -21,8 +21,8 @@ serve(async (req: Request) => {
 
     const serviceRoleClient = createServiceRoleClient()
 
-    // 1. Fetch Homework + Lesson trial status
-    const { data: homework, error: hErr } = await serviceRoleClient
+    const authHeader = req.headers.get('Authorization')
+    const hwPromise = serviceRoleClient
       .from('homeworks')
       .select(`
         id,
@@ -53,20 +53,21 @@ serve(async (req: Request) => {
       .eq('id', homeworkId)
       .single()
 
+    const authPromise = authHeader ? requireAuth(req).catch((e: any) => ({ error: e })) : Promise.resolve(null)
+
+    const [{ data: homework, error: hErr }, authResult] = await Promise.all([hwPromise, authPromise])
+
     if (hErr || !homework) {
       return errorResponse('Homework not found', 404)
     }
 
     const isTrialLesson = (homework.lessons as any)?.is_trial === true
-    const authHeader = req.headers.get('Authorization')
-
     let user: any = null
-    if (authHeader) {
-      try {
-        const authResult = await requireAuth(req)
+    if (authResult) {
+      if ('error' in authResult && authResult.error) {
+        if (!isTrialLesson) throw authResult.error
+      } else if ('user' in authResult) {
         user = authResult.user
-      } catch (e) {
-        if (!isTrialLesson) throw e
       }
     } else if (!isTrialLesson) {
       return errorResponse('Unauthorized: Missing token', 401)

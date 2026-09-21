@@ -160,6 +160,7 @@ async function router() {
       }
 
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
+      // 1 & 2. Unified Parallel Pre-fetch for Classes, Chapters, and Students
       if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank'].includes(hash)) {
         const classId = hash === 'my-classes' ? params.get('classId') : null
         const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
@@ -167,90 +168,77 @@ async function router() {
         state.classChaptersCache = state.classChaptersCache || {}
         const needClasses = (!state.classes || state.classes.length === 0 || hash === 'classes-admin')
         const needChapters = classId ? !state.classChaptersCache[classId] : false
+        const needStudents = ['students', 'classes-admin', 'class-details', 'student-details'].includes(hash) &&
+          (!state.students || state.students.length === 0 || hash === 'students')
 
-        if (needClasses && needChapters) {
-          // Parallel fetch on cold reload!
-          const [rawClasses, rawChapters] = await Promise.all([
-            api.getClasses(),
-            api.getChapters(classId, true)
-          ])
-          state.classes = (rawClasses || []).map(c => ({
-            id: c.id,
-            name: c.name,
-            gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
-            studentsCount: c.studentsCount || 0,
-            tuitionFee: c.tuitionFee || 0,
-            progress: 0
-          }))
-          state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
-            id: ch.id,
-            code: '',
-            title: ch.title,
-            orderIndex: ch.order_index,
-            lessons: (ch.lessons || []).map((l, idx) => ({
-              id: l.id,
-              code: `${l.order_index || (idx + 1)}`,
-              title: l.title,
-              videoUrl: l.video_url || '',
-              theoryFiles: l.theory_files || [],
-              createdAt: l.created_at || l.createdAt || null,
-              content: l.content,
-              homeworks: (l.homeworks || []).map(h => ({
-                id: h.id,
-                title: h.title,
-                lessonId: h.lesson_id || h.lessonId || l.id,
-                pdfPath: h.pdf_path || h.pdfPath,
-                durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes !== undefined ? h.durationMinutes : 45),
-                passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore !== undefined ? h.passScore : 5),
-                maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore !== undefined ? h.maxScore : 10),
-                deadline: h.deadline,
-                maxAttempts: h.max_attempts !== undefined ? h.max_attempts : h.maxAttempts,
-                type: h.type
+        const prefetchTasks = []
+        const taskTypes = []
+
+        if (needClasses) {
+          prefetchTasks.push(api.getClasses())
+          taskTypes.push('classes')
+        }
+        if (needChapters) {
+          prefetchTasks.push(api.getChapters(classId, true))
+          taskTypes.push('chapters')
+        }
+        if (needStudents) {
+          prefetchTasks.push(api.getStudents())
+          taskTypes.push('students')
+        }
+
+        if (prefetchTasks.length > 0) {
+          const results = await Promise.all(prefetchTasks)
+          taskTypes.forEach((type, idx) => {
+            const res = results[idx]
+            if (type === 'classes') {
+              state.classes = (res || []).map(c => ({
+                id: c.id,
+                name: c.name,
+                gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+                studentsCount: c.studentsCount || 0,
+                tuitionFee: c.tuitionFee || 0,
+                progress: 0
               }))
-            }))
-          }))
-        } else {
-          if (needClasses) {
-            const rawClasses = await api.getClasses()
-            state.classes = (rawClasses || []).map(c => ({
-              id: c.id,
-              name: c.name,
-              gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
-              studentsCount: c.studentsCount || 0,
-              tuitionFee: c.tuitionFee || 0,
-              progress: 0
-            }))
-          }
-          if (needChapters) {
-            const rawChapters = await api.getChapters(classId, true)
-            state.classChaptersCache[classId] = (rawChapters || []).map(ch => ({
-              id: ch.id,
-              code: '',
-              title: ch.title,
-              orderIndex: ch.order_index,
-              lessons: (ch.lessons || []).map((l, idx) => ({
-                id: l.id,
-                code: `${l.order_index || (idx + 1)}`,
-                title: l.title,
-                videoUrl: l.video_url || '',
-                theoryFiles: l.theory_files || [],
-                createdAt: l.created_at || l.createdAt || null,
-                content: l.content,
-                homeworks: (l.homeworks || []).map(h => ({
-                  id: h.id,
-                  title: h.title,
-                  lessonId: h.lesson_id || h.lessonId || l.id,
-                  pdfPath: h.pdf_path || h.pdfPath,
-                  durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes !== undefined ? h.durationMinutes : 45),
-                  passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore !== undefined ? h.passScore : 5),
-                  maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore !== undefined ? h.maxScore : 10),
-                  deadline: h.deadline,
-                  maxAttempts: h.max_attempts !== undefined ? h.max_attempts : h.maxAttempts,
-                  type: h.type
+            } else if (type === 'chapters') {
+              state.classChaptersCache[classId] = (res || []).map(ch => ({
+                id: ch.id,
+                code: '',
+                title: ch.title,
+                orderIndex: ch.order_index,
+                lessons: (ch.lessons || []).map((l, lIdx) => ({
+                  id: l.id,
+                  code: `${l.order_index || (lIdx + 1)}`,
+                  title: l.title,
+                  videoUrl: l.video_url || '',
+                  theoryFiles: l.theory_files || [],
+                  createdAt: l.created_at || l.createdAt || null,
+                  content: l.content,
+                  homeworks: (l.homeworks || []).map(h => ({
+                    id: h.id,
+                    title: h.title,
+                    lessonId: h.lesson_id || h.lessonId || l.id,
+                    pdfPath: h.pdf_path || h.pdfPath,
+                    durationMinutes: h.duration_minutes !== undefined ? h.duration_minutes : (h.durationMinutes !== undefined ? h.durationMinutes : 45),
+                    passScore: h.pass_score !== undefined ? h.pass_score : (h.passScore !== undefined ? h.passScore : 5),
+                    maxScore: h.max_score !== undefined ? h.max_score : (h.maxScore !== undefined ? h.maxScore : 10),
+                    deadline: h.deadline,
+                    maxAttempts: h.max_attempts !== undefined ? h.max_attempts : h.maxAttempts,
+                    type: h.type
+                  }))
                 }))
               }))
-            }))
-          }
+            } else if (type === 'students') {
+              state.students = res || []
+            }
+          })
+        }
+
+        // Count student profiles associated with each class
+        if (state.students && state.classes) {
+          state.classes.forEach(c => {
+            c.studentsCount = state.students.filter(s => s.classIds ? s.classIds.includes(c.id) : (s.classId === c.id)).length
+          })
         }
 
         // Active class & lesson handling for My Classes page
@@ -302,19 +290,6 @@ async function router() {
             state.activeLessonHomeworks = []
           }
         }
-      }
-
-      // 2. Fetch Students (for Student Management, Class Management)
-      if (['students', 'classes-admin', 'class-details', 'student-details'].includes(hash)) {
-        if (!state.students || state.students.length === 0) {
-          const students = await api.getStudents()
-          state.students = students || []
-        }
-
-        // Count student profiles associated with each class to populate studentsCount
-        state.classes.forEach(c => {
-          c.studentsCount = state.students.filter(s => s.classIds ? s.classIds.includes(c.id) : (s.classId === c.id)).length
-        })
       }
 
       // Eager curriculum loader removed - now lazily loaded inside my-classes and curriculum views

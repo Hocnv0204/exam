@@ -1,7 +1,11 @@
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, *',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-region, *',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  // Cho phép browser cache kết quả preflight 24h.
+  // Thiếu header này, mỗi request (Authorization + Origin) đều phải preflight
+  // thêm 1 round-trip tới Edge Function => +100~300ms mỗi lần gọi API.
+  'Access-Control-Max-Age': '86400',
 }
 
 export function handleCors(req: Request): Response | null {

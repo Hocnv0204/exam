@@ -69,17 +69,14 @@ serve(async (req: Request) => {
 
       if (error) return errorResponse(error.message, 500)
 
-      // Get max_violations from homework
-      const { data: hw } = await serviceRoleClient
+      // 1. Fetch homework and session in parallel
+      const hwPromise = serviceRoleClient
         .from('homeworks')
         .select('max_violations')
         .eq('id', homeworkId)
         .single()
-      
-      const maxV = hw?.max_violations ?? 3
 
-      // Get active exam session
-      const { data: session } = await serviceRoleClient
+      const sessionPromise = serviceRoleClient
         .from('exam_sessions')
         .select('id, session_token, draft_answers, status, created_at')
         .eq('homework_id', homeworkId)
@@ -87,7 +84,10 @@ serve(async (req: Request) => {
         .eq('status', 'ACTIVE')
         .maybeSingle()
 
-      // Count current violations for this specific exam session
+      const [{ data: hw }, { data: session }] = await Promise.all([hwPromise, sessionPromise])
+      const maxV = hw?.max_violations ?? 3
+
+      // 2. Count current violations for this specific exam session
       const penalizedActions = ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM', 'DEVTOOLS', 'FULLSCREEN_EXIT']
       let countQuery = serviceRoleClient
         .from('exam_logs')
@@ -103,37 +103,38 @@ serve(async (req: Request) => {
       const { count } = await countQuery
       const currentViolations = count || 0
 
-      if (penalizedActions.includes(action) && currentViolations >= maxV) {
-        if (session) {
-          const authHeader = req.headers.get('Authorization')
-          const draftAnswers = Array.isArray(session.draft_answers) ? session.draft_answers : []
-          
-          // Invoke submit-homework with disqualified = true
-          const { data: subData, error: invokeErr } = await serviceRoleClient.functions.invoke('submit-homework', {
-            body: {
-              homeworkId,
-              answers: draftAnswers,
-              durationSecondsTaken: 0,
-              sessionToken: session.session_token,
-              disqualified: true,
-              violationCount: currentViolations
-            },
-            headers: {
-              Authorization: authHeader || ''
-            }
-          })
-
-          if (!invokeErr) {
-            return jsonResponse({
-              success: true,
-              log: data,
-              autoSubmitted: true,
-              currentViolations,
-              maxViolations: maxV,
-              submission: subData?.data || subData
-            })
+      if (penalizedActions.includes(action) && currentViolations >= maxV && session) {
+        const authHeader = req.headers.get('Authorization')
+        const draftAnswers = Array.isArray(session.draft_answers) ? session.draft_answers : []
+        
+        const autoSubmitTask = serviceRoleClient.functions.invoke('submit-homework', {
+          body: {
+            homeworkId,
+            answers: draftAnswers,
+            durationSecondsTaken: 0,
+            sessionToken: session.session_token,
+            disqualified: true,
+            violationCount: currentViolations
+          },
+          headers: {
+            Authorization: authHeader || ''
           }
+        }).catch((invokeErr: any) => {
+          console.error('[exam-log] Auto-submit invoke failed:', invokeErr?.message)
+        })
+
+        // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+        if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+          EdgeRuntime.waitUntil(autoSubmitTask)
         }
+
+        return jsonResponse({
+          success: true,
+          log: data,
+          autoSubmitted: true,
+          currentViolations,
+          maxViolations: maxV
+        })
       }
 
       return jsonResponse({ success: true, log: data, autoSubmitted: false, currentViolations, maxViolations: maxV })

@@ -22,6 +22,7 @@
    - [2.3. Đẩy Database Migrations & Storage Policies](#23-đẩy-database-migrations--storage-policies)
    - [2.4. Cấu hình Secrets (Biến môi trường) trên Cloud](#24-cấu-hình-secrets-biến-môi-trường-trên-cloud)
    - [2.5. Deploy các Supabase Edge Functions](#25-deploy-các-supabase-edge-functions)
+   - [2.5.1. Hiệu năng Edge Functions (BẮT BUỘC pin region)](#251-hiệu-năng-edge-functions-bắt-buộc-pin-region)
    - [2.6. Khởi tạo tài khoản Administrator trên Cloud](#26-khởi-tạo-tài-khoản-administrator-trên-cloud)
    - [2.7. Cấu hình Telegram Webhook](#27-cấu-hình-telegram-webhook)
    - [2.8. Build & Deploy Frontend](#28-build--deploy-frontend)
@@ -337,7 +338,74 @@ supabase functions deploy telegram-bot --no-verify-jwt
 ```
 
 > **Tại sao dùng cờ `--no-verify-jwt`?**  
-> Trong `supabase/config.toml`, các hàm đã được cấu hình chi tiết. Khi deploy với `--no-verify-jwt`, request từ client sẽ đi thẳng vào Edge Function code. Tại đây, file `supabase/shared/auth-middleware.ts` của dự án sẽ tự giải mã JWT Token, kiểm tra quyền `ADMIN` hoặc `STUDENT`, giúp xử lý lỗi và trả về JSON chuẩn xác (`{ success: false, error: ... }`) thay vì bị gateway chặn lỗi thô 401.
+> Trong `supabase/config.toml`, các hàm đã được cấu hình chi tiết. Khi deploy với `--no-verify-jwt`, request từ client sẽ đi thẳng vào Edge Function code. Tại đây, file `supabase/shared/auth-middleware.ts` của dự án sẽ **tự verify chữ ký JWT cục bộ bằng WebCrypto + JWKS** (`/auth/v1/.well-known/jwks.json`, cache theo isolate - xem mục 2.5.1), kiểm tra quyền `ADMIN` hoặc `STUDENT`, giúp xử lý lỗi và trả về JSON chuẩn xác (`{ success: false, error: ... }`) thay vì bị gateway chặn lỗi thô 401.
+>
+> Nhờ verify cục bộ, việc xác thực **không còn tốn round-trip tới GoTrue** (~160ms/request) và vẫn an toàn kể cả khi deploy bằng `--no-verify-jwt`.
+
+---
+
+### 2.5.1. Hiệu năng Edge Functions (BẮT BUỘC pin region)
+
+#### Nguyên nhân API chậm ~1s (đã đo thực tế)
+
+Số đo TTFB bằng `curl` (máy ở VN, request đã warm, median 5 mẫu):
+
+| Endpoint | Số round-trip nội bộ | TTFB |
+| --- | --- | --- |
+| `login` (lỗi validate - 0 truy vấn DB) | 0 | 0.245s |
+| `create-class` (GET) | 3 | 0.726s |
+| `create-student` (GET - không lọc) | 3 | 0.748s |
+| `create-student?classId=<lớp rỗng>` | 4 | 0.890s |
+| `create-student?classId=<lớp có HS>` | 5 | 1.038s |
+
+Công thức gần như **tuyến tính**:
+
+```
+TTFB ≈ 0.245s (gateway + khởi động isolate) + 0.16s × số_round_trip_đến_DB/Auth
+```
+
+Tức là **mỗi lời gọi Supabase trong function tốn ~160ms**, không phải vì truy vấn chậm
+(các bảng chỉ vài chục dòng) mà vì:
+
+- Edge Function mặc định chạy ở region **gần người dùng** (truy cập từ VN → `ap-northeast-2`/Seoul).
+  Kiểm tra bằng header response `x-sb-edge-region`.
+- Database + Auth (GoTrue) của project lại nằm ở **`ap-southeast-2` (Sydney)**.
+- ⇒ Mỗi round-trip là một chuyến xuyên region ~160ms. Hàm càng nhiều `await` tuần tự càng chậm.
+
+Đo A/B cùng một request, chỉ khác region (median 5 mẫu):
+
+| Region chạy function | `create-student?classId=...` |
+| --- | --- |
+| Seoul (`ap-northeast-2`, mặc định) | **1.092s** |
+| Sydney (`ap-southeast-2`, cùng region DB) | **0.541s** |
+
+Ngoài ra **cold start rất đắt**: lần gọi đầu tiên ở một region mới đo được 3.8s (us-west-2),
+24s (eu-west-1). Vì region được chọn theo vị trí người dùng, người dùng rải rác sẽ liên tục
+gặp cold start ⇒ pin về 1 region vừa giảm latency vừa tăng tỉ lệ cache/isolate warm.
+
+#### Việc cần làm
+
+1. **Frontend pin region**: `fe/src/js/api.js` đã tự gửi header `x-region` cho mọi request
+   (hằng `FUNCTION_REGION`, mặc định `ap-southeast-2`, override bằng biến môi trường
+   `VITE_SUPABASE_FUNCTION_REGION` trong `fe/.env`).
+   Nếu không thể thêm header (webhook, CORS khắt khe), dùng query param
+   `?forceFunctionRegion=ap-southeast-2`.
+   > Lưu ý: khi chỉ định region, request sẽ **không** được tự động chuyển vùng khi region đó
+   > gặp sự cố (theo tài liệu Supabase).
+2. **Verify lại sau deploy**: `curl -sD - -o /dev/null ".../functions/v1/create-student?classId=..." -H "authorization: Bearer $TOKEN"` rồi xem header
+   `x-sb-edge-region` phải là `ap-southeast-2`.
+3. **Giữ số round-trip trong function ở mức tối thiểu** (đây là quy tắc quan trọng nhất khi viết code):
+   - Xác thực JWT bằng `requireAuth()` **không** còn gọi GoTrue (verify chữ ký cục bộ với JWKS cache).
+   - Các truy vấn **độc lập** phải chạy bằng `Promise.all`, không `await` tuần tự.
+   - Không thêm các truy vấn "kiểm tra tồn tại" trước khi ghi; hãy map lỗi của DB về HTTP status tương ứng.
+4. **Cache CORS preflight**: `shared/response-helper.ts` đã thêm `Access-Control-Max-Age: 86400`
+   để browser không phải preflight lại mỗi request (tối ưu ~100-300ms/lần gọi từ trình duyệt).
+5. **Cold start**: dùng specifier `npm:` (`npm:@supabase/supabase-js@...`) thay cho `https://esm.sh/...`.
+   Module của esm.sh phải tải thêm 7 file con từ CDN mỗi lần khởi động isolate; `npm:` được runtime
+   bundle sẵn.
+
+> **Cách kiểm tra nhanh số round-trip của một function**: mỗi `await supabase...` (PostgREST/GoTrue)
+> = 1 round-trip ≈ 160ms khi function KHÁC region DB, ≈ 50-60ms khi cùng region.
 
 ---
 

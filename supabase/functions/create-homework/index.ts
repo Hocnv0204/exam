@@ -247,6 +247,13 @@ serve(async (req: Request) => {
       const finalMaxAttempts = type === 'EXAM' ? 1 : (maxAttempts || null);
       const finalMaxViolations = maxViolations || 3;
 
+      // Kick off lesson metadata fetch in parallel with homework creation
+      const lessonPromise = serviceRoleClient
+        .from('lessons')
+        .select('id, chapter_id, chapters(id, class_id, classes(grade_block))')
+        .eq('id', lessonId)
+        .single()
+
       // Create Homework Record
       const { data: homework, error: homeworkError } = await serviceRoleClient
         .from('homeworks')
@@ -332,100 +339,105 @@ serve(async (req: Request) => {
         return errorResponse(`Failed to insert answer keys: ${ansError.message}`, 500)
       }
 
-      // Tự động đồng bộ các câu hỏi vừa tạo vào Ngân hàng câu hỏi (question_bank)
-      try {
-        const { data: lessonData } = await serviceRoleClient
-          .from('lessons')
-          .select('id, chapter_id, chapters(id, class_id, classes(grade_block))')
-          .eq('id', lessonId)
-          .single()
+      // Tự động đồng bộ các câu hỏi vừa tạo vào Ngân hàng câu hỏi (question_bank) không chặn phản hồi
+      const syncQbTask = (async () => {
+        try {
+          const { data: lessonData } = await lessonPromise
+          const chId = lessonData?.chapter_id || null
+          const clId = (lessonData?.chapters as any)?.class_id || null
+          const grBlock = ((lessonData?.chapters as any)?.classes as any)?.grade_block || '12-Toán'
 
-        const chId = lessonData?.chapter_id || null
-        const clId = (lessonData?.chapters as any)?.class_id || null
-        const grBlock = ((lessonData?.chapters as any)?.classes as any)?.grade_block || '12-Toán'
-
-        const bankRows = questions.map((q: any) => {
-          let promptPayload: any = null
-          if (typeof q.prompt === 'object' && q.prompt !== null) {
-            promptPayload = { ...q.prompt }
-          } else if (typeof q.prompt === 'string') {
-            try {
-              const parsed = JSON.parse(q.prompt)
-              if (parsed && typeof parsed === 'object') {
-                promptPayload = parsed
-              }
-            } catch (_) {}
-          }
-
-          if (!promptPayload) {
-            promptPayload = {
-              isInteractive: true,
-              text: q.content || (typeof q.prompt === 'string' ? q.prompt : '') || '',
-              imageUrl: q.imageUrl || '',
-              partTitle: q.partTitle || '',
-              options: q.options || [],
-              statements: q.statements || [],
-              explanation: q.explanation || ''
-            }
-          }
-
-          // Unwrap if promptPayload.text is itself a stringified JSON (prevent double-nested JSON)
-          let unwrapCount = 0
-          while (typeof promptPayload.text === 'string' && promptPayload.text.trim().startsWith('{') && unwrapCount < 3) {
-            try {
-              const inner = JSON.parse(promptPayload.text)
-              if (inner && typeof inner === 'object' && (inner.text !== undefined || inner.options || inner.statements)) {
-                promptPayload = {
-                  ...promptPayload,
-                  ...inner,
-                  text: inner.text !== undefined ? inner.text : promptPayload.text,
-                  options: (inner.options && inner.options.length) ? inner.options : promptPayload.options,
-                  statements: (inner.statements && inner.statements.length) ? inner.statements : promptPayload.statements,
-                  explanation: inner.explanation || promptPayload.explanation || '',
-                  imageUrl: inner.imageUrl || promptPayload.imageUrl || ''
+          const bankRows = questions.map((q: any) => {
+            let promptPayload: any = null
+            if (typeof q.prompt === 'object' && q.prompt !== null) {
+              promptPayload = { ...q.prompt }
+            } else if (typeof q.prompt === 'string') {
+              try {
+                const parsed = JSON.parse(q.prompt)
+                if (parsed && typeof parsed === 'object') {
+                  promptPayload = parsed
                 }
-                unwrapCount++
-              } else {
+              } catch (_) {}
+            }
+
+            if (!promptPayload) {
+              promptPayload = {
+                isInteractive: true,
+                text: q.content || (typeof q.prompt === 'string' ? q.prompt : '') || '',
+                imageUrl: q.imageUrl || '',
+                partTitle: q.partTitle || '',
+                options: q.options || [],
+                statements: q.statements || [],
+                explanation: q.explanation || ''
+              }
+            }
+
+            // Unwrap if promptPayload.text is itself a stringified JSON (prevent double-nested JSON)
+            let unwrapCount = 0
+            while (typeof promptPayload.text === 'string' && promptPayload.text.trim().startsWith('{') && unwrapCount < 3) {
+              try {
+                const inner = JSON.parse(promptPayload.text)
+                if (inner && typeof inner === 'object' && (inner.text !== undefined || inner.options || inner.statements)) {
+                  promptPayload = {
+                    ...promptPayload,
+                    ...inner,
+                    text: inner.text !== undefined ? inner.text : promptPayload.text,
+                    options: (inner.options && inner.options.length) ? inner.options : promptPayload.options,
+                    statements: (inner.statements && inner.statements.length) ? inner.statements : promptPayload.statements,
+                    explanation: inner.explanation || promptPayload.explanation || '',
+                    imageUrl: inner.imageUrl || promptPayload.imageUrl || ''
+                  }
+                  unwrapCount++
+                } else {
+                  break
+                }
+              } catch (_) {
                 break
               }
-            } catch (_) {
-              break
             }
-          }
 
-          // Ensure options and statements arrays are populated correctly
-          if (q.questionType === 'TRUE_FALSE' && (!promptPayload.statements || promptPayload.statements.length === 0) && promptPayload.options) {
-            promptPayload.statements = promptPayload.options
-          }
-          if (q.questionType === 'MULTIPLE_CHOICE' && (!promptPayload.options || promptPayload.options.length === 0) && promptPayload.statements) {
-            promptPayload.options = promptPayload.statements
-          }
+            // Ensure options and statements arrays are populated correctly
+            if (q.questionType === 'TRUE_FALSE' && (!promptPayload.statements || promptPayload.statements.length === 0) && promptPayload.options) {
+              promptPayload.statements = promptPayload.options
+            }
+            if (q.questionType === 'MULTIPLE_CHOICE' && (!promptPayload.options || promptPayload.options.length === 0) && promptPayload.statements) {
+              promptPayload.options = promptPayload.statements
+            }
 
-          return {
-            subject: 'TOAN',
-            grade_level: 12,
-            grade_block: grBlock,
-            class_id: clId,
-            chapter_id: chId,
-            lesson_id: lessonId,
-            question_type: q.questionType,
-            difficulty: 'THONG_HIEU',
-            prompt: typeof promptPayload === 'string' ? promptPayload : JSON.stringify(promptPayload),
-            mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? (q.mcAnswer || promptPayload.mcAnswer || null) : null,
-            tf_answers: q.questionType === 'TRUE_FALSE' ? (q.tfAnswers || promptPayload.tfAnswers || null) : null,
-            sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer !== undefined && q.saAnswer !== null) ? String(q.saAnswer) : (promptPayload.saAnswer ? String(promptPayload.saAnswer) : null)) : null,
-            sa_tolerance: q.saTolerance || promptPayload.saTolerance || 0,
-            points: q.points || 0.25,
-            tags: [title],
-            usage_count: 1
-          }
-        })
+            return {
+              subject: 'TOAN',
+              grade_level: 12,
+              grade_block: grBlock,
+              class_id: clId,
+              chapter_id: chId,
+              lesson_id: lessonId,
+              question_type: q.questionType,
+              difficulty: 'THONG_HIEU',
+              prompt: promptPayload,
+              mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? (q.mcAnswer || promptPayload.mcAnswer || null) : null,
+              tf_answers: q.questionType === 'TRUE_FALSE' ? (q.tfAnswers || promptPayload.tfAnswers || null) : null,
+              sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer !== undefined && q.saAnswer !== null) ? String(q.saAnswer) : (promptPayload.saAnswer ? String(promptPayload.saAnswer) : null)) : null,
+              sa_tolerance: q.saTolerance || promptPayload.saTolerance || 0,
+              points: q.points || 0.25,
+              tags: [title],
+              usage_count: 1
+            }
+          })
 
-        if (bankRows.length > 0) {
-          await serviceRoleClient.from('question_bank').insert(bankRows)
+          if (bankRows.length > 0) {
+            await serviceRoleClient.from('question_bank').insert(bankRows)
+          }
+        } catch (syncErr) {
+          console.warn('[Auto-sync question_bank warning]:', syncErr)
         }
-      } catch (syncErr) {
-        console.warn('[Auto-sync question_bank warning]:', syncErr)
+      })()
+
+      // @ts-ignore
+      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(syncQbTask)
+      } else {
+        await syncQbTask
       }
 
       return jsonResponse(
@@ -529,25 +541,25 @@ serve(async (req: Request) => {
         // 2. Parallel update existing questions
         const toUpdate = questions.filter((q: any) => existingMap.has(q.questionNumber))
         if (toUpdate.length > 0) {
-          const updatePromises = toUpdate.map((q: any) => {
-            const qId = existingMap.get(q.questionNumber)
-            return serviceRoleClient
-              .from('questions')
-              .update({
-                question_type: q.questionType,
-                prompt: q.prompt || '',
-                content: q.content || null,
-                options: q.options || null,
-                statements: q.statements || null,
-                part_title: q.partTitle || null,
-                points: q.points,
-              })
-              .eq('id', qId)
-          })
-          const results = await Promise.all(updatePromises)
-          const failed = results.find((r: any) => r.error)
-          if (failed) {
-            return errorResponse(`Failed to update questions: ${failed.error?.message}`, 500)
+          const updatePayload = toUpdate.map((q: any) => ({
+            id: existingMap.get(q.questionNumber),
+            homework_id: homeworkId,
+            question_number: q.questionNumber,
+            question_type: q.questionType,
+            prompt: q.prompt || '',
+            content: q.content || null,
+            options: q.options || null,
+            statements: q.statements || null,
+            part_title: q.partTitle || null,
+            points: q.points,
+          }))
+
+          const { error: updateErr } = await serviceRoleClient
+            .from('questions')
+            .upsert(updatePayload, { onConflict: 'id' })
+
+          if (updateErr) {
+            return errorResponse(`Failed to update questions: ${updateErr.message}`, 500)
           }
         }
 

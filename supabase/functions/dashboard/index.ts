@@ -22,6 +22,7 @@ serve(async (req: Request) => {
       classSessionsRes,
       studentSessionsRes,
       submissionsRes,
+      submissionCountRes,
       recentSubmissionsRes
     ] = await Promise.all([
       // 1. All Students List
@@ -57,13 +58,19 @@ serve(async (req: Request) => {
         .from('student_sessions')
         .select('student_id, class_id, session_date, is_paid'),
 
-      // 7. Submissions for score calculation, monthly trends & timing
+      // 7. Submissions for score calculation, monthly trends & timing (bounded to latest 2,000 for sub-second aggregation)
       serviceRoleClient
         .from('submissions')
         .select('id, total_score, max_score, student_id, homework_id, is_late, submitted_at')
-        .order('submitted_at', { ascending: false }),
+        .order('submitted_at', { ascending: false })
+        .limit(2000),
 
-      // 8. Recent Submissions List (Top 10)
+      // 8. Total Submissions Count (exact count across all historical records)
+      serviceRoleClient
+        .from('submissions')
+        .select('*', { count: 'exact', head: true }),
+
+      // 9. Recent Submissions List (Top 10)
       serviceRoleClient
         .from('submissions')
         .select(`
@@ -88,6 +95,7 @@ serve(async (req: Request) => {
     if (classSessionsRes.error) return errorResponse(classSessionsRes.error.message, 500)
     if (studentSessionsRes.error) return errorResponse(studentSessionsRes.error.message, 500)
     if (submissionsRes.error) return errorResponse(submissionsRes.error.message, 500)
+    if (submissionCountRes.error) return errorResponse(submissionCountRes.error.message, 500)
     if (recentSubmissionsRes.error) return errorResponse(recentSubmissionsRes.error.message, 500)
 
     const studentsData = studentsRes.data || []
@@ -97,11 +105,13 @@ serve(async (req: Request) => {
     const classSessionsData = classSessionsRes.data || []
     const studentSessionsData = studentSessionsRes.data || []
     const submissions = submissionsRes.data || []
+    const totalSubmissions = submissionCountRes.count !== null && submissionCountRes.count !== undefined ? submissionCountRes.count : submissions.length
     const recentSubmissionsRaw = recentSubmissionsRes.data || []
 
     const studentCount = studentsData.length
     const classCount = classesData.length
-    const subCount = submissions.length
+    const subCount = totalSubmissions
+    const subSampleCount = submissions.length
 
     // Build Class Map and Tuition Map
     const classMap = new Map<string, { id: string; name: string; tuitionFee: number; gradeBlock: string }>()
@@ -431,7 +441,7 @@ serve(async (req: Request) => {
       ? Math.round((passedCount / gradedStudentsCount) * 100)
       : (submissions.length > 0 ? Math.round((passedCount / submissions.length) * 100) : 0)
 
-    const onTimeRate = subCount > 0 ? Math.round((onTimeCount / subCount) * 100) : 100
+    const onTimeRate = subSampleCount > 0 ? Math.round((onTimeCount / subSampleCount) * 100) : 100
 
     // Set sessionCount and unpaidTuitionFee for each month
     monthMap.forEach((item, monthKey) => {
