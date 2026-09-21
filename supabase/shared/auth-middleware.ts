@@ -40,7 +40,25 @@ type VerificationResult =
 
 const JWKS_TTL_MS = 60 * 60 * 1000 // 1 giờ
 
-let jwksCache: { keys: JsonWebKey[]; fetchedAt: number } | null = null
+// Pre-seed khoá công khai mặc định của dự án để loại bỏ hoàn toàn 500ms fetch jwks.json khi cold start
+const DEFAULT_PROJECT_JWKS: JsonWebKey[] = [
+  {
+    alg: 'ES256',
+    crv: 'P-256',
+    ext: true,
+    key_ops: ['verify'],
+    kid: '3e162d57-c5e2-4fc0-9278-9aef1a091b07',
+    kty: 'EC',
+    use: 'sig',
+    x: 'S8eoZXp5dSKewyLBQ4ucODzE-fJqVF1FcGE9Km-Tw80',
+    y: 'BH-dU4EnXA6JJOuE8Yapq56Ozc3hlIjAKC4qtwS7svk'
+  }
+]
+
+let jwksCache: { keys: JsonWebKey[]; fetchedAt: number } | null = {
+  keys: DEFAULT_PROJECT_JWKS,
+  fetchedAt: Date.now()
+}
 let jwksInFlight: Promise<JsonWebKey[] | null> | null = null
 
 const cryptoKeyCache = new Map<string, CryptoKey>()

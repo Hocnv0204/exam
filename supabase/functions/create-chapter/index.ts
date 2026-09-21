@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin, requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
+import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import {
   createChapterSchema,
   updateChapterSchema,
@@ -12,7 +13,6 @@ serve(async (req: Request) => {
   if (corsRes) return corsRes
 
   try {
-    const { user, serviceRoleClient } = await requireAuth(req)
     const url = new URL(req.url)
     const action = url.searchParams.get('action')
 
@@ -20,23 +20,32 @@ serve(async (req: Request) => {
     if (req.method === 'GET') {
       const classId = url.searchParams.get('classId')
       const includeLessons = url.searchParams.get('includeLessons') === 'true'
-      
-      // Student RLS: Can only view chapters of their enrolled class
-      if (user.role === 'STUDENT' && (!classId || !user.classIds.includes(classId))) {
-        return errorResponse('Forbidden: You can only view chapters of your enrolled class', 403)
-      }
 
-      let query = serviceRoleClient
+      // Chạy song song xác thực JWT/Profile và truy vấn cơ sở dữ liệu
+      const serviceRoleClient = createServiceRoleClient()
+
+      let q = serviceRoleClient
         .from('chapters')
         .select(includeLessons ? '*, lessons(*, homeworks(*))' : '*')
         .order('order_index', { ascending: true })
 
       if (classId) {
-        query = query.eq('class_id', classId)
+        q = q.eq('class_id', classId)
       }
 
-      const { data: chapters, error } = await query
+      const [authResult, chaptersResult] = await Promise.all([
+        requireAuth(req),
+        q
+      ])
+
+      const { user } = authResult
+      const { data: chapters, error } = chaptersResult
       if (error) return errorResponse(error.message, 500)
+
+      // Student RLS: Can only view chapters of their enrolled class
+      if (user.role === 'STUDENT' && (!classId || !user.classIds.includes(classId))) {
+        return errorResponse('Forbidden: You can only view chapters of your enrolled class', 403)
+      }
 
       if (includeLessons && Array.isArray(chapters)) {
         chapters.forEach((ch: any) => {
@@ -56,6 +65,8 @@ serve(async (req: Request) => {
 
       return jsonResponse(chapters)
     }
+
+    const { user, serviceRoleClient } = await requireAuth(req)
 
     // Role Guard: Write Operations (POST, PUT, DELETE) are Admin-only
     if (user.role !== 'ADMIN') {
