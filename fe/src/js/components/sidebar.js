@@ -13,8 +13,11 @@ export function renderSidebar(currentRoute) {
 
       ${isGuest ? `
         <div class="nav-section-title">Trải nghiệm học thử</div>
-        <div class="nav-item ${currentRoute === 'roadmap' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
-          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình 8+ (90 ngày)
+        <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
+          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình Hóa 12 (Bứt phá 8+)
+        </div>
+        <div class="nav-item ${currentRoute === 'roadmap-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-11'">
+          <i class="fa-solid fa-compass" style="color:#8b5cf6;"></i> Lộ trình Hóa 11 (Chuẩn KNTT)
         </div>
         <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=lessons'">
           <i class="fa-solid fa-wand-magic-sparkles" style="color:#16a34a;"></i> Bài học thử
@@ -50,8 +53,11 @@ export function renderSidebar(currentRoute) {
         </div>
       ` : `
         <div class="nav-section-title">Dành cho học sinh</div>
-        <div class="nav-item ${currentRoute === 'roadmap' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
-          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình 8+ (90 ngày)
+        <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
+          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình Hóa 12 (Bứt phá 8+)
+        </div>
+        <div class="nav-item ${currentRoute === 'roadmap-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-11'">
+          <i class="fa-solid fa-compass" style="color:#8b5cf6;"></i> Lộ trình Hóa 11 (Chuẩn KNTT)
         </div>
         <div class="nav-item ${currentRoute === 'my-classes' ? 'active' : ''}" onclick="window.location.hash='#my-classes'">
           <i class="fa-solid fa-graduation-cap"></i> Lớp học của tôi

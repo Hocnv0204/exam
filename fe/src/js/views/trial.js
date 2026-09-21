@@ -5,6 +5,7 @@ import { openModal } from '../components/modal.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { showToast } from '../components/toast.js'
 import { renderRoadmap, bindRoadmapEvents, ENTRANCE_TEST_HOMEWORK_ID } from '../components/roadmap.js'
+import { renderRoadmap11, bindRoadmap11Events } from '../components/roadmap-11.js'
 
 let cachedTrialLessons = []
 let isLoadingTrial = false
@@ -13,17 +14,23 @@ let serverTrialHistory = []
 let isSyncingPhone = false
 
 function renderTrialTabSwitcher(activeTab, historyCount = 0) {
+  const isRoadmap12 = activeTab === 'roadmap' || activeTab === 'roadmap-12'
+  const isRoadmap11 = activeTab === 'roadmap-11'
+
   return `
     <!-- Tab Switcher Header -->
     <div style="display:flex; gap:10px; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:14px; align-items:center; flex-wrap:wrap;">
-      <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap" style="padding:9px 20px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'roadmap' ? 'background:#0284c7; color:#fff; border-color:#0284c7;' : 'background:#fff;'};">
-        <i class="fa-solid fa-route" style="${activeTab === 'roadmap' ? 'color:#fff;' : 'color:#0284c7;'}"></i> Lộ trình 8+ (90 ngày)
+      <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap-12" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${isRoadmap12 ? 'background:#0284c7; color:#fff; border-color:#0284c7;' : 'background:#fff;'};">
+        <i class="fa-solid fa-route" style="${isRoadmap12 ? 'color:#fff;' : 'color:#0284c7;'}"></i> Lộ trình Hóa 12 (Bứt phá 8+)
       </button>
-      <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:9px 20px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'lessons' ? 'background:#16a34a; color:#fff; border-color:#16a34a;' : 'background:#fff;'};">
+      <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap-11" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${isRoadmap11 ? 'background:#8b5cf6; color:#fff; border-color:#8b5cf6;' : 'background:#fff;'};">
+        <i class="fa-solid fa-compass" style="${isRoadmap11 ? 'color:#fff;' : 'color:#8b5cf6;'}"></i> Lộ trình Hóa 11 (Chuẩn KNTT)
+      </button>
+      <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'lessons' ? 'background:#16a34a; color:#fff; border-color:#16a34a;' : 'background:#fff;'};">
         <i class="fa-solid fa-wand-magic-sparkles" style="${activeTab === 'lessons' ? 'color:#fff;' : 'color:#16a34a;'}"></i> Bài học & Luyện tập
       </button>
       ${historyCount > 0 || activeTab === 'history' ? `
-        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-history" style="padding:9px 20px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'history' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : 'background:#fff;'};">
+        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-history" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'history' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : 'background:#fff;'};">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài
           <span style="font-size:11px; padding:2px 7px; border-radius:10px; ${activeTab === 'history' ? 'background:#ffffff; color:#0f172a;' : 'background:#cbd5e1; color:#0f172a;'} font-weight:800;">${historyCount}</span>
         </button>
@@ -148,7 +155,9 @@ export function renderTrialView() {
   const lessonId = params.get('lessonId')
 
   let activeTab = 'roadmap'
-  if (routePath === 'roadmap') {
+  if (routePath === 'roadmap-11' || params.get('tab') === 'roadmap-11') {
+    activeTab = 'roadmap-11'
+  } else if (routePath === 'roadmap' || routePath === 'roadmap-12' || params.get('tab') === 'roadmap' || params.get('tab') === 'roadmap-12') {
     activeTab = 'roadmap'
   } else if (params.has('tab')) {
     activeTab = params.get('tab')
@@ -160,7 +169,23 @@ export function renderTrialView() {
   const historyList = getAllMergedTrialHistory()
   const savedPhone = localStorage.getItem('trial_guest_phone') || ''
 
-  // TAB 0: ROADMAP (90 NGÀY LÊN 8+)
+  // TAB 0A: ROADMAP HÓA 11 (CHUẨN KNTT 35 TUẦN)
+  if (activeTab === 'roadmap-11') {
+    return `
+      <div class="app-layout">
+        ${renderSidebar('roadmap-11')}
+        <div class="main-content">
+          ${renderNavbar('Lộ trình Hóa 11: học chắc từng chương, không học lan man (35 tuần)')}
+          <div class="content-body" style="padding-top:16px;">
+            ${renderTrialTabSwitcher('roadmap-11', historyList.length)}
+            ${renderRoadmap11()}
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  // TAB 0B: ROADMAP HÓA 12 (90 NGÀY LÊN 8+)
   if (activeTab === 'roadmap') {
     return `
       <div class="app-layout">
@@ -786,9 +811,17 @@ export function bindTrialEvents() {
   const params = new URLSearchParams(queryString || '')
   let classId = params.get('classId')
 
-  // Switch Tab to Roadmap
+  // Switch Tab to Roadmap 12
+  document.getElementById('btn-tab-trial-roadmap-12')?.addEventListener('click', () => {
+    window.location.hash = '#roadmap'
+  })
   document.getElementById('btn-tab-trial-roadmap')?.addEventListener('click', () => {
     window.location.hash = '#roadmap'
+  })
+
+  // Switch Tab to Roadmap 11
+  document.getElementById('btn-tab-trial-roadmap-11')?.addEventListener('click', () => {
+    window.location.hash = '#roadmap-11'
   })
 
   // Switch Tab to Lessons
@@ -801,10 +834,16 @@ export function bindTrialEvents() {
     window.location.hash = '#trial?tab=history'
   })
 
-  // Bind Roadmap events if roadmap element is in DOM
+  // Bind Roadmap 12 events if roadmap element is in DOM
   const roadmapEl = document.getElementById('hoa12-roadmap')
   if (roadmapEl) {
     bindRoadmapEvents(roadmapEl)
+  }
+
+  // Bind Roadmap 11 events if roadmap element is in DOM
+  const roadmap11El = document.getElementById('hoa11-roadmap')
+  if (roadmap11El) {
+    bindRoadmap11Events(roadmap11El)
   }
 
   // Phone sync / lookup button in Trial History

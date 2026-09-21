@@ -25,6 +25,8 @@ const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
   trial: { render: renderTrialView, bind: bindTrialEvents },
   roadmap: { render: renderTrialView, bind: bindTrialEvents },
+  'roadmap-12': { render: renderTrialView, bind: bindTrialEvents },
+  'roadmap-11': { render: renderTrialView, bind: bindTrialEvents },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
@@ -54,8 +56,8 @@ async function router() {
 
   // Guest & Unauthenticated Access Guard
   if (!state.token) {
-    const isTrialMode = params.get('trial') === 'true' || hash === 'trial' || hash === 'roadmap'
-    const guestRoutes = ['login', 'trial', 'roadmap', 'homework-attempt', 'assignment-review']
+    const isTrialMode = params.get('trial') === 'true' || hash === 'trial' || hash.startsWith('roadmap')
+    const guestRoutes = ['login', 'trial', 'roadmap', 'roadmap-12', 'roadmap-11', 'homework-attempt', 'assignment-review']
     if (!guestRoutes.includes(hash)) {
       window.location.hash = '#login'
       return
