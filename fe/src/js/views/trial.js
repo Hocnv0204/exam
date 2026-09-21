@@ -15,28 +15,19 @@ let isSyncingPhone = false
 function renderTrialTabSwitcher(activeTab, historyCount = 0) {
   return `
     <!-- Tab Switcher Header -->
-    <div style="display:flex; gap:12px; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:14px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'roadmap' ? 'background:#0284c7; color:#fff; border-color:#0284c7;' : 'background:#fff;'};">
-          <i class="fa-solid fa-route" style="${activeTab === 'roadmap' ? 'color:#fff;' : 'color:#0284c7;'}"></i> Lộ trình 8+ (90 ngày)
-        </button>
-        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'lessons' ? 'background:#16a34a; color:#fff; border-color:#16a34a;' : 'background:#fff;'};">
-          <i class="fa-solid fa-sparkles" style="${activeTab === 'lessons' ? 'color:#fff;' : 'color:#16a34a;'}"></i> Bài học & Luyện tập
-        </button>
-        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-history" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'history' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : 'background:#fff;'};">
+    <div style="display:flex; gap:10px; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:14px; align-items:center; flex-wrap:wrap;">
+      <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap" style="padding:9px 20px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'roadmap' ? 'background:#0284c7; color:#fff; border-color:#0284c7;' : 'background:#fff;'};">
+        <i class="fa-solid fa-route" style="${activeTab === 'roadmap' ? 'color:#fff;' : 'color:#0284c7;'}"></i> Lộ trình 8+ (90 ngày)
+      </button>
+      <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:9px 20px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'lessons' ? 'background:#16a34a; color:#fff; border-color:#16a34a;' : 'background:#fff;'};">
+        <i class="fa-solid fa-wand-magic-sparkles" style="${activeTab === 'lessons' ? 'color:#fff;' : 'color:#16a34a;'}"></i> Bài học & Luyện tập
+      </button>
+      ${historyCount > 0 || activeTab === 'history' ? `
+        <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-history" style="padding:9px 20px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'history' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : 'background:#fff;'};">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử làm bài
           <span style="font-size:11px; padding:2px 7px; border-radius:10px; ${activeTab === 'history' ? 'background:#ffffff; color:#0f172a;' : 'background:#cbd5e1; color:#0f172a;'} font-weight:800;">${historyCount}</span>
         </button>
-      </div>
-
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <button class="btn-primary" onclick="window.confirmStartTrialHomework('${ENTRANCE_TEST_HOMEWORK_ID}')" style="padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; border-radius:8px; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:6px; box-shadow: 0 2px 8px rgba(22,163,74,0.2);">
-          <i class="fa-solid fa-play"></i> Kiểm tra đầu vào (Miễn phí)
-        </button>
-        <button class="btn-secondary" onclick="window.location.hash='#login'" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; color:#0066cc; border-color:#bfdbfe; background:#eff6ff; border-radius:8px;">
-          <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập / Đăng ký
-        </button>
-      </div>
+      ` : ''}
     </div>
   `
 }
@@ -342,7 +333,7 @@ export function renderTrialView() {
                           <h4 style="font-size:16px; font-weight:700; color:#0f172a; margin:0 0 6px 0;">Bạn chưa làm bài tập thử nào</h4>
                           <p style="font-size:13px; margin:0 0 16px 0;">Hãy chọn một bài học thử để bắt đầu làm bài và kiểm tra kiến thức ngay!</p>
                           <button class="btn-primary" onclick="window.location.hash='#trial'" style="padding:8px 18px; font-size:13px; font-weight:600; cursor:pointer; background:#16a34a; border-color:#16a34a;">
-                            <i class="fa-solid fa-sparkles"></i> Khám phá bài học thử
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Khám phá bài học thử
                           </button>
                         </td>
                       </tr>
@@ -437,7 +428,7 @@ export function renderTrialView() {
                     <div>
                       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                         <span style="font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d; border: 1px solid #86efac; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
-                          <i class="fa-solid fa-sparkles"></i> HỌC THỬ MIỄN PHÍ
+                          <i class="fa-solid fa-wand-magic-sparkles"></i> HỌC THỬ MIỄN PHÍ
                         </span>
                       </div>
                       <h1 class="page-title" style="font-size: 22px; margin: 0;">${selectedClass.name}</h1>
@@ -724,18 +715,13 @@ export function renderTrialView() {
             <div>
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
                 <span style="font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d; border: 1px solid #86efac; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
-                  <i class="fa-solid fa-sparkles"></i> 100% MIỄN PHÍ KHÔNG CẦN ĐĂNG NHẬP
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> 100% MIỄN PHÍ KHÔNG CẦN ĐĂNG NHẬP
                 </span>
               </div>
               <h1 class="page-title" style="font-size: 24px; margin: 0;">Lớp học trải nghiệm miễn phí</h1>
               <p class="page-description" style="margin-top: 4px;">
                 Chọn một lớp học để khám phá các bài giảng mẫu, tài liệu lý thuyết và làm thử các bài tập kiểm tra trắc nghiệm.
               </p>
-            </div>
-            <div style="display: flex; gap: 10px;">
-              <button class="btn-primary" onclick="window.location.hash='#login'" style="padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;">
-                <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập hệ thống
-              </button>
             </div>
           </div>
 
@@ -756,7 +742,7 @@ export function renderTrialView() {
                         <i class="fa-solid fa-graduation-cap"></i>
                       </div>
                       <span style="font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d; border: 1px solid #86efac; padding: 3px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
-                        <i class="fa-solid fa-sparkles"></i> Học thử
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Học thử
                       </span>
                     </div>
 

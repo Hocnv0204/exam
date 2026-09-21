@@ -680,7 +680,7 @@ export function renderRoadmap(options = {}) {
               <i class="fa-solid fa-timeline"></i> Xem lộ trình 12 tuần
             </button>
             <button type="button" class="h12r__btn h12r__btn--ghost" id="btn-hero-goto-lessons">
-              <i class="fa-solid fa-sparkles"></i> Luyện bài học thử
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Luyện bài học thử
             </button>
           </div>
           <div class="h12r__stats">
