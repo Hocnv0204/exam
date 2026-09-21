@@ -2,7 +2,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
-import { openModal } from '../components/modal.js'
+import { openModal, closeModal } from '../components/modal.js'
 import { renderMath } from '../utils/exam-parser.js'
 
 // Student's current answers state for exam
@@ -544,8 +544,16 @@ export function bindExamRoomEvents() {
   // =========================================================
   const savedDraft = loadDraftFromStorage(hw.id)
   let timeLeftSeconds = (hw.durationMinutes || 45) * 60
-  if (savedDraft?.timeLeft && savedDraft.timeLeft > 0 && savedDraft.timeLeft <= timeLeftSeconds) {
-    timeLeftSeconds = savedDraft.timeLeft
+  if (savedDraft?.timeLeft && savedDraft.timeLeft > 0) {
+    let elapsed = 0
+    if (savedDraft.updatedAt) {
+      const lastSave = new Date(savedDraft.updatedAt).getTime()
+      if (!isNaN(lastSave)) {
+        elapsed = Math.max(0, Math.floor((Date.now() - lastSave) / 1000))
+      }
+    }
+    const adjusted = savedDraft.timeLeft - elapsed
+    timeLeftSeconds = Math.min(timeLeftSeconds, Math.max(0, adjusted))
   }
   const getSessionTokenKey = (hwId) => `exam_session_token_${hwId}_${state.user?.id || 'guest'}`
   const getActiveKey = (hwId) => `exam_active_${hwId}_${state.user?.id || 'guest'}`
@@ -773,17 +781,32 @@ export function bindExamRoomEvents() {
     })
   }
 
+  const disableAllInputs = () => {
+    const root = document.querySelector('.exam-room-layout') || document.body
+    const elements = root.querySelectorAll('input, textarea, button:not(#retry-submit-btn), select')
+    elements.forEach(el => {
+      if (el.id !== 'modal-close-btn' && el.id !== 'modal-cancel-btn') {
+        el.disabled = true
+        el.style.pointerEvents = 'none'
+      }
+    })
+  }
+
   // Submit Handler
   let isSubmitting = false
   const performSubmit = async (isDisqualified = false, violationCount = 0) => {
     if (isSubmitting) return
     isSubmitting = true
+
+    closeModal()
+    disableAllInputs()
+
     try {
       cleanupExamEngine()
       showToast(isDisqualified ? 'Đang tự động thu bài do vi phạm quy chế...' : 'Đang nộp bài làm và chấm điểm...', 'info')
       const submissionAnswers = buildSubmissionAnswers()
       const totalDurationSeconds = (hw.durationMinutes || 45) * 60
-      const durationSecondsTaken = Math.max(0, totalDurationSeconds - timeLeftSeconds)
+      const durationSecondsTaken = Math.max(0, totalDurationSeconds - Math.max(0, timeLeftSeconds))
 
       const payload = {
         homeworkId: hw.id,
@@ -808,12 +831,41 @@ export function bindExamRoomEvents() {
       isSubmitting = false
       console.error('Submit failed:', err)
       showToast(`Nộp bài thất bại: ${err.message}`, 'error')
+
+      if (timeLeftSeconds <= 0 || isDisqualified) {
+        openModal(
+          'LỖI NỘP BÀI THI TỰ ĐỘNG',
+          `
+            <div style="text-align:center; padding:12px; color:#ef4444;">
+              <i class="fa-solid fa-triangle-exclamation" style="font-size:44px; margin-bottom:12px;"></i>
+              <p style="font-size:15px; color:#1e293b; font-weight:600; margin-bottom:8px;">Quá trình nộp bài thi gặp sự cố kết nối</p>
+              <p style="font-size:13px; color:#64748b; line-height:1.5; margin-bottom:12px;">
+                Chi tiết: ${err.message || 'Lỗi mạng'}.<br>
+                Bài làm của bạn đã được bảo lưu nháp an toàn. Vui lòng bấm <strong>"Thử nộp lại ngay"</strong>.
+              </p>
+            </div>
+          `,
+          async () => {
+            await performSubmit(isDisqualified, violationCount)
+            return true
+          }
+        )
+        const retryConfirmBtn = document.getElementById('modal-confirm-btn')
+        if (retryConfirmBtn) {
+          retryConfirmBtn.id = 'retry-submit-btn'
+          retryConfirmBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Thử nộp lại ngay'
+          retryConfirmBtn.style.background = '#059669'
+          retryConfirmBtn.disabled = false
+          retryConfirmBtn.style.pointerEvents = 'auto'
+        }
+      }
       return null
     }
   }
 
   // Bind Submit Buttons (top & sidebar)
   const handleConfirmSubmit = () => {
+    if (isSubmitting || timeLeftSeconds <= 0) return
     let unansweredCount = 0
     questions.forEach(q => {
       const qNum = q.question_number || q.questionNumber
@@ -918,10 +970,18 @@ export function bindExamRoomEvents() {
     updateTimerDisplay()
     if (timerInterval) clearInterval(timerInterval)
 
+    if (timeLeftSeconds <= 0) {
+      showToast('Thời gian làm bài thi đã kết thúc! Hệ thống tự động nộp bài...', 'warning')
+      disableAllInputs()
+      performSubmit()
+      return
+    }
+
     timerInterval = setInterval(() => {
       if (timeLeftSeconds <= 0) {
         clearInterval(timerInterval)
         showToast('Hết thời gian làm bài! Hệ thống tự động nộp bài...', 'warning')
+        disableAllInputs()
         performSubmit()
         return
       }
@@ -1299,6 +1359,18 @@ export function bindExamRoomEvents() {
       try {
         const res = await api.initExamSession(hw.id, examSessionToken)
         if (res && res.success !== false) {
+          if (res.createdAt) {
+            const elapsed = Math.max(0, Math.floor((Date.now() - new Date(res.createdAt).getTime()) / 1000))
+            const remaining = (hw.durationMinutes || 45) * 60 - elapsed
+            timeLeftSeconds = Math.min(timeLeftSeconds, Math.max(0, remaining))
+            updateTimerDisplay()
+          }
+          if (timeLeftSeconds <= 0) {
+            showToast('Thời gian làm bài thi đã kết thúc! Hệ thống tự động nộp bài...', 'warning')
+            disableAllInputs()
+            performSubmit()
+            return
+          }
           if (res.draftAnswers) {
             restoreDraftAnswersFromServer(res.draftAnswers)
           }
@@ -1376,6 +1448,18 @@ export function bindExamRoomEvents() {
           sessionStorage.setItem(getActiveKey(hw.id), 'true')
           sessionStorage.setItem(`exam_session_token_${hw.id}`, token)
           sessionStorage.setItem(`exam_active_${hw.id}`, 'true')
+          if (res?.createdAt) {
+            const elapsed = Math.max(0, Math.floor((Date.now() - new Date(res.createdAt).getTime()) / 1000))
+            const remaining = (hw.durationMinutes || 45) * 60 - elapsed
+            timeLeftSeconds = Math.min(timeLeftSeconds, Math.max(0, remaining))
+            updateTimerDisplay()
+          }
+          if (timeLeftSeconds <= 0) {
+            showToast('Thời gian làm bài thi đã kết thúc! Hệ thống tự động nộp bài...', 'warning')
+            disableAllInputs()
+            performSubmit()
+            return true
+          }
           if (res?.draftAnswers) {
             restoreDraftAnswersFromServer(res.draftAnswers)
           }

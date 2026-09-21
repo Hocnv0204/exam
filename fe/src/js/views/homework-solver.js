@@ -3,7 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
-import { openModal } from '../components/modal.js'
+import { openModal, closeModal } from '../components/modal.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { renderMath } from '../utils/exam-parser.js'
 
@@ -1160,15 +1160,40 @@ export function bindHomeworkSolverEvents() {
 
   const isTrial = window.location.hash.includes('trial=true') || !state.token
 
+  let isSubmitting = false
+
+  const disableAllInputs = () => {
+    const root = document.getElementById('homework-solver-container') || document.querySelector('.exam-container') || document.body
+    const elements = root.querySelectorAll('input, textarea, button:not(#retry-submit-btn), select')
+    elements.forEach(el => {
+      if (el.id !== 'modal-close-btn' && el.id !== 'modal-cancel-btn') {
+        el.disabled = true
+        el.style.pointerEvents = 'none'
+      }
+    })
+  }
+
   // Shared submit helper
   const performSubmit = async (guestName = '', guestPhone = '') => {
+    if (isSubmitting) return
+    isSubmitting = true
+
+    // Close any open modals immediately and prevent further edits
+    closeModal()
+    disableAllInputs()
+
+    // Stop all background intervals during submit to prevent collisions
+    if (timerInterval) clearInterval(timerInterval)
+    if (heartbeatInterval) clearInterval(heartbeatInterval)
+    if (autosaveInterval) clearInterval(autosaveInterval)
+
     try {
       showToast('Đang gửi bài làm lên máy chủ chấm điểm...', 'info')
       
       const submissionAnswers = buildSubmissionAnswers()
 
       const totalDurationSeconds = (hw.durationMinutes || 45) * 60
-      const durationSecondsTaken = Math.max(0, totalDurationSeconds - timeLeftSeconds)
+      const durationSecondsTaken = Math.max(0, totalDurationSeconds - Math.max(0, timeLeftSeconds))
 
       const payload = {
         homeworkId: hw.id,
@@ -1178,8 +1203,10 @@ export function bindHomeworkSolverEvents() {
 
       if (isTrial) {
         payload.isTrial = true
-        if (guestName) payload.guestName = guestName
-        if (guestPhone) payload.guestPhone = guestPhone
+        const resolvedGuestName = guestName || localStorage.getItem('trial_guest_name') || 'Học sinh trải nghiệm'
+        const resolvedGuestPhone = guestPhone || localStorage.getItem('trial_guest_phone') || ''
+        if (resolvedGuestName) payload.guestName = resolvedGuestName
+        if (resolvedGuestPhone) payload.guestPhone = resolvedGuestPhone
       } else if (hw.type === 'EXAM' && examSessionToken) {
         payload.sessionToken = examSessionToken
       }
@@ -1218,17 +1245,17 @@ export function bindHomeworkSolverEvents() {
             correctCount: result.correctCount,
             wrongCount: result.wrongCount,
             durationSecondsTaken,
-            guestName: guestName || 'Học sinh trải nghiệm',
-            guestPhone: guestPhone || '',
+            guestName: payload.guestName || 'Học sinh trải nghiệm',
+            guestPhone: payload.guestPhone || '',
             submittedAt: new Date().toISOString()
           })
 
           localStorage.setItem('trial_submissions_history', JSON.stringify(localHistory))
-          if (guestPhone) {
-            localStorage.setItem('trial_guest_phone', guestPhone)
+          if (payload.guestPhone) {
+            localStorage.setItem('trial_guest_phone', payload.guestPhone)
           }
-          if (guestName) {
-            localStorage.setItem('trial_guest_name', guestName)
+          if (payload.guestName) {
+            localStorage.setItem('trial_guest_name', payload.guestName)
           }
         } catch (e) {
           console.warn('[Trial] Failed to save trial submission to localStorage:', e)
@@ -1238,15 +1265,54 @@ export function bindHomeworkSolverEvents() {
         window.location.hash = `#assignment-review?submissionId=${result.submissionId}`
       }
     } catch (err) {
+      isSubmitting = false
+      console.error('[HomeworkSolver] Submit failed:', err)
       showToast(`Nộp bài thất bại: ${err.message}`, 'error')
+
+      // If submit failed on timeout, provide a direct retry modal so the student doesn't lose their answers
+      if (timeLeftSeconds <= 0) {
+        openModal(
+          'LỖI NỘP BÀI TỰ ĐỘNG',
+          `
+            <div style="text-align:center; padding:12px; color:#ef4444;">
+              <i class="fa-solid fa-triangle-exclamation" style="font-size:44px; margin-bottom:12px;"></i>
+              <p style="font-size:15px; color:#1e293b; font-weight:600; margin-bottom:8px;">Hết giờ làm bài nhưng kết nối máy chủ gặp lỗi</p>
+              <p style="font-size:13px; color:#64748b; line-height:1.5; margin-bottom:12px;">
+                Chi tiết: ${err.message || 'Lỗi mạng hoặc máy chủ bận'}.<br>
+                Bài làm của bạn đã được bảo lưu an toàn. Vui lòng bấm <strong>"Thử nộp lại"</strong> ngay.
+              </p>
+            </div>
+          `,
+          async () => {
+            await performSubmit(guestName, guestPhone)
+            return true
+          }
+        )
+        const retryBtn = document.getElementById('modal-confirm-btn')
+        if (retryBtn) {
+          retryBtn.id = 'retry-submit-btn'
+          retryBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Thử nộp lại'
+          retryBtn.style.background = '#0284c7'
+          retryBtn.disabled = false
+          retryBtn.style.pointerEvents = 'auto'
+        }
+      }
     }
   }
 
-  // Timer Countdown Setup
+  // Timer Countdown Setup (deducting real elapsed time since last save)
   const savedDraft = loadDraftFromStorage(hw.id)
   let timeLeftSeconds = (hw.durationMinutes || 45) * 60
-  if (savedDraft?.timeLeft && savedDraft.timeLeft > 0 && savedDraft.timeLeft <= timeLeftSeconds) {
-    timeLeftSeconds = savedDraft.timeLeft
+  if (savedDraft?.timeLeft && savedDraft.timeLeft > 0) {
+    let elapsed = 0
+    if (savedDraft.updatedAt) {
+      const lastSave = new Date(savedDraft.updatedAt).getTime()
+      if (!isNaN(lastSave)) {
+        elapsed = Math.max(0, Math.floor((Date.now() - lastSave) / 1000))
+      }
+    }
+    const adjusted = savedDraft.timeLeft - elapsed
+    timeLeftSeconds = Math.min(timeLeftSeconds, Math.max(0, adjusted))
   }
   let timerInterval = null
 
@@ -1272,11 +1338,20 @@ export function bindHomeworkSolverEvents() {
     updateTimerDisplay()
     if (timerInterval) clearInterval(timerInterval)
 
+    // If time already expired when opening/resuming
+    if (timeLeftSeconds <= 0) {
+      showToast('Thời gian làm bài đã kết thúc! Hệ thống tự động nộp bài...', 'warning')
+      disableAllInputs()
+      performSubmit(isTrial ? (localStorage.getItem('trial_guest_name') || 'Học sinh trải nghiệm (Hết giờ)') : '')
+      return
+    }
+
     timerInterval = setInterval(() => {
       if (timeLeftSeconds <= 0) {
         clearInterval(timerInterval)
         showToast('Hết thời gian làm bài! Hệ thống tự động nộp bài...', 'warning')
-        performSubmit(isTrial ? 'Học sinh trải nghiệm (Hết giờ)' : '')
+        disableAllInputs()
+        performSubmit(isTrial ? (localStorage.getItem('trial_guest_name') || 'Học sinh trải nghiệm (Hết giờ)') : '')
         return
       }
 
@@ -1597,6 +1672,8 @@ export function bindHomeworkSolverEvents() {
 
   // Submit Homework Event
   document.getElementById('submit-answers-btn')?.addEventListener('click', () => {
+    if (isSubmitting || timeLeftSeconds <= 0) return
+
     if (isTrial) {
       openModal(
         'Nộp bài làm học thử',

@@ -96,7 +96,8 @@ serve(async (req: Request) => {
             success: true,
             resumed: true,
             currentViolations,
-            draftAnswers: existingSession.draft_answers || null
+            draftAnswers: existingSession.draft_answers || null,
+            createdAt: existingSession.created_at
           })
         }
 
@@ -116,12 +117,13 @@ serve(async (req: Request) => {
           success: true,
           takeover: true,
           currentViolations,
-          draftAnswers: existingSession.draft_answers || null
+          draftAnswers: existingSession.draft_answers || null,
+          createdAt: existingSession.created_at
         })
       }
 
       // No active session exists, try to insert (will fail if race condition happens thanks to partial unique index)
-      const { error: insertErr } = await serviceRoleClient
+      const { data: newSession, error: insertErr } = await serviceRoleClient
         .from('exam_sessions')
         .insert({
           homework_id: homeworkId,
@@ -129,6 +131,8 @@ serve(async (req: Request) => {
           session_token: sessionToken,
           status: 'ACTIVE'
         })
+        .select('created_at')
+        .single()
       
       if (insertErr) {
         // Likely a race condition violation
@@ -138,7 +142,10 @@ serve(async (req: Request) => {
         }, 409)
       }
 
-      return jsonResponse({ success: true })
+      return jsonResponse({ 
+        success: true,
+        createdAt: newSession?.created_at || new Date().toISOString()
+      })
     }
 
     if (action === 'heartbeat') {

@@ -45,5 +45,14 @@ export function openModal(title, bodyHTML, onConfirm = null) {
   }
 }
 
-// Make openModal globally accessible on window for direct inline invocation
+export function closeModal() {
+  const container = document.getElementById('modal-container')
+  if (container) {
+    container.innerHTML = ''
+  }
+  document.body.classList.remove('modal-open')
+}
+
+// Make openModal and closeModal globally accessible on window for direct inline invocation
 window.openModal = openModal
+window.closeModal = closeModal
