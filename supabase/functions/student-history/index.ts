@@ -170,16 +170,7 @@ serve(async (req: Request) => {
         return (q.question_type || a.question_type) === 'SHORT_ANSWER'
       }).length
 
-      const isAllMC = mcCount === totalQuestions && totalQuestions > 0
-      const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
-      const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
-
-      let calculatedScore = Number(sub.total_score)
-      if (isAllMC && totalQuestions > 0 && sub.correct_count !== undefined && sub.correct_count !== null) {
-        calculatedScore = Math.round((Number(sub.correct_count) / totalQuestions) * 10 * 10) / 10
-      }
-
-      const score = calculatedScore
+      const score = Number(sub.total_score ?? 0)
       const passScore = Number(hwObj?.pass_score ?? 5)
       const isPassed = score >= passScore
       const shouldShowSolutions = hwObj?.show_solutions !== false || (user && user.role === 'ADMIN')
@@ -191,25 +182,13 @@ serve(async (req: Request) => {
         const qAnswers = Array.isArray(qObj.question_answers) ? qObj.question_answers[0] : (qObj.question_answers || {})
         const key = qAnswers
 
-        let points = 1.0
-        if (isAllMC) {
-          points = totalQuestions > 0 ? (10.0 / totalQuestions) : 1.0
-        } else if (isStructureB) {
-          if (qType === 'MULTIPLE_CHOICE') points = 0.25
-          else if (qType === 'TRUE_FALSE') points = 1.0
-          else if (qType === 'SHORT_ANSWER') points = 0.5
-        } else if (isStructureC) {
-          if (qType === 'MULTIPLE_CHOICE') points = 0.25
-          else if (qType === 'TRUE_FALSE') points = 1.0
-          else if (qType === 'SHORT_ANSWER') points = 0.25
-        } else {
-          points = qObj.points !== undefined && qObj.points !== null ? Number(qObj.points) : (ans.points !== undefined ? Number(ans.points) : 1.0)
-        }
+        const points = qObj.points !== undefined && qObj.points !== null
+          ? Number(qObj.points)
+          : (ans.points !== undefined && ans.points !== null ? Number(ans.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)))
 
-        let scoreEarned = ans.score_earned !== undefined && ans.score_earned !== null ? Number(ans.score_earned) : 0
-        if (isAllMC) {
-          scoreEarned = ans.is_correct ? points : 0
-        }
+        const scoreEarned = ans.score_earned !== undefined && ans.score_earned !== null
+          ? Number(ans.score_earned)
+          : (ans.is_correct ? points : 0)
 
         let correctAnswerSummary: any = null
         let statementGrades: any = undefined

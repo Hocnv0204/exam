@@ -1,6 +1,10 @@
-import type { QuestionType, TrueFalseStatementAnswer } from '../types/database.types.ts'
+/**
+ * Universal Scoring Engine (Client-side & Isomorphic Logic)
+ * Supports dynamic point calculation, True/False non-linear ratio grading,
+ * short-answer normalization with decimal commas and tolerance, and final score normalization.
+ */
 
-export const TF_TIER_RATIO: Record<number, number> = {
+export const TF_TIER_RATIO = {
   0: 0.0,
   1: 0.10,
   2: 0.25,
@@ -8,54 +12,47 @@ export const TF_TIER_RATIO: Record<number, number> = {
   4: 1.00
 }
 
-export interface QuestionGradeInput {
-  questionId: string
-  questionType: QuestionType
-  points: number
-  // Correct Answer Key
-  mcAnswer: string | null
-  tfAnswers: TrueFalseStatementAnswer | null
-  saAnswer: string | number | null
-  saTolerance: number | null
-  // Given Answer from Student
-  givenAnswer:
-    | { type: 'MULTIPLE_CHOICE'; value: string }
-    | { type: 'TRUE_FALSE'; value: { s1?: boolean; s2?: boolean; s3?: boolean; s4?: boolean; a?: boolean; b?: boolean; c?: boolean; d?: boolean } }
-    | { type: 'SHORT_ANSWER'; value: string | number }
-}
-
-export interface QuestionGradeResult {
-  questionId: string
-  isCorrect: boolean
-  scoreEarned: number
-  pointsPossible: number
-  correctAnswerSummary: unknown
-  feedback: string
-  correctCount?: number
-  wrongCount?: number
-  statementGrades?: { a: boolean; b: boolean; c: boolean; d: boolean }
-}
-
-export interface ExamGradingOptions {
-  targetScale?: number // Default 10.0
-  roundingStep?: number // Default 0.01 (2 decimal places)
-}
-
-export interface ExamGradingResult {
-  totalScore: number // Normalized final score on targetScale (e.g. 10.0)
-  rawEarned: number // Raw sum of earned points
-  rawMax: number // Raw sum of possible points
-  isNormalized: boolean
-  totalQuestions: number
-  correctCount: number
-  wrongCount: number
-  questionResults: QuestionGradeResult[]
+export const EXAM_PRESETS = {
+  THPT_TOAN: {
+    id: 'THPT_TOAN',
+    name: 'THPT Toán (12-4-6)',
+    description: '12 Trắc nghiệm (0.25đ) + 4 Đúng/Sai (1.0đ) + 6 Điền khuyết (0.5đ) = 10.0đ',
+    badge: '10.0đ Chuẩn BGD',
+    mcPoints: 0.25,
+    tfPoints: 1.0,
+    saPoints: 0.5
+  },
+  THPT_KHTN: {
+    id: 'THPT_KHTN',
+    name: 'THPT KHTN (18-4-6)',
+    description: '18 Trắc nghiệm (0.25đ) + 4 Đúng/Sai (1.0đ) + 6 Điền khuyết (0.25đ) = 10.0đ',
+    badge: '10.0đ Chuẩn BGD',
+    mcPoints: 0.25,
+    tfPoints: 1.0,
+    saPoints: 0.25
+  },
+  EQUAL_10: {
+    id: 'EQUAL_10',
+    name: 'Chia đều thang 10',
+    description: 'Tự động chia đều 10 điểm cho toàn bộ số câu hỏi trong đề',
+    badge: 'Chia đều 10đ',
+    calculatePoint: (totalQ) => totalQ > 0 ? Number((10 / totalQ).toFixed(4)) : 1.0
+  },
+  EQUAL_1: {
+    id: 'EQUAL_1',
+    name: '1.0 điểm / câu',
+    description: 'Mỗi câu 1 điểm (Tự động quy đổi về thang 10 khi nộp bài)',
+    badge: '1.0đ / câu',
+    mcPoints: 1.0,
+    tfPoints: 1.0,
+    saPoints: 1.0
+  }
 }
 
 /**
  * Normalizes short-answer string and numeric representation
  */
-function normalizeShortAnswer(val: unknown): { str: string; num: number | null } {
+export function normalizeShortAnswer(val) {
   if (val === undefined || val === null) return { str: '', num: null }
   const str = String(val).trim().toLowerCase()
   const sanitizedNumStr = str.replace(',', '.')
@@ -64,18 +61,18 @@ function normalizeShortAnswer(val: unknown): { str: string; num: number | null }
 }
 
 /**
- * Grades a single question and returns exact raw scoreEarned
+ * Grades a single question client-side
  */
-export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
-  const { questionId, questionType, points, mcAnswer, tfAnswers, saAnswer, saTolerance, givenAnswer } = input
+export function gradeQuestionLocally(input) {
+  const { questionId, questionType, points = 1.0, mcAnswer, tfAnswers, saAnswer, saTolerance, givenAnswer } = input
 
   let isCorrect = false
   let scoreEarned = 0
-  let correctAnswerSummary: unknown = null
+  let correctAnswerSummary = null
   let feedback = ''
   let correctCount = 0
   let wrongCount = 0
-  let statementGrades: { a: boolean; b: boolean; c: boolean; d: boolean } | undefined = undefined
+  let statementGrades = undefined
 
   if (questionType === 'MULTIPLE_CHOICE') {
     correctAnswerSummary = mcAnswer
@@ -85,27 +82,27 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
       if (formattedGiven === formattedCorrect && formattedCorrect.length > 0) {
         isCorrect = true
         scoreEarned = points
-        feedback = 'Correct choice'
+        feedback = 'Đúng'
         correctCount = 1
         wrongCount = 0
       } else {
-        feedback = `Incorrect choice. Selected: ${formattedGiven}, Correct: ${formattedCorrect}`
+        feedback = `Sai. Đã chọn: ${formattedGiven}, Đáp án: ${formattedCorrect}`
         correctCount = 0
         wrongCount = 1
       }
     } else {
-      feedback = 'No or invalid answer provided for Multiple Choice question'
+      feedback = 'Chưa chọn đáp án'
       correctCount = 0
       wrongCount = 1
     }
   } else if (questionType === 'TRUE_FALSE') {
     correctAnswerSummary = tfAnswers
     if (givenAnswer?.type === 'TRUE_FALSE' && givenAnswer.value && tfAnswers) {
-      let studentVal = givenAnswer.value as any
+      let studentVal = givenAnswer.value
       if (typeof studentVal === 'string') {
         try { studentVal = JSON.parse(studentVal) } catch {}
       }
-      let correctVal = tfAnswers as any
+      let correctVal = tfAnswers
       if (typeof correctVal === 'string') {
         try { correctVal = JSON.parse(correctVal) } catch {}
       }
@@ -113,7 +110,7 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
       let correctStatementsCount = 0
       const stGrades = { a: false, b: false, c: false, d: false }
 
-      const getBool = (v: any) => {
+      const getBool = (v) => {
         if (v === true || v === 'true' || v === 1 || v === '1') return true
         if (v === false || v === 'false' || v === 0 || v === '0') return false
         return undefined
@@ -127,8 +124,8 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
       ]
 
       for (const [k1, k2] of keysPairs) {
-        const sRaw = studentVal[k1] !== undefined ? studentVal[k1] : studentVal[k2]
-        const cRaw = correctVal[k1] !== undefined ? correctVal[k1] : correctVal[k2]
+        const sRaw = studentVal?.[k1] !== undefined ? studentVal[k1] : studentVal?.[k2]
+        const cRaw = correctVal?.[k1] !== undefined ? correctVal[k1] : correctVal?.[k2]
         const sVal = getBool(sRaw)
         const cVal = getBool(cRaw)
 
@@ -136,20 +133,19 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
         if (isStmtCorrect) {
           correctStatementsCount += 1
         }
-        stGrades[k1 as 'a' | 'b' | 'c' | 'd'] = isStmtCorrect
+        stGrades[k1] = isStmtCorrect
       }
 
       statementGrades = stGrades
       correctCount = correctStatementsCount
       wrongCount = 4 - correctStatementsCount
 
-      // Universal non-linear tier ratio
       const tierRatio = TF_TIER_RATIO[correctStatementsCount] ?? 0
       scoreEarned = tierRatio * points
       isCorrect = correctStatementsCount === 4
-      feedback = `${correctStatementsCount}/4 statements correct (${(tierRatio * 100).toFixed(0)}% points)`
+      feedback = `Đúng ${correctStatementsCount}/4 ý (${(tierRatio * 100).toFixed(0)}% điểm)`
     } else {
-      feedback = 'No or invalid answer provided for True/False question'
+      feedback = 'Chưa làm đủ ý'
       correctCount = 0
       wrongCount = 4
     }
@@ -165,27 +161,27 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
         if (diff <= tol + 1e-9) {
           isCorrect = true
           scoreEarned = points
-          feedback = 'Short answer correct within tolerance'
+          feedback = 'Đúng'
           correctCount = 1
           wrongCount = 0
         } else {
-          feedback = `Incorrect. Given: ${givenAnswer.value}, Expected: ${saAnswer}`
+          feedback = `Sai. Nhập: ${givenAnswer.value}, Đáp án: ${saAnswer}`
           correctCount = 0
           wrongCount = 1
         }
       } else if (givenNorm.str === expectedNorm.str && expectedNorm.str.length > 0) {
         isCorrect = true
         scoreEarned = points
-        feedback = 'Short answer text matched'
+        feedback = 'Đúng'
         correctCount = 1
         wrongCount = 0
       } else {
-        feedback = `Incorrect. Given: ${givenAnswer.value}, Expected: ${saAnswer}`
+        feedback = `Sai. Nhập: ${givenAnswer.value}, Đáp án: ${saAnswer}`
         correctCount = 0
         wrongCount = 1
       }
     } else {
-      feedback = 'No or invalid answer provided for Short Answer question'
+      feedback = 'Chưa điền câu trả lời'
       correctCount = 0
       wrongCount = 1
     }
@@ -205,13 +201,9 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
 }
 
 /**
- * Universal Exam Grading Engine
- * Computes raw sum and normalizes to target scale (default 10.0) without cumulative rounding errors
+ * Universal Exam Grading Engine (Client-side)
  */
-export function gradeExam(
-  items: QuestionGradeInput[],
-  options: ExamGradingOptions = {}
-): ExamGradingResult {
+export function gradeExamLocally(items, options = {}) {
   const targetScale = options.targetScale ?? 10.0
   const roundingStep = options.roundingStep ?? 0.01
 
@@ -220,14 +212,14 @@ export function gradeExam(
   let correctCount = 0
   let wrongCount = 0
 
-  const questionResults: QuestionGradeResult[] = []
+  const questionResults = []
 
   for (const item of items) {
-    const qRes = gradeQuestion(item)
+    const qRes = gradeQuestionLocally(item)
     questionResults.push(qRes)
 
     rawEarned += qRes.scoreEarned
-    rawMax += item.points
+    rawMax += (item.points !== undefined && item.points !== null ? Number(item.points) : 1.0)
     if (qRes.isCorrect) {
       correctCount += 1
     } else {
@@ -235,9 +227,6 @@ export function gradeExam(
     }
   }
 
-  // Normalization logic:
-  // If rawMax === targetScale (Identity, e.g. THPT Math/Chem 10 points), final score = rawEarned
-  // If rawMax != targetScale, final score = (rawEarned / rawMax) * targetScale
   let normalizedScore = rawEarned
   const isIdentity = Math.abs(rawMax - targetScale) < 1e-6
 
@@ -247,7 +236,6 @@ export function gradeExam(
     normalizedScore = 0
   }
 
-  // Round once at the very end to the configured step
   let finalScore = normalizedScore
   if (roundingStep > 0) {
     finalScore = Math.round(normalizedScore / roundingStep) * roundingStep
@@ -266,3 +254,50 @@ export function gradeExam(
   }
 }
 
+/**
+ * Calculates raw max points sum of questions list
+ */
+export function calculateExamRawMax(questions) {
+  if (!questions || !Array.isArray(questions)) return 0
+  const sum = questions.reduce((acc, q) => {
+    const p = q.points !== undefined && q.points !== null && !isNaN(Number(q.points))
+      ? Number(q.points)
+      : (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25))
+    return acc + p
+  }, 0)
+  return Number(sum.toFixed(4))
+}
+
+/**
+ * Applies a preset configuration to questions in-place
+ */
+export function applyExamPreset(questions, presetKey) {
+  if (!questions || !Array.isArray(questions)) return questions
+  const totalQ = questions.length
+
+  if (presetKey === 'THPT_TOAN') {
+    questions.forEach(q => {
+      if (q.questionType === 'MULTIPLE_CHOICE') q.points = 0.25
+      else if (q.questionType === 'TRUE_FALSE') q.points = 1.0
+      else if (q.questionType === 'SHORT_ANSWER') q.points = 0.5
+      else q.points = 0.25
+    })
+  } else if (presetKey === 'THPT_KHTN') {
+    questions.forEach(q => {
+      if (q.questionType === 'MULTIPLE_CHOICE') q.points = 0.25
+      else if (q.questionType === 'TRUE_FALSE') q.points = 1.0
+      else if (q.questionType === 'SHORT_ANSWER') q.points = 0.25
+      else q.points = 0.25
+    })
+  } else if (presetKey === 'EQUAL_10') {
+    const pt = totalQ > 0 ? Number((10 / totalQ).toFixed(4)) : 1.0
+    questions.forEach(q => {
+      q.points = pt
+    })
+  } else if (presetKey === 'EQUAL_1') {
+    questions.forEach(q => {
+      q.points = 1.0
+    })
+  }
+  return questions
+}

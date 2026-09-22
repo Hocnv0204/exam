@@ -385,7 +385,7 @@ export function compressImage(fileOrBlob, maxWidth = 900, quality = 0.82) {
 /**
  * Parse an entire Exam Markdown document into structured questions
  */
-export function parseExamMarkdown(rawText) {
+export function parseExamMarkdown(rawText, defaultSectionType = 'MULTIPLE_CHOICE') {
   if (!rawText || typeof rawText !== 'string') {
     return { questions: [], error: 'Nội dung đề thi trống!' }
   }
@@ -393,7 +393,7 @@ export function parseExamMarkdown(rawText) {
   const lines = rawText.split(/\r?\n/)
   const questions = []
 
-  let currentSectionType = 'MULTIPLE_CHOICE'
+  let currentSectionType = defaultSectionType
   let currentQ = null
   let currentMode = 'PROMPT' // 'PROMPT' | 'EXPLANATION'
 
@@ -463,12 +463,14 @@ export function parseExamMarkdown(rawText) {
     }
 
     // Check Question Start: [Câu 1], [Câu 1] [TF], Câu 1:, Câu 1.
-    const qMatch = trimmed.match(/^\[?(?:Câu|Bài)\s*(\d+)\]?(?:\s*\[(TF|SA|MC|ĐS|TLN)\])?[:.]?/i)
-    if (qMatch && !trimmed.startsWith('[Lời giải') && !trimmed.startsWith('[Đáp án')) {
+    const qMatch = trimmed.match(/^\[(?:Câu|Bài)\s*(\d+)\](?:\s*\[(TF|SA|MC|ĐS|TLN)\])?\s*[:.-]?\s*(.*)$/i) ||
+                   trimmed.match(/^(?:Câu|Bài)\s*(\d+)(?:\s*\[(TF|SA|MC|ĐS|TLN)\])?\s*[:.-]\s*(.*)$/i)
+    if (qMatch && !trimmed.startsWith('[Lời giải') && !trimmed.startsWith('[Đáp án') && !trimmed.startsWith('[Dung sai')) {
       flushCurrentQuestion()
 
       const qNum = parseInt(qMatch[1], 10)
       const typeTag = (qMatch[2] || '').toUpperCase()
+      const sameLinePrompt = (qMatch[3] || '').trim()
 
       let qType = currentSectionType
       if (typeTag === 'TF' || typeTag === 'ĐS') qType = 'TRUE_FALSE'
@@ -478,7 +480,7 @@ export function parseExamMarkdown(rawText) {
       currentQ = {
         questionNumber: qNum,
         questionType: qType,
-        promptLines: [],
+        promptLines: sameLinePrompt ? [sameLinePrompt] : [],
         options: [],
         mcAnswer: null,
         tfAnswers: {},
@@ -571,4 +573,151 @@ export function parseExamMarkdown(rawText) {
   })
 
   return { questions }
+}
+
+/**
+ * Formats a single structured question object back into standard Markdown
+ */
+export function formatQuestionToMarkdown(q) {
+  if (!q) return ''
+
+  const qNum = q.questionNumber || 1
+  const rawType = (q.questionType || q.question_type || 'MULTIPLE_CHOICE').toUpperCase()
+  const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF'
+  const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+  const isMc = !isTf && !isSa
+
+  let headerTag = `[Câu ${qNum}]`
+  if (isTf) headerTag = `[Câu ${qNum}] [TF]`
+  else if (isSa) headerTag = `[Câu ${qNum}] [SA]`
+
+  const lines = [headerTag]
+
+  // Prompt text
+  let promptText = (q.promptText || q.content || q.text || '').trim()
+  if (!promptText && typeof q.prompt === 'string') {
+    if (q.prompt.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(q.prompt)
+        promptText = (parsed.text || parsed.content || '').trim()
+      } catch (e) {}
+    } else {
+      promptText = q.prompt.trim()
+    }
+  }
+
+  if (promptText) {
+    lines.push(promptText)
+  }
+
+  // Image placeholder
+  if (q.imageUrl || q.hasImagePlaceholder) {
+    lines.push('[Ảnh]')
+  }
+
+  // Options / Statements / Answers
+  if (isMc) {
+    let opts = q.options || []
+    if ((!opts || opts.length === 0) && typeof q.prompt === 'string' && q.prompt.startsWith('{')) {
+      try {
+        const pObj = JSON.parse(q.prompt)
+        if (pObj.options && pObj.options.length > 0) opts = pObj.options
+      } catch (e) {}
+    }
+    if (Array.isArray(opts) && opts.length > 0) {
+      opts.forEach((opt, idx) => {
+        const optId = (typeof opt === 'object' && opt ? (opt.id || opt.key) : ['A', 'B', 'C', 'D'][idx] || String(idx + 1)).toUpperCase()
+        const optText = (typeof opt === 'object' && opt ? (opt.text || '') : String(opt || '')).trim()
+        const isCorrect = q.mcAnswer === optId || q.answerKey?.mc_answer === optId || opt.isCorrect === true
+        lines.push(`${isCorrect ? '*' : ''}${optId}. ${optText}`)
+      })
+    } else {
+      ['A', 'B', 'C', 'D'].forEach(optId => {
+        const isCorrect = q.mcAnswer === optId
+        lines.push(`${isCorrect ? '*' : ''}${optId}. `)
+      })
+    }
+  } else if (isTf) {
+    let statements = q.options || q.statements || []
+    if ((!statements || statements.length === 0) && typeof q.prompt === 'string' && q.prompt.startsWith('{')) {
+      try {
+        const pObj = JSON.parse(q.prompt)
+        if (pObj.statements && pObj.statements.length > 0) statements = pObj.statements
+        else if (pObj.options && pObj.options.length > 0) statements = pObj.options
+      } catch (e) {}
+    }
+    const tfAnswers = q.tfAnswers || q.answerKey?.tf_answers || {}
+    const defaultKeys = ['a', 'b', 'c', 'd']
+
+    if (Array.isArray(statements) && statements.length > 0) {
+      statements.forEach((stmt, idx) => {
+        const subId = (typeof stmt === 'object' && stmt ? (stmt.id || stmt.key) : defaultKeys[idx] || String(idx + 1)).toLowerCase()
+        let stmtText = (typeof stmt === 'object' && stmt ? (stmt.text || stmt.content || '') : String(stmt || '')).trim()
+        stmtText = stmtText.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
+        const isTrue = tfAnswers[subId] === true || tfAnswers[subId] === 'true' || tfAnswers[subId] === 1 || stmt.isTrue === true
+        lines.push(`${isTrue ? '*' : ''}${subId}) ${stmtText}`)
+      })
+    } else {
+      defaultKeys.forEach(k => {
+        const isTrue = tfAnswers[k] === true || tfAnswers[k] === 'true'
+        lines.push(`${isTrue ? '*' : ''}${k}) `)
+      })
+    }
+  } else if (isSa) {
+    const saAnswer = q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer).trim() : (q.answerKey?.sa_answer !== undefined ? String(q.answerKey.sa_answer).trim() : '')
+    lines.push(`[Đáp án: ${saAnswer}]`)
+    const tolerance = Number(q.saTolerance !== undefined ? q.saTolerance : (q.answerKey?.sa_tolerance || 0))
+    if (tolerance > 0) {
+      lines.push(`[Dung sai: ${tolerance}]`)
+    }
+  }
+
+  // Explanation
+  let explanation = (q.explanation || '').trim()
+  if (!explanation && typeof q.prompt === 'string' && q.prompt.startsWith('{')) {
+    try {
+      const pObj = JSON.parse(q.prompt)
+      explanation = (pObj.explanation || '').trim()
+    } catch (e) {}
+  }
+  if (explanation) {
+    lines.push('[Lời giải]')
+    lines.push(explanation)
+  }
+
+  return lines.join('\n')
+}
+
+/**
+ * Formats a full list of questions into partitioned MOET Exam Markdown
+ */
+export function formatExamToMarkdown(questions) {
+  if (!questions || !Array.isArray(questions) || questions.length === 0) return ''
+
+  const mc = questions.filter(q => {
+    const t = (q.questionType || q.question_type || 'MULTIPLE_CHOICE').toUpperCase()
+    return t === 'MULTIPLE_CHOICE' || t === 'MC'
+  })
+  const tf = questions.filter(q => {
+    const t = (q.questionType || q.question_type || '').toUpperCase()
+    return t === 'TRUE_FALSE' || t === 'TF'
+  })
+  const sa = questions.filter(q => {
+    const t = (q.questionType || q.question_type || '').toUpperCase()
+    return t === 'SHORT_ANSWER' || t === 'SA'
+  })
+
+  const sections = []
+
+  if (mc.length > 0) {
+    sections.push('=== PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D) ===\n\n' + mc.map(formatQuestionToMarkdown).join('\n\n'))
+  }
+  if (tf.length > 0) {
+    sections.push('=== PHẦN II: TRẮC NGHIỆM ĐÚNG / SAI (4 Ý a, b, c, d) ===\n\n' + tf.map(formatQuestionToMarkdown).join('\n\n'))
+  }
+  if (sa.length > 0) {
+    sections.push('=== PHẦN III: TRẮC NGHIỆM TRẢ LỜI NGẮN (ĐIỀN SỐ) ===\n\n' + sa.map(formatQuestionToMarkdown).join('\n\n'))
+  }
+
+  return sections.join('\n\n\n')
 }

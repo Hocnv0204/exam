@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin, requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
-import { gradeQuestion } from '../../shared/grading-service.ts'
+import { gradeQuestion, gradeExam, type QuestionGradeInput } from '../../shared/grading-service.ts'
 import {
   createHomeworkSchema,
   updateHomeworkSchema,
@@ -711,7 +711,16 @@ serve(async (req: Request) => {
 })
 
 async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: string) {
-  // 1. Fetch all questions and answer keys for this homework
+  // 1. Fetch homework max_score
+  const { data: homework } = await serviceRoleClient
+    .from('homeworks')
+    .select('id, max_score')
+    .eq('id', homeworkId)
+    .single()
+
+  const targetScale = homework?.max_score || 10.0
+
+  // 2. Fetch all questions and answer keys for this homework
   const { data: questions, error: qErr } = await serviceRoleClient
     .from('questions')
     .select(`
@@ -732,7 +741,7 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
 
   if (qErr || !questions || questions.length === 0) return
 
-  // 2. Fetch all submissions for this homework
+  // 3. Fetch all submissions for this homework
   const { data: submissions, error: sErr } = await serviceRoleClient
     .from('submissions')
     .select('id')
@@ -740,39 +749,19 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
 
   if (sErr || !submissions || submissions.length === 0) return
 
-  // Determine grading structure
-  const totalQuestions = questions.length
-  const mcCount = questions.filter((q: any) => q.question_type === 'MULTIPLE_CHOICE').length
-  const tfCount = questions.filter((q: any) => q.question_type === 'TRUE_FALSE').length
-  const saCount = questions.filter((q: any) => q.question_type === 'SHORT_ANSWER').length
-
-  const isAllMC = mcCount === totalQuestions
-  const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
-  const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
-
   // Index questions by id
   const questionMap = new Map()
   for (const q of questions) {
     const qaRaw = q.question_answers
     const qa = Array.isArray(qaRaw) ? qaRaw[0] : qaRaw
-
-    let customPoints = q.points || 1.0
-    if (isAllMC) {
-      customPoints = 10 / totalQuestions
-    } else if (isStructureB) {
-      if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
-      else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
-      else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.5
-    } else if (isStructureC) {
-      if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
-      else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
-      else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.25
-    }
+    const points = q.points !== undefined && q.points !== null && !isNaN(Number(q.points))
+      ? Number(q.points)
+      : (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
 
     questionMap.set(q.id, {
       questionId: q.id,
       questionType: q.question_type,
-      points: customPoints,
+      points,
       mcAnswer: qa?.mc_answer || null,
       tfAnswers: qa?.tf_answers || null,
       saAnswer: qa?.sa_answer !== null && qa?.sa_answer !== undefined ? qa.sa_answer : null,
@@ -780,7 +769,7 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
     })
   }
 
-  // 3. Fetch ALL answers for all submissions of this homework in ONE single query!
+  // 4. Fetch ALL answers for all submissions of this homework in ONE single query!
   const subIds = submissions.map((s: any) => s.id)
   const { data: allSubAnswers, error: saErr } = await serviceRoleClient
     .from('submission_answers')
@@ -805,66 +794,46 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
 
   for (const sub of submissions) {
     const subAnswers = answersBySub.get(sub.id) || []
-    let totalScore = 0
-    let correctCount = 0
-    let wrongCount = 0
+    const gradeInputs: QuestionGradeInput[] = []
 
-    for (const ans of subAnswers) {
-      const qInfo = questionMap.get(ans.question_id)
-      if (!qInfo) continue
-
-      const gradeResult = gradeQuestion({
-        questionId: qInfo.questionId,
-        questionType: qInfo.questionType,
-        points: qInfo.points,
-        mcAnswer: qInfo.mcAnswer,
-        tfAnswers: qInfo.tfAnswers,
-        saAnswer: qInfo.saAnswer,
-        saTolerance: qInfo.saTolerance,
-        givenAnswer: ans.given_answer,
-      })
-
-      if ((isStructureB || isStructureC) && qInfo.questionType === 'TRUE_FALSE') {
-        const correctCountForTF = gradeResult.correctCount ?? 0
-        let customScoreEarned = 0
-        if (correctCountForTF === 1) customScoreEarned = 0.1
-        else if (correctCountForTF === 2) customScoreEarned = 0.25
-        else if (correctCountForTF === 3) customScoreEarned = 0.5
-        else if (correctCountForTF === 4) customScoreEarned = 1.0
-
-        gradeResult.scoreEarned = customScoreEarned
-        gradeResult.isCorrect = correctCountForTF === 4
+    for (const q of questions) {
+      const qInfo = questionMap.get(q.id)
+      const studentAns = subAnswers.find((a: any) => a.question_id === q.id)
+      if (qInfo) {
+        gradeInputs.push({
+          ...qInfo,
+          givenAnswer: studentAns?.given_answer || { type: qInfo.questionType, value: null }
+        })
       }
-
-      totalScore += gradeResult.scoreEarned
-      correctCount += gradeResult.isCorrect ? 1 : 0
-      wrongCount += gradeResult.isCorrect ? 0 : 1
-
-      allUpdatedAnswers.push({
-        id: ans.id,
-        submission_id: ans.submission_id,
-        question_id: ans.question_id,
-        given_answer: ans.given_answer,
-        is_correct: gradeResult.isCorrect,
-        score_earned: gradeResult.scoreEarned,
-      })
     }
 
-    if (isAllMC && totalQuestions > 0) {
-      totalScore = (correctCount / totalQuestions) * 10
-    }
+    const examGrading = gradeExam(gradeInputs, { targetScale, roundingStep: 0.01 })
 
-    const finalScore = Math.round(totalScore * 10) / 10
+    for (let i = 0; i < gradeInputs.length; i++) {
+      const gInput = gradeInputs[i]
+      const gRes = examGrading.questionResults[i]
+      const studentAns = subAnswers.find((a: any) => a.question_id === gInput.questionId)
+      if (studentAns) {
+        allUpdatedAnswers.push({
+          id: studentAns.id,
+          submission_id: sub.id,
+          question_id: gInput.questionId,
+          given_answer: studentAns.given_answer,
+          is_correct: gRes.isCorrect,
+          score_earned: gRes.scoreEarned,
+        })
+      }
+    }
 
     submissionsToUpdate.push({
       id: sub.id,
-      total_score: finalScore,
-      correct_count: correctCount,
-      wrong_count: wrongCount,
+      total_score: examGrading.totalScore,
+      correct_count: examGrading.correctCount,
+      wrong_count: examGrading.wrongCount,
     })
   }
 
-  // 4. Batch update submission_answers using upsert in chunks of 200
+  // 5. Batch update submission_answers using upsert in chunks of 200
   if (allUpdatedAnswers.length > 0) {
     const chunkSize = 200
     for (let i = 0; i < allUpdatedAnswers.length; i += chunkSize) {
@@ -875,7 +844,7 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
     }
   }
 
-  // 5. Parallel update submissions
+  // 6. Parallel update submissions
   if (submissionsToUpdate.length > 0) {
     await Promise.all(
       submissionsToUpdate.map((sub: any) =>

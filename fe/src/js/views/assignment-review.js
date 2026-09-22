@@ -150,21 +150,13 @@ export function renderAssignmentReviewView() {
     ans.anchorId = `review-q-${ans.typePrefix}-${ans.displayNumber}`
   })
 
-  // Determine active structure
+  // Section statistics
   const totalQuestions = sortedAnswers.length
   const mcCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'MULTIPLE_CHOICE').length
   const tfCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'TRUE_FALSE').length
   const saCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'SHORT_ANSWER').length
 
-  const isAllMC = mcCount === totalQuestions && totalQuestions > 0
-  const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
-  const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
-
-  let calculatedScore = Number(sub.score)
-  if (isAllMC && totalQuestions > 0 && sub.correctCount !== undefined) {
-    calculatedScore = Math.round((Number(sub.correctCount) / totalQuestions) * 10 * 10) / 10
-  }
-
+  const calculatedScore = Number(sub.score ?? 0)
   const maxScore = Number(sub.maxScore || 10)
   const isPassed = calculatedScore >= (sub.passScore || 5)
 
@@ -173,61 +165,36 @@ export function renderAssignmentReviewView() {
   let tfEarned = 0, tfPossible = 0
   let saEarned = 0, saPossible = 0
 
-  if (isAllMC) {
-    mcEarned = calculatedScore
-    mcPossible = maxScore
-  } else if (isStructureB) {
-    sortedAnswers.forEach(ans => {
-      const qType = ans.questions?.question_type || ans.questionType
-      const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
-      if (qType === 'MULTIPLE_CHOICE') mcEarned += score
-      else if (qType === 'TRUE_FALSE') tfEarned += score
-      else if (qType === 'SHORT_ANSWER') saEarned += score
-    })
-    mcPossible = 3.0
-    tfPossible = 4.0
-    saPossible = 3.0
-  } else if (isStructureC) {
-    sortedAnswers.forEach(ans => {
-      const qType = ans.questions?.question_type || ans.questionType
-      const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
-      if (qType === 'MULTIPLE_CHOICE') mcEarned += score
-      else if (qType === 'TRUE_FALSE') tfEarned += score
-      else if (qType === 'SHORT_ANSWER') saEarned += score
-    })
-    mcPossible = 4.5
-    tfPossible = 4.0
-    saPossible = 1.5
-  } else {
-    sortedAnswers.forEach(ans => {
-      const qType = ans.questions?.question_type || ans.questionType
-      const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
-      let points = ans.pointsPossible !== undefined && ans.pointsPossible !== null ? Number(ans.pointsPossible) : (ans.questions?.points || 1)
-      if (qType === 'MULTIPLE_CHOICE') {
-        mcEarned += score
-        mcPossible += points
-      } else if (qType === 'TRUE_FALSE') {
-        tfEarned += score
-        tfPossible += points
-      } else if (qType === 'SHORT_ANSWER') {
-        saEarned += score
-        saPossible += points
-      }
-    })
-  }
+  sortedAnswers.forEach(ans => {
+    const qType = ans.questions?.question_type || ans.questionType
+    const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+    const points = ans.pointsPossible !== undefined && ans.pointsPossible !== null
+      ? Number(ans.pointsPossible)
+      : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)))
+
+    if (qType === 'MULTIPLE_CHOICE') {
+      mcEarned += score
+      mcPossible += points
+    } else if (qType === 'TRUE_FALSE') {
+      tfEarned += score
+      tfPossible += points
+    } else if (qType === 'SHORT_ANSWER') {
+      saEarned += score
+      saPossible += points
+    }
+  })
 
   const formatScore = (val) => Number(Number(val).toFixed(2))
 
-  let mcLabel = 'Trắc nghiệm'
-  if (isAllMC) {
-    const ptPerQ = totalQuestions > 0 ? (10 / totalQuestions) : 0.25
-    mcLabel = `Trắc nghiệm (${formatScore(ptPerQ)}đ/câu)`
-  } else if (isStructureB || isStructureC) {
-    mcLabel = 'Trắc nghiệm (0.25đ/câu)'
+  const getSectionLabel = (prefix, count, possible) => {
+    if (count <= 0) return prefix
+    const pt = possible / count
+    return `${prefix} (${formatScore(pt)}đ/câu)`
   }
 
-  let tfLabel = 'Đúng / Sai (1đ/câu)'
-  let saLabel = isStructureB ? 'Trả lời ngắn (0.5đ/câu)' : (isStructureC ? 'Trả lời ngắn (0.25đ/câu)' : 'Trả lời ngắn')
+  const mcLabel = getSectionLabel('Trắc nghiệm', mcCount, mcPossible)
+  const tfLabel = getSectionLabel('Đúng / Sai', tfCount, tfPossible)
+  const saLabel = getSectionLabel('Trả lời ngắn', saCount, saPossible)
   const hasMultipleSections = ((mcCount > 0 ? 1 : 0) + (tfCount > 0 ? 1 : 0) + (saCount > 0 ? 1 : 0)) > 1
 
   const renderNavButton = (ans) => {
@@ -447,25 +414,11 @@ export function renderAssignmentReviewView() {
                   const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
                   const qType = ans.questions?.question_type || ans.questionType
                   const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (qType === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
-                  let pointsPossible = ans.pointsPossible
-                  if (isAllMC) {
-                    pointsPossible = totalQuestions > 0 ? (10 / totalQuestions) : 0.25
-                  } else if (isStructureB) {
-                    if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
-                    else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
-                    else if (qType === 'SHORT_ANSWER') pointsPossible = 0.5
-                  } else if (isStructureC) {
-                    if (qType === 'MULTIPLE_CHOICE') pointsPossible = 0.25
-                    else if (qType === 'TRUE_FALSE') pointsPossible = 1.0
-                    else if (qType === 'SHORT_ANSWER') pointsPossible = 0.25
-                  } else if (pointsPossible === undefined || pointsPossible === null) {
-                    pointsPossible = ans.questions?.points || 1
-                  }
+                  const pointsPossible = ans.pointsPossible !== undefined && ans.pointsPossible !== null
+                    ? Number(ans.pointsPossible)
+                    : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)))
 
-                  let scoreEarned = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
-                  if (isAllMC) {
-                    scoreEarned = isCorrect ? pointsPossible : 0
-                  }
+                  const scoreEarned = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
 
                   const givenAnswer = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer
 

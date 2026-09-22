@@ -3,7 +3,7 @@ import { requireStudent } from '../../shared/auth-middleware.ts'
 import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import { submitHomeworkSchema } from '../../shared/validators.ts'
-import { gradeQuestion, type QuestionGradeResult } from '../../shared/grading-service.ts'
+import { gradeQuestion, gradeExam, type QuestionGradeResult, type QuestionGradeInput } from '../../shared/grading-service.ts'
 import type { TrueFalseStatementAnswer } from '../../types/database.types.ts'
 
 serve(async (req: Request) => {
@@ -188,68 +188,41 @@ serve(async (req: Request) => {
     const keyMap = new Map(answerKeys.map((k) => [k.question_id, k]))
     const answerMap = new Map(answers.map((a) => [a.questionId, a.givenAnswer]))
 
-    // Determine active grading structure
-    const totalQuestions = questions.length
-    const mcCount = questions.filter(q => q.question_type === 'MULTIPLE_CHOICE').length
-    const tfCount = questions.filter(q => q.question_type === 'TRUE_FALSE').length
-    const saCount = questions.filter(q => q.question_type === 'SHORT_ANSWER').length
-
-    const isAllMC = mcCount === totalQuestions
-    const isStructureB = mcCount === 12 && tfCount === 4 && saCount === 6
-    const isStructureC = mcCount === 18 && tfCount === 4 && saCount === 6
-
-    let totalScore = 0
-    let correctCount = 0
-    let wrongCount = 0
-    const questionReviews = []
-    const submissionAnswersToInsert = []
-
-    // 4. Grade each question
-    for (const q of questions) {
+    // 4. Grade each question using the Universal Scoring Engine
+    const gradeInputs: QuestionGradeInput[] = questions.map((q) => {
       const key = keyMap.get(q.id)
       const given = answerMap.get(q.id) || { type: q.question_type, value: null }
+      const points = q.points !== undefined && q.points !== null && !isNaN(Number(q.points))
+        ? Number(q.points)
+        : (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
 
-      let customPoints = q.points
-      if (isAllMC) {
-        customPoints = 10 / totalQuestions
-      } else if (isStructureB) {
-        if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
-        else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
-        else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.5
-      } else if (isStructureC) {
-        if (q.question_type === 'MULTIPLE_CHOICE') customPoints = 0.25
-        else if (q.question_type === 'TRUE_FALSE') customPoints = 1.0
-        else if (q.question_type === 'SHORT_ANSWER') customPoints = 0.25
-      }
-
-      const gradeResult = gradeQuestion({
+      return {
         questionId: q.id,
         questionType: q.question_type,
-        points: customPoints,
+        points,
         mcAnswer: key?.mc_answer || null,
         tfAnswers: (key?.tf_answers as unknown as TrueFalseStatementAnswer) || null,
         saAnswer: key?.sa_answer !== null && key?.sa_answer !== undefined ? key.sa_answer : null,
         saTolerance: key?.sa_tolerance !== null && key?.sa_tolerance !== undefined ? Number(key.sa_tolerance) : 0,
         // @ts-ignore dynamic type check in gradeQuestion
         givenAnswer: given,
-      })
-
-      // Custom non-linear grading for True/False questions under Structure B and C
-      if ((isStructureB || isStructureC) && q.question_type === 'TRUE_FALSE') {
-        const correctCountForTF = gradeResult.correctCount ?? 0
-        let customScoreEarned = 0
-        if (correctCountForTF === 1) customScoreEarned = 0.1
-        else if (correctCountForTF === 2) customScoreEarned = 0.25
-        else if (correctCountForTF === 3) customScoreEarned = 0.5
-        else if (correctCountForTF === 4) customScoreEarned = 1.0
-        
-        gradeResult.scoreEarned = customScoreEarned
-        gradeResult.isCorrect = correctCountForTF === 4
       }
+    })
 
-      totalScore += gradeResult.scoreEarned
-      correctCount += gradeResult.isCorrect ? 1 : 0
-      wrongCount += gradeResult.isCorrect ? 0 : 1
+    const targetScale = homework.max_score || 10.0
+    const examGrading = gradeExam(gradeInputs, { targetScale, roundingStep: 0.01 })
+    const finalScore = examGrading.totalScore
+    const correctCount = examGrading.correctCount
+    const wrongCount = examGrading.wrongCount
+
+    const questionReviews = []
+    const submissionAnswersToInsert = []
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i]
+      const key = keyMap.get(q.id)
+      const gradeResult = examGrading.questionResults[i]
+      const given = answerMap.get(q.id) || { type: q.question_type, value: null }
 
       const shouldShowSolutions = homework.show_solutions !== false || (user && user.role === 'ADMIN')
       let reviewPrompt = q.prompt
@@ -302,13 +275,6 @@ serve(async (req: Request) => {
         score_earned: gradeResult.scoreEarned,
       })
     }
-
-    if (isAllMC && totalQuestions > 0) {
-      totalScore = (correctCount / totalQuestions) * 10
-    }
-
-    // Round score to 1 decimal place (if the 2nd decimal digit < 5, round down; >= 5, round up)
-    const finalScore = Math.round(totalScore * 10) / 10
 
     // 5. Save Submission record
     // Only unauthenticated users or explicit guests without a user account are trial submissions
@@ -532,6 +498,9 @@ serve(async (req: Request) => {
         homeworkTitle: homework.title,
         submittedAt: submission.submitted_at,
         score: finalScore,
+        rawEarned: examGrading.rawEarned,
+        rawMax: examGrading.rawMax,
+        isNormalized: examGrading.isNormalized,
         maxScore: homework.max_score,
         passScore: homework.pass_score,
         isPassed: finalScore >= homework.pass_score,

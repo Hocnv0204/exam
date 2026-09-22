@@ -2871,3 +2871,25 @@ body.review-split-mode .page-header {
   border-color: #0284c7;
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
+
+/* Single Question MD Edit Button & Modal Styles */
+.btn-edit-q-md {
+  transition: all 0.18s ease-in-out;
+}
+.btn-edit-q-md:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+  color: #0066cc !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.15);
+}
+.btn-edit-q-md:active {
+  transform: translateY(0);
+}
+
+#single-q-md-textarea:focus {
+  border-color: #0284c7 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12) !important;
+}
+

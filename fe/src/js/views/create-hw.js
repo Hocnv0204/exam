@@ -5,7 +5,8 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { renderMath, parseExamMarkdown, compressImage, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
+import { renderMath, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
+import { calculateExamRawMax, applyExamPreset, EXAM_PRESETS } from '../utils/scoring-engine.js'
 
 // In-memory state for building the answer matrix
 let currentConfig = {
@@ -88,18 +89,48 @@ function renderInteractiveCardsHtml() {
     `
   }
 
+  const rawMax = calculateExamRawMax(interactiveQuestions)
+  const isStandard10 = Math.abs(rawMax - 10.0) < 1e-4
+
   return `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-      <span style="font-weight:700; font-size:13.5px; color:#0f172a;">
-        <i class="fa-solid fa-list-check" style="color:#10b981;"></i> Danh sách câu hỏi (${interactiveQuestions.length} câu)
-      </span>
-      <span style="font-size:11.5px; color:#0284c7; background:#e0f2fe; padding:2px 8px; border-radius:10px; font-weight:600;">
-        <i class="fa-solid fa-paste"></i> Mẹo: Nhấp vào ô ảnh rồi bấm Ctrl+V để dán ảnh
-      </span>
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-weight:700; font-size:13.5px; color:#0f172a;">
+            <i class="fa-solid fa-list-check" style="color:#10b981;"></i> Danh sách câu hỏi (${interactiveQuestions.length} câu)
+          </span>
+          <span id="raw-max-points-badge" class="badge" style="background:${isStandard10 ? '#dcfce7' : '#eff6ff'}; color:${isStandard10 ? '#16a34a' : '#0284c7'}; border:1px solid ${isStandard10 ? '#bbf7d0' : '#bfdbfe'}; font-weight:700; font-size:12px; padding:3px 8px; border-radius:6px;">
+            <i class="fa-solid ${isStandard10 ? 'fa-circle-check' : 'fa-calculator'}"></i> Tổng điểm thô: <strong>${rawMax}đ</strong> ${isStandard10 ? '(Chuẩn 10.0đ)' : '→ Tự động quy đổi thang 10'}
+          </span>
+        </div>
+        <span style="font-size:11.5px; color:#0284c7; background:#e0f2fe; padding:3px 10px; border-radius:10px; font-weight:600;">
+          <i class="fa-solid fa-paste"></i> Mẹo: Bấm nút "Sửa MD" để sửa từng câu, hoặc dán ảnh vào câu hỏi
+        </span>
+      </div>
+
+      <!-- Quick Point Presets Toolbar -->
+      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; border-top:1px dashed #cbd5e1; padding-top:8px;">
+        <span style="font-weight:600; color:#64748b; margin-right:4px;">
+          <i class="fa-solid fa-wand-magic-sparkles" style="color:#8b5cf6;"></i> Mẫu phân bổ điểm:
+        </span>
+        <button type="button" class="btn-apply-preset" data-preset="THPT_TOAN" style="padding:3px 8px; border-radius:5px; background:#ffffff; border:1px solid #cbd5e1; font-size:11.5px; font-weight:600; color:#334155; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="12 Trắc nghiệm (0.25đ) + 4 Đúng/Sai (1.0đ) + 6 Điền khuyết (0.5đ) = 10đ">
+          THPT Toán (12-4-6)
+        </button>
+        <button type="button" class="btn-apply-preset" data-preset="THPT_KHTN" style="padding:3px 8px; border-radius:5px; background:#ffffff; border:1px solid #cbd5e1; font-size:11.5px; font-weight:600; color:#334155; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="18 Trắc nghiệm (0.25đ) + 4 Đúng/Sai (1.0đ) + 6 Điền khuyết (0.25đ) = 10đ">
+          THPT KHTN (18-4-6)
+        </button>
+        <button type="button" class="btn-apply-preset" data-preset="EQUAL_10" style="padding:3px 8px; border-radius:5px; background:#ffffff; border:1px solid #cbd5e1; font-size:11.5px; font-weight:600; color:#334155; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Chia đều 10 điểm cho toàn bộ số câu trong đề">
+          Chia đều 10đ
+        </button>
+        <button type="button" class="btn-apply-preset" data-preset="EQUAL_1" style="padding:3px 8px; border-radius:5px; background:#ffffff; border:1px solid #cbd5e1; font-size:11.5px; font-weight:600; color:#334155; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Mỗi câu 1 điểm (Hệ thống tự động quy đổi thang 10 khi nộp)">
+          1.0đ / câu
+        </button>
+      </div>
     </div>
 
-    ${interactiveQuestions.map(q => {
-      const qNum = q.questionNumber
+    ${interactiveQuestions.map((q, idx) => {
+      const qIndex = idx
+      const qNum = q.questionNumber || (idx + 1)
       const typeLabel = q.questionType === 'MULTIPLE_CHOICE'
         ? 'Phần I: Trắc nghiệm ABCD'
         : (q.questionType === 'TRUE_FALSE' ? 'Phần II: Đúng / Sai' : 'Phần III: Trả lời ngắn')
@@ -108,17 +139,22 @@ function renderInteractiveCardsHtml() {
         : (q.questionType === 'TRUE_FALSE' ? '#0284c7' : '#4f46e5')
 
       return `
-        <div class="interactive-q-card" data-qnum="${qNum}" tabindex="0">
+        <div class="interactive-q-card" data-qindex="${qIndex}" data-qnum="${qNum}" tabindex="0">
           <div class="interactive-q-header">
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <span class="badge" style="background:${typeColor}15; color:${typeColor}; font-weight:700; font-size:12px;">
                 ${typeLabel}
               </span>
               <span style="font-weight:700; font-size:14px; color:#0f172a;">Câu ${qNum}</span>
             </div>
-            <div style="font-size:12px; color:#64748b; display:flex; align-items:center; gap:6px;">
-              <span>Điểm:</span>
-              <input type="number" step="0.25" min="0" value="${q.points || 0.25}" data-qnum="${qNum}" class="q-points-input" style="width:55px; padding:2px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn-edit-q-md btn-secondary" data-qindex="${qIndex}" data-qnum="${qNum}" title="Chỉnh sửa cú pháp Markdown của Câu ${qNum}" style="padding:4px 10px; font-size:12px; font-weight:600; border-radius:6px; background:#eff6ff; color:#0284c7; border:1px solid #bfdbfe; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.15s ease;">
+                <i class="fa-solid fa-pen-to-square"></i> Sửa MD
+              </button>
+              <div style="font-size:12px; color:#64748b; display:flex; align-items:center; gap:5px;">
+                <span>Điểm:</span>
+                <input type="number" step="0.25" min="0" value="${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25))}" data-qindex="${qIndex}" data-qnum="${qNum}" class="q-points-input" style="width:55px; padding:2px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px;">
+              </div>
             </div>
           </div>
 
@@ -130,13 +166,13 @@ function renderInteractiveCardsHtml() {
             ${q.imageUrl ? `
               <div style="position:relative; display:inline-block; max-width:100%;">
                 <img src="${q.imageUrl}" alt="Câu ${qNum}" class="interactive-q-image" style="margin:0;">
-                <button type="button" class="btn-remove-q-image" data-qnum="${qNum}" style="position:absolute; top:8px; right:8px; background:rgba(239,68,68,0.9); color:#ffffff; border:none; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.2);">
+                <button type="button" class="btn-remove-q-image" data-qindex="${qIndex}" data-qnum="${qNum}" style="position:absolute; top:8px; right:8px; background:rgba(239,68,68,0.9); color:#ffffff; border:none; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.2);">
                   <i class="fa-solid fa-trash"></i> Xóa ảnh
                 </button>
               </div>
             ` : `
-              <div class="image-paste-zone" data-qnum="${qNum}" tabindex="0" title="Nhấp vào đây và bấm Ctrl+V để dán ảnh chụp màn hình, hoặc bấm để tải ảnh từ máy">
-                <input type="file" accept="image/*" class="q-image-file-input" data-qnum="${qNum}" style="display:none;">
+              <div class="image-paste-zone" data-qindex="${qIndex}" data-qnum="${qNum}" tabindex="0" title="Nhấp vào đây và bấm Ctrl+V để dán ảnh chụp màn hình, hoặc bấm để tải ảnh từ máy">
+                <input type="file" accept="image/*" class="q-image-file-input" data-qindex="${qIndex}" data-qnum="${qNum}" style="display:none;">
                 <i class="fa-regular fa-image" style="font-size:22px; color:#94a3b8; margin-bottom:4px; display:block;"></i>
                 <div style="font-size:12px; font-weight:600; color:#334155; margin-bottom:2px;">
                   Chèn hình ảnh cho Câu ${qNum}
@@ -154,7 +190,7 @@ function renderInteractiveCardsHtml() {
               ${(q.options || []).map(opt => {
                 const isCorrect = q.mcAnswer === opt.id
                 return `
-                  <div class="exam-option-card ${isCorrect ? 'selected' : ''}" data-qnum="${qNum}" data-optid="${opt.id}" style="${isCorrect ? 'border-color:#16a34a; background:#f0fdf4; color:#15803d;' : ''}">
+                  <div class="exam-option-card ${isCorrect ? 'selected' : ''}" data-qindex="${qIndex}" data-qnum="${qNum}" data-optid="${opt.id}" style="${isCorrect ? 'border-color:#16a34a; background:#f0fdf4; color:#15803d;' : ''}">
                     <div class="exam-opt-badge" style="${isCorrect ? 'background:#16a34a; color:#ffffff;' : ''}">${opt.id}</div>
                     <div style="flex:1 1 auto;">${escapeHtml(opt.text || '')}</div>
                     ${isCorrect ? '<i class="fa-solid fa-circle-check" style="color:#16a34a; font-size:16px;"></i>' : ''}
@@ -167,7 +203,7 @@ function renderInteractiveCardsHtml() {
               ${(q.options || []).map(sub => {
                 const isTrue = q.tfAnswers && q.tfAnswers[sub.id] === true
                 return `
-                  <div class="tf-statement-row">
+                  <div class="tf-statement-row" data-qindex="${qIndex}" data-subid="${sub.id}">
                     <div class="tf-statement-text">
                       <strong>${sub.id})</strong> ${escapeHtml(sub.text || '')}
                     </div>
@@ -503,6 +539,7 @@ export function renderCreateHwView() {
             hasImagePlaceholder: !!pObj.imageUrl
           }
         })
+        interactiveMarkdown = formatExamToMarkdown(interactiveQuestions) || MATH_TEMPLATE
       } else {
         currentMode = 'PDF'
       }
@@ -923,7 +960,244 @@ export function bindCreateHwEvents() {
     }
   }
 
-  // Bind events for preview question cards (option click, image paste, upload, drop)
+  // Open dedicated Markdown Editor Modal for a single question
+  const openEditSingleQuestionModal = (qIndex) => {
+    const q = interactiveQuestions[qIndex]
+    if (!q) return
+
+    const qNum = q.questionNumber || (qIndex + 1)
+    const typeLabel = q.questionType === 'MULTIPLE_CHOICE'
+      ? 'Trắc nghiệm ABCD'
+      : (q.questionType === 'TRUE_FALSE' ? 'Đúng / Sai' : 'Trả lời ngắn')
+    const initialMd = formatQuestionToMarkdown(q)
+
+    const modalBodyHtml = `
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <!-- Guide banner -->
+        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:10px 14px; font-size:12px; color:#0369a1; line-height:1.5;">
+          <div style="font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-circle-info"></i> Quy tắc Markdown (${typeLabel}):
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px; font-size:11.5px;">
+            ${q.questionType === 'MULTIPLE_CHOICE' ? `
+              <span>- Đánh dấu <code>*</code> trước phương án đúng (Ví dụ: <code>*B. Tọa độ (-1; 2)</code>).</span>
+              <span>- Công thức Toán trong <code>$...$</code> hoặc <code>$$...$$</code>. Hóa học trong <code>$\\ce{...}$</code>.</span>
+              <span>- Thêm <code>[Ảnh]</code> nếu có hình minh họa. Nhập <code>[Lời giải]</code> ở cuối nếu có giải thích.</span>
+            ` : (q.questionType === 'TRUE_FALSE' ? `
+              <span>- Đánh dấu <code>*</code> trước mệnh đề <strong>ĐÚNG</strong> (Ví dụ: <code>*a) Khẳng định 1</code>, <code>b) Khẳng định 2</code>).</span>
+              <span>- Công thức Toán trong <code>$...$</code>. Thêm <code>[Ảnh]</code> nếu có hình. <code>[Lời giải]</code> để giải thích chi tiết.</span>
+            ` : `
+              <span>- Cú pháp: <code>[Đáp án: 2.67]</code>, <code>[Dung sai: 0.05]</code> (tùy chọn).</span>
+              <span>- Công thức Toán trong <code>$...$</code>. Thêm <code>[Ảnh]</code> nếu có hình. <code>[Lời giải]</code> để giải thích chi tiết.</span>
+            `)}
+          </div>
+        </div>
+
+        <!-- Quick insert toolbar & Tabs -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <!-- Quick insert buttons -->
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <span style="font-size:11px; font-weight:700; color:#64748b;">Chèn nhanh:</span>
+            <button type="button" id="btn-insert-math" class="btn-secondary" style="padding:3px 8px; font-size:11px; border-radius:4px; cursor:pointer;" title="Chèn công thức toán LaTeX">$...$</button>
+            <button type="button" id="btn-insert-chem" class="btn-secondary" style="padding:3px 8px; font-size:11px; border-radius:4px; cursor:pointer;" title="Chèn công thức hóa học">\\ce{...}</button>
+            <button type="button" id="btn-insert-img-tag" class="btn-secondary" style="padding:3px 8px; font-size:11px; border-radius:4px; cursor:pointer;" title="Chèn thẻ ảnh">[Ảnh]</button>
+            <button type="button" id="btn-insert-sol-tag" class="btn-secondary" style="padding:3px 8px; font-size:11px; border-radius:4px; cursor:pointer;" title="Chèn thẻ lời giải">[Lời giải]</button>
+            ${q.questionType !== 'SHORT_ANSWER' ? `
+              <button type="button" id="btn-insert-star" class="btn-secondary" style="padding:3px 8px; font-size:11px; border-radius:4px; cursor:pointer;" title="Chèn dấu sao đánh dấu đáp án đúng">* (Đúng)</button>
+            ` : ''}
+          </div>
+
+          <!-- Tab Switch -->
+          <div style="display:flex; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; background:#f1f5f9;">
+            <button type="button" id="tab-btn-edit-md" style="padding:4px 12px; font-size:12px; font-weight:600; border:none; background:#0066cc; color:#ffffff; cursor:pointer;">
+              <i class="fa-solid fa-code"></i> Soạn thảo
+            </button>
+            <button type="button" id="tab-btn-preview-md" style="padding:4px 12px; font-size:12px; font-weight:600; border:none; background:transparent; color:#64748b; cursor:pointer;">
+              <i class="fa-solid fa-eye"></i> Xem trước
+            </button>
+          </div>
+        </div>
+
+        <!-- Editor Pane -->
+        <div id="single-q-edit-pane">
+          <textarea id="single-q-md-textarea" style="width:100%; height:260px; font-family:'Fira Code', monospace, sans-serif; font-size:13px; line-height:1.6; padding:12px; border:1px solid #cbd5e1; border-radius:8px; background:#f8fafc; color:#1e293b; resize:vertical; box-sizing:border-box; outline:none;">${escapeHtml(initialMd)}</textarea>
+          <div style="font-size:11px; color:#64748b; margin-top:4px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px;">
+            <span><i class="fa-solid fa-paste"></i> Mẹo: Bấm Ctrl+V trong ô này để dán ảnh chụp màn hình</span>
+            <span>Cú pháp chuẩn Bộ GD&ĐT 2025</span>
+          </div>
+        </div>
+
+        <!-- Preview Pane (Hidden by default) -->
+        <div id="single-q-preview-pane" style="display:none; min-height:220px; max-height:360px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:14px; background:#ffffff;">
+          <div id="single-q-preview-content"></div>
+        </div>
+      </div>
+    `
+
+    openModal(`Sửa Markdown - Câu ${qNum} (${typeLabel})`, modalBodyHtml, async () => {
+      const textarea = document.getElementById('single-q-md-textarea')
+      const newText = (textarea?.value || '').trim()
+      if (!newText) {
+        showToast('Nội dung câu hỏi không được để trống!', 'warning')
+        return false
+      }
+
+      const parsed = parseExamMarkdown(newText, q.questionType)
+      if (!parsed.questions || parsed.questions.length === 0) {
+        showToast('Không tìm thấy câu hỏi hợp lệ! Vui lòng giữ đúng định dạng [Câu ...]', 'error')
+        return false
+      }
+
+      const newQ = parsed.questions[0]
+      // Preserve existing image if user didn't supply new one but kept [Ảnh] or old image was attached
+      if (newText.includes('[Ảnh]') && !newQ.imageUrl && q.imageUrl) {
+        newQ.imageUrl = q.imageUrl
+        newQ.hasImagePlaceholder = true
+      } else if (!newText.includes('[Ảnh]')) {
+        newQ.imageUrl = ''
+        newQ.hasImagePlaceholder = false
+      }
+
+      // Preserve points
+      newQ.points = q.points || newQ.points
+
+      // Update in array
+      interactiveQuestions[qIndex] = newQ
+
+      // Sync global markdown
+      interactiveMarkdown = formatExamToMarkdown(interactiveQuestions)
+      const globalMdTextarea = document.getElementById('hw-markdown-input')
+      if (globalMdTextarea) {
+        globalMdTextarea.value = interactiveMarkdown
+      }
+
+      // Re-render cards and sync counts
+      refreshInteractiveCards()
+      syncCountsFromInteractive()
+      showToast(`Đã cập nhật nội dung Câu ${newQ.questionNumber || qNum} thành công!`, 'success')
+      return true
+    })
+
+    const modalContainer = document.querySelector('#modal-container .modal-content')
+    if (modalContainer) modalContainer.style.maxWidth = '780px'
+
+    // Bind toolbar & preview tabs inside modal
+    const textarea = document.getElementById('single-q-md-textarea')
+    const editPane = document.getElementById('single-q-edit-pane')
+    const previewPane = document.getElementById('single-q-preview-pane')
+    const editTabBtn = document.getElementById('tab-btn-edit-md')
+    const previewTabBtn = document.getElementById('tab-btn-preview-md')
+
+    const insertAtCursor = (text) => {
+      if (!textarea) return
+      const start = textarea.selectionStart || 0
+      const end = textarea.selectionEnd || 0
+      const val = textarea.value
+      textarea.value = val.substring(0, start) + text + val.substring(end)
+      textarea.focus()
+      textarea.selectionStart = textarea.selectionEnd = start + text.length
+    }
+
+    document.getElementById('btn-insert-math')?.addEventListener('click', () => insertAtCursor('$x^2$'))
+    document.getElementById('btn-insert-chem')?.addEventListener('click', () => insertAtCursor('$\\ce{H2SO4}$'))
+    document.getElementById('btn-insert-img-tag')?.addEventListener('click', () => insertAtCursor('\n[Ảnh]\n'))
+    document.getElementById('btn-insert-sol-tag')?.addEventListener('click', () => insertAtCursor('\n[Lời giải]\n'))
+    document.getElementById('btn-insert-star')?.addEventListener('click', () => insertAtCursor('*'))
+
+    // Paste listener for image inside modal textarea
+    textarea?.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || window.clipboardData)?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          e.preventDefault()
+          const blob = items[i].getAsFile()
+          try {
+            showToast('Đang xử lý ảnh dán...', 'info')
+            const dataUrl = await compressImage(blob)
+            q.imageUrl = dataUrl
+            q.hasImagePlaceholder = true
+            if (!textarea.value.includes('[Ảnh]')) {
+              insertAtCursor('\n[Ảnh]\n')
+            }
+            showToast('Đã dán ảnh vào câu hỏi!', 'success')
+          } catch (err) {
+            showToast(`Lỗi dán ảnh: ${err.message}`, 'error')
+          }
+          break
+        }
+      }
+    })
+
+    const updatePreview = () => {
+      const content = textarea?.value || ''
+      const parsed = parseExamMarkdown(content, q.questionType)
+      const previewSlot = document.getElementById('single-q-preview-content')
+      if (!previewSlot) return
+      if (parsed.questions && parsed.questions.length > 0) {
+        const pQ = parsed.questions[0]
+        if (q.imageUrl && !pQ.imageUrl && content.includes('[Ảnh]')) {
+          pQ.imageUrl = q.imageUrl
+        }
+        previewSlot.innerHTML = `
+          <div style="font-weight:700; font-size:14px; margin-bottom:8px; color:#0f172a;">Câu ${pQ.questionNumber || qNum}</div>
+          <div class="interactive-q-prompt" style="font-size:14px; margin-bottom:10px;">${escapeHtml(pQ.promptText || '')}</div>
+          ${pQ.imageUrl ? `<img src="${pQ.imageUrl}" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:6px; margin:8px 0; display:block;" />` : ''}
+          ${pQ.questionType === 'MULTIPLE_CHOICE' ? `
+            <div class="exam-options-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">
+              ${(pQ.options || []).map(o => `
+                <div style="padding:6px 10px; border-radius:6px; font-size:12.5px; border:1px solid ${pQ.mcAnswer === o.id ? '#16a34a' : '#cbd5e1'}; background:${pQ.mcAnswer === o.id ? '#f0fdf4' : '#ffffff'}; font-weight:${pQ.mcAnswer === o.id ? '700' : 'normal'}; color:${pQ.mcAnswer === o.id ? '#15803d' : '#334155'};">
+                  <strong>${o.id}.</strong> ${escapeHtml(o.text || '')}
+                </div>
+              `).join('')}
+            </div>
+          ` : (pQ.questionType === 'TRUE_FALSE' ? `
+            <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
+              ${(pQ.options || []).map(s => `
+                <div style="padding:4px 8px; border-radius:6px; font-size:12px; background:#f8fafc; border:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                  <span><strong>${s.id})</strong> ${escapeHtml(s.text || '')}</span>
+                  <span class="badge" style="background:${pQ.tfAnswers?.[s.id] ? '#16a34a' : '#dc2626'}; color:#fff; font-size:10.5px; padding:1px 6px;">${pQ.tfAnswers?.[s.id] ? 'ĐÚNG' : 'SAI'}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="font-size:12.5px; font-weight:600; color:#15803d; background:#dcfce7; padding:6px 10px; border-radius:6px; margin-bottom:8px;">
+              Đáp án: <code>${escapeHtml(pQ.saAnswer || 'Chưa nhập')}</code> ${pQ.saTolerance ? `(&plusmn; ${pQ.saTolerance})` : ''}
+            </div>
+          `)}
+          ${pQ.explanation ? `
+            <div style="margin-top:8px; padding:6px 10px; background:#f1f5f9; border-left:3px solid #0284c7; font-size:12px; color:#334155;">
+              <strong>Lời giải:</strong> ${escapeHtml(pQ.explanation)}
+            </div>
+          ` : ''}
+        `
+        renderMath(previewSlot)
+      } else {
+        previewSlot.innerHTML = '<div style="color:#ef4444; font-size:12px;">Cú pháp Markdown chưa hợp lệ!</div>'
+      }
+    }
+
+    editTabBtn?.addEventListener('click', () => {
+      editTabBtn.style.background = '#0066cc'
+      editTabBtn.style.color = '#ffffff'
+      previewTabBtn.style.background = 'transparent'
+      previewTabBtn.style.color = '#64748b'
+      editPane.style.display = 'block'
+      previewPane.style.display = 'none'
+    })
+
+    previewTabBtn?.addEventListener('click', () => {
+      previewTabBtn.style.background = '#0066cc'
+      previewTabBtn.style.color = '#ffffff'
+      editTabBtn.style.background = 'transparent'
+      editTabBtn.style.color = '#64748b'
+      editPane.style.display = 'none'
+      previewPane.style.display = 'block'
+      updatePreview()
+    })
+  }
+
+  // Bind events for preview question cards (option click, image paste, upload, drop, edit MD)
   const bindInteractiveCardEvents = () => {
     const previewContainer = document.getElementById('interactive-preview-container')
     if (!previewContainer) return
@@ -931,14 +1205,26 @@ export function bindCreateHwEvents() {
     // Render KaTeX Math & Chem
     renderMath(previewContainer)
 
+    // Edit MD button click
+    previewContainer.querySelectorAll('.btn-edit-q-md').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const qIndex = parseInt(btn.getAttribute('data-qindex'), 10)
+        openEditSingleQuestionModal(qIndex)
+      })
+    })
+
     // Option cards click in preview (changes the correct answer)
     previewContainer.querySelectorAll('.exam-option-card').forEach(card => {
       card.addEventListener('click', () => {
-        const qNum = parseInt(card.getAttribute('data-qnum'), 10)
+        const qIndex = parseInt(card.getAttribute('data-qindex'), 10)
         const optId = card.getAttribute('data-optid')
-        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+        const q = interactiveQuestions[qIndex]
         if (q && q.questionType === 'MULTIPLE_CHOICE') {
           q.mcAnswer = optId
+          interactiveMarkdown = formatExamToMarkdown(interactiveQuestions)
+          const mdInput = document.getElementById('hw-markdown-input')
+          if (mdInput) mdInput.value = interactiveMarkdown
           refreshInteractiveCards()
           syncCountsFromInteractive()
         }
@@ -948,29 +1234,58 @@ export function bindCreateHwEvents() {
     // TF statement rows toggle
     previewContainer.querySelectorAll('.tf-statement-row').forEach(row => {
       row.addEventListener('click', () => {
-        const card = row.closest('.interactive-q-card')
-        if (!card) return
-        const qNum = parseInt(card.getAttribute('data-qnum'), 10)
+        const qIndex = parseInt(row.getAttribute('data-qindex'), 10)
         const strong = row.querySelector('strong')
-        const subId = strong?.textContent?.replace(/[\)\.\:]/g, '').trim().toLowerCase()
-        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+        const subId = row.getAttribute('data-subid') || strong?.textContent?.replace(/[\)\.\:]/g, '').trim().toLowerCase()
+        const q = interactiveQuestions[qIndex]
         if (q && q.questionType === 'TRUE_FALSE' && subId) {
           if (!q.tfAnswers) q.tfAnswers = {}
           q.tfAnswers[subId] = !q.tfAnswers[subId]
+          interactiveMarkdown = formatExamToMarkdown(interactiveQuestions)
+          const mdInput = document.getElementById('hw-markdown-input')
+          if (mdInput) mdInput.value = interactiveMarkdown
           refreshInteractiveCards()
           syncCountsFromInteractive()
         }
       })
     })
 
-    // Points input change
+    // Preset button clicks
+    previewContainer.querySelectorAll('.btn-apply-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const presetKey = btn.getAttribute('data-preset')
+        applyExamPreset(interactiveQuestions, presetKey)
+        refreshInteractiveCards()
+        showToast(`Đã áp dụng mẫu phân bổ điểm: ${btn.textContent.trim()}`, 'success')
+      })
+    })
+
+    // Points input change & real-time badge update
     previewContainer.querySelectorAll('.q-points-input').forEach(input => {
-      input.addEventListener('change', (e) => {
-        const qNum = parseInt(input.getAttribute('data-qnum'), 10)
-        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+      const updatePoints = (val) => {
+        const qIndex = parseInt(input.getAttribute('data-qindex'), 10)
+        const q = interactiveQuestions[qIndex]
         if (q) {
-          q.points = Math.max(0, parseFloat(e.target.value) || 0.25)
+          q.points = Math.max(0, parseFloat(val) || 0)
+          const rawMax = calculateExamRawMax(interactiveQuestions)
+          const badge = document.getElementById('raw-max-points-badge')
+          if (badge) {
+            const isStandard10 = Math.abs(rawMax - 10.0) < 1e-4
+            badge.style.background = isStandard10 ? '#dcfce7' : '#eff6ff'
+            badge.style.color = isStandard10 ? '#16a34a' : '#0284c7'
+            badge.style.borderColor = isStandard10 ? '#bbf7d0' : '#bfdbfe'
+            badge.innerHTML = `<i class="fa-solid ${isStandard10 ? 'fa-circle-check' : 'fa-calculator'}"></i> Tổng điểm thô: <strong>${rawMax}đ</strong> ${isStandard10 ? '(Chuẩn 10.0đ)' : '→ Tự động quy đổi thang 10'}`
+          }
         }
+      }
+
+      input.addEventListener('input', (e) => {
+        updatePoints(e.target.value)
+      })
+
+      input.addEventListener('change', (e) => {
+        updatePoints(e.target.value)
       })
     })
 
@@ -978,12 +1293,16 @@ export function bindCreateHwEvents() {
     previewContainer.querySelectorAll('.btn-remove-q-image').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation()
-        const qNum = parseInt(btn.getAttribute('data-qnum'), 10)
-        const q = interactiveQuestions.find(x => x.questionNumber === qNum)
+        const qIndex = parseInt(btn.getAttribute('data-qindex'), 10)
+        const q = interactiveQuestions[qIndex]
         if (q) {
           q.imageUrl = ''
+          q.hasImagePlaceholder = false
+          interactiveMarkdown = formatExamToMarkdown(interactiveQuestions)
+          const mdInput = document.getElementById('hw-markdown-input')
+          if (mdInput) mdInput.value = interactiveMarkdown
           refreshInteractiveCards()
-          showToast(`Đã xóa ảnh của Câu ${qNum}`, 'info')
+          showToast(`Đã xóa ảnh của Câu ${q.questionNumber || (qIndex + 1)}`, 'info')
         }
       })
     })
@@ -993,16 +1312,19 @@ export function bindCreateHwEvents() {
       input.addEventListener('change', async (e) => {
         const file = e.target.files?.[0]
         if (!file) return
-        const qNum = parseInt(input.getAttribute('data-qnum'), 10)
+        const qIndex = parseInt(input.getAttribute('data-qindex'), 10)
+        const q = interactiveQuestions[qIndex]
+        if (!q) return
         try {
-          showToast(`Đang nén ảnh cho Câu ${qNum}...`, 'info')
+          showToast(`Đang nén ảnh cho Câu ${q.questionNumber || (qIndex + 1)}...`, 'info')
           const dataUrl = await compressImage(file)
-          const q = interactiveQuestions.find(x => x.questionNumber === qNum)
-          if (q) {
-            q.imageUrl = dataUrl
-            refreshInteractiveCards()
-            showToast(`Đã chèn ảnh cho Câu ${qNum} thành công!`, 'success')
-          }
+          q.imageUrl = dataUrl
+          q.hasImagePlaceholder = true
+          interactiveMarkdown = formatExamToMarkdown(interactiveQuestions)
+          const mdInput = document.getElementById('hw-markdown-input')
+          if (mdInput) mdInput.value = interactiveMarkdown
+          refreshInteractiveCards()
+          showToast(`Đã chèn ảnh cho Câu ${q.questionNumber || (qIndex + 1)} thành công!`, 'success')
         } catch (err) {
           showToast(`Lỗi: ${err.message}`, 'error')
         }
@@ -1011,7 +1333,7 @@ export function bindCreateHwEvents() {
 
     // Image paste zones (Click to browse, drag & drop)
     previewContainer.querySelectorAll('.image-paste-zone').forEach(zone => {
-      const qNum = parseInt(zone.getAttribute('data-qnum'), 10)
+      const qIndex = parseInt(zone.getAttribute('data-qindex'), 10)
 
       zone.addEventListener('click', (e) => {
         if (e.target.closest('.btn-remove-q-image')) return
@@ -1034,15 +1356,18 @@ export function bindCreateHwEvents() {
         zone.style.background = '#f8fafc'
         const file = e.dataTransfer?.files?.[0]
         if (file && file.type.startsWith('image/')) {
+          const q = interactiveQuestions[qIndex]
+          if (!q) return
           try {
-            showToast(`Đang nén ảnh cho Câu ${qNum}...`, 'info')
+            showToast(`Đang nén ảnh cho Câu ${q.questionNumber || (qIndex + 1)}...`, 'info')
             const dataUrl = await compressImage(file)
-            const q = interactiveQuestions.find(x => x.questionNumber === qNum)
-            if (q) {
-              q.imageUrl = dataUrl
-              refreshInteractiveCards()
-              showToast(`Đã đính kèm ảnh cho Câu ${qNum}!`, 'success')
-            }
+            q.imageUrl = dataUrl
+            q.hasImagePlaceholder = true
+            interactiveMarkdown = formatExamToMarkdown(interactiveQuestions)
+            const mdInput = document.getElementById('hw-markdown-input')
+            if (mdInput) mdInput.value = interactiveMarkdown
+            refreshInteractiveCards()
+            showToast(`Đã đính kèm ảnh cho Câu ${q.questionNumber || (qIndex + 1)}!`, 'success')
           } catch (err) {
             showToast(`Lỗi: ${err.message}`, 'error')
           }
@@ -1060,16 +1385,19 @@ export function bindCreateHwEvents() {
             e.preventDefault()
             e.stopPropagation()
             const blob = items[i].getAsFile()
-            const qNum = parseInt(card.getAttribute('data-qnum'), 10)
+            const qIndex = parseInt(card.getAttribute('data-qindex'), 10)
+            const q = interactiveQuestions[qIndex]
+            if (!q) return
             try {
-              showToast(`Đang dán ảnh chụp màn hình cho Câu ${qNum}...`, 'info')
+              showToast(`Đang dán ảnh chụp màn hình cho Câu ${q.questionNumber || (qIndex + 1)}...`, 'info')
               const dataUrl = await compressImage(blob)
-              const q = interactiveQuestions.find(x => x.questionNumber === qNum)
-              if (q) {
-                q.imageUrl = dataUrl
-                refreshInteractiveCards()
-                showToast(`Đã dán ảnh cho Câu ${qNum} thành công!`, 'success')
-              }
+              q.imageUrl = dataUrl
+              q.hasImagePlaceholder = true
+              interactiveMarkdown = formatExamToMarkdown(interactiveQuestions)
+              const mdInput = document.getElementById('hw-markdown-input')
+              if (mdInput) mdInput.value = interactiveMarkdown
+              refreshInteractiveCards()
+              showToast(`Đã dán ảnh cho Câu ${q.questionNumber || (qIndex + 1)} thành công!`, 'success')
             } catch (err) {
               showToast(`Lỗi: ${err.message}`, 'error')
             }
@@ -1138,11 +1466,15 @@ export function bindCreateHwEvents() {
       interactiveMarkdown = text
       const parsed = parseExamMarkdown(text)
       if (parsed.questions && parsed.questions.length > 0) {
-        // Preserve any existing attached images if question numbers match
-        parsed.questions.forEach(newQ => {
-          const oldQ = interactiveQuestions.find(x => x.questionNumber === newQ.questionNumber)
+        // Preserve any existing attached images if questions match by index or type+number
+        parsed.questions.forEach((newQ, idx) => {
+          let oldQ = interactiveQuestions[idx]
+          if (!oldQ || oldQ.questionType !== newQ.questionType || oldQ.questionNumber !== newQ.questionNumber) {
+            oldQ = interactiveQuestions.find(x => x.questionType === newQ.questionType && x.questionNumber === newQ.questionNumber)
+          }
           if (oldQ && oldQ.imageUrl) {
             newQ.imageUrl = oldQ.imageUrl
+            newQ.hasImagePlaceholder = true
           }
         })
         interactiveQuestions = parsed.questions
@@ -1825,7 +2157,7 @@ export function bindCreateHwEvents() {
         }
       }
 
-      questions = interactiveQuestions.map(q => {
+      questions = interactiveQuestions.map((q, idx) => {
         const isTf = q.questionType === 'TRUE_FALSE'
         const isMc = q.questionType === 'MULTIPLE_CHOICE'
         const isSa = q.questionType === 'SHORT_ANSWER'
@@ -1834,8 +2166,8 @@ export function bindCreateHwEvents() {
         const statements = isTf ? opts : (q.statements || [])
 
         return {
-          id: `q_${q.questionNumber}`,
-          questionNumber: q.questionNumber,
+          id: `q_${idx + 1}`,
+          questionNumber: q.questionNumber || (idx + 1),
           questionType: q.questionType,
           points: q.points || (isTf ? 1.0 : (isSa ? 0.5 : 0.25)),
           prompt: JSON.stringify({
