@@ -2893,3 +2893,689 @@ body.review-split-mode .page-header {
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12) !important;
 }
 
+/* =========================================================
+   CLASS DETAILS REDESIGN & ATTENDANCE SYSTEM STYLES
+   ========================================================= */
+
+/* Consistent Badges: Green (present/paid), Orange (unpaid), Gray (absent/waived) */
+.badge-present, .badge-paid {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1px solid #bbf7d0 !important;
+  font-weight: 700;
+}
+
+.badge-unpaid, .badge-pending {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border: 1px solid #fde68a !important;
+  font-weight: 700;
+}
+
+.badge-absent, .badge-waived {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  border: 1px solid #e2e8f0 !important;
+  font-weight: 600;
+}
+
+.badge-paused {
+  background: #ffedd5 !important;
+  color: #c2410c !important;
+  border: 1px solid #fed7aa !important;
+  font-weight: 700;
+}
+
+/* =========================================================
+   CLASS DETAILS REDESIGN & RESPONSIVE SYSTEM
+   ========================================================= */
+
+/* Top Navigation Bar */
+.class-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.class-top-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #64748b;
+  min-width: 0;
+}
+
+.class-top-breadcrumb-title {
+  color: #0f172a;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.class-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Banner Card */
+.class-banner-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(0, 102, 204, 0.04);
+}
+
+.class-banner-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.class-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+
+.class-banner-icon {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, #0066cc 0%, #0284c7 100%);
+  color: #ffffff;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  box-shadow: 0 6px 16px rgba(0, 102, 204, 0.25);
+  flex-shrink: 0;
+}
+
+.class-banner-details {
+  min-width: 0;
+}
+
+.class-banner-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.class-title-heading {
+  font-size: 24px;
+  margin: 0;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.badge-class-grade {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+.class-banner-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.class-banner-desc {
+  font-size: 13px;
+  color: #64748b;
+  max-width: 480px;
+}
+
+/* Banner Right Metrics */
+.class-banner-metrics {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.class-banner-metric-item {
+  text-align: right;
+}
+
+.class-banner-metric-item.has-divider {
+  border-left: 1px solid #e2e8f0;
+  padding-left: 24px;
+}
+
+.class-metric-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.class-metric-value {
+  font-size: 20px;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.class-metric-value.text-emerald {
+  color: #10b981;
+}
+
+.class-metric-value.text-slate {
+  color: #0f172a;
+}
+
+.class-metric-unit {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* KPI Dashboard Cards */
+.class-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.class-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  min-width: 0;
+}
+
+.class-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 102, 204, 0.08);
+  border-color: #cbd5e1;
+}
+
+.class-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.class-kpi-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.class-kpi-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.class-kpi-value {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.class-kpi-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tab Navigation Bar */
+.class-tabs-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.class-tabs-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.class-tab-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #64748b;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -2px;
+  border-bottom: 3px solid transparent;
+}
+
+.class-tab-item:hover {
+  color: #0066cc;
+  background: #f8fafc;
+}
+
+.class-tab-item.active {
+  color: #0066cc;
+  border-bottom-color: #0066cc;
+  background: rgba(0, 102, 204, 0.04);
+}
+
+.class-tab-badge {
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.class-tab-item.active .class-tab-badge {
+  background: #dbeafe;
+  color: #0066cc;
+}
+
+/* Tab Toolbar & Actions */
+.class-tab-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.class-toolbar-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+  max-width: 600px;
+}
+
+.class-toolbar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.class-filter-select {
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 13px;
+  outline: none;
+  background: #ffffff;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+/* Copy ID Button & Pill */
+.class-id-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #475569;
+}
+
+.btn-copy-id {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  transition: color 0.15s;
+}
+
+.btn-copy-id:hover {
+  color: #0066cc;
+}
+
+/* Attendance Modal Roster Items */
+.attendance-roster-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: #ffffff;
+  transition: all 0.15s ease;
+  gap: 12px;
+}
+
+.attendance-roster-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.attendance-roster-item.present {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.attendance-check-box {
+  width: 22px;
+  height: 22px;
+  accent-color: #10b981;
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.attendance-roster-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.attendance-student-name {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attendance-student-sub {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attendance-roster-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   RESPONSIVE MEDIA QUERIES FOR CLASS DETAILS
+   ========================================================= */
+
+/* Desktop to Medium Screens (900px to 1240px) */
+@media (min-width: 900px) and (max-width: 1240px) {
+  .class-kpi-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+  }
+  .class-kpi-card:nth-child(1),
+  .class-kpi-card:nth-child(2),
+  .class-kpi-card:nth-child(3) {
+    grid-column: span 2;
+  }
+  .class-kpi-card:nth-child(4),
+  .class-kpi-card:nth-child(5) {
+    grid-column: span 3;
+  }
+}
+
+/* Tablet Screens (640px to 899px) */
+@media (min-width: 640px) and (max-width: 899px) {
+  .class-banner-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+  }
+
+  .class-banner-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 16px;
+  }
+
+  .class-banner-metric-item {
+    text-align: left;
+    background: #ffffff;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .class-banner-metric-item.has-divider {
+    border-left: 1px solid #e2e8f0;
+    padding-left: 14px;
+  }
+
+  .class-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .class-kpi-card:nth-child(5) {
+    grid-column: span 2;
+  }
+}
+
+/* Mobile Screens (< 640px) */
+@media (max-width: 639px) {
+  .class-top-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .class-top-actions {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .class-top-actions button,
+  .class-top-actions a {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .class-banner-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .class-banner-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .class-banner-main {
+    gap: 14px;
+  }
+
+  .class-banner-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 22px;
+    border-radius: 12px;
+  }
+
+  .class-title-heading {
+    font-size: 20px;
+  }
+
+  .class-banner-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 14px;
+  }
+
+  .class-banner-metric-item {
+    text-align: left;
+    background: #ffffff;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .class-banner-metric-item.has-divider {
+    border-left: 1px solid #e2e8f0;
+    padding-left: 12px;
+  }
+
+  .class-metric-value {
+    font-size: 16px;
+  }
+
+  .class-metric-label {
+    font-size: 11px;
+  }
+
+  .class-kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .class-kpi-card {
+    padding: 14px 16px;
+  }
+
+  .class-kpi-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 18px;
+    border-radius: 10px;
+  }
+
+  .class-kpi-value {
+    font-size: 18px;
+  }
+
+  .class-tabs-nav {
+    gap: 4px;
+    margin-bottom: 18px;
+  }
+
+  .class-tab-item {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .class-tab-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .class-toolbar-filters {
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    gap: 10px;
+  }
+
+  .class-toolbar-filters .search-box {
+    width: 100% !important;
+    min-width: 100% !important;
+  }
+
+  .class-filter-select {
+    width: 100%;
+  }
+
+  .class-toolbar-actions {
+    width: 100%;
+  }
+
+  .class-toolbar-actions button,
+  .class-toolbar-actions a {
+    width: 100% !important;
+    justify-content: center;
+  }
+
+  .data-table {
+    min-width: 620px;
+  }
+
+  .attendance-roster-item {
+    padding: 10px 12px;
+  }
+}
+
+/* Very Small Mobile (< 400px) */
+@media (max-width: 399px) {
+  .class-banner-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+

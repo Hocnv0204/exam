@@ -161,12 +161,12 @@ function parseUrlParams() {
   const queryIndex = hash.indexOf('?')
   if (queryIndex !== -1) {
     const params = new URLSearchParams(hash.substring(queryIndex + 1))
-    const mode = params.get('mode') || params.get('tab')
+    const mode = params.get('mode')
+    const tabParam = params.get('tab') || params.get('subTab')
     const cId = params.get('classId')
     const hId = params.get('homeworkId')
-    const subTab = params.get('subTab')
 
-    if (mode === 'trial' || cId === 'TRIAL') {
+    if (mode === 'trial' || tabParam === 'trial' || cId === 'TRIAL') {
       currentMode = 'trial'
       selectedClassId = 'TRIAL'
     } else {
@@ -176,7 +176,9 @@ function parseUrlParams() {
       }
     }
     selectedHomeworkId = hId || ''
-    if (subTab) currentSubTab = subTab
+    if (tabParam && ['submitted', 'wrong-questions', 'unsubmitted'].includes(tabParam)) {
+      currentSubTab = tabParam
+    }
   }
 }
 
