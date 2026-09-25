@@ -5,7 +5,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { renderMath } from '../utils/exam-parser.js'
+import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 
 // Student's current answers state
 let studentAnswers = {
@@ -137,8 +137,8 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
           </button>
         </div>
 
-        <!-- Prompt Text with Math -->
-        <div class="interactive-q-prompt">${escapeHtml(q.promptText || '')}</div>
+        <!-- Prompt Text with Math & Markdown -->
+        <div class="interactive-q-prompt">${renderMarkdown(q.promptText || '')}</div>
 
         <!-- Attached Image (if any) -->
         ${q.imageUrl ? `
@@ -155,7 +155,7 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
               return `
                 <div class="exam-option-card ${isSelected ? 'selected' : ''}" data-qnum="${qNum}" data-optid="${opt.id}">
                   <div class="exam-opt-badge">${opt.id}</div>
-                  <div style="flex:1 1 auto;">${escapeHtml(opt.text || '')}</div>
+                  <div style="flex:1 1 auto; line-height:1.5;">${renderMarkdown(opt.text || '')}</div>
                 </div>
               `
             }).join('')}
@@ -167,7 +167,7 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
               const val = studentAnswers.tf[qNum]?.[subKey] !== undefined 
                 ? studentAnswers.tf[qNum][subKey] 
                 : studentAnswers.tf[qNum]?.[sub.id]
-              const displayText = sub.text ? escapeHtml(sub.text) : `<span style="color:#64748b; font-style:italic;">Ý ${subKey.toUpperCase()}</span>`
+              const displayText = sub.text ? renderMarkdown(sub.text) : `<span style="color:#64748b; font-style:italic;">Ý ${subKey.toUpperCase()}</span>`
               const isTrue = val === true || val === 'true'
               const isFalse = val === false || val === 'false'
               const isSelected = isTrue || isFalse

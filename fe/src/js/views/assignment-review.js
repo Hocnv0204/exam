@@ -2,7 +2,7 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { renderMath } from '../utils/exam-parser.js'
+import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 
 export function renderAssignmentReviewView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
@@ -550,7 +550,7 @@ export function renderAssignmentReviewView() {
                         <div style="display:flex; flex-direction:column; gap:6px; padding:12px; background:${isStmtCorrect ? '#f0fdf4' : '#fef2f2'}; border:1.5px solid ${isStmtCorrect ? '#10b981' : '#ef4444'}; border-radius:8px; font-size:13px; transition:all 0.2s ease;">
                           ${stmtText ? `
                             <div style="font-size:14px; color:#1e293b; line-height:1.5; margin-bottom:4px;">
-                              <strong style="color:#0284c7;">${sub})</strong> ${stmtText}
+                              <strong style="color:#0284c7;">${sub})</strong> ${renderMarkdown(stmtText)}
                             </div>
                           ` : `
                             <div style="font-weight:700; color:#334155;">Ý ${sub.toUpperCase()}:</div>
@@ -621,7 +621,7 @@ export function renderAssignmentReviewView() {
                                 <span style="width:28px; height:28px; border-radius:50%; background:${isChosen ? (isCorrect ? '#10b981' : '#ef4444') : (isRight && (state.user?.role === 'ADMIN' || showSolutions) ? '#10b981' : '#f1f5f9')}; color:${(isChosen || (isRight && (state.user?.role === 'ADMIN' || showSolutions))) ? '#ffffff' : '#334155'}; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                                   ${optKey}
                                 </span>
-                                <div style="font-size:14px; color:#1e293b; line-height:1.5;">${opt.text || ''}</div>
+                                <div style="font-size:14px; color:#1e293b; line-height:1.5;">${renderMarkdown(opt.text || '')}</div>
                               </div>
                               ${badge}
                             </div>
@@ -656,7 +656,7 @@ export function renderAssignmentReviewView() {
                         <div style="font-weight:700; color:#1d4ed8; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
                           <i class="fa-solid fa-lightbulb" style="color:#eab308;"></i> Lời giải chi tiết:
                         </div>
-                        <div class="explanation-content explanation-text" style="color:#1e293b; line-height:1.6;">${explanationContent}</div>
+                        <div class="explanation-content explanation-text" style="color:#1e293b; line-height:1.6;">${renderMarkdown(explanationContent)}</div>
                       </div>
                     `
                   }
@@ -714,7 +714,7 @@ export function renderAssignmentReviewView() {
 
                       ${promptObj ? `
                         <div class="interactive-prompt-text" style="font-size:15px; font-weight:600; color:#0f172a; line-height:1.6; margin-bottom:12px;">
-                          ${promptObj.text || `Câu hỏi số ${qNum}`}
+                          ${renderMarkdown(promptObj.text || `Câu hỏi số ${qNum}`)}
                         </div>
                         ${promptObj.imageUrl ? `
                           <div style="text-align:center; margin-bottom:14px;">
@@ -723,7 +723,7 @@ export function renderAssignmentReviewView() {
                         ` : ''}
                       ` : (!isGenericPlaceholder ? `
                         <div class="question-prompt-text" style="font-size:15px; color:#0f172a; line-height:1.6; margin-bottom:14px;">
-                          ${qContent}
+                          ${renderMarkdown(qContent)}
                         </div>
                       ` : `
                         <div style="font-size:15px; font-weight:600; color:#0f172a; margin-bottom:12px;">

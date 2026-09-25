@@ -246,12 +246,12 @@ export function renderMarkdown(text) {
   str = str.replace(/\$\$[\s\S]*?\$\$/g, shieldMath)
   str = str.replace(/\\\[[\s\S]*?\\\]/g, shieldMath)
   
-  // Chemistry formula \ce{...} (including nested balanced braces)
-  str = str.replace(/\\ce\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, shieldMath)
-
   // Inline math $...$ (avoid matching across newlines) and \(...\)
   str = str.replace(/\$(?!\s)[^$\n]+(?<!\s)\$/g, shieldMath)
   str = str.replace(/\\\([\s\S]*?\\\)/g, shieldMath)
+
+  // Chemistry formula \ce{...} (standalone outside math) -> wrap in $...$ and shield
+  str = str.replace(/\\ce\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, (m) => shieldMath(`$${m}$`))
 
   // 2. Escape standard HTML entities
   str = str
@@ -260,68 +260,88 @@ export function renderMarkdown(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 
-  // 3. Images: ![alt](url)
-  str = str.replace(/!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" class="md-img" style="max-width:100%; max-height:360px; object-fit:contain; border-radius:8px; margin:8px 0; border:1px solid #e2e8f0; display:block;" />')
+  // 3. Tables (GitHub Flavored Markdown format)
+  const tableRegex = /((?:^\s*\|[^\n]+\|\s*(?:\r?\n|$))+)/gm
+  str = str.replace(tableRegex, (tableBlock) => {
+    const rows = tableBlock.trim().split(/\r?\n/).map(r => r.trim()).filter(Boolean)
+    if (rows.length < 2) return tableBlock
+    
+    // Check if second row is markdown separator row: |:---|:---:|---:|
+    if (!/^\|(?:\s*:?-+:?\s*\|)+$/.test(rows[1])) {
+      return tableBlock
+    }
 
-  // 4. Links: [text](url)
-  str = str.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#0284c7; text-decoration:underline;">$1</a>')
+    const aligns = rows[1].split('|').slice(1, -1).map(col => {
+      const c = col.trim()
+      if (c.startsWith(':') && c.endsWith(':')) return 'center'
+      if (c.endsWith(':')) return 'right'
+      if (c.startsWith(':')) return 'left'
+      return 'left'
+    })
 
-  // 5. Headings: ###, ##, #
-  str = str.replace(/^### (.*$)/gim, '<h4 style="font-size:15px; font-weight:700; margin:8px 0 4px 0; color:#0f172a;">$1</h4>')
-  str = str.replace(/^## (.*$)/gim, '<h3 style="font-size:16px; font-weight:700; margin:10px 0 6px 0; color:#0f172a;">$1</h3>')
-  str = str.replace(/^# (.*$)/gim, '<h2 style="font-size:18px; font-weight:800; margin:12px 0 8px 0; color:#0f172a;">$1</h2>')
+    let tableHtml = '<div class="table-responsive"><table class="md-table">'
+    
+    // Header row
+    const headerCells = rows[0].split('|').slice(1, -1)
+    tableHtml += '<thead><tr>'
+    headerCells.forEach((cell, idx) => {
+      const align = aligns[idx] || 'left'
+      tableHtml += `<th style="text-align:${align};">${cell.trim()}</th>`
+    })
+    tableHtml += '</tr></thead><tbody>'
 
-  // 6. Bold & Italic
+    // Body rows
+    for (let r = 2; r < rows.length; r++) {
+      const cells = rows[r].split('|').slice(1, -1)
+      tableHtml += '<tr>'
+      cells.forEach((cell, idx) => {
+        const align = aligns[idx] || 'left'
+        tableHtml += `<td style="text-align:${align};">${cell.trim()}</td>`
+      })
+      tableHtml += '</tr>'
+    }
+    tableHtml += '</tbody></table></div>'
+    return tableHtml
+  })
+
+  // 4. Images: ![alt](url)
+  str = str.replace(/!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" class="md-img" />')
+
+  // 5. Links: [text](url)
+  str = str.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>')
+
+  // 6. Headings: ###, ##, #
+  str = str.replace(/^### (.*$)/gim, '<h4 class="md-h4">$1</h4>')
+  str = str.replace(/^## (.*$)/gim, '<h3 class="md-h3">$1</h3>')
+  str = str.replace(/^# (.*$)/gim, '<h2 class="md-h2">$1</h2>')
+
+  // 7. Bold & Italic
   str = str.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
   str = str.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
   str = str.replace(/__([\s\S]*?)__/g, '<strong>$1</strong>')
   str = str.replace(/\*(.*?)\*/g, '<em>$1</em>')
   str = str.replace(/_([^_]+)_/g, '<em>$1</em>')
 
-  // 7. Inline code: `code`
-  str = str.replace(/`([^`]+)`/g, '<code style="background:#f1f5f9; color:#0f172a; padding:2px 6px; border-radius:4px; font-family:monospace; font-size:12.5px;">$1</code>')
+  // 8. Inline code: `code`
+  str = str.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
 
-  // 8. Blockquotes: &gt; quote
-  str = str.replace(/^&gt; (.*$)/gim, '<blockquote style="border-left:3px solid #0284c7; padding:4px 12px; margin:6px 0; background:#f0f9ff; color:#0369a1; border-radius:0 6px 6px 0;">$1</blockquote>')
+  // 9. Blockquotes: &gt; quote
+  str = str.replace(/^&gt; (.*$)/gim, '<blockquote class="md-quote">$1</blockquote>')
 
-  // 9. Markdown lists: lines starting with - or *
-  str = str.replace(/^\s*[-*]\s+(.*)$/gim, '<li style="margin-left:20px; line-height:1.6;">$1</li>')
-  str = str.replace(/(<li[\s\S]*?<\/li>)+/g, '<ul style="margin:6px 0; padding-left:4px;">$&</ul>')
-
-  // 10. Simple Tables
-  const tableRegex = /((?:\|[^\n]+\|\r?\n)+)/g
-  str = str.replace(tableRegex, (tableBlock) => {
-    const rows = tableBlock.trim().split(/\r?\n/)
-    if (rows.length < 2) return tableBlock
-    let tableHtml = '<table class="md-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px; border:1px solid #cbd5e1;">'
-    let isHeader = true
-    for (const row of rows) {
-      if (/^\|\s*[-:]+[-| :]*\|$/.test(row)) {
-        isHeader = false
-        continue
-      }
-      const cells = row.split('|').slice(1, -1)
-      tableHtml += '<tr>'
-      for (const cell of cells) {
-        const tag = isHeader ? 'th' : 'td'
-        const cellStyle = isHeader 
-          ? 'background:#f1f5f9; font-weight:700; padding:8px 12px; border:1px solid #cbd5e1; text-align:left;' 
-          : 'padding:8px 12px; border:1px solid #e2e8f0;'
-        tableHtml += `<${tag} style="${cellStyle}">${cell.trim()}</${tag}>`
-      }
-      tableHtml += '</tr>'
-      if (isHeader) isHeader = false
-    }
-    tableHtml += '</table>'
-    return tableHtml
-  })
+  // 10. Markdown lists: lines starting with - or *
+  str = str.replace(/^\s*[-*]\s+(.*)$/gim, '<li class="md-li">$1</li>')
+  str = str.replace(/((?:<li[\s\S]*?<\/li>\s*)+)/g, '<ul class="md-ul">$1</ul>')
 
   // 11. Convert double linebreaks to spacing, single linebreaks to <br>
-  str = str.replace(/\r?\n\r?\n/g, '<div style="height:8px;"></div>')
+  str = str.replace(/\r?\n\r?\n/g, '<div class="md-spacer"></div>')
   str = str.replace(/\r?\n/g, '<br>')
 
-  // 12. Restore Math blocks
-  for (let i = 0; i < mathTokens.length; i++) {
+  // Clean redundant <br> tags adjacent to block elements
+  str = str.replace(/<br>\s*(<(?:div|table|thead|tbody|tr|th|td|ul|ol|li|blockquote|h[1-6]))/gi, '$1')
+  str = str.replace(/(<\/(?:div|table|thead|tbody|tr|th|td|ul|ol|li|blockquote|h[1-6])>)\s*<br>/gi, '$1')
+
+  // 12. Restore Math blocks in reverse order
+  for (let i = mathTokens.length - 1; i >= 0; i--) {
     str = str.replace(`@@MATHXTOKENX${i}XTOKENXMATH@@`, mathTokens[i])
   }
 

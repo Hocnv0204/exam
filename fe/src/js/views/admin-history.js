@@ -4,7 +4,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { openModal } from '../components/modal.js'
-import { renderMath } from '../utils/exam-parser.js'
+import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 
 let currentMode = 'class' // 'class' | 'trial'
 let selectedClassId = ''
@@ -59,7 +59,7 @@ function renderQuestionPromptHtml(rawPrompt, qType) {
   
   let html = ''
   if (text) {
-    html += `<div class="math-content" style="font-size:13px; color:#1e293b; line-height:1.5; margin-bottom:8px; font-weight:500;">${text}</div>`
+    html += `<div class="math-content" style="font-size:13px; color:#1e293b; line-height:1.5; margin-bottom:8px; font-weight:500; word-break:break-word;">${renderMarkdown(text)}</div>`
   }
   if (imageUrl) {
     html += `<div style="margin-bottom:8px; text-align:center;"><img src="${imageUrl}" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid #e2e8f0;"></div>`
@@ -72,7 +72,7 @@ function renderQuestionPromptHtml(rawPrompt, qType) {
       html += `
         <div style="font-size:12px; color:#334155; padding:3px 6px; background:#f8fafc; border-radius:4px; border:1px solid #f1f5f9; display:flex; align-items:baseline; gap:6px;">
           <strong style="color:#0284c7; min-width:16px;">${optId}.</strong>
-          <span class="math-content">${optText}</span>
+          <span class="math-content" style="flex:1; line-height:1.4;">${renderMarkdown(optText)}</span>
         </div>
       `
     })
@@ -82,7 +82,7 @@ function renderQuestionPromptHtml(rawPrompt, qType) {
     html += `
       <div style="font-size:11px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:6px 8px; color:#475569; margin-bottom:8px;">
         <span style="font-weight:700; color:#0066cc;"><i class="fa-solid fa-lightbulb"></i> Lời giải:</span>
-        <div class="math-content" style="margin-top:2px;">${explanation}</div>
+        <div class="math-content" style="margin-top:2px; word-break:break-word;">${renderMarkdown(explanation)}</div>
       </div>
     `
   }

@@ -5,7 +5,7 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { renderMath, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
+import { renderMath, renderMarkdown, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
 import { calculateExamRawMax, applyExamPreset, EXAM_PRESETS } from '../utils/scoring-engine.js'
 
 // In-memory state for building the answer matrix
@@ -158,8 +158,8 @@ function renderInteractiveCardsHtml() {
             </div>
           </div>
 
-          <!-- Prompt Text with KaTeX -->
-          <div class="interactive-q-prompt">${escapeHtml(q.promptText || '')}</div>
+          <!-- Prompt Text with KaTeX & Markdown -->
+          <div class="interactive-q-prompt">${renderMarkdown(q.promptText || '')}</div>
 
           <!-- Image Area (Dropzone or Attached Image) -->
           <div style="margin:10px 0 14px 0;">
@@ -192,7 +192,7 @@ function renderInteractiveCardsHtml() {
                 return `
                   <div class="exam-option-card ${isCorrect ? 'selected' : ''}" data-qindex="${qIndex}" data-qnum="${qNum}" data-optid="${opt.id}" style="${isCorrect ? 'border-color:#16a34a; background:#f0fdf4; color:#15803d;' : ''}">
                     <div class="exam-opt-badge" style="${isCorrect ? 'background:#16a34a; color:#ffffff;' : ''}">${opt.id}</div>
-                    <div style="flex:1 1 auto;">${escapeHtml(opt.text || '')}</div>
+                    <div style="flex:1 1 auto; line-height:1.5;">${renderMarkdown(opt.text || '')}</div>
                     ${isCorrect ? '<i class="fa-solid fa-circle-check" style="color:#16a34a; font-size:16px;"></i>' : ''}
                   </div>
                 `
@@ -204,8 +204,8 @@ function renderInteractiveCardsHtml() {
                 const isTrue = q.tfAnswers && q.tfAnswers[sub.id] === true
                 return `
                   <div class="tf-statement-row" data-qindex="${qIndex}" data-subid="${sub.id}">
-                    <div class="tf-statement-text">
-                      <strong>${sub.id})</strong> ${escapeHtml(sub.text || '')}
+                    <div class="tf-statement-text" style="line-height:1.5;">
+                      <strong>${sub.id})</strong> ${renderMarkdown(sub.text || '')}
                     </div>
                     <div class="tf-toggle-btns">
                       <span class="badge" style="${isTrue ? 'background:#16a34a; color:#ffffff;' : 'background:#dc2626; color:#ffffff;'} font-weight:700; padding:3px 10px; font-size:11px;">
@@ -233,7 +233,7 @@ function renderInteractiveCardsHtml() {
               <strong style="color:#0284c7; display:flex; align-items:center; gap:4px; margin-bottom:3px;">
                 <i class="fa-solid fa-lightbulb"></i> Lời giải chi tiết:
               </strong>
-              <div>${escapeHtml(q.explanation)}</div>
+              <div>${renderMarkdown(q.explanation)}</div>
             </div>
           ` : ''}
         </div>
@@ -1141,13 +1141,13 @@ export function bindCreateHwEvents() {
         }
         previewSlot.innerHTML = `
           <div style="font-weight:700; font-size:14px; margin-bottom:8px; color:#0f172a;">Câu ${pQ.questionNumber || qNum}</div>
-          <div class="interactive-q-prompt" style="font-size:14px; margin-bottom:10px;">${escapeHtml(pQ.promptText || '')}</div>
+          <div class="interactive-q-prompt" style="font-size:14px; margin-bottom:10px;">${renderMarkdown(pQ.promptText || '')}</div>
           ${pQ.imageUrl ? `<img src="${pQ.imageUrl}" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:6px; margin:8px 0; display:block;" />` : ''}
           ${pQ.questionType === 'MULTIPLE_CHOICE' ? `
             <div class="exam-options-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">
               ${(pQ.options || []).map(o => `
                 <div style="padding:6px 10px; border-radius:6px; font-size:12.5px; border:1px solid ${pQ.mcAnswer === o.id ? '#16a34a' : '#cbd5e1'}; background:${pQ.mcAnswer === o.id ? '#f0fdf4' : '#ffffff'}; font-weight:${pQ.mcAnswer === o.id ? '700' : 'normal'}; color:${pQ.mcAnswer === o.id ? '#15803d' : '#334155'};">
-                  <strong>${o.id}.</strong> ${escapeHtml(o.text || '')}
+                  <strong>${o.id}.</strong> ${renderMarkdown(o.text || '')}
                 </div>
               `).join('')}
             </div>
@@ -1155,7 +1155,7 @@ export function bindCreateHwEvents() {
             <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
               ${(pQ.options || []).map(s => `
                 <div style="padding:4px 8px; border-radius:6px; font-size:12px; background:#f8fafc; border:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-                  <span><strong>${s.id})</strong> ${escapeHtml(s.text || '')}</span>
+                  <span><strong>${s.id})</strong> ${renderMarkdown(s.text || '')}</span>
                   <span class="badge" style="background:${pQ.tfAnswers?.[s.id] ? '#16a34a' : '#dc2626'}; color:#fff; font-size:10.5px; padding:1px 6px;">${pQ.tfAnswers?.[s.id] ? 'ĐÚNG' : 'SAI'}</span>
                 </div>
               `).join('')}
@@ -1167,7 +1167,7 @@ export function bindCreateHwEvents() {
           `)}
           ${pQ.explanation ? `
             <div style="margin-top:8px; padding:6px 10px; background:#f1f5f9; border-left:3px solid #0284c7; font-size:12px; color:#334155;">
-              <strong>Lời giải:</strong> ${escapeHtml(pQ.explanation)}
+              <strong>Lời giải:</strong> ${renderMarkdown(pQ.explanation)}
             </div>
           ` : ''}
         `

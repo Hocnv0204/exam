@@ -3,7 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
-import { parseExamMarkdown, renderMath, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
+import { parseExamMarkdown, renderMath, renderMarkdown, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 // ========================================================
@@ -790,8 +790,8 @@ function renderQuestionCard(q, displayIndex) {
       </div>
 
       <!-- Question Prompt Content -->
-      <div class="math-content" style="font-size:15px; line-height:1.65; color:#1e293b; margin-bottom:14px; white-space:pre-wrap;">
-        ${promptData.text || ''}
+      <div class="math-content" style="font-size:15px; line-height:1.65; color:#1e293b; margin-bottom:14px; word-break:break-word;">
+        ${renderMarkdown(promptData.text || '')}
       </div>
 
       <!-- Optional Image -->
@@ -814,8 +814,8 @@ function renderQuestionCard(q, displayIndex) {
             <span>Xem lời giải chi tiết</span>
             <i class="fa-solid fa-chevron-down" style="font-size:11px; transition:transform 0.2s;"></i>
           </button>
-          <div class="explanation-box math-content" style="display:none; margin-top:8px; padding:12px 14px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; font-size:14px; line-height:1.6; color:#0369a1; white-space:pre-wrap;">
-            ${promptData.explanation}
+          <div class="explanation-box math-content" style="display:none; margin-top:8px; padding:12px 14px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; font-size:14px; line-height:1.6; color:#0369a1; word-break:break-word;">
+            ${renderMarkdown(promptData.explanation)}
           </div>
         </div>
       ` : ''}
@@ -844,7 +844,7 @@ function renderCardAnswers(q, promptData) {
             <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; font-size:14px;">
               <div style="display:flex; align-items:flex-start; gap:8px; flex:1;">
                 <span style="font-weight:700; color:#475569;">${sKey})</span>
-                <span class="math-content" style="color:#334155;">${s.text || ''}</span>
+                <span class="math-content" style="color:#334155; line-height:1.5;">${renderMarkdown(s.text || '')}</span>
               </div>
               <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:${isTrue ? '#dcfce7' : '#fee2e2'}; color:${isTrue ? '#15803d' : '#b91c1c'}; border:1px solid ${isTrue ? '#bbf7d0' : '#fecaca'}; margin-left:12px; flex-shrink:0;">
                 ${isTrue ? 'ĐÚNG' : 'SAI'}
@@ -871,8 +871,8 @@ function renderCardAnswers(q, promptData) {
               <span style="font-weight:700; width:22px; height:22px; border-radius:50%; background:${isCorrect ? '#22c55e' : '#cbd5e1'}; color:#ffffff; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;">
                 ${optKey}
               </span>
-              <div class="math-content" style="color:${isCorrect ? '#15803d' : '#334155'}; font-weight:${isCorrect ? '600' : '400'}; flex:1;">
-                ${o.text || ''}
+              <div class="math-content" style="color:${isCorrect ? '#15803d' : '#334155'}; font-weight:${isCorrect ? '600' : '400'}; flex:1; line-height:1.5;">
+                ${renderMarkdown(o.text || '')}
               </div>
               ${isCorrect ? `<i class="fa-solid fa-check" style="color:#22c55e; font-size:14px; margin-left:auto;"></i>` : ''}
             </div>
@@ -1968,8 +1968,8 @@ async function openMatrixGeneratorModal() {
             </button>
           </div>
 
-          <div class="math-content" style="font-size:14px; line-height:1.6; color:#1e293b; margin-bottom:10px; white-space:pre-wrap;">
-            ${promptData.text || ''}
+          <div class="math-content" style="font-size:14px; line-height:1.6; color:#1e293b; margin-bottom:10px; word-break:break-word;">
+            ${renderMarkdown(promptData.text || '')}
           </div>
 
           <!-- Answers -->

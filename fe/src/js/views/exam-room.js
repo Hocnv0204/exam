@@ -3,7 +3,7 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal, closeModal } from '../components/modal.js'
-import { renderMath } from '../utils/exam-parser.js'
+import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 
 // Student's current answers state for exam
 let studentAnswers = {
@@ -27,10 +27,7 @@ function escapeHtml(str) {
 
 function formatExamContent(str) {
   if (!str) return ''
-  let escaped = escapeHtml(str)
-  // Safely support **bold** formatting without interfering with math delimiters
-  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  return escaped
+  return renderMarkdown(str)
 }
 
 function parsePromptPayload(rawPrompt, fallbackContent) {
