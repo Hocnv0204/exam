@@ -37,6 +37,7 @@ serve(async (req: Request) => {
               deadline,
               max_attempts,
               type,
+              pdf_path,
               created_at,
               lessons!inner (
                 id,
@@ -80,6 +81,7 @@ serve(async (req: Request) => {
             deadline: hw.deadline,
             maxAttempts: hw.max_attempts,
             type: hw.type,
+            pdfPath: hw.pdf_path,
             createdAt: hw.created_at,
             classId: classInfo?.id || null,
             className: classInfo?.name || 'Lớp học'

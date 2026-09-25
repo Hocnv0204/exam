@@ -6,6 +6,7 @@ import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { showToast } from '../components/toast.js'
 import { renderRoadmap, bindRoadmapEvents, ENTRANCE_TEST_HOMEWORK_ID } from '../components/roadmap.js'
 import { renderRoadmap11, bindRoadmap11Events } from '../components/roadmap-11.js'
+import { downloadHomeworkPdf, escapeHtml } from '../utils/download-helper.js'
 
 let cachedTrialLessons = []
 let isLoadingTrial = false
@@ -579,14 +580,19 @@ export function renderTrialView() {
                         <div style="display: flex; flex-direction: column; gap: 12px;">
                           ${homeworks.map(hw => `
                             <div style="padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
-                              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; line-height: 1.4;">${hw.title}</div>
+                              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; line-height: 1.4;">${escapeHtml(hw.title)}</div>
                               <div style="font-size: 12px; color: #64748b; margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px;">
                                 <span><i class="fa-regular fa-clock" style="color: #0284c7;"></i> Thời gian: <strong>${hw.durationMinutes || 45} phút</strong></span>
                                 <span><i class="fa-solid fa-star" style="color: #f59e0b;"></i> Thang điểm: <strong>${hw.maxScore || 10} điểm</strong></span>
                               </div>
-                              <button class="btn-primary" onclick="window.confirmStartTrialHomework('${hw.id}')" style="width: 100%; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; background:#16a34a; border-color:#16a34a;">
-                                Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>
-                              </button>
+                              <div style="display:flex; gap:8px; margin-top:8px;">
+                                <button type="button" class="btn-secondary btn-download-pdf-card" onclick="window.downloadHomeworkPdf('${hw.id}')" style="padding: 8px 12px; font-size: 12.5px; font-weight: 600; background: #eff6ff; color: #0066cc; border: 1px solid #bfdbfe; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.15s ease; white-space: nowrap; flex-shrink: 0;" title="Tải file PDF đề bài (${escapeHtml(hw.title)})">
+                                  <i class="fa-solid fa-file-arrow-down" style="font-size: 13px; color: #0066cc;"></i> Tải PDF
+                                </button>
+                                <button class="btn-primary" onclick="window.confirmStartTrialHomework('${hw.id}')" style="flex: 1; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; background:#16a34a; border-color:#16a34a;">
+                                  Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                              </div>
                             </div>
                           `).join('')}
                         </div>
