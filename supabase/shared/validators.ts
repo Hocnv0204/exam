@@ -21,6 +21,7 @@ export const updateStudentSchema = z.object({
   classId: z.string().uuid('Invalid Class ID').optional().nullable(),
   classIds: z.array(z.string().uuid('Invalid Class ID')).optional(),
   password: z.string().min(6, 'Password must be at least 6 characters').optional().nullable(),
+  balance: z.number().int().optional(),
 })
 
 export const deleteStudentSchema = z.object({

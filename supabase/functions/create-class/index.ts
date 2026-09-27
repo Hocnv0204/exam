@@ -708,11 +708,11 @@ serve(async (req: Request) => {
             .single(),
           serviceRoleClient
             .from('student_classes')
-            .select('student_id, status, profiles:student_id(id, username, full_name, role)')
+            .select('student_id, status, profiles:student_id(id, username, full_name, role, balance)')
             .eq('class_id', classId),
           serviceRoleClient
             .from('profiles')
-            .select('id, username, full_name, role')
+            .select('id, username, full_name, role, balance')
             .eq('class_id', classId)
             .eq('role', 'STUDENT'),
           serviceRoleClient
@@ -749,7 +749,8 @@ serve(async (req: Request) => {
               username: prof.username,
               fullName: prof.full_name || prof.username,
               studentCode: `HS-${prof.username}`,
-              status: sc.status || 'ACTIVE'
+              status: sc.status || 'ACTIVE',
+              balance: prof.balance || 0
             })
           }
         }
@@ -760,7 +761,8 @@ serve(async (req: Request) => {
               username: ls.username,
               fullName: ls.full_name || ls.username,
               studentCode: `HS-${ls.username}`,
-              status: 'ACTIVE'
+              status: 'ACTIVE',
+              balance: ls.balance || 0
             })
           }
         }
@@ -841,7 +843,7 @@ serve(async (req: Request) => {
             .filter(r => r.isPresent && !r.isPaid && r.paymentStatus !== 'waived')
             .reduce((sum, r) => sum + r.feeAmount, 0)
 
-          const attendanceRate = totalClassSessionsCount > 0 ? Math.round((attendedSessions / totalClassSessionsCount) * 100) : 100
+          const attendanceRate = totalSessions > 0 ? Math.round((attendedSessions / totalSessions) * 100) : 100
 
           const paidAmount = studentRecs
             .filter(r => r.isPresent && r.isPaid)
@@ -1708,6 +1710,24 @@ serve(async (req: Request) => {
             targetDate = session.session_date
           }
 
+          // 1. Fetch records to refund before deleting
+          const { data: recordsToRefund } = await serviceRoleClient
+            .from('attendance_records')
+            .select('student_id, fee_amount')
+            .eq('session_id', sessionId)
+            .eq('payment_status', 'paid')
+
+          // 2. Refund to balance
+          if (recordsToRefund && recordsToRefund.length > 0) {
+            for (const r of recordsToRefund) {
+              await serviceRoleClient.rpc('fn_add_student_balance', {
+                p_student_id: r.student_id,
+                p_amount: r.fee_amount
+              })
+            }
+          }
+
+          // 3. Delete session
           await serviceRoleClient
             .from('attendance_sessions')
             .delete()

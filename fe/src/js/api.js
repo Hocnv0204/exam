@@ -392,6 +392,7 @@ export const api = {
   login: (username, password) => request('login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   createStudent: (data) => request('create-student', { method: 'POST', body: JSON.stringify(data) }),
   updateStudent: (data) => request('create-student', { method: 'PUT', body: JSON.stringify(data) }),
+  addStudentBalance: (studentId, amount) => request('create-student?action=add-balance', { method: 'POST', body: JSON.stringify({ studentId, amount }) }),
   resetPassword: (data) => request('reset-password', { method: 'POST', body: JSON.stringify(data) }),
   createClass: (data) => request('create-class', { method: 'POST', body: JSON.stringify(data) }),
   updateClass: (data) => request('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),

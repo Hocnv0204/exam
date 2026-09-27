@@ -74,6 +74,7 @@ export function renderStudentMgmtView() {
                     <th>Họ và tên <i class="fa-solid fa-arrow-down-short-wide"></i></th>
                     <th>Mã học sinh</th>
                     <th>Lớp học</th>
+                    <th>Số dư</th>
                     <th>Trạng thái</th>
                     <th>Ngày tạo</th>
                     <th>Thao tác</th>
@@ -81,7 +82,7 @@ export function renderStudentMgmtView() {
                 </thead>
                 <tbody id="students-table-body">
                   ${pagedStudents.length === 0 
-                    ? `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`
+                    ? `<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`
                     : pagedStudents.map(s => renderStudentRow(s)).join('')
                   }
                 </tbody>
@@ -133,6 +134,9 @@ function renderStudentRow(s) {
         </div>
       </td>
       <td>
+        <div style="font-weight:600; color:#10b981;">${(s.balance || 0).toLocaleString('vi-VN')} đ</div>
+      </td>
+      <td>
         <span class="badge ${s.status === 'Hoạt động' ? 'badge-active' : 'badge-inactive'}">
           <i class="fa-solid fa-circle" style="font-size:6px;"></i> ${s.status || 'Hoạt động'}
         </span>
@@ -141,6 +145,7 @@ function renderStudentRow(s) {
       <td>
         <div style="display:flex; gap:10px; align-items:center;">
           <a href="#student-details?studentId=${s.id}&classId=${s.classId || (s.classIds && s.classIds[0]) || ''}" title="Xem chi tiết học tập & học phí" style="color:#10b981; font-size:16px; text-decoration:none; display:inline-flex; align-items:center;"><i class="fa-solid fa-circle-user"></i></a>
+          <button class="btn-add-balance" data-id="${s.id}" data-name="${s.fullName}" title="Nạp học phí (thêm số dư)" style="background:none; border:none; color:#f59e0b; cursor:pointer; font-size:16px;"><i class="fa-solid fa-wallet"></i></button>
           <button class="btn-edit-student" data-id="${s.id}" title="Chỉnh sửa thông tin học sinh" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;"><i class="fa-solid fa-pen-to-square"></i></button>
           <button class="btn-delete-student" data-id="${s.id}" data-name="${s.fullName}" title="Xóa" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;"><i class="fa-solid fa-trash"></i></button>
         </div>
@@ -289,6 +294,13 @@ export function showEditStudentModal(studentId) {
 
       <div>
         <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+          Số dư khả dụng (VND)
+        </label>
+        <input type="text" id="modal-edit-balance" class="form-input" value="${new Intl.NumberFormat('en-US').format(student.balance || 0)}" oninput="let v = this.value.replace(/[^0-9]/g, ''); this.value = v ? new Intl.NumberFormat('en-US').format(v) : ''">
+      </div>
+
+      <div>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
           Lớp học (Chọn nhiều lớp) <span style="color:#ef4444;">*</span>
         </label>
         <div style="border:1px solid var(--border-color); border-radius:10px; padding:12px; max-height:150px; overflow-y:auto; background:#ffffff; display:flex; flex-direction:column; gap:6px;">
@@ -301,6 +313,8 @@ export function showEditStudentModal(studentId) {
   openModal('Cập Nhật Thông Tin Học Sinh', modalHTML, async () => {
     const fullName = document.getElementById('modal-edit-fullname')?.value.trim()
     const password = document.getElementById('modal-edit-password')?.value.trim()
+    const balanceStr = document.getElementById('modal-edit-balance')?.value.trim() || '0'
+    const balance = parseInt(balanceStr.replace(/,/g, ''), 10) || 0
     const classIds = Array.from(document.querySelectorAll('input[name="student-classes-edit"]:checked')).map(cb => cb.value)
 
     if (!fullName || classIds.length === 0) {
@@ -317,7 +331,8 @@ export function showEditStudentModal(studentId) {
         studentId,
         fullName,
         classIds,
-        password: password || null
+        password: password || null,
+        balance
       })
 
       // Update local state
@@ -325,6 +340,7 @@ export function showEditStudentModal(studentId) {
       student.className = classNames
       student.classId = classIds[0]
       student.classIds = classIds
+      student.balance = balance
 
       if (filteredStudents !== null) {
         const item = filteredStudents.find(s => s.id === studentId)
@@ -333,6 +349,7 @@ export function showEditStudentModal(studentId) {
           item.className = classNames
           item.classId = classIds[0]
           item.classIds = classIds
+          item.balance = balance
         }
       }
 
@@ -374,6 +391,88 @@ export function showEditStudentModal(studentId) {
 
 window.showCreateStudentModal = showCreateStudentModal
 window.showEditStudentModal = showEditStudentModal
+
+export function showAddBalanceModal(studentId) {
+  const student = state.students.find(s => s.id === studentId)
+  if (!student) {
+    showToast('Không tìm thấy thông tin học sinh!', 'error')
+    return
+  }
+
+  const modalHTML = `
+    <form id="add-balance-modal-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:16px;">
+      <div style="font-size:14px; color:#334155; margin-bottom:8px;">
+        Học sinh: <strong style="color:#0f172a;">${student.fullName}</strong><br/>
+        Số dư hiện tại: <strong style="color:#10b981; font-size:16px;">${(student.balance || 0).toLocaleString('vi-VN')} đ</strong>
+      </div>
+      <div>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+          Số tiền cần nạp (VND) <span style="color:#ef4444;">*</span>
+        </label>
+        <input type="text" id="modal-add-balance-amount" class="form-input" placeholder="Ví dụ: 500,000" required oninput="let v = this.value.replace(/[^0-9]/g, ''); this.value = v ? new Intl.NumberFormat('en-US').format(v) : ''">
+      </div>
+    </form>
+  `
+
+  openModal('Nạp Học Phí (Thêm Số Dư)', modalHTML, async () => {
+    const amountVal = document.getElementById('modal-add-balance-amount')?.value.trim() || ''
+    const amount = parseInt(amountVal.replace(/,/g, ''), 10)
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      showToast('Vui lòng nhập số tiền hợp lệ lớn hơn 0!', 'error')
+      return false
+    }
+
+    try {
+      showToast('Đang nạp tiền...', 'info')
+      const result = await api.addStudentBalance(studentId, amount)
+
+      // Update local state
+      const newBalance = result.balance || (student.balance || 0) + amount
+      student.balance = newBalance
+
+      if (filteredStudents !== null) {
+        const item = filteredStudents.find(s => s.id === studentId)
+        if (item) item.balance = newBalance
+      }
+
+      if (window._refreshStudentMgmtTable) {
+        window._refreshStudentMgmtTable(false)
+      } else {
+        const searchInput = document.getElementById('student-search-input')
+        searchInput?.dispatchEvent(new Event('input'))
+      }
+
+      if (window._refreshClassDetailsTab) {
+        window._refreshClassDetailsTab()
+      }
+
+      showToast(`Nạp ${amount.toLocaleString('vi-VN')}đ thành công! Số dư mới: ${newBalance.toLocaleString('vi-VN')}đ`, 'success')
+    } catch (err) {
+      // Demo mode
+      const newBalance = (student.balance || 0) + amount
+      student.balance = newBalance
+
+      if (filteredStudents !== null) {
+        const item = filteredStudents.find(s => s.id === studentId)
+        if (item) item.balance = newBalance
+      }
+
+      if (window._refreshStudentMgmtTable) {
+        window._refreshStudentMgmtTable(false)
+      } else {
+        const searchInput = document.getElementById('student-search-input')
+        searchInput?.dispatchEvent(new Event('input'))
+      }
+
+      if (window._refreshClassDetailsTab) {
+        window._refreshClassDetailsTab()
+      }
+      showToast(`Nạp ${amount.toLocaleString('vi-VN')}đ thành công! (Chế độ Demo)`, 'success')
+    }
+  })
+}
+window.showAddBalanceModal = showAddBalanceModal
 
 export function bindStudentMgmtEvents() {
   bindSidebarEvents()
@@ -417,7 +516,7 @@ export function bindStudentMgmtEvents() {
     const tbody = document.getElementById('students-table-body')
     if (tbody) {
       tbody.innerHTML = pagedStudents.length === 0
-        ? `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`
+        ? `<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`
         : pagedStudents.map(s => renderStudentRow(s)).join('')
     }
 
@@ -455,7 +554,7 @@ export function bindStudentMgmtEvents() {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align:center; padding:32px; color:#0284c7;">
+          <td colspan="7" style="text-align:center; padding:32px; color:#0284c7;">
             <i class="fa-solid fa-spinner fa-spin" style="margin-right:8px; font-size:16px;"></i> Đang tải dữ liệu học sinh theo bộ lọc...
           </td>
         </tr>
@@ -525,6 +624,13 @@ function updateTable(newStudent) {
 }
 
 function bindTableActionEvents() {
+  document.querySelectorAll('.btn-add-balance').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-id')
+      showAddBalanceModal(id)
+    }
+  })
+
   document.querySelectorAll('.btn-edit-student').forEach(btn => {
     btn.onclick = () => {
       const id = btn.getAttribute('data-id')

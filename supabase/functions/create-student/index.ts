@@ -60,6 +60,7 @@ serve(async (req: Request) => {
           full_name,
           role,
           class_id,
+          balance,
           created_at,
           student_classes (
             class_id,
@@ -99,6 +100,7 @@ serve(async (req: Request) => {
           classId: classIds[0] || null,
           classIds,
           status: 'Hoạt động',
+          balance: s.balance || 0,
           createdAt: new Date(s.created_at).toLocaleDateString('vi-VN')
         }
       })
@@ -106,8 +108,27 @@ serve(async (req: Request) => {
       return jsonResponse(formattedStudents)
     }
 
-    // POST: Create student or Remove from class
+    // POST: Create student, Remove from class, or Add balance
     if (req.method === 'POST') {
+      if (action === 'add-balance') {
+        const body = await req.json()
+        const { studentId, amount } = body
+        if (!studentId || typeof amount !== 'number') {
+          return errorResponse('Missing studentId or invalid amount', 400)
+        }
+        
+        const { data, error } = await serviceRoleClient.rpc('fn_add_student_balance', {
+          p_student_id: studentId,
+          p_amount: amount
+        })
+
+        if (error) {
+          return errorResponse(error.message, 500)
+        }
+
+        return jsonResponse(data)
+      }
+
       if (action === 'remove-from-class' || action === 'remove-class' || action === 'remove-student') {
         const body = await req.json()
         const validation = removeStudentFromClassSchema.safeParse(body)
@@ -233,12 +254,13 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { studentId, fullName, classId, classIds, password } = validation.data
+      const { studentId, fullName, classId, classIds, password, balance } = validation.data
 
       const updatePayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
       if (fullName) updatePayload.full_name = fullName
+      if (balance !== undefined) updatePayload.balance = balance
       
       if (classIds !== undefined) {
         const targetClassIds = Array.isArray(classIds) ? classIds : (classId ? [classId] : [])
@@ -260,7 +282,7 @@ serve(async (req: Request) => {
           .update(updatePayload)
           .eq('id', studentId)
           .eq('role', 'STUDENT')
-          .select('id, username, full_name, role, class_id, updated_at')
+          .select('id, username, full_name, role, class_id, balance, updated_at')
           .single(),
       ])
 

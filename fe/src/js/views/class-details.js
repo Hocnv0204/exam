@@ -4,6 +4,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
+import { showAddBalanceModal } from './student-mgmt.js'
 
 // Module-level state for the active class view
 let activeTab = 'students' // 'students' | 'attendance' | 'tuition' | 'homework' | 'settings'
@@ -52,7 +53,7 @@ export function renderClassDetailsView() {
       ${renderSidebar('classes-admin')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Chi tiết lớp học')}
-        <div class="content-body" style="padding: 24px; max-width: 1400px; margin: 0 auto;">
+        <div class="content-body">
           
           <!-- Top Breadcrumb & Actions -->
           <div class="class-top-bar">
@@ -283,7 +284,7 @@ function renderStudentsTabHTML(currentClass, classStudents) {
               <th>Mã học sinh</th>
               <th>Trạng thái</th>
               <th>Chuyên cần</th>
-              <th>Tiền còn nợ</th>
+              <th>Số dư & Nợ</th>
               <th style="text-align:center;">Thao tác</th>
             </tr>
           </thead>
@@ -319,18 +320,13 @@ function renderStudentsTabHTML(currentClass, classStudents) {
                     </button>
                   </td>
                   <td>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                      <div class="progress-bar-bg" style="width:70px; height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden;">
-                        <div class="progress-bar-fill" style="width:${attendanceRate}%; height:100%; background:${attendanceRate >= 80 ? '#10b981' : '#f59e0b'};"></div>
-                      </div>
-                      <span style="font-size:12px; font-weight:700; color:#334155;">${attendanceRate}%</span>
-                    </div>
-                    ${s.attendedSessions !== undefined ? `<div style="font-size:11px; color:#64748b; margin-top:3px; font-weight:500;"><i class="fa-regular fa-calendar-check" style="color:#0066cc;"></i> ${s.attendedSessions} buổi đã học</div>` : ''}
+                    ${s.attendedSessions !== undefined ? `<div style="font-size:13px; font-weight:600; color:#334155; margin-top:3px;"><i class="fa-regular fa-calendar-check" style="color:#0066cc;"></i> ${s.attendedSessions} buổi đã học</div>` : '<div style="font-size:13px; font-weight:600; color:#94a3b8;">Chưa điểm danh</div>'}
                   </td>
                   <td>
+                    <div style="font-size:12px; font-weight:600; margin-bottom:4px; color:#10b981;">Số dư: ${(s.balance || 0).toLocaleString('vi-VN')} đ</div>
                     ${unpaidDebt > 0 ? `
                       <span class="badge badge-unpaid">
-                        ${unpaidDebt.toLocaleString('vi-VN')} VND
+                        Nợ: ${unpaidDebt.toLocaleString('vi-VN')} VND
                       </span>
                       ${s.unpaidSessions ? `<div style="font-size:11px; color:#b45309; margin-top:3px; font-weight:600;"><i class="fa-regular fa-clock"></i> ${s.unpaidSessions} buổi chưa đóng</div>` : ''}
                     ` : `
@@ -340,11 +336,14 @@ function renderStudentsTabHTML(currentClass, classStudents) {
                     `}
                   </td>
                   <td style="text-align:center;">
-                    <div style="display:inline-flex; align-items:center; gap:8px;">
-                      <a href="#student-details?studentId=${s.id}&classId=${currentClass.id}" class="btn-secondary" title="Xem chi tiết học tập & lịch học" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                      <button class="btn-add-balance-class-tab" data-id="${s.id || s.studentId}" title="Nạp số dư" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fff7ed; border:1px solid #ffedd5; color:#f59e0b; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-solid fa-wallet"></i> Nạp tiền
+                      </button>
+                      <a href="#student-details?studentId=${s.id || s.studentId}&classId=${currentClass.id}" class="btn-secondary" title="Xem chi tiết học tập & lịch học" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
                         <i class="fa-solid fa-calendar-day" style="color:#0066cc;"></i> Chi tiết
                       </a>
-                      <button class="btn-remove-from-class" data-student-id="${s.id}" data-student-name="${escapeHtml(s.fullName)}" title="Xóa khỏi lớp học" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fee2e2; border:1px solid #fecaca; color:#b91c1c; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                      <button class="btn-remove-from-class" data-student-id="${s.id || s.studentId}" data-student-name="${escapeHtml(s.fullName)}" title="Xóa khỏi lớp học" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fee2e2; border:1px solid #fecaca; color:#b91c1c; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
                         <i class="fa-solid fa-user-minus"></i> Xóa
                       </button>
                     </div>
@@ -890,18 +889,22 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
 
       // Sync debt into cached student list
       if (debtList && debtList.length > 0) {
-        cachedClassStudents = debtList.map(d => ({
-          id: d.studentId,
-          fullName: d.fullName,
-          username: d.username,
-          studentCode: d.studentCode,
-          status: d.status,
-          attendanceRate: d.attendanceRate,
-          unpaidDebt: d.unpaidDebt,
-          attendedSessions: d.attendedSessions,
-          totalSessions: d.totalSessions,
-          unpaidSessions: d.unpaidSessions
-        }))
+        cachedClassStudents = debtList.map(d => {
+          const globalS = state.students.find(s => s.id === d.studentId) || {}
+          return {
+            id: d.studentId,
+            fullName: d.fullName,
+            username: d.username,
+            studentCode: d.studentCode,
+            status: d.status,
+            balance: (d.balance !== undefined ? d.balance : globalS.balance) || 0,
+            attendanceRate: d.attendanceRate,
+            unpaidDebt: d.unpaidDebt,
+            attendedSessions: d.attendedSessions,
+            totalSessions: d.totalSessions,
+            unpaidSessions: d.unpaidSessions
+          }
+        })
       }
 
       if (activeTab === 'tuition' || activeTab === 'students') {
@@ -1036,6 +1039,15 @@ function bindStudentsTabEvents(classId, currentClass) {
       } catch (err) {
         showToast(`Cập nhật thất bại: ${err.message}`, 'error')
       }
+    }
+  })
+
+  // Add balance from class tab
+  document.querySelectorAll('.btn-add-balance-class-tab').forEach(btn => {
+    btn.onclick = () => {
+      const studentId = btn.getAttribute('data-id')
+      window._refreshClassDetailsTab = () => refreshStudentsTable(currentClass)
+      showAddBalanceModal(studentId)
     }
   })
 
