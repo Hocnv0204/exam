@@ -427,9 +427,21 @@ export function showAddBalanceModal(studentId) {
       showToast('Đang nạp tiền...', 'info')
       const result = await api.addStudentBalance(studentId, amount)
 
-      // Update local state
-      const newBalance = result.balance || (student.balance || 0) + amount
+      // Fe call lại API để cập nhật danh sách học sinh mới nhất
+      try {
+        const updatedStudents = await api.getStudents({}, { silent: true })
+        if (updatedStudents && Array.isArray(updatedStudents)) {
+          state.students = updatedStudents
+        }
+      } catch (err) {
+        console.warn('Lỗi khi cập nhật lại danh sách học sinh:', err)
+      }
+
+      // Cập nhật lại thông tin student trong state cục bộ
+      const freshStudent = state.students.find(s => s.id === studentId) || student
+      const newBalance = result.balance !== undefined ? result.balance : ((freshStudent.balance || 0) + amount)
       student.balance = newBalance
+      freshStudent.balance = newBalance
 
       if (filteredStudents !== null) {
         const item = filteredStudents.find(s => s.id === studentId)
@@ -447,7 +459,11 @@ export function showAddBalanceModal(studentId) {
         window._refreshClassDetailsTab()
       }
 
-      showToast(`Nạp ${amount.toLocaleString('vi-VN')}đ thành công! Số dư mới: ${newBalance.toLocaleString('vi-VN')}đ`, 'success')
+      let msg = `Nạp ${amount.toLocaleString('vi-VN')}đ thành công! Số dư mới: ${newBalance.toLocaleString('vi-VN')}đ`
+      if (result.paid_sessions_count > 0) {
+        msg += `\nĐã tự động trừ ${result.total_deducted.toLocaleString('vi-VN')}đ để thanh toán cho ${result.paid_sessions_count} buổi học.`
+      }
+      showToast(msg, 'success')
     } catch (err) {
       // Demo mode
       const newBalance = (student.balance || 0) + amount
