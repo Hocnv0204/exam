@@ -595,10 +595,10 @@ export function renderCreateHwView() {
   ].join('')
 
   let displayTitle = isEdit ? (hw?.title || '') : ''
-  if (isEdit && hw?.title && hw?.lessonTitle) {
-    const prefix = `${hw.lessonTitle} - `
-    if (displayTitle.startsWith(prefix)) {
-      displayTitle = displayTitle.substring(prefix.length)
+  if (isEdit && hw?.title) {
+    const lTitle = hw.lessonTitle || hw.lesson_title
+    if (lTitle && displayTitle.startsWith(`${lTitle} - `)) {
+      displayTitle = displayTitle.substring(`${lTitle} - `.length)
     }
   }
 
@@ -642,7 +642,7 @@ export function renderCreateHwView() {
                   <div>
                     <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
                     <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: TN - 1, Bài tập 1..." value="${displayTitle}" style="padding:8px 12px; font-size:13px;">
-                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tiền tố tên bài học sẽ tự động được thêm vào trước tên bài tập khi gửi dữ liệu</div>
+                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tên bài học sẽ tự động được ghép phía trước khi lưu bài</div>
                   </div>
 
                   <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
@@ -1601,44 +1601,11 @@ export function bindCreateHwEvents() {
   const typeSelect = document.getElementById('hw-type')
   const maxAttemptsInput = document.getElementById('hw-max-attempts')
 
-  let previousLessonTitle = ''
-
   const getSelectedLessonTitle = () => {
     if (!lessonSelect || lessonSelect.selectedIndex < 0) return ''
     const opt = lessonSelect.options[lessonSelect.selectedIndex]
     if (!opt || !opt.value) return ''
     return opt.textContent.trim()
-  }
-
-  const applyLessonPrefixToTitle = (newLessonTitle) => {
-    const titleInput = document.getElementById('hw-title')
-    if (!titleInput || !newLessonTitle) return
-    const currentVal = titleInput.value.trim()
-
-    // If input is empty
-    if (!currentVal) {
-      titleInput.value = `${newLessonTitle} - `
-      previousLessonTitle = newLessonTitle
-      return
-    }
-
-    // If title currently starts with previousLessonTitle, replace old prefix with new prefix
-    if (previousLessonTitle && currentVal.startsWith(previousLessonTitle)) {
-      const suffix = currentVal.substring(previousLessonTitle.length).replace(/^[\s\-–—:]+/, '').trim()
-      titleInput.value = suffix ? `${newLessonTitle} - ${suffix}` : `${newLessonTitle} - `
-      previousLessonTitle = newLessonTitle
-      return
-    }
-
-    // If title already starts with newLessonTitle, don't duplicate
-    if (currentVal.startsWith(newLessonTitle)) {
-      previousLessonTitle = newLessonTitle
-      return
-    }
-
-    // If title already has some custom name, prepend newLessonTitle
-    titleInput.value = `${newLessonTitle} - ${currentVal}`
-    previousLessonTitle = newLessonTitle
   }
 
   // Disable max attempts if Exam
@@ -1751,12 +1718,6 @@ export function bindCreateHwEvents() {
         lessonSelect.innerHTML = (lessons && lessons.length > 0) ? lOptions : '<option value="">Chưa có bài học nào</option>'
         if (!isEdit && lessons && lessons.length === 1) {
           lessonSelect.value = lessons[0].id
-          applyLessonPrefixToTitle(lessons[0].title)
-        } else if (isEdit && editLessonId) {
-          const currentOpt = lessonSelect.options[lessonSelect.selectedIndex]
-          if (currentOpt && currentOpt.value) {
-            previousLessonTitle = currentOpt.textContent.trim()
-          }
         }
       }
     } catch (e) {
@@ -1772,13 +1733,6 @@ export function bindCreateHwEvents() {
 
   chapterSelect?.addEventListener('change', (e) => {
     updateLessonsDropdown(e.target.value)
-  })
-
-  lessonSelect?.addEventListener('change', () => {
-    const selTitle = getSelectedLessonTitle()
-    if (selTitle) {
-      applyLessonPrefixToTitle(selTitle)
-    }
   })
 
   // Trigger initial dropdown load
@@ -1819,10 +1773,6 @@ export function bindCreateHwEvents() {
       await updateChaptersDropdown(initialChapterId, initialLessonId)
     } else if (classSelect && classSelect.value) {
       await updateChaptersDropdown(null, null)
-    }
-
-    if (isEdit && hw) {
-      previousLessonTitle = hw.lessonTitle || getSelectedLessonTitle()
     }
   }
 
