@@ -57,6 +57,7 @@ let generatorState = {
   isAdvancedDistribution: false,
   distribution: [],
   previewQuestions: [],
+  rejectedIds: [],
   availableStats: { mc: 0, tf: 0, sa: 0, total: 0 }
 }
 
@@ -1413,6 +1414,7 @@ async function openMatrixGeneratorModal() {
   if (!modalContainer) return
 
   generatorState.previewQuestions = []
+  generatorState.rejectedIds = []
 
   const customBlocks = (allClasses || []).map(c => c.gradeBlock || c.grade_block).filter(Boolean)
   const uniqueBlocks = Array.from(new Set([...(cachedGradeBlocksList || []), ...customBlocks]))
@@ -1863,6 +1865,7 @@ async function openMatrixGeneratorModal() {
 
     btnRollPreview.disabled = true
     btnRollPreview.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang bốc câu...'
+    generatorState.rejectedIds = []
 
     try {
       const res = await api.generateRandomExam({
@@ -1966,7 +1969,14 @@ async function openMatrixGeneratorModal() {
         const curId = btn.getAttribute('data-id')
         const qType = btn.getAttribute('data-type')
 
-        const excludeIds = generatorState.previewQuestions.map(q => q.id)
+        if (!generatorState.rejectedIds) generatorState.rejectedIds = []
+        if (curId && !generatorState.rejectedIds.includes(curId)) {
+          generatorState.rejectedIds.push(curId)
+        }
+        const excludeIds = Array.from(new Set([
+          ...generatorState.previewQuestions.map(q => q.id),
+          ...generatorState.rejectedIds
+        ]))
         btn.disabled = true
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'
 
@@ -1988,7 +1998,11 @@ async function openMatrixGeneratorModal() {
             renderPreviewQuestionsList()
           }
         } catch (err) {
-          showToast('Không thể đổi câu: ' + err.message, 'error')
+          if (err.message && (err.message.includes('Không còn câu hỏi thay thế') || err.message.includes('NO_MORE_CANDIDATES'))) {
+            showToast('Đã duyệt hết toàn bộ câu hỏi phù hợp trong ngân hàng!', 'warning')
+          } else {
+            showToast('Không thể đổi câu: ' + err.message, 'error')
+          }
           btn.disabled = false
           btn.innerHTML = '<i class="fa-solid fa-arrows-rotate" style="color:#0284c7;"></i> Đổi câu khác'
         }

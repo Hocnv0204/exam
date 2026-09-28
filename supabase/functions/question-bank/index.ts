@@ -588,20 +588,29 @@ serve(async (req: Request) => {
           })
         })
 
-        // Nếu bật deduplicate: Lấy danh sách prompt tóm tắt hiện có trong ngân hàng để loại trừ
+        // Lấy danh sách grade_block của các bài tập đích để lọc phạm vi kiểm tra trùng
+        const targetGradeBlocks = Array.from(new Set(
+          Array.from(hwMap.values()).map((v: any) => v.gradeBlock).filter(Boolean)
+        ))
+
+        // Nếu bật deduplicate: Lấy danh sách prompt hiện có trong cùng khối để loại trừ (tránh kéo toàn bảng vào RAM)
         let existingPromptsSet = new Set<string>()
         if (deduplicate) {
-          const { data: existingRows } = await serviceRoleClient
+          let qbPromptQuery = serviceRoleClient
             .from('question_bank')
             .select('prompt')
+          if (targetGradeBlocks.length > 0) {
+            qbPromptQuery = qbPromptQuery.in('grade_block', targetGradeBlocks)
+          }
+          const { data: existingRows } = await qbPromptQuery
           if (existingRows) {
             existingRows.forEach((r: any) => {
               try {
                 const parsed = JSON.parse(r.prompt)
-                const text = (parsed.text || parsed.prompt || r.prompt || '').trim().toLowerCase().slice(0, 100)
+                const text = (parsed.text || parsed.prompt || r.prompt || '').trim().toLowerCase().replace(/\s+/g, ' ')
                 if (text) existingPromptsSet.add(text)
               } catch (_) {
-                const text = (r.prompt || '').trim().toLowerCase().slice(0, 100)
+                const text = (r.prompt || '').trim().toLowerCase().replace(/\s+/g, ' ')
                 if (text) existingPromptsSet.add(text)
               }
             })
@@ -626,8 +635,8 @@ serve(async (req: Request) => {
           })
           const promptText = promptPayload.text || q.content || ''
 
-          // Kiểm tra trùng lặp
-          const sampleKey = promptText.trim().toLowerCase().slice(0, 100)
+          // Kiểm tra trùng lặp (chuẩn hóa toàn bộ chuỗi thay vì chỉ cắt 100 ký tự)
+          const sampleKey = promptText.trim().toLowerCase().replace(/\s+/g, ' ')
           if (deduplicate && sampleKey && existingPromptsSet.has(sampleKey)) {
             skippedCount++
             return
@@ -706,15 +715,15 @@ serve(async (req: Request) => {
           return errorResponse('Vui lòng chọn bài học đích và nhập tiêu đề đề thi!', 400)
         }
 
-        // Thuật toán bốc ngẫu nhiên có trọng số ưu tiên câu có usage_count thấp
+        // Thuật toán bốc ngẫu nhiên có trọng số (sửa comparator tính sortKey trước khi sort)
+        const NOISE = 0.8
         const pickRandomWeighted = (pool: any[], count: number) => {
           if (count <= 0) return []
-          const shuffled = [...pool].sort((a, b) => {
-            const weightA = (a.usage_count || 0) + Math.random() * 0.8
-            const weightB = (b.usage_count || 0) + Math.random() * 0.8
-            return weightA - weightB
-          })
-          return shuffled.slice(0, count)
+          return pool
+            .map(q => ({ q, sortKey: (q.usage_count || 0) + Math.random() * NOISE }))
+            .sort((a, b) => a.sortKey - b.sortKey)
+            .slice(0, count)
+            .map(x => x.q)
         }
 
         let combinedQuestions: any[] = []
@@ -839,101 +848,19 @@ serve(async (req: Request) => {
           ...combinedQuestions.filter(q => q.question_type === 'SHORT_ANSWER')
         ]
 
-        // Nếu chỉ là Preview để kiểm tra câu hỏi trước khi chốt
-        if (previewOnly) {
-          return jsonResponse({
-            previewQuestions: orderedQuestions,
-            summary: {
-              mcPicked: orderedQuestions.filter(q => q.question_type === 'MULTIPLE_CHOICE').length,
-              tfPicked: orderedQuestions.filter(q => q.question_type === 'TRUE_FALSE').length,
-              saPicked: orderedQuestions.filter(q => q.question_type === 'SHORT_ANSWER').length,
-              total: orderedQuestions.length
-            }
-          })
+        // Chặn nhánh bốc lại tự động: generate-exam chỉ hỗ trợ xem trước (Preview)
+        if (!previewOnly) {
+          return errorResponse('API generate-exam chỉ hỗ trợ chế độ xem trước (previewOnly: true). Vui lòng sử dụng action=create-from-selected với danh sách câu hỏi đã duyệt.', 400)
         }
-
-        // Tạo bài tập chính thức trong bảng homeworks
-        const finalMaxAttempts = type === 'EXAM' ? 1 : 3
-        const { data: newHw, error: hwCreateError } = await serviceRoleClient
-          .from('homeworks')
-          .insert({
-            lesson_id: targetLessonId,
-            title,
-            pdf_path: '',
-            duration_minutes: durationMinutes,
-            pass_score: passScore,
-            max_score: maxScore,
-            is_published: true,
-            type: type || 'PRACTICE',
-            max_attempts: finalMaxAttempts,
-            deadline: deadline || null,
-            max_violations: maxViolations || 3,
-            show_solutions: showSolutions !== false
-          })
-          .select('id')
-          .single()
-
-        if (hwCreateError) return errorResponse(hwCreateError.message, 500)
-        const homeworkId = newHw.id
-
-        // Tạo các câu hỏi và đáp án cho bài tập mới
-        const questionsToInsert: any[] = []
-        const answersToInsert: any[] = []
-
-        orderedQuestions.forEach((qbQ, idx) => {
-          const qNum = idx + 1
-          const questionId = crypto.randomUUID()
-          const parsedPrompt = normalizeBankPromptPayload(qbQ.prompt)
-
-          let partTitle = ''
-          if (qbQ.question_type === 'MULTIPLE_CHOICE') partTitle = 'Phần I: Câu hỏi trắc nghiệm nhiều phương án lựa chọn'
-          else if (qbQ.question_type === 'TRUE_FALSE') partTitle = 'Phần II: Câu hỏi trắc nghiệm đúng sai'
-          else if (qbQ.question_type === 'SHORT_ANSWER') partTitle = 'Phần III: Câu hỏi trắc nghiệm trả lời ngắn'
-
-          questionsToInsert.push({
-            id: questionId,
-            homework_id: homeworkId,
-            question_number: qNum,
-            question_type: qbQ.question_type,
-            prompt: qbQ.prompt,
-            content: parsedPrompt.text || '',
-            options: parsedPrompt.options || null,
-            statements: parsedPrompt.statements || null,
-            part_title: parsedPrompt.partTitle || partTitle,
-            points: qbQ.points || (qbQ.question_type === 'TRUE_FALSE' ? 1.0 : (qbQ.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
-          })
-
-          answersToInsert.push({
-            question_id: questionId,
-            mc_answer: qbQ.mc_answer || null,
-            tf_answers: qbQ.tf_answers || null,
-            sa_answer: qbQ.sa_answer !== undefined && qbQ.sa_answer !== null ? String(qbQ.sa_answer) : null,
-            sa_tolerance: qbQ.sa_tolerance || 0,
-            explanation: parsedPrompt.explanation || null
-          })
-        })
-
-        const { error: qInsertErr } = await serviceRoleClient.from('questions').insert(questionsToInsert)
-        if (qInsertErr) {
-          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
-          return errorResponse(qInsertErr.message, 500)
-        }
-
-        const { error: aInsertErr } = await serviceRoleClient.from('question_answers').insert(answersToInsert)
-        if (aInsertErr) {
-          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
-          return errorResponse(aInsertErr.message, 500)
-        }
-
-        // Tăng usage_count cho các câu hỏi được chọn bằng RPC nguyên tử
-        const pickedIds = orderedQuestions.map(q => q.id)
-        await bumpQuestionUsage(serviceRoleClient, pickedIds)
 
         return jsonResponse({
-          success: true,
-          homeworkId,
-          totalQuestions: orderedQuestions.length,
-          message: `Đã tạo thành công đề thi "${title}" với ${orderedQuestions.length} câu hỏi ngẫu nhiên từ ngân hàng!`
+          previewQuestions: orderedQuestions,
+          summary: {
+            mcPicked: orderedQuestions.filter(q => q.question_type === 'MULTIPLE_CHOICE').length,
+            tfPicked: orderedQuestions.filter(q => q.question_type === 'TRUE_FALSE').length,
+            saPicked: orderedQuestions.filter(q => q.question_type === 'SHORT_ANSWER').length,
+            total: orderedQuestions.length
+          }
         })
       }
 
@@ -984,15 +911,19 @@ serve(async (req: Request) => {
         const availablePool = (candidates || []).filter(q => !allExclude.has(q.id))
 
         if (availablePool.length === 0) {
-          return errorResponse('Không còn câu hỏi thay thế nào khác phù hợp trong ngân hàng!', 404)
+          return jsonResponse({
+            success: false,
+            code: 'NO_MORE_CANDIDATES',
+            message: 'Không còn câu hỏi thay thế nào khác phù hợp trong ngân hàng!'
+          }, 404)
         }
 
-        // Chọn ngẫu nhiên có trọng số
-        const sorted = [...availablePool].sort((a, b) => {
-          const weightA = (a.usage_count || 0) + Math.random() * 0.8
-          const weightB = (b.usage_count || 0) + Math.random() * 0.8
-          return weightA - weightB
-        })
+        // Chọn ngẫu nhiên có trọng số (sửa comparator tính sortKey trước khi sort)
+        const NOISE = 0.8
+        const sorted = availablePool
+          .map(q => ({ q, sortKey: (q.usage_count || 0) + Math.random() * NOISE }))
+          .sort((a, b) => a.sortKey - b.sortKey)
+          .map(x => x.q)
 
         const replacement = sorted[0]
         return jsonResponse({
@@ -1022,6 +953,16 @@ serve(async (req: Request) => {
           return errorResponse('Thiếu thông tin bài tập hoặc danh sách câu hỏi!', 400)
         }
 
+        // Kiểm tra bài học đích có tồn tại
+        const { data: lessonData, error: lessonErr } = await serviceRoleClient
+          .from('lessons')
+          .select('id, title')
+          .eq('id', targetLessonId)
+          .single()
+        if (lessonErr || !lessonData) {
+          return errorResponse('Bài học đích không tồn tại hoặc đã bị xóa!', 400)
+        }
+
         const { data: qbQuestions, error: fetchErr } = await serviceRoleClient
           .from('question_bank')
           .select('*')
@@ -1032,9 +973,13 @@ serve(async (req: Request) => {
           return errorResponse('Không tìm thấy các câu hỏi đã chọn trong ngân hàng!', 404)
         }
 
-        // Sắp xếp lại theo đúng thứ tự mảng questionBankIds truyền vào
+        // Sắp xếp lại theo đúng thứ tự mảng questionBankIds truyền vào và kiểm tra đủ câu
         const qbMap = new Map(qbQuestions.map(q => [q.id, q]))
         const orderedQuestions = questionBankIds.map(id => qbMap.get(id)).filter(Boolean)
+
+        if (orderedQuestions.length !== questionBankIds.length) {
+          return errorResponse('Một số câu hỏi được chọn không còn tồn tại trong ngân hàng!', 400)
+        }
 
         const finalMaxAttempts = type === 'EXAM' ? 1 : 3
         const { data: newHw, error: hwCreateError } = await serviceRoleClient
