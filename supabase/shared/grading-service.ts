@@ -54,12 +54,33 @@ export interface ExamGradingResult {
 
 /**
  * Normalizes short-answer string and numeric representation
+ * Supports comma decimal (,), fraction string (a/b), and Unicode minus characters (−, –, —)
  */
 function normalizeShortAnswer(val: unknown): { str: string; num: number | null } {
   if (val === undefined || val === null) return { str: '', num: null }
-  const str = String(val).trim().toLowerCase()
-  const sanitizedNumStr = str.replace(',', '.')
-  const num = !isNaN(Number(sanitizedNumStr)) && sanitizedNumStr !== '' ? Number(sanitizedNumStr) : null
+  let str = String(val).trim().toLowerCase()
+  // Replace Unicode minus characters: − (\u2212), – (\u2013), — (\u2014)
+  str = str.replace(/[\u2212\u2013\u2014]/g, '-')
+  // Replace comma with dot
+  const sanitized = str.replace(',', '.')
+
+  let num: number | null = null
+
+  // Check fraction format: e.g. "7/2", "-3/4", "+1.5 / 2"
+  const fractionMatch = sanitized.match(/^([+-]?\d+(?:\.\d+)?)\s*\/\s*([+-]?\d+(?:\.\d+)?)$/)
+  if (fractionMatch) {
+    const numPart = Number(fractionMatch[1])
+    const denPart = Number(fractionMatch[2])
+    if (!isNaN(numPart) && !isNaN(denPart) && denPart !== 0) {
+      num = numPart / denPart
+    }
+  } else {
+    const parsed = Number(sanitized)
+    if (!isNaN(parsed) && sanitized !== '') {
+      num = parsed
+    }
+  }
+
   return { str, num }
 }
 

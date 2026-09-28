@@ -718,7 +718,7 @@ export function renderCreateHwView() {
                     </div>
                     <div style="display:flex; align-items:flex-end;">
                       <button class="btn-primary" id="save-homework-btn" style="width:100%; padding:9px 12px; font-size:13px; cursor:pointer; height:36px;">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu & Xuất bản'}
+                        <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu'}
                       </button>
                     </div>
                   </div>
@@ -2115,8 +2115,8 @@ export function bindCreateHwEvents() {
         deadline = dlObj.toISOString()
       }
     }
-    const maxAttemptsVal = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
-    const maxViolationsVal = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
+    const maxAttempts = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
+    const maxViolations = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
     const typeVal = document.getElementById('hw-type')?.value || 'PRACTICE'
     const showSolutions = document.getElementById('hw-show-solutions') ? document.getElementById('hw-show-solutions').checked : true
 

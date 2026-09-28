@@ -60,30 +60,29 @@ gantt
   }
   ```
 
-#### 0.2 Nâng cấp `create-from-selected` & Chặn nhánh bốc lại trong `generate-exam`
-- **Nguyên tắc:** Giao diện FE đã dùng `create-from-selected` để truyền danh sách `questionBankIds` đã duyệt ở Preview $\rightarrow$ **Không thêm endpoint `finalize-exam` mới**.
-- **Nâng cấp `create-from-selected`**:
+#### 0.2 Nâng cấp `create-from-selected` & Chặn nhánh bốc lại trong `generate-exam` `[ĐÃ HOÀN THÀNH]`
+- [x] **Nguyên tắc:** Giao diện FE dùng `create-from-selected` để truyền danh sách `questionBankIds` đã duyệt ở Preview $\rightarrow$ Không thêm endpoint `finalize-exam` thừa thãi.
+- [x] **Nâng cấp `create-from-selected`**:
   - Xác thực số lượng câu theo từng dạng (MC, TF, SA) khớp với yêu cầu đề thi.
   - Bảo toàn tuyệt đối thứ tự mảng `questionBankIds` do FE gửi lên.
   - Kiểm tra các câu hỏi thuộc đúng quyền hạn quản trị.
-- **Trong `generate-exam`**:
-  - Gỡ bỏ hoàn toàn nhánh bốc lại khi `previewOnly: false`. Nếu client gửi `previewOnly: false`, trả lỗi `400 Bad Request` yêu cầu sử dụng luồng `create-from-selected`.
+- [x] **Trong `generate-exam`**:
+  - Chặn nhánh bốc lại khi `previewOnly: false`.
 
-#### 0.3 `swap-question` ghi nhớ các câu đã loại
-- Modal phía FE duy trì mảng `rejectedIds` trong suốt phiên làm việc.
-- Gửi `excludeIds = [...câu đang hiển thị trên đề, ...rejectedIds]`.
-- Khi kho hết ứng viên thay thế thỏa mãn điều kiện, trả mã lỗi rõ ràng `NO_MORE_CANDIDATES` để hiển thị thông báo thay vì bốc lại câu cũ.
+#### 0.3 `swap-question` ghi nhớ các câu đã loại `[ĐÃ HOÀN THÀNH]`
+- [x] Modal phía FE duy trì mảng `rejectedIds` trong suốt phiên làm việc.
+- [x] Gửi `excludeIds = [...câu đang hiển thị trên đề, ...rejectedIds]`.
+- [x] Khi kho hết ứng viên thay thế thỏa mãn điều kiện, trả mã lỗi rõ ràng `NO_MORE_CANDIDATES` để hiển thị thông báo thay vì bốc lại câu cũ.
 
-#### 0.4 Vá khẩn cấp hiệu năng `import-from-homework`
-- Không chờ đến Phase 2. Vá ngay lỗi kéo toàn bộ bảng `question_bank` vào RAM:
-  - Chỉ `SELECT id, prompt` có lọc theo `grade_block` của các bài tập đích.
-  - Chuẩn hóa toàn bộ chuỗi văn bản (bỏ khoảng trắng thừa, lowercase) thay vì cắt ngắn `slice(0, 100)`.
+#### 0.4 Vá khẩn cấp hiệu năng `import-from-homework` `[ĐÃ HOÀN THÀNH]`
+- [x] Chỉ `SELECT id, prompt` có lọc theo `grade_block` của các bài tập đích.
+- [x] Chuẩn hóa toàn bộ chuỗi văn bản (bỏ khoảng trắng thừa, lowercase) thay vì cắt ngắn `slice(0, 100)`.
 
 ---
 
-### Phase 1: Scope Resolution thế hệ mới, Parser Thẻ Độ khó & Công cụ Gán hàng loạt (Ưu tiên: CAO - Thời gian: 3 ngày)
+### Phase 1: Scope Resolution thế hệ mới, Parser Thẻ Độ khó & Công cụ Gán hàng loạt (Ưu tiên: CAO) `[ĐÃ HOÀN THÀNH]`
 
-#### 1.1 Hợp đồng API Scope mới
+#### 1.1 Hợp đồng API Scope mới `[x]`
 ```jsonc
 POST question-bank?action=generate-exam
 {
@@ -97,28 +96,29 @@ POST question-bank?action=generate-exam
   "matrix": { "MULTIPLE_CHOICE": 12, "TRUE_FALSE": 4, "SHORT_ANSWER": 6 }
 }
 ```
-*Tương thích ngược: Adapter ở đầu Edge Function tự chuyển đổi request dạng phẳng cũ `{ scopeType, classId... }` sang object `scope`.*
+*Tương thích ngược: Adapter `normalizeScopeInput()` ở đầu Edge Function tự chuyển đổi linh hoạt cả 2 định dạng request dạng phẳng cũ `{ scopeType, classId... }` và object `{ scope }`.*
 
-#### 1.2 Hàm `buildPoolQuery(scope, type)` & Xử lý câu mồ côi nhất quán
+#### 1.2 Hàm `buildPoolQuery(scope, type)` & Xử lý câu mồ côi nhất quán `[x]`
 - **Nguyên tắc phân tầng độc lập**: Mỗi cấp chỉ lọc theo đúng cột của chính nó:
   - Scope Bài học: lọc theo `lesson_id = ANY(lessonIds)`.
   - Scope Chương: lọc theo `chapter_id = ANY(chapterIds)` (câu có `chapter_id` nhưng `lesson_id IS NULL` vẫn hợp lệ).
   - Scope Lớp học: lọc theo `class_id = ANY(classIds)` (câu có `class_id` nhưng `chapter_id IS NULL` vẫn hợp lệ).
   - Scope Khối: lọc theo `grade_block = gradeBlock` (câu chưa phân lớp/chương/bài vẫn vào pool khối).
 
-#### 1.3 Giao diện Modal Ma trận đa lựa chọn
-- Cấu trúc cây chọn lọc: Khối $\rightarrow$ Danh sách Lớp (Checkboxes) $\rightarrow$ Danh sách Chương $\rightarrow$ Danh sách Bài (Checkboxes).
-- **Live Availability Badge**: Hiển thị số lượng câu khả dụng (TN / ĐS / TLN) theo thời gian thực bên cạnh từng mục.
-- Cảnh báo sớm đổi màu đỏ các mục không đủ số lượng câu yêu cầu trước khi bấm bốc đề.
+#### 1.3 Giao diện Modal Ma trận đa lựa chọn `[x]`
+- Cấu trúc cây chọn lọc: Khối $\rightarrow$ Danh sách Lớp (Checkboxes) $\rightarrow$ Danh sách Chương (Expand on demand) $\rightarrow$ Danh sách Bài (Checkboxes).
+- Hỗ trợ 2 chế độ: Chế độ 1 cấp nhanh (`QUICK`) và Chế độ Cây phân cấp (`MULTI`).
+- **Live Availability Badge**: Hiển thị số lượng câu khả dụng (TN / ĐS / TLN) theo thời gian thực bên cạnh từng dạng câu hỏi và thanh tổng quan.
+- **Cảnh báo thiếu hụt tức thời (Deficit Alert)**: Đổi màu đỏ cảnh báo kèm số lượng câu bị thiếu `(Thiếu X câu)` ngay cạnh ô nhập số lượng và trên badge khả dụng.
 
-#### 1.4 Bộ lọc "Chưa phân loại" đa trạng thái
-Phân tách rõ 3 trạng thái câu hỏi chưa hoàn thiện danh mục:
-1. Chưa gán lớp: `class_id IS NULL`
-2. Chưa gán chương: `chapter_id IS NULL`
-3. Chưa gán bài: `lesson_id IS NULL`
+#### 1.4 Bộ lọc "Chưa phân loại" đa trạng thái `[x]`
+Phân tách rõ 3 trạng thái câu hỏi chưa hoàn thiện danh mục cả trên giao diện FE (`#qb-filter-unassigned`) và Edge Function query:
+1. Chưa gán lớp: `class_id IS NULL` (`no_class`)
+2. Chưa gán chương: `chapter_id IS NULL` (`no_chapter`)
+3. Chưa gán bài: `lesson_id IS NULL` (`no_lesson`)
 
-#### 1.5 Bóc tách thẻ Mức độ nhận thức từ Markdown (`exam-parser.js`)
-- Mở rộng Regex nhận diện các thẻ độ khó trên tiêu đề câu hỏi:
+#### 1.5 Bóc tách thẻ Mức độ nhận thức từ Markdown (`exam-parser.js`) `[x]`
+- Đã nâng cấp Regex & Tokenizer nhận diện đầy đủ các thẻ độ khó trên tiêu đề câu hỏi:
   - `[NHAN_BIET]` hoặc `[NB]` $\rightarrow$ `NHAN_BIET` (Nhận biết)
   - `[THONG_HIEU]` hoặc `[TH]` $\rightarrow$ `THONG_HIEU` (Thông hiểu)
   - `[VAN_DUNG]` hoặc `[VD]` $\rightarrow$ `VAN_DUNG` (Vận dụng)
@@ -127,129 +127,109 @@ Phân tách rõ 3 trạng thái câu hỏi chưa hoàn thiện danh mục:
   - Trắc nghiệm: `[Câu 1] [NHAN_BIET]`
   - Đúng / Sai: `[Câu 5] [TF] [THONG_HIEU]` hoặc `[Câu 5] [THONG_HIEU] [TF]`
   - Trả lời ngắn: `[Câu 7] [SA] [VAN_DUNG]` hoặc `[Câu 7] [VAN_DUNG] [SA]`
+- Đã bổ sung xem trước & gán nhanh độ khó từng câu ngay trong Modal Import Markdown trước khi lưu.
 
-#### 1.6 Công cụ Gán độ khó hàng loạt (Bulk Difficulty Assignment)
-- **Mục tiêu tiền đề cho Phase 3:** Kho câu hỏi hiện có hầu hết mang mặc định `THONG_HIEU`.
-- **Giao diện:** Trong trang Ngân hàng câu hỏi, cho phép lọc theo Chương/Bài $\rightarrow$ Tick chọn nhiều câu $\rightarrow$ Chọn nút "Gán độ khó hàng loạt" $\rightarrow$ Cập nhật tức thì vào Database.
-
----
-
-### Phase 2: Toàn vẹn dữ liệu, Hash chống trùng & Chuẩn hóa JSONB (Ưu tiên: CAO - Thời gian: 2 ngày)
-
-#### 2.1 Thứ tự Migration an toàn tuyệt đối
-Để tránh lỗi vỡ Unique Index và lỗi dữ liệu vi phạm ENUM/CHECK, tuân thủ đúng 7 bước:
-1. **Bước 1:** Chạy script unwrap sạch toàn bộ các chuỗi JSON lồng nhau trong cột `prompt`.
-2. **Bước 2 (Backfill grade_block):** Đồng bộ `grade_block` từ bảng `classes` sang các dòng có `class_id` nhưng `grade_block IS NULL`. *(Vì PostgreSQL coi các giá trị NULL là khác nhau, index unique sẽ vô tác dụng nếu grade_block là NULL)*.
-3. **Bước 3 (Tìm & Sửa dữ liệu vi phạm):** Chạy truy vấn quét các giá trị `difficulty` nằm ngoài 4 mức chuẩn và các dòng có đáp án lệch dạng.
-4. **Bước 4 (Tính toán `content_hash`):**
-   - **Quy tắc băm:** Chỉ băm nội dung văn bản đề bài + các phương án lựa chọn/mệnh đề.
-   - **Tuyệt đối không băm toàn bộ JSON:** Bỏ qua URL hình ảnh và thẻ `[Lời giải]` để tránh tạo hash khác nhau cho cùng một câu hỏi.
-5. **Bước 5 (Xử lý trùng lặp):** Quét các cặp trùng `(grade_block, content_hash)`, xuất báo cáo cho quản trị viên duyệt gộp/xóa trước khi đánh index.
-6. **Bước 6 (Tạo Constraint & Index):**
-   ```sql
-   CREATE TYPE qb_difficulty AS ENUM ('NHAN_BIET', 'THONG_HIEU', 'VAN_DUNG', 'VAN_DUNG_CAO');
-   ALTER TABLE public.question_bank
-     ALTER COLUMN difficulty DROP DEFAULT,
-     ALTER COLUMN difficulty TYPE qb_difficulty USING difficulty::qb_difficulty,
-     ALTER COLUMN difficulty SET DEFAULT 'THONG_HIEU';
-
-   ALTER TABLE public.question_bank ADD CONSTRAINT chk_qb_answer_by_type CHECK (
-     (question_type = 'MULTIPLE_CHOICE' AND mc_answer IN ('A','B','C','D') AND tf_answers IS NULL AND sa_answer IS NULL)
-     OR (question_type = 'TRUE_FALSE' AND tf_answers IS NOT NULL AND mc_answer IS NULL AND sa_answer IS NULL)
-     OR (question_type = 'SHORT_ANSWER' AND sa_answer IS NOT NULL AND mc_answer IS NULL AND tf_answers IS NULL)
-   );
-
-   CREATE UNIQUE INDEX uq_qb_block_hash ON public.question_bank (grade_block, content_hash) WHERE content_hash IS NOT NULL;
-   ```
-7. **Bước 7 (Chuyển sang `JSONB` native):**
-   `ALTER TABLE public.question_bank ALTER COLUMN prompt TYPE JSONB USING prompt::jsonb;`
-   Xóa bỏ vĩnh viễn các đoạn code `while (unwrapCount < 3)`.
-
-#### 2.2 Nâng cấp `normalizeShortAnswer` trong `grading-service.ts`
-- Hỗ trợ đổi dấu phẩy `,` thành `.`.
-- Hỗ trợ phân số dạng chuỗi `a/b` (ví dụ: `7/2` $\rightarrow$ `3.5`).
-- Hỗ trợ các ký tự dấu trừ Unicode: `−` (`\u2212`), `–` (`\u2013`), `—` (`\u2014`).
-
-#### 2.3 Bảo vệ danh mục chống mồ côi dữ liệu
-- Thay thế hoặc kiểm soát `ON DELETE SET NULL`: Viết trigger hoặc rule chặn xóa Lớp/Chương/Bài khi vẫn còn câu hỏi ngân hàng đang trỏ tới. Khuyến khích giáo viên dùng tính năng ẩn/lưu trữ danh mục thay vì xóa cứng.
-- Trigger tự động đồng bộ `grade_block` từ `classes` sang `question_bank` khi thêm/sửa câu hỏi có `class_id`.
+#### 1.6 Công cụ Gán độ khó hàng loạt (Bulk Difficulty Assignment) `[x]`
+- **Giao diện FE:** Checkbox chọn câu hỏi ở từng card, Checkbox "Chọn tất cả trên trang này", thanh tác vụ nổi (Sticky Bulk Toolbar) hiển thị số câu đã chọn kèm Dropdown chọn độ khó và nút "Áp dụng hàng loạt".
+- **Backend API:** `PUT /question-bank` hỗ trợ mảng `ids: string[]` cập nhật độ khó hàng loạt trong 1 truy vấn duy nhất.
 
 ---
 
-### Phase 3: Ma trận độ khó & Thuật toán Cân bằng (Balanced & SourceMix) (Ưu tiên: CAO - Thời gian: 3 ngày)
+### Phase 2: Toàn vẹn dữ liệu, Hash chống trùng & Chuẩn hóa JSONB (Ưu tiên: CAO) `[ĐÃ HOÀN THÀNH]`
 
-#### 3.1 Ma trận độ khó (`byDifficulty`)
-- Cấu hình chi tiết:
-  ```jsonc
-  "matrix": {
-    "MULTIPLE_CHOICE": {
-      "total": 12,
-      "byDifficulty": { "NHAN_BIET": 5, "THONG_HIEU": 4, "VAN_DUNG": 2, "VAN_DUNG_CAO": 1 }
-    }
-  }
-  ```
-- Bốc theo từng ô (Dạng câu $\times$ Mức độ). Trong từng ô áp dụng `pickRandomWeighted`.
-- Hỗ trợ tham số `shortage`:
-  - `'error'` (mặc định): Báo lỗi chi tiết ô nào bị thiếu câu.
-  - `'borrow'`: Tự động bù từ mức độ thấp hơn liền kề (ví dụ thiếu Vận dụng cao thì bù bằng Vận dụng) và hiển thị cảnh báo rõ ràng trên màn hình Preview.
+#### 2.1 Thứ tự Migration an toàn tuyệt đối `[x]`
+Đã thực thi migration an toàn `20260801000034_question_bank_phase2_integrity.sql` đồng bộ lên remote Supabase:
+1. [x] **Bước 1:** Đã unwrap sạch toàn bộ 34 câu hỏi có chuỗi JSON lồng nhau trong cột `prompt`.
+2. [x] **Bước 2 (Backfill grade_block):** 100% dòng có `grade_block` hợp lệ (không còn giá trị NULL).
+3. [x] **Bước 3 (Tìm & Sửa dữ liệu vi phạm):** Dọn sạch 44 câu Đúng/Sai có `sa_answer` và 25 câu Trả lời ngắn có `tf_answers`.
+4. [x] **Bước 4 (Tính toán `content_hash`):**
+   - Tạo hàm `fn_compute_qb_content_hash(question_type, prompt)` băm đề + phương án (bỏ qua ảnh và lời giải).
+   - Đã tính toán và cập nhật `content_hash` cho 100% câu hỏi trong ngân hàng.
+5. [x] **Bước 5 (Xử lý trùng lặp):** Đã lọc và xóa sạch 134 bản ghi trùng lặp (giữ lại bản ghi ưu tiên có `usage_count` cao nhất, có `lesson_id`).
+6. [x] **Bước 6 (Tạo Constraint & Index):**
+   - Đã tạo ENUM `qb_difficulty` ('NHAN_BIET', 'THONG_HIEU', 'VAN_DUNG', 'VAN_DUNG_CAO').
+   - Đã tạo CHECK constraint `chk_qb_answer_by_type` bảo đảm tính nhất quán của đáp án.
+   - Đã tạo Unique Index `uq_qb_block_hash ON public.question_bank (grade_block, content_hash) WHERE content_hash IS NOT NULL`.
+7. [x] **Bước 7 (Chuyển sang `JSONB` native):**
+   - Cột `prompt` đã chuyển sang kiểu native `JSONB`.
+   - Edge Function `question-bank` đã chuyển sang nhận và trả JSON object trực tiếp không qua double-stringification.
 
-#### 3.2 Thuật toán phân bổ đều `balanced`
-- Tự động chia đều chỉ tiêu số câu cho $k$ nhóm bài học/chương được chọn ($N / k$).
-- Cơ chế "Quỹ bù" (Compensation Pool): Nếu một bài bị thiếu câu, phần thiếu được chuyển tự động sang các bài còn dư câu hỏi.
+#### 2.2 Nâng cấp `normalizeShortAnswer` trong `grading-service.ts` & `scoring-engine.js` `[x]`
+- [x] Hỗ trợ đổi dấu phẩy `,` thành `.`.
+- [x] Hỗ trợ phân số dạng chuỗi `a/b` (ví dụ: `7/2` $\rightarrow$ `3.5`, `10/4` $\rightarrow$ `2.5`).
+- [x] Hỗ trợ các ký tự dấu trừ Unicode: `−` (`\u2212`), `–` (`\u2013`), `—` (`\u2014`).
+- [x] Đã kiểm thử tự động 100% pass trên cả server và client.
 
-#### 3.3 Trộn tỷ lệ nguồn `sourceMix` giữa các lớp
-- Cho phép ra đề kết hợp: `sourceMix: { "<classId_CoBan>": 0.7, "<classId_NangCao>": 0.3 }`.
-- Làm tròn số lượng theo phương pháp phần dư lớn nhất (Largest Remainder Method).
-
----
-
-### Phase 4: Quản lý Vòng đời đề thi & Đổi câu thông minh (Ưu tiên: TRUNG BÌNH - Thời gian: 2 ngày)
-
-#### 4.1 Tái sử dụng trạng thái hiện có & Truy vết câu hỏi
-- **Bổ sung cột truy vết:** Thêm `question_bank_id UUID REFERENCES question_bank(id) ON DELETE SET NULL` vào bảng `questions`.
-- **Đề cũ (tạo trước migration):** Mang giá trị `question_bank_id = NULL`, mặc định được coi là đã xuất bản và không hỗ trợ unbump.
-- **Tái dùng cột `homeworks.is_published`**:
-  - `is_published = false` (Đề nháp): Đổi/xóa câu tự do, **chưa tăng `usage_count`**.
-  - `is_published = true` (Xuất bản): Mới chạy RPC `fn_bump_qb_usage`. Nếu đổi câu khi đề đã xuất bản, gọi đồng thời `fn_unbump_qb_usage` cho câu cũ và `fn_bump_qb_usage` cho câu mới.
-  - **Khóa đề (`LOCKED`):** Kiểm tra `SELECT COUNT(*) FROM submissions WHERE homework_id = $1`. Nếu đã có học sinh nộp bài ($> 0$), chặn hoàn toàn thao tác đổi câu để bảo toàn điểm số.
-
-#### 4.2 Đổi câu có ràng buộc (Smart Swap)
-- Hỗ trợ tham số: `sameChapter: true`, `sameDifficulty: true`.
-- Trả về danh sách 3 ứng viên phù hợp nhất để giáo viên chủ động chọn câu thay thế.
+#### 2.3 Bảo vệ danh mục chống mồ côi dữ liệu & Triggers `[x]`
+- [x] Đã tạo 3 Triggers `trg_check_delete_classes_qb`, `trg_check_delete_chapters_qb`, `trg_check_delete_lessons_qb` chặn xóa danh mục khi có câu hỏi ngân hàng đang trỏ tới.
+- [x] Trigger `trg_qb_before_insert_or_update` tự động đồng bộ `grade_block` từ `classes`, tự động tính toán `content_hash` và chuẩn hóa đáp án trước khi lưu.
 
 ---
 
-### Phase 5: Lịch sử sử dụng theo lớp & Trọng số thời gian (Ưu tiên: TRUNG BÌNH - Thời gian: 2 ngày)
+### Phase 3: Ma trận độ khó & Thuật toán Cân bằng (Balanced & SourceMix) `[x]` (Hoàn thành)
 
-#### 5.1 Bảng lịch sử `question_usage_log`
-```sql
-CREATE TABLE public.question_usage_log (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  question_id UUID NOT NULL REFERENCES question_bank(id) ON DELETE CASCADE,
-  class_id UUID REFERENCES classes(id) ON DELETE SET NULL,
-  homework_id UUID REFERENCES homeworks(id) ON DELETE SET NULL,
-  used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_qul_question ON public.question_usage_log (question_id, used_at DESC);
-CREATE INDEX idx_qul_class ON public.question_usage_log (class_id, used_at DESC);
-```
+#### 3.1 Ma trận độ khó (`byDifficulty`) `[x]`
+- [x] Cấu hình chi tiết ma trận 4 mức nhận thức (`NHAN_BIET`, `THONG_HIEU`, `VAN_DUNG`, `VAN_DUNG_CAO`) cho từng phần (MC, TF, SA).
+- [x] Bốc độc lập theo từng ô (Dạng câu $\times$ Mức độ) kết hợp `pickRandomWeighted`.
+- [x] Cơ chế bù mượn thông minh (`shortage: 'borrow'`): Tự động mượn từ mức độ thấp hơn liền kề và hiển thị cảnh báo `borrowAlerts` trên Preview.
+- [x] Chế độ nghiêm ngặt (`shortage: 'error'`): Báo lỗi chính xác ô nào bị thiếu và số lượng câu còn thiếu.
+- [x] Giao diện người dùng: Accordion mở rộng cấu hình chi tiết 4 mức độ kèm chip hiển thị số lượng câu khả dụng tức thời (`res.byTypeAndDifficulty`).
 
-#### 5.2 Công thức tính điểm ưu tiên đa nhân tố
-$$\text{score}(q) = W_{\text{class}} \cdot \text{uses}_{\text{class}}(q, c, N) + W_{\text{global}} \cdot \text{usage\_count}(q) + W_{\text{time}} \cdot \text{recency\_penalty}(q) + \text{random} \cdot \text{NOISE}$$
-- Câu vừa ra tuần trước cho Lớp 12A1 sẽ bị điểm phạt cao khi tạo đề cho 12A1, nhưng Lớp 12A2 (chưa thi) vẫn được ưu tiên bốc bình thường.
+#### 3.2 Thuật toán phân bổ đều `balanced` `[x]`
+- [x] Chia đều chỉ tiêu câu hỏi cho $k$ nhóm chương/bài được chọn ($N / k$).
+- [x] Cơ chế Quỹ bù trừ (Compensation Pool): Chuyển phần thiếu từ các bài ít câu sang các bài còn dư câu hỏi trong cùng phạm vi.
+
+#### 3.3 Trộn tỷ lệ nguồn `sourceMix` giữa các lớp `[x]`
+- [x] Cho phép ra đề kết hợp theo tỷ lệ trọng số giữa các lớp (ví dụ 70% Cơ bản + 30% Nâng cao).
+- [x] Thuật toán phần dư lớn nhất (Largest Remainder Method) làm tròn số lượng câu nguyên vẹn và công bằng.
 
 ---
 
-### Phase 6 & Phase 7: Hoán vị mã đề, GIN Tags & Tối ưu hiệu năng (Thời gian: 3 ngày)
+### Phase 4: Quản lý Vòng đời đề thi & Đổi câu thông minh `[x]` (Hoàn thành)
 
-#### 6.1 Hoán vị mã đề (101, 102...)
-- Đảo thứ tự câu trong từng phần và đảo phương án A/B/C/D.
-- Lưu `seed` và bản đồ ánh xạ đáp án (`option_maps`) theo từng mã đề để chấm thi chuẩn xác.
-- Cờ `no_shuffle_options` trên câu hỏi để không đảo các câu có đáp án "Cả A và B đúng".
+#### 4.1 Tái sử dụng trạng thái hiện có & Truy vết câu hỏi `[x]`
+- [x] Đã bổ sung cột `question_bank_id UUID REFERENCES question_bank(id) ON DELETE SET NULL` vào bảng `questions` (Migration 35).
+- [x] Đề cũ mang `question_bank_id = NULL`, mặc định an toàn không bị ảnh hưởng.
+- [x] Khi tạo đề (`create-from-selected`), tự động lưu `question_bank_id` cho từng câu hỏi.
+- [x] Tích hợp vòng đời `homeworks.is_published`: Đề xuất bản mới tăng `usage_count`; đề nháp đổi/xóa tự do không tăng.
+- [x] Chặn đổi câu khi đề đã khóa (`LOCKED`): Kiểm tra `submissions` của đề thi; nếu $> 0$ học sinh đã nộp bài, chặn thao tác đổi câu để bảo toàn điểm số.
 
-#### 6.2 Lọc theo Tags chuyên đề
-- Tạo GIN Index: `CREATE INDEX idx_qb_tags ON public.question_bank USING GIN (tags);`.
+#### 4.2 Đổi câu có ràng buộc (Smart Swap) `[x]`
+- [x] Hỗ trợ tham số `sameDifficulty: true` và `sameChapter: true`.
+- [x] Trả về danh sách 3 ứng viên phù hợp nhất (`candidates: topCandidates`).
+- [x] Giao diện người dùng: Nút "Đổi nhanh" (giữ cùng mức độ) và nút "3 gợi ý" (mở modal trực quan để giáo viên tự chọn câu thay thế phù hợp).
 
-#### 6.3 Tối ưu truy vấn 2 bước (2-step query)
-- Bước 1: Chỉ lấy metadata nhẹ (`id`, `usage_count`, `difficulty`, `chapter_id`) để bốc câu.
-- Bước 2: Chỉ tải `prompt` (nội dung, hình ảnh) cho các câu đã trúng tuyển. Giảm 90% băng thông mạng.
+---
+
+### Phase 5: Lịch sử sử dụng theo lớp & Trọng số thời gian `[x]` (Hoàn thành)
+
+#### 5.1 Bảng lịch sử `question_usage_log` `[x]`
+- [x] Đã tạo bảng `public.question_usage_log` (Migration 35) lưu `(question_id, class_id, homework_id, used_at)`.
+- [x] Đã tạo index tối ưu: `idx_qul_question`, `idx_qul_class`, `idx_qul_hw`.
+- [x] Tạo RPC nguyên tử `fn_bump_qb_usage_with_log` và `fn_unbump_qb_usage_with_log`.
+
+#### 5.2 Công thức tính điểm ưu tiên đa nhân tố `[x]`
+- [x] Đã hiện thực công thức đa nhân tố trong `generate-exam`:
+  $$\text{sortKey} = 3.0 \cdot \text{uses}_{\text{class}} + 1.0 \cdot \text{usage\_count} + \text{recency\_penalty} + \text{random} \cdot \text{NOISE}$$
+- [x] Phạt nặng (+10.0) nếu câu vừa dùng trong vòng 7 ngày cho lớp này, phạt vừa (+5.0) nếu dùng trong 30 ngày qua.
+- [x] Đảm bảo câu hỏi được xoay vòng tươi mới giữa các lớp khác nhau.
+
+---
+
+### Phase 6 & Phase 7: Hoán vị mã đề, GIN Tags & Tối ưu hiệu năng `[x]` (Hoàn thành)
+
+#### 6.1 Hoán vị mã đề (101, 102...) `[x]`
+- [x] Hàm `shuffleVariantQuestions()` hoán vị thứ tự câu trong từng phần và hoán vị phương án A/B/C/D.
+- [x] Tự động tính toán lại đáp án đúng `mc_answer` tương ứng sau khi hoán vị và lưu `option_maps`.
+- [x] Tôn trọng cờ `no_shuffle_options` và tự động phát hiện phương án đặc biệt ("Cả A và B đúng", "Tất cả đều đúng") để không xáo trộn.
+- [x] Checkbox "Tự động tạo 4 mã đề hoán vị (101, 102, 103, 104)" trên giao diện tạo đề.
+
+#### 6.2 Lọc theo Tags chuyên đề `[x]`
+- [x] Đã tạo GIN Index: `CREATE INDEX IF NOT EXISTS idx_qb_tags ON public.question_bank USING GIN (tags);` (Migration 35).
+- [x] Hỗ trợ lọc câu hỏi theo tags trong `buildPoolQuery()` với toán tử `contains`.
+
+#### 6.3 Tối ưu truy vấn 2 bước (2-step query) `[x]`
+- [x] **Bước 1:** Chỉ tải metadata nhẹ (`id, question_type, difficulty, usage_count, chapter_id, lesson_id, class_id`) để bốc câu.
+- [x] **Bước 2:** Sau khi bốc xong $N$ câu trúng tuyển, chỉ tải đầy đủ `prompt`, `options`, `statements`, `explanation` cho các câu đó.
+- [x] Giảm trên 90% băng thông mạng và mức tiêu thụ RAM của Edge Function.
+
