@@ -169,11 +169,9 @@ async function router() {
         const classId = hash === 'my-classes' ? params.get('classId') : null
         const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
 
-        state.classChaptersCache = state.classChaptersCache || {}
-        const needClasses = (!state.classes || state.classes.length === 0 || hash === 'classes-admin')
-        const needChapters = classId ? !state.classChaptersCache[classId] : false
-        const needStudents = ['students', 'classes-admin', 'class-details', 'student-details'].includes(hash) &&
-          (!state.students || state.students.length === 0 || hash === 'students')
+        const needClasses = true
+        const needChapters = Boolean(classId)
+        const needStudents = ['students', 'classes-admin', 'class-details', 'student-details'].includes(hash)
 
         const prefetchTasks = []
         const taskTypes = []
@@ -205,7 +203,7 @@ async function router() {
                 progress: 0
               }))
             } else if (type === 'chapters') {
-              state.classChaptersCache[classId] = (res || []).map(ch => ({
+              state.classChapters = (res || []).map(ch => ({
                 id: ch.id,
                 code: '',
                 title: ch.title,
@@ -248,7 +246,6 @@ async function router() {
         // Active class & lesson handling for My Classes page
         if (hash === 'my-classes') {
           if (classId) {
-            state.classChapters = state.classChaptersCache[classId] || []
 
             if (lessonId) {
               let foundLesson = null

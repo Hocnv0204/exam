@@ -12,8 +12,6 @@ import { renderPaginationBar, bindPaginationEvents } from '../components/paginat
 let allQuestions = []
 let allClasses = []
 let cachedGradeBlocksList = []
-let chaptersCache = {} // classId -> chapters
-let lessonsCache = {}  // chapterId -> lessons
 
 let filterState = {
   gradeBlock: '',
@@ -272,21 +270,17 @@ async function loadInitialData() {
       filterState.gradeBlock = urlGradeBlock
     }
 
-    // 1. Reuse existing classes from state if available, or fetch once
-    if (state.classes && state.classes.length > 0) {
-      allClasses = state.classes
-    } else {
-      const rawClasses = await api.getClasses()
-      allClasses = rawClasses || []
-      state.classes = (rawClasses || []).map(c => ({
-        id: c.id,
-        name: c.name,
-        gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
-        studentsCount: c.studentsCount || 0,
-        tuitionFee: c.tuitionFee || 0,
-        progress: 0
-      }))
-    }
+    // 1. Fetch fresh classes from API
+    const rawClasses = await api.getClasses()
+    allClasses = (rawClasses || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+      studentsCount: c.studentsCount || 0,
+      tuitionFee: c.tuitionFee || 0,
+      progress: 0
+    }))
+    state.classes = allClasses
 
     // 2. Populate grade blocks synchronously from loaded classes
     populateGradeBlockDropdowns()
@@ -462,19 +456,11 @@ async function loadChaptersForGradeBlock(gradeBlock, targetSelect) {
     const targetClasses = (allClasses || []).filter(c => !gradeBlock || (c.gradeBlock || c.grade_block) === gradeBlock)
     let combinedChapters = []
     await Promise.all(targetClasses.map(async (c) => {
-      if (!chaptersCache[c.id]) {
-        const chs = await api.getChapters(c.id, true)
-        chaptersCache[c.id] = chs || []
-      }
-      const list = (chaptersCache[c.id] || []).map(ch => {
-        if (ch.lessons && Array.isArray(ch.lessons)) {
-          lessonsCache[ch.id] = ch.lessons
-        }
-        return {
-          ...ch,
-          className: c.name
-        }
-      })
+      const chs = await api.getChapters(c.id, true)
+      const list = (chs || []).map(ch => ({
+        ...ch,
+        className: c.name
+      }))
       combinedChapters.push(...list)
     }))
 
@@ -495,14 +481,9 @@ async function loadChaptersForGradeBlock(gradeBlock, targetSelect) {
 async function loadChaptersForClass(classId, targetSelect) {
   if (!targetSelect) return
   try {
-    let chapters = chaptersCache[classId]
-    if (!chapters) {
-      chapters = await api.getChapters(classId, true)
-      chaptersCache[classId] = chapters || []
-    }
-
+    const chapters = await api.getChapters(classId, true)
     let html = '<option value="">-- Tất cả Chương --</option>'
-    ;(chaptersCache[classId] || []).forEach(ch => {
+    ;(chapters || []).forEach(ch => {
       html += `<option value="${ch.id}">${ch.title}</option>`
     })
     targetSelect.innerHTML = html
@@ -514,14 +495,9 @@ async function loadChaptersForClass(classId, targetSelect) {
 async function loadLessonsForChapter(chapterId, targetSelect) {
   if (!targetSelect) return
   try {
-    let lessons = lessonsCache[chapterId]
-    if (!lessons) {
-      lessons = await api.getLessons(chapterId)
-      lessonsCache[chapterId] = lessons || []
-    }
-
+    const lessons = await api.getLessons(chapterId)
     let html = '<option value="">-- Tất cả Bài học --</option>'
-    ;(lessonsCache[chapterId] || []).forEach(l => {
+    ;(lessons || []).forEach(l => {
       html += `<option value="${l.id}">${l.title}</option>`
     })
     targetSelect.innerHTML = html

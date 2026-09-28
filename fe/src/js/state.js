@@ -9,7 +9,6 @@ export const state = {
   homeworks: [],
   submissions: [],
   classChapters: [],
-  classChaptersCache: {},
   activeLessonHomeworks: []
 }
 
@@ -18,7 +17,6 @@ export function setSession(user, token, refreshToken = null) {
   state.token = token
   state.classes = []
   state.classChapters = []
-  state.classChaptersCache = {}
   state.activeLessonHomeworks = []
   if (refreshToken) {
     state.refreshToken = refreshToken

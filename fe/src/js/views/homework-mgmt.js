@@ -10,8 +10,6 @@ let currentHomeworks = []
 let totalHomeworks = 0
 let globalStats = { total: 0, practiceCount: 0, examCount: 0, classesCount: 0 }
 let allClasses = []
-let chaptersCache = {} // classId -> chapters array
-let lessonsCache = {}  // chapterId -> lessons array
 
 let filterState = {
   search: '',
@@ -230,14 +228,17 @@ export function bindHomeworkMgmtEvents() {
 async function loadData() {
   const tableBody = document.getElementById('hw-table-body')
   try {
-    // 1. Populate allClasses: use state.classes if cached, or fetch via api.getClasses()
-    if (state.classes && state.classes.length > 0) {
-      allClasses = state.classes
-    } else {
-      const cls = await api.getClasses()
-      allClasses = cls || []
-      state.classes = allClasses
-    }
+    // 1. Populate allClasses fresh via api.getClasses()
+    const cls = await api.getClasses()
+    allClasses = (cls || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+      studentsCount: c.studentsCount || 0,
+      tuitionFee: c.tuitionFee || 0,
+      progress: 0
+    }))
+    state.classes = allClasses
 
     // 2. Populate Class Filter dropdown
     populateClassDropdown()
@@ -418,14 +419,9 @@ async function handleClassChange(classId) {
   if (lessonSelect) lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
 
   try {
-    if (!chaptersCache[classId]) {
-      const chapters = await api.getChapters(classId)
-      chaptersCache[classId] = chapters || []
-    }
-    const chapters = chaptersCache[classId]
-
+    const chapters = await api.getChapters(classId)
     let chHtml = '<option value="">Tất cả chương</option>'
-    chapters.forEach(ch => {
+    ;(chapters || []).forEach(ch => {
       chHtml += `<option value="${ch.id}">${ch.title}</option>`
     })
     if (chapterSelect) chapterSelect.innerHTML = chHtml
@@ -452,14 +448,9 @@ async function handleChapterChange(chapterId) {
   if (lessonSelect) lessonSelect.innerHTML = '<option value="">Đang tải bài học...</option>'
 
   try {
-    if (!lessonsCache[chapterId]) {
-      const lessons = await api.getLessons(chapterId)
-      lessonsCache[chapterId] = lessons || []
-    }
-    const lessons = lessonsCache[chapterId]
-
+    const lessons = await api.getLessons(chapterId)
     let lHtml = '<option value="">Tất cả bài học</option>'
-    lessons.forEach(l => {
+    ;(lessons || []).forEach(l => {
       lHtml += `<option value="${l.id}">${l.title}</option>`
     })
     if (lessonSelect) lessonSelect.innerHTML = lHtml

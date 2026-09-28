@@ -30,10 +30,6 @@ let expandedChapterIds = new Set()
 let expandedLessonIds = new Set()
 
 async function ensureCurriculumLoaded(classId) {
-  if (state.curriculums.some(c => c.classId === classId)) {
-    return // Already loaded!
-  }
-
   isLoadingCurriculum = true
   // Re-render immediately to show loading spinner
   const app = document.getElementById('app')

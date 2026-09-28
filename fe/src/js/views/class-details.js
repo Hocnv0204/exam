@@ -8,6 +8,7 @@ import { showAddBalanceModal } from './student-mgmt.js'
 
 // Module-level state for the active class view
 let activeTab = 'students' // 'students' | 'attendance' | 'tuition' | 'homework' | 'settings'
+let currentViewingClassId = null
 let cachedKpiStats = null
 let cachedDebtSummary = null
 let cachedAttendanceHistory = null
@@ -21,6 +22,15 @@ export function renderClassDetailsView() {
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const classId = params.get('classId')
+
+  if (currentViewingClassId !== classId) {
+    currentViewingClassId = classId
+    cachedKpiStats = null
+    cachedDebtSummary = null
+    cachedAttendanceHistory = null
+    cachedHomeworks = null
+    cachedClassStudents = []
+  }
 
   const currentClass = state.classes.find(c => c.id === classId)
   if (!currentClass) {
