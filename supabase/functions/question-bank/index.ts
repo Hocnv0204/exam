@@ -194,6 +194,33 @@ function normalizeScopeInput(input: any): ScopeTarget {
   }
 }
 
+async function fetchAllQueryRows(
+  queryFactory: () => any,
+  batchSize = 1000,
+  maxRows = 100000
+): Promise<{ data: any[] | null; error: any }> {
+  let from = 0
+  const allRows: any[] = []
+  let hasMore = true
+
+  while (hasMore) {
+    const { data: batch, error } = await queryFactory().range(from, from + batchSize - 1)
+    if (error) return { data: null, error }
+    if (batch && batch.length > 0) {
+      allRows.push(...batch)
+      if (batch.length < batchSize || allRows.length >= maxRows) {
+        hasMore = false
+      } else {
+        from += batchSize
+      }
+    } else {
+      hasMore = false
+    }
+  }
+
+  return { data: allRows, error: null }
+}
+
 async function buildPoolQuery(
   serviceRoleClient: any,
   scope: ScopeTarget,
@@ -204,47 +231,61 @@ async function buildPoolQuery(
     chapterId?: string | null;
   }
 ): Promise<{ data: any[] | null; error: any }> {
-  let query = serviceRoleClient.from('question_bank').select(columns)
-
-  // Lọc theo chuyên đề / Tags (Phase 6.2 - GIN Index)
-  if (scope.tags && scope.tags.length > 0) {
-    query = query.contains('tags', scope.tags)
+  let expandedClassIds = scope.classIds || []
+  let expandedChapterIds = scope.chapterIds || []
+  if ((!scope.lessonIds || scope.lessonIds.length === 0) &&
+      (!expandedChapterIds || expandedChapterIds.length === 0) &&
+      (!expandedClassIds || expandedClassIds.length === 0) &&
+      scope.gradeBlock) {
+    const ids = await getScopeTargetIds(serviceRoleClient, scope.gradeBlock)
+    expandedClassIds = ids.classIds
+    expandedChapterIds = ids.chapterIds
   }
 
-  const orClauses: string[] = []
-  if (scope.lessonIds && scope.lessonIds.length > 0) {
-    orClauses.push(`lesson_id.in.(${scope.lessonIds.join(',')})`)
-  }
-  if (scope.chapterIds && scope.chapterIds.length > 0) {
-    orClauses.push(`chapter_id.in.(${scope.chapterIds.join(',')})`)
-  }
-  if (scope.classIds && scope.classIds.length > 0) {
-    orClauses.push(`class_id.in.(${scope.classIds.join(',')})`)
+  const buildQueryInstance = () => {
+    let query = serviceRoleClient.from('question_bank').select(columns)
+
+    // Lọc theo chuyên đề / Tags (Phase 6.2 - GIN Index)
+    if (scope.tags && scope.tags.length > 0) {
+      query = query.contains('tags', scope.tags)
+    }
+
+    const orClauses: string[] = []
+    if (scope.lessonIds && scope.lessonIds.length > 0) {
+      orClauses.push(`lesson_id.in.(${scope.lessonIds.join(',')})`)
+    }
+    if (expandedChapterIds && expandedChapterIds.length > 0) {
+      orClauses.push(`chapter_id.in.(${expandedChapterIds.join(',')})`)
+    }
+    if (expandedClassIds && expandedClassIds.length > 0) {
+      orClauses.push(`class_id.in.(${expandedClassIds.join(',')})`)
+    }
+
+    if (orClauses.length > 0) {
+      // Nguyên tắc phân tầng độc lập: Mỗi cấp chỉ lọc theo đúng cột của chính nó
+      query = query.or(orClauses.join(','))
+    } else if (scope.gradeBlock) {
+      // Cấp Khối: lấy các câu thuộc grade_block hoặc các lớp/chương trong khối
+      const blockClauses = [`grade_block.eq.${scope.gradeBlock}`]
+      if (expandedClassIds.length > 0) blockClauses.push(`class_id.in.(${expandedClassIds.join(',')})`)
+      if (expandedChapterIds.length > 0) blockClauses.push(`chapter_id.in.(${expandedChapterIds.join(',')})`)
+      query = query.or(blockClauses.join(','))
+    }
+
+    if (extraFilters?.questionType) {
+      query = query.eq('question_type', extraFilters.questionType)
+    }
+    if (extraFilters?.difficulty) {
+      query = query.eq('difficulty', extraFilters.difficulty)
+    }
+    if (extraFilters?.chapterId) {
+      query = query.eq('chapter_id', extraFilters.chapterId)
+    }
+
+    return query
   }
 
-  if (orClauses.length > 0) {
-    // Nguyên tắc phân tầng độc lập: Mỗi cấp chỉ lọc theo đúng cột của chính nó
-    query = query.or(orClauses.join(','))
-  } else if (scope.gradeBlock) {
-    // Cấp Khối: lấy các câu thuộc grade_block hoặc các lớp/chương trong khối
-    const { classIds, chapterIds } = await getScopeTargetIds(serviceRoleClient, scope.gradeBlock)
-    const blockClauses = [`grade_block.eq.${scope.gradeBlock}`]
-    if (classIds.length > 0) blockClauses.push(`class_id.in.(${classIds.join(',')})`)
-    if (chapterIds.length > 0) blockClauses.push(`chapter_id.in.(${chapterIds.join(',')})`)
-    query = query.or(blockClauses.join(','))
-  }
-
-  if (extraFilters?.questionType) {
-    query = query.eq('question_type', extraFilters.questionType)
-  }
-  if (extraFilters?.difficulty) {
-    query = query.eq('difficulty', extraFilters.difficulty)
-  }
-  if (extraFilters?.chapterId) {
-    query = query.eq('chapter_id', extraFilters.chapterId)
-  }
-
-  return await query
+  return await fetchAllQueryRows(buildQueryInstance)
 }
 
 // Helper: Hoán vị mã đề (Phase 6.1)
@@ -445,33 +486,44 @@ serve(async (req: Request) => {
 
       // Nếu chỉ yêu cầu thống kê chung
       if (statsOnly) {
-        let baseQuery = serviceRoleClient.from('question_bank').select('id, subject, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id')
-        if (subject) baseQuery = baseQuery.eq('subject', subject)
-        if (gradeLevel) baseQuery = baseQuery.eq('grade_level', parseInt(gradeLevel, 10))
-
-        if (unassigned === 'no_class') {
-          baseQuery = baseQuery.is('class_id', null)
-        } else if (unassigned === 'no_chapter') {
-          baseQuery = baseQuery.is('chapter_id', null)
-        } else if (unassigned === 'no_lesson') {
-          baseQuery = baseQuery.is('lesson_id', null)
+        let stClassIds: string[] = []
+        let stChapterIds: string[] = []
+        if (gradeBlock && filterLessonIds.length === 0 && !chapterId && !classId) {
+          const ids = await getScopeTargetIds(serviceRoleClient, gradeBlock)
+          stClassIds = ids.classIds
+          stChapterIds = ids.chapterIds
         }
 
-        if (filterLessonIds.length > 0) {
-          baseQuery = baseQuery.in('lesson_id', filterLessonIds)
-        } else if (chapterId) {
-          baseQuery = baseQuery.eq('chapter_id', chapterId)
-        } else if (classId) {
-          baseQuery = baseQuery.eq('class_id', classId)
-        } else if (gradeBlock) {
-          const { classIds: stClassIds, chapterIds: stChapterIds } = await getScopeTargetIds(serviceRoleClient, gradeBlock)
-          const orClauses = [`grade_block.eq.${gradeBlock}`]
-          if (stClassIds.length > 0) orClauses.push(`class_id.in.(${stClassIds.join(',')})`)
-          if (stChapterIds.length > 0) orClauses.push(`chapter_id.in.(${stChapterIds.join(',')})`)
-          baseQuery = baseQuery.or(orClauses.join(','))
+        const statsQueryFactory = () => {
+          let baseQuery = serviceRoleClient.from('question_bank').select('id, question_type, difficulty')
+          if (subject) baseQuery = baseQuery.eq('subject', subject)
+          if (gradeLevel) baseQuery = baseQuery.eq('grade_level', parseInt(gradeLevel, 10))
+
+          if (unassigned === 'no_class') {
+            baseQuery = baseQuery.is('class_id', null)
+          } else if (unassigned === 'no_chapter') {
+            baseQuery = baseQuery.is('chapter_id', null)
+          } else if (unassigned === 'no_lesson') {
+            baseQuery = baseQuery.is('lesson_id', null)
+          }
+
+          if (filterLessonIds.length > 0) {
+            baseQuery = baseQuery.in('lesson_id', filterLessonIds)
+          } else if (chapterId) {
+            baseQuery = baseQuery.eq('chapter_id', chapterId)
+          } else if (classId) {
+            baseQuery = baseQuery.eq('class_id', classId)
+          } else if (gradeBlock) {
+            const orClauses = [`grade_block.eq.${gradeBlock}`]
+            if (stClassIds.length > 0) orClauses.push(`class_id.in.(${stClassIds.join(',')})`)
+            if (stChapterIds.length > 0) orClauses.push(`chapter_id.in.(${stChapterIds.join(',')})`)
+            baseQuery = baseQuery.or(orClauses.join(','))
+          }
+
+          return baseQuery
         }
 
-        const { data: qData, error: qErr } = await baseQuery
+        const { data: qData, error: qErr } = await fetchAllQueryRows(statsQueryFactory)
         if (qErr) return errorResponse(qErr.message, 500)
 
         const total = (qData || []).length
@@ -579,35 +631,40 @@ serve(async (req: Request) => {
       }
 
       // Stats promise if includeStats=true
-      let statsPromise = Promise.resolve({ data: null, error: null })
+      let statsPromise = Promise.resolve<{ data: any[] | null; error: any }>({ data: null, error: null })
       if (includeStats) {
-        let statsQuery = serviceRoleClient
-          .from('question_bank')
-          .select('id, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id')
-        if (subject) statsQuery = statsQuery.eq('subject', subject)
-        if (gradeLevel) statsQuery = statsQuery.eq('grade_level', parseInt(gradeLevel, 10))
+        const statsQueryFactory = () => {
+          let statsQuery = serviceRoleClient
+            .from('question_bank')
+            .select('id, question_type, difficulty')
+          if (subject) statsQuery = statsQuery.eq('subject', subject)
+          if (gradeLevel) statsQuery = statsQuery.eq('grade_level', parseInt(gradeLevel, 10))
 
-        if (unassigned === 'no_class') {
-          statsQuery = statsQuery.is('class_id', null)
-        } else if (unassigned === 'no_chapter') {
-          statsQuery = statsQuery.is('chapter_id', null)
-        } else if (unassigned === 'no_lesson') {
-          statsQuery = statsQuery.is('lesson_id', null)
-        }
+          if (unassigned === 'no_class') {
+            statsQuery = statsQuery.is('class_id', null)
+          } else if (unassigned === 'no_chapter') {
+            statsQuery = statsQuery.is('chapter_id', null)
+          } else if (unassigned === 'no_lesson') {
+            statsQuery = statsQuery.is('lesson_id', null)
+          }
 
-        if (lessonId) {
-          statsQuery = statsQuery.eq('lesson_id', lessonId)
-        } else if (chapterId) {
-          statsQuery = statsQuery.eq('chapter_id', chapterId)
-        } else if (classId) {
-          statsQuery = statsQuery.eq('class_id', classId)
-        } else if (gradeBlock) {
-          const orClauses = [`grade_block.eq.${gradeBlock}`]
-          if (qbScopeTargetIds.classIds.length > 0) orClauses.push(`class_id.in.(${qbScopeTargetIds.classIds.join(',')})`)
-          if (qbScopeTargetIds.chapterIds.length > 0) orClauses.push(`chapter_id.in.(${qbScopeTargetIds.chapterIds.join(',')})`)
-          statsQuery = statsQuery.or(orClauses.join(','))
+          if (filterLessonIds.length > 0) {
+            statsQuery = statsQuery.in('lesson_id', filterLessonIds)
+          } else if (lessonId) {
+            statsQuery = statsQuery.eq('lesson_id', lessonId)
+          } else if (chapterId) {
+            statsQuery = statsQuery.eq('chapter_id', chapterId)
+          } else if (classId) {
+            statsQuery = statsQuery.eq('class_id', classId)
+          } else if (gradeBlock) {
+            const orClauses = [`grade_block.eq.${gradeBlock}`]
+            if (qbScopeTargetIds.classIds.length > 0) orClauses.push(`class_id.in.(${qbScopeTargetIds.classIds.join(',')})`)
+            if (qbScopeTargetIds.chapterIds.length > 0) orClauses.push(`chapter_id.in.(${qbScopeTargetIds.chapterIds.join(',')})`)
+            statsQuery = statsQuery.or(orClauses.join(','))
+          }
+          return statsQuery
         }
-        statsPromise = statsQuery
+        statsPromise = fetchAllQueryRows(statsQueryFactory)
       }
 
       const [{ data: questions, count, error }, statsRes] = await Promise.all([
@@ -858,24 +915,35 @@ serve(async (req: Request) => {
         // Nếu bật deduplicate: Lấy danh sách prompt hiện có trong cùng khối để loại trừ (tránh kéo toàn bảng vào RAM)
         let existingPromptsSet = new Set<string>()
         if (deduplicate) {
-          let qbPromptQuery = serviceRoleClient
-            .from('question_bank')
-            .select('prompt')
-          if (targetGradeBlocks.length > 0) {
-            qbPromptQuery = qbPromptQuery.in('grade_block', targetGradeBlocks)
-          }
-          const { data: existingRows } = await qbPromptQuery
-          if (existingRows) {
-            existingRows.forEach((r: any) => {
-              try {
-                const parsed = JSON.parse(r.prompt)
-                const text = (parsed.text || parsed.prompt || r.prompt || '').trim().toLowerCase().replace(/\s+/g, ' ')
-                if (text) existingPromptsSet.add(text)
-              } catch (_) {
-                const text = (r.prompt || '').trim().toLowerCase().replace(/\s+/g, ' ')
-                if (text) existingPromptsSet.add(text)
+          let from = 0
+          const batchSize = 1000
+          let hasMore = true
+          while (hasMore) {
+            let qbPromptQuery = serviceRoleClient
+              .from('question_bank')
+              .select('prompt')
+              .range(from, from + batchSize - 1)
+            if (targetGradeBlocks.length > 0) {
+              qbPromptQuery = qbPromptQuery.in('grade_block', targetGradeBlocks)
+            }
+            const { data: existingRows } = await qbPromptQuery
+            if (existingRows && existingRows.length > 0) {
+              existingRows.forEach((r: any) => {
+                try {
+                  const norm = normalizeBankPromptPayload(r.prompt)
+                  const rawText = typeof norm?.text === 'string' ? norm.text : (typeof r.prompt === 'string' ? r.prompt : '')
+                  const text = rawText.trim().toLowerCase().replace(/\s+/g, ' ')
+                  if (text) existingPromptsSet.add(text)
+                } catch (_) {}
+              })
+              if (existingRows.length < batchSize) {
+                hasMore = false
+              } else {
+                from += batchSize
               }
-            })
+            } else {
+              hasMore = false
+            }
           }
         }
 
@@ -895,7 +963,14 @@ serve(async (req: Request) => {
             statements: q.statements || [],
             explanation: ans.explanation || ''
           })
-          const promptText = promptPayload.text || q.content || ''
+          const promptText = typeof promptPayload?.text === 'string'
+            ? promptPayload.text
+            : (typeof q.content === 'string' ? q.content : '')
+
+          if (!promptText && (!promptPayload.options || promptPayload.options.length === 0)) {
+            skippedCount++
+            return
+          }
 
           // Kiểm tra trùng lặp (chuẩn hóa toàn bộ chuỗi thay vì chỉ cắt 100 ký tự)
           const sampleKey = promptText.trim().toLowerCase().replace(/\s+/g, ' ')
