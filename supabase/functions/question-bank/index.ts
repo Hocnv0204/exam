@@ -131,6 +131,9 @@ function normalizeBankPromptPayload(rawPrompt: any, fallbackData: any = {}): any
   if (!Array.isArray(payload.options)) payload.options = []
   if (!Array.isArray(payload.statements)) payload.statements = []
   if (payload.text === undefined) payload.text = ''
+  if (!payload.difficulty && (fallbackData.difficulty || (typeof rawPrompt === 'object' && rawPrompt?.difficulty))) {
+    payload.difficulty = fallbackData.difficulty || rawPrompt?.difficulty
+  }
 
   return payload
 }
@@ -778,6 +781,20 @@ serve(async (req: Request) => {
           if (qType === 'MULTIPLE_CHOICE' && (!promptPayload.options || promptPayload.options.length === 0) && promptPayload.statements.length > 0) {
             promptPayload.options = promptPayload.statements
           }
+          let detectedDiff = q.difficulty || promptPayload.difficulty
+          if (!detectedDiff) {
+            const rawContent = `${q.promptText || ''} ${q.content || ''}`
+            const tagMatch = rawContent.match(/\[(NHAN_BIET|NB|NHẬN BIẾT|THONG_HIEU|TH|THÔNG HIỂU|VAN_DUNG|VD|VẬN DỤNG|VAN_DUNG_CAO|VDC|VẬN DỤNG CAO)\]/i)
+            if (tagMatch) {
+              const raw = tagMatch[1].toUpperCase()
+              if (raw === 'NHAN_BIET' || raw === 'NB' || raw === 'NHẬN BIẾT') detectedDiff = 'NHAN_BIET'
+              else if (raw === 'THONG_HIEU' || raw === 'TH' || raw === 'THÔNG HIỂU') detectedDiff = 'THONG_HIEU'
+              else if (raw === 'VAN_DUNG' || raw === 'VD' || raw === 'VẬN DỤNG') detectedDiff = 'VAN_DUNG'
+              else if (raw === 'VAN_DUNG_CAO' || raw === 'VDC' || raw === 'VẬN DỤNG CAO') detectedDiff = 'VAN_DUNG_CAO'
+            }
+          }
+          const finalDiff = detectedDiff || defaultDifficulty
+          promptPayload.difficulty = finalDiff
 
           return {
             subject,
@@ -787,7 +804,7 @@ serve(async (req: Request) => {
             chapter_id: chapterId || null,
             lesson_id: lessonId || null,
             question_type: qType,
-            difficulty: q.difficulty || defaultDifficulty,
+            difficulty: finalDiff,
             prompt: promptPayload,
             mc_answer: q.mcAnswer || promptPayload.mcAnswer || null,
             tf_answers: q.tfAnswers || promptPayload.tfAnswers || null,
@@ -980,6 +997,22 @@ serve(async (req: Request) => {
           }
           if (sampleKey) existingPromptsSet.add(sampleKey)
 
+          // Nhận diện mức độ nhận thức (difficulty) từ promptPayload, q.difficulty hoặc tag trong text
+          let detectedDiff = promptPayload.difficulty || q.difficulty || (typeof q.prompt === 'object' ? q.prompt?.difficulty : null)
+          if (!detectedDiff) {
+            const rawContent = `${promptText} ${q.content || ''}`
+            const tagMatch = rawContent.match(/\[(NHAN_BIET|NB|NHẬN BIẾT|THONG_HIEU|TH|THÔNG HIỂU|VAN_DUNG|VD|VẬN DỤNG|VAN_DUNG_CAO|VDC|VẬN DỤNG CAO)\]/i)
+            if (tagMatch) {
+              const raw = tagMatch[1].toUpperCase()
+              if (raw === 'NHAN_BIET' || raw === 'NB' || raw === 'NHẬN BIẾT') detectedDiff = 'NHAN_BIET'
+              else if (raw === 'THONG_HIEU' || raw === 'TH' || raw === 'THÔNG HIỂU') detectedDiff = 'THONG_HIEU'
+              else if (raw === 'VAN_DUNG' || raw === 'VD' || raw === 'VẬN DỤNG') detectedDiff = 'VAN_DUNG'
+              else if (raw === 'VAN_DUNG_CAO' || raw === 'VDC' || raw === 'VẬN DỤNG CAO') detectedDiff = 'VAN_DUNG_CAO'
+            }
+          }
+          const finalDiff = detectedDiff || 'THONG_HIEU'
+          promptPayload.difficulty = finalDiff
+
           rowsToInsert.push({
             subject: 'TOAN',
             grade_level: 12,
@@ -988,7 +1021,7 @@ serve(async (req: Request) => {
             chapter_id: hwInfo.chapterId || null,
             lesson_id: hwInfo.lessonId || null,
             question_type: q.question_type,
-            difficulty: 'THONG_HIEU',
+            difficulty: finalDiff,
             prompt: promptPayload,
             mc_answer: ans.mc_answer || null,
             tf_answers: ans.tf_answers || null,

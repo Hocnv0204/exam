@@ -528,6 +528,7 @@ export function renderCreateHwView() {
           return {
             questionNumber: q.question_number || q.questionNumber,
             questionType: q.question_type || q.questionType,
+            difficulty: pObj.difficulty || q.difficulty || 'THONG_HIEU',
             points: q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
             promptText: pObj.text || q.prompt || '',
             imageUrl: pObj.imageUrl || '',
@@ -2167,10 +2168,12 @@ export function bindCreateHwEvents() {
         const opts = q.options || []
         const statements = isTf ? opts : (q.statements || [])
 
+        const difficulty = q.difficulty || 'THONG_HIEU'
         return {
           id: `q_${idx + 1}`,
           questionNumber: q.questionNumber || (idx + 1),
           questionType: q.questionType,
+          difficulty,
           points: q.points || (isTf ? 1.0 : (isSa ? 0.5 : 0.25)),
           prompt: JSON.stringify({
             isInteractive: true,
@@ -2178,7 +2181,8 @@ export function bindCreateHwEvents() {
             imageUrl: q.imageUrl || '',
             options: isMc ? opts : [],
             statements: isTf ? statements : [],
-            explanation: q.explanation || ''
+            explanation: q.explanation || '',
+            difficulty
           }),
           content: q.promptText || '',
           options: isMc ? opts : null,

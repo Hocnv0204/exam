@@ -352,11 +352,22 @@ serve(async (req: Request) => {
       const questionsPayload = questions.map((q: any, idx: number) => {
         const p = parsedPrompts[idx] || {}
         const isTf = q.questionType === 'TRUE_FALSE'
+        const diff = q.difficulty || p.difficulty || 'THONG_HIEU'
+
+        let promptToSave = typeof q.prompt === 'string' ? q.prompt : JSON.stringify(q.prompt || {})
+        try {
+          const parsed = JSON.parse(promptToSave)
+          if (!parsed.difficulty) {
+            parsed.difficulty = diff
+            promptToSave = JSON.stringify(parsed)
+          }
+        } catch (_) {}
+
         return {
           homework_id: homework.id,
           question_number: q.questionNumber,
           question_type: q.questionType,
-          prompt: typeof q.prompt === 'string' ? q.prompt : JSON.stringify(q.prompt || {}),
+          prompt: promptToSave,
           content: q.content || p.text || (typeof q.prompt === 'string' && !q.prompt.startsWith('{') ? q.prompt : null),
           options: q.options || (isTf ? null : (p.options || null)),
           statements: q.statements || (isTf ? (p.statements || p.options || null) : null),
