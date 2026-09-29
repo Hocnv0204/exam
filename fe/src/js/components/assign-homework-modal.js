@@ -43,7 +43,10 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
   if (homework.deadline) {
     const d = new Date(homework.deadline)
     if (!isNaN(d.getTime())) {
-      defaultDateVal = d.toISOString().split('T')[0]
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      defaultDateVal = `${year}-${month}-${day}`
       defaultHourVal = String(d.getHours()).padStart(2, '0')
       defaultMinuteVal = String(d.getMinutes()).padStart(2, '0')
     }
@@ -62,7 +65,7 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
           </span>
         </div>
         <div style="font-weight:700; font-size:15px; color:#0f172a; margin-bottom:6px;">${hwTitle}</div>
-        <div style="font-size:12px; color:#475569; display:flex; flex-wrap:wrap; gap:12px;">
+        <div style="font-size:12px; color:#475569; display:flex; flex-wrap:wrap; gap:14px;">
           <div><i class="fa-solid fa-graduation-cap" style="color:#0284c7;"></i> Lớp: <strong>${homework.className || 'Chưa rõ'}</strong></div>
           <div><i class="fa-solid fa-folder-open" style="color:#d97706;"></i> Chương: <strong>${homework.chapterTitle || 'Chương 1'}</strong></div>
           <div><i class="fa-solid fa-file-lines" style="color:#059669;"></i> Bài: <strong>${homework.lessonTitle || 'Bài 1'}</strong></div>
@@ -116,7 +119,7 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
             <div>
               <strong style="color:#0f172a;">Chỉ định thủ công Chương & Bài học</strong>
               <div style="font-size:12px; color:#64748b; margin-top:1px;">
-                Tự chọn một bài học có sẵn ở lớp đích (Chỉ khả dụng khi gán cho 1 lớp đơn lẻ).
+                Tự chọn một bài học có sẵn ở lớp đích (Chỉ khả dụng khi chọn 1 lớp đơn lẻ).
               </div>
             </div>
           </label>
@@ -140,43 +143,63 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
       </div>
 
       <!-- Box 4: Tùy chỉnh cấu hình cho lớp đích -->
-      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px;">
-        <label style="font-size:13px; font-weight:700; color:#0f172a; display:block; margin-bottom:8px;">
+      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px;">
+        <label style="font-size:13px; font-weight:700; color:#0f172a; display:block; margin-bottom:12px;">
           <i class="fa-solid fa-sliders" style="color:#7c3aed;"></i> Cấu hình riêng cho Lớp đích
         </label>
 
-        <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; flex-direction:column; gap:12px;">
           <!-- Tên bài tập mới -->
           <div>
             <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Tên bài tập tại lớp mới</label>
-            <input type="text" id="assign-custom-title" class="form-input" value="${hwTitle}" style="padding:7px 10px; font-size:13px; width:100%; border-radius:6px;">
+            <input type="text" id="assign-custom-title" class="form-input" value="${hwTitle}" style="padding:8px 12px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
           </div>
 
-          <div style="display:grid; grid-template-columns:1.5fr 1fr 1fr; gap:10px;">
-            <!-- Deadline Date & Time -->
-            <div>
-              <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Hạn chót nộp bài (Deadline)</label>
-              <div style="display:flex; gap:4px; align-items:center;">
-                <input type="date" id="assign-deadline-date" class="form-input" value="${defaultDateVal}" style="padding:6px 8px; font-size:12px; flex:1; min-width:0; border-radius:6px;">
-                <select id="assign-deadline-hour" class="form-input" style="padding:6px 4px; font-size:12px; border-radius:6px; background:#ffffff;">
-                  ${Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => `<option value="${h}" ${h === defaultHourVal ? 'selected' : ''}>${h}h</option>`).join('')}
+          <!-- Hạn chót nộp bài (Deadline) -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="font-size:12px; font-weight:600; color:#334155; margin:0;">
+                <i class="fa-regular fa-calendar-days" style="color:#0284c7;"></i> Hạn chót nộp bài (Deadline)
+              </label>
+              <span style="font-size:11px; color:#64748b;">(Không bắt buộc)</span>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <input type="date" id="assign-deadline-date" class="form-input" value="${defaultDateVal}" style="flex:1; min-width:140px; padding:8px 10px; font-size:13px; background:#ffffff; border-radius:6px; border:1px solid #cbd5e1;" title="Chọn ngày hết hạn">
+              <div style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
+                <select id="assign-deadline-hour" class="form-input" style="width:68px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; border-radius:6px; border:1px solid #cbd5e1; cursor:pointer;" title="Chọn giờ (00 - 23)">
+                  ${Array.from({ length: 24 }, (_, i) => {
+                    const val = String(i).padStart(2, '0')
+                    return `<option value="${val}" ${val === defaultHourVal ? 'selected' : ''}>${val}h</option>`
+                  }).join('')}
                 </select>
-                <select id="assign-deadline-minute" class="form-input" style="padding:6px 4px; font-size:12px; border-radius:6px; background:#ffffff;">
-                  ${['00', '15', '30', '45', '59'].map(m => `<option value="${m}" ${m === defaultMinuteVal ? 'selected' : ''}>${m}p</option>`).join('')}
+                <span style="font-weight:700; color:#64748b;">:</span>
+                <select id="assign-deadline-minute" class="form-input" style="width:68px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; border-radius:6px; border:1px solid #cbd5e1; cursor:pointer;" title="Chọn phút (00 - 59)">
+                  ${Array.from({ length: 60 }, (_, i) => {
+                    const val = String(i).padStart(2, '0')
+                    return `<option value="${val}" ${val === defaultMinuteVal ? 'selected' : ''}>${val}p</option>`
+                  }).join('')}
                 </select>
               </div>
+              <button type="button" id="assign-deadline-clear-btn" title="Xóa hạn chót" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; cursor:pointer; color:#64748b; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; height:37px; transition:all 0.15s ease;" onmouseover="this.style.background='#fee2e2'; this.style.color='#ef4444'; this.style.borderColor='#fca5a5';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'; this.style.borderColor='#cbd5e1';">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Thời gian & Lần làm tối đa -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
+                <i class="fa-regular fa-clock" style="color:#0284c7;"></i> Thời gian (Phút)
+              </label>
+              <input type="number" id="assign-custom-duration" class="form-input" value="${hwDuration}" min="5" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
             </div>
 
-            <!-- Duration -->
             <div>
-              <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Thời gian (Phút)</label>
-              <input type="number" id="assign-custom-duration" class="form-input" value="${hwDuration}" min="5" style="padding:6px 10px; font-size:12.5px; width:100%; border-radius:6px;">
-            </div>
-
-            <!-- Max Attempts -->
-            <div>
-              <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Lần làm tối đa</label>
-              <input type="number" id="assign-custom-attempts" class="form-input" value="${hwMaxAttempts}" min="0" style="padding:6px 10px; font-size:12.5px; width:100%; border-radius:6px;" ${isExam ? 'disabled' : ''}>
+              <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
+                <i class="fa-solid fa-rotate" style="color:#64748b;"></i> Lần làm tối đa
+              </label>
+              <input type="number" id="assign-custom-attempts" class="form-input" value="${hwMaxAttempts}" min="0" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;" ${isExam ? 'disabled title="Bài thi cố định 1 lần làm"' : ''}>
             </div>
           </div>
 
@@ -275,7 +298,7 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
   // Tinh chỉnh Modal Width
   const modalContent = document.querySelector('#modal-container .modal-content')
   if (modalContent) {
-    modalContent.style.maxWidth = '640px'
+    modalContent.style.maxWidth = '680px'
   }
 
   // Attach dynamic event listeners inside modal
@@ -288,6 +311,15 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
   const manualRadioLabel = document.getElementById('label-manual-mode')
   const chapterSelect = document.getElementById('assign-manual-chapter')
   const lessonSelect = document.getElementById('assign-manual-lesson')
+  const clearDeadlineBtn = document.getElementById('assign-deadline-clear-btn')
+
+  clearDeadlineBtn?.addEventListener('click', () => {
+    const dateInput = document.getElementById('assign-deadline-date')
+    if (dateInput) {
+      dateInput.value = ''
+      showToast('Đã xóa hạn nộp bài', 'info')
+    }
+  })
 
   const updateManualModeAvailability = () => {
     const checkedCount = document.querySelectorAll('.target-class-checkbox:checked').length
