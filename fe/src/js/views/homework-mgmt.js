@@ -587,11 +587,8 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
                 <i class="fa-solid fa-desktop"></i>
               </button>
             ` : ''}
-            <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem lịch sử & câu sai" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
+            <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem kết quả & lịch sử làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
               <i class="fa-solid fa-chart-pie"></i>
-            </button>
-            <button class="btn-secondary btn-unsubmitted-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Theo dõi học sinh chưa làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fff7ed; border:1px solid #fed7aa; color:#ea580c;">
-              <i class="fa-solid fa-user-clock"></i>
             </button>
             <button class="btn-secondary btn-assign-hw" data-id="${hw.id}" title="Gán bài tập cho lớp khác" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a;">
               <i class="fa-solid fa-share-nodes"></i>
@@ -627,20 +624,7 @@ function attachRowActions(tableBody) {
     })
   })
 
-  // Attach Unsubmitted buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...&tab=unsubmitted
-  tableBody.querySelectorAll('.btn-unsubmitted-hw').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const hwId = btn.getAttribute('data-id')
-      const classId = btn.getAttribute('data-classid')
-      let hash = '#admin-history'
-      if (classId && hwId) {
-        hash += `?classId=${classId}&homeworkId=${hwId}&tab=unsubmitted`
-      } else if (hwId) {
-        hash += `?homeworkId=${hwId}&tab=unsubmitted`
-      }
-      window.location.hash = hash
-    })
-  })
+
 
   // Attach Proctoring buttons listeners -> Redirect to /exam-proctoring?homeworkId=...
   tableBody.querySelectorAll('.btn-proctor-hw').forEach(btn => {
