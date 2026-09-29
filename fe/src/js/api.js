@@ -428,6 +428,7 @@ export const api = {
   getTrialLessons: () => request('create-lesson?isTrial=true', { method: 'GET', isPublic: true }),
   deleteLesson: (lessonId) => request(`create-lesson?lessonId=${lessonId}`, { method: 'DELETE' }),
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
+  assignHomeworkToClass: (data) => request('create-homework?action=assign-to-class', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),
   deleteHomework: (homeworkId) => request(`create-homework?homeworkId=${homeworkId}`, { method: 'DELETE' }),
   getHomeworks: (lessonIdOrQuery = '', classId = '', extraParams = '', options = {}) => {

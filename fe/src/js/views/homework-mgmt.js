@@ -5,6 +5,7 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+import { openAssignHomeworkModal } from '../components/assign-homework-modal.js'
 
 let currentHomeworks = []
 let totalHomeworks = 0
@@ -545,9 +546,10 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
         <td style="padding:12px 16px; text-align:center; font-weight:700; color:#64748b;">${fromIndex + index + 1}</td>
         <td style="padding:12px 16px;">
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <strong style="color:#0f172a; font-size:14px;">${hw.title}</strong>
               ${typeBadge}
+              ${hw.sourceHomeworkId ? `<span class="badge" style="background:#eff6ff; color:#0284c7; border:1px solid #bfdbfe; padding:2px 6px; border-radius:4px; font-weight:600; font-size:10.5px;" title="Bài tập được gán/sao chép từ lớp khác"><i class="fa-solid fa-copy"></i> Bản sao</span>` : ''}
             </div>
             ${hw.pdfPath ? `
               <div style="font-size:11px; color:#64748b; display:flex; align-items:center; gap:4px;">
@@ -590,6 +592,9 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
             </button>
             <button class="btn-secondary btn-unsubmitted-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Theo dõi học sinh chưa làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fff7ed; border:1px solid #fed7aa; color:#ea580c;">
               <i class="fa-solid fa-user-clock"></i>
+            </button>
+            <button class="btn-secondary btn-assign-hw" data-id="${hw.id}" title="Gán bài tập cho lớp khác" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a;">
+              <i class="fa-solid fa-share-nodes"></i>
             </button>
             <button class="btn-secondary btn-edit-hw" data-id="${hw.id}" title="Sửa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #cbd5e1; color:#0066cc;">
               <i class="fa-solid fa-pen-to-square"></i>
@@ -643,6 +648,19 @@ function attachRowActions(tableBody) {
       const hwId = btn.getAttribute('data-id')
       if (hwId) {
         window.location.hash = `#exam-proctoring?homeworkId=${hwId}`
+      }
+    })
+  })
+
+  // Attach Assign buttons listeners
+  tableBody.querySelectorAll('.btn-assign-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hwId = btn.getAttribute('data-id')
+      const targetHw = currentHomeworks.find(h => h.id === hwId)
+      if (targetHw) {
+        openAssignHomeworkModal(targetHw, async () => {
+          await fetchHomeworksData()
+        })
       }
     })
   })
