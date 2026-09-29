@@ -689,39 +689,42 @@ export function renderCreateHwView() {
                     </div>
                   </div>
 
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                    <div>
-                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <label style="font-size:12px; font-weight:600; margin:0;">Hạn chót nộp bài (24h)</label>
-                        <span style="font-size:11px; color:#64748b;">(Không bắt buộc)</span>
-                      </div>
-                      <div style="display:flex; gap:6px; align-items:center;">
-                        <input type="date" id="hw-deadline-date" class="form-input" value="${deadlineDateVal}" style="flex:1; min-width:0; padding:8px 8px; font-size:13px; background:#ffffff;" title="Chọn ngày hết hạn">
-                        <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
-                          <select id="hw-deadline-hour" class="form-input" style="width:64px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; cursor:pointer;" title="Chọn giờ (00 - 23)">
-                            ${Array.from({ length: 24 }, (_, i) => {
-                              const val = String(i).padStart(2, '0')
-                              return `<option value="${val}" ${val === deadlineHourVal ? 'selected' : ''}>${val}h</option>`
-                            }).join('')}
-                          </select>
-                          <span style="font-weight:700; color:#64748b;">:</span>
-                          <select id="hw-deadline-minute" class="form-input" style="width:64px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; cursor:pointer;" title="Chọn phút (00 - 59)">
-                            ${Array.from({ length: 60 }, (_, i) => {
-                              const val = String(i).padStart(2, '0')
-                              return `<option value="${val}" ${val === deadlineMinuteVal ? 'selected' : ''}>${val}p</option>`
-                            }).join('')}
-                          </select>
-                        </div>
-                        <button type="button" id="hw-deadline-clear-btn" title="Xóa hạn chót" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; cursor:pointer; color:#64748b; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; height:36px; transition:all 0.2s;" onmouseover="this.style.background='#fee2e2'; this.style.color='#ef4444'; this.style.borderColor='#fca5a5';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'; this.style.borderColor='#cbd5e1';">
-                          <i class="fa-solid fa-xmark"></i>
-                        </button>
-                      </div>
+                  <!-- Deadline Row -->
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <label style="font-size:12px; font-weight:600; margin:0;">
+                        <i class="fa-regular fa-calendar-days" style="color:#0284c7;"></i> Hạn chót nộp bài (24h)
+                      </label>
+                      <span style="font-size:11px; color:#64748b;">(Không bắt buộc)</span>
                     </div>
-                    <div style="display:flex; align-items:flex-end;">
-                      <button class="btn-primary" id="save-homework-btn" style="width:100%; padding:9px 12px; font-size:13px; cursor:pointer; height:36px;">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu'}
+                    <div style="display:flex; gap:6px; align-items:center;">
+                      <input type="date" id="hw-deadline-date" class="form-input" value="${deadlineDateVal}" style="flex:1; min-width:140px; padding:8px 10px; font-size:13px; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1;" title="Chọn ngày hết hạn">
+                      <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+                        <select id="hw-deadline-hour" class="form-input" style="width:64px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer;" title="Chọn giờ (00 - 23)">
+                          ${Array.from({ length: 24 }, (_, i) => {
+                            const val = String(i).padStart(2, '0')
+                            return `<option value="${val}" ${val === deadlineHourVal ? 'selected' : ''}>${val}h</option>`
+                          }).join('')}
+                        </select>
+                        <span style="font-weight:700; color:#64748b;">:</span>
+                        <select id="hw-deadline-minute" class="form-input" style="width:64px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer;" title="Chọn phút (00 - 59)">
+                          ${Array.from({ length: 60 }, (_, i) => {
+                            const val = String(i).padStart(2, '0')
+                            return `<option value="${val}" ${val === deadlineMinuteVal ? 'selected' : ''}>${val}p</option>`
+                          }).join('')}
+                        </select>
+                      </div>
+                      <button type="button" id="hw-deadline-clear-btn" title="Xóa hạn chót" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; cursor:pointer; color:#64748b; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; height:37px; transition:all 0.2s;" onmouseover="this.style.background='#fee2e2'; this.style.color='#ef4444'; this.style.borderColor='#fca5a5';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'; this.style.borderColor='#cbd5e1';">
+                        <i class="fa-solid fa-xmark"></i>
                       </button>
                     </div>
+                  </div>
+
+                  <!-- Save Button Row -->
+                  <div style="margin-top:2px;">
+                    <button class="btn-primary" id="save-homework-btn" style="width:100%; padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer; min-height:42px; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap; border-radius:10px; box-shadow:0 3px 10px rgba(0,102,204,0.25);">
+                      <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu bài tập'}
+                    </button>
                   </div>
 
                   <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-top:2px;">
