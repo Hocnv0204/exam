@@ -619,12 +619,25 @@ export function parseExamMarkdown(rawText, defaultSectionType = 'MULTIPLE_CHOICE
 
   flushCurrentQuestion()
 
-  // Ensure 1-based sequential renumbering if necessary
-  questions.forEach((q, idx) => {
-    if (!q.questionNumber || isNaN(q.questionNumber)) {
-      q.questionNumber = idx + 1
+  // Validate and ensure 1-based sequential numbering (1..N) without duplicates or gaps.
+  // Standard Vietnamese MOET exams often restart numbering at [Câu 1] in each section (Phần I, II, III).
+  // A homework in the database requires unique question_number across the entire exam.
+  const seenNumbers = new Set()
+  let needsRenumbering = false
+  for (let i = 0; i < questions.length; i++) {
+    const num = questions[i].questionNumber
+    if (!num || isNaN(num) || num < 1 || seenNumbers.has(num)) {
+      needsRenumbering = true
+      break
     }
-  })
+    seenNumbers.add(num)
+  }
+
+  if (needsRenumbering) {
+    questions.forEach((q, idx) => {
+      q.questionNumber = idx + 1
+    })
+  }
 
   return { questions }
 }

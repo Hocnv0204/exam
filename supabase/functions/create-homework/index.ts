@@ -342,6 +342,24 @@ serve(async (req: Request) => {
       }
 
       // 1. Bulk insert questions
+      // Sanitize question numbers: ensure no duplicate question_number exists (enforces uq_homework_question_num)
+      const seenQNums = new Set<number>()
+      let hasDuplicateOrInvalidQNums = false
+      for (const q of questions) {
+        const num = Number(q.questionNumber)
+        if (!Number.isInteger(num) || num < 1 || seenQNums.has(num)) {
+          hasDuplicateOrInvalidQNums = true
+          break
+        }
+        seenQNums.add(num)
+      }
+
+      if (hasDuplicateOrInvalidQNums) {
+        questions.forEach((q: any, idx: number) => {
+          q.questionNumber = idx + 1
+        })
+      }
+
       const parsedPrompts = questions.map((q: any) => {
         let p: any = null
         if (typeof q.prompt === 'object' && q.prompt !== null) p = q.prompt
@@ -367,7 +385,7 @@ serve(async (req: Request) => {
 
         return {
           homework_id: homework.id,
-          question_number: q.questionNumber,
+          question_number: q.questionNumber || (idx + 1),
           question_type: q.questionType,
           prompt: promptToSave,
           content: q.content || p.text || (typeof q.prompt === 'string' && !q.prompt.startsWith('{') ? q.prompt : null),
@@ -392,7 +410,7 @@ serve(async (req: Request) => {
       // 2. Map question answers and bulk insert into question_answers
       const qMap = new Map(insertedQuestions.map((iq: any) => [iq.question_number, iq.id]))
       const answersPayload = questions.map((q: any, idx: number) => {
-        const qId = qMap.get(q.questionNumber)
+        const qId = qMap.get(q.questionNumber) || insertedQuestions[idx]?.id
         const p = parsedPrompts[idx] || {}
         return {
           question_id: qId,
@@ -829,6 +847,23 @@ serve(async (req: Request) => {
 
       // Handle Questions and Answer Keys update in-place to preserve submission_answers
       if (questions) {
+        // Sanitize incoming question numbers if duplicates exist
+        const seenUpdateQNums = new Set<number>()
+        let hasDuplicateUpdateQNums = false
+        for (const q of questions) {
+          const num = Number(q.questionNumber)
+          if (!Number.isInteger(num) || num < 1 || seenUpdateQNums.has(num)) {
+            hasDuplicateUpdateQNums = true
+            break
+          }
+          seenUpdateQNums.add(num)
+        }
+        if (hasDuplicateUpdateQNums) {
+          questions.forEach((q: any, idx: number) => {
+            q.questionNumber = idx + 1
+          })
+        }
+
         // Fetch existing questions
         const { data: existingQuestions, error: fetchQErr } = await serviceRoleClient
           .from('questions')

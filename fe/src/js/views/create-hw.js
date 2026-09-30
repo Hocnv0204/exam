@@ -1067,6 +1067,7 @@ export function bindCreateHwEvents() {
       }
 
       const newQ = parsed.questions[0]
+      newQ.questionNumber = qIndex + 1
       // Preserve existing image if user didn't supply new one but kept [Ảnh] or old image was attached
       if (newText.includes('[Ảnh]') && !newQ.imageUrl && q.imageUrl) {
         newQ.imageUrl = q.imageUrl
@@ -1484,6 +1485,10 @@ export function bindCreateHwEvents() {
       interactiveMarkdown = text
       const parsed = parseExamMarkdown(text)
       if (parsed.questions && parsed.questions.length > 0) {
+        // Guarantee sequential 1..N numbering
+        parsed.questions.forEach((q, idx) => {
+          q.questionNumber = idx + 1
+        })
         // Preserve any existing attached images if questions match by index or type+number
         parsed.questions.forEach((newQ, idx) => {
           let oldQ = interactiveQuestions[idx]
@@ -2174,7 +2179,7 @@ export function bindCreateHwEvents() {
         const difficulty = q.difficulty || 'THONG_HIEU'
         return {
           id: `q_${idx + 1}`,
-          questionNumber: q.questionNumber || (idx + 1),
+          questionNumber: idx + 1,
           questionType: q.questionType,
           difficulty,
           points: q.points || (isTf ? 1.0 : (isSa ? 0.5 : 0.25)),
