@@ -371,7 +371,7 @@ export function showEditStudentModal(studentId) {
       }
 
       if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab()
+        window._refreshClassDetailsTab(studentId, balance)
       }
 
       showToast(`Đã cập nhật thành công thông tin học sinh "${fullName}"!`, 'success')
@@ -400,7 +400,7 @@ export function showEditStudentModal(studentId) {
       }
 
       if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab()
+        window._refreshClassDetailsTab(studentId, balance)
       }
       showToast(`Đã cập nhật thông tin học sinh "${fullName}" (Chế độ Demo)!`, 'success')
     }
@@ -487,7 +487,7 @@ export function showAddBalanceModal(studentId) {
       }
 
       if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab()
+        window._refreshClassDetailsTab(studentId, newBalance)
       }
 
       let msg = `Nạp ${amount.toLocaleString('vi-VN')}đ thành công! Số dư mới: ${newBalance.toLocaleString('vi-VN')}đ`
@@ -514,7 +514,7 @@ export function showAddBalanceModal(studentId) {
       }
 
       if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab()
+        window._refreshClassDetailsTab(studentId, newBalance)
       }
       showToast(`Nạp ${amount.toLocaleString('vi-VN')}đ thành công! (Chế độ Demo)`, 'success')
       return true

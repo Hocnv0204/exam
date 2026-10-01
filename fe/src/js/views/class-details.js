@@ -1063,7 +1063,16 @@ function bindStudentsTabEvents(classId, currentClass) {
   document.querySelectorAll('.btn-add-balance-class-tab').forEach(btn => {
     btn.onclick = () => {
       const studentId = btn.getAttribute('data-id')
-      window._refreshClassDetailsTab = () => fetchClassKpiAndTabData(classId, currentClass)
+      window._refreshClassDetailsTab = (sId, newBal) => {
+        if (sId && newBal !== undefined) {
+          const cachedItem = cachedClassStudents.find(s => s.id === sId || s.studentId === sId)
+          if (cachedItem) cachedItem.balance = newBal
+          const stateItem = state.students.find(s => s.id === sId)
+          if (stateItem) stateItem.balance = newBal
+          refreshStudentsTable(currentClass)
+        }
+        fetchClassKpiAndTabData(classId, currentClass)
+      }
       showAddBalanceModal(studentId)
     }
   })
