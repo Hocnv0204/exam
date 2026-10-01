@@ -851,14 +851,21 @@ function bindActiveTabEvents(classId, currentClass) {
 // ---------------------------------------------------------
 async function fetchClassKpiAndTabData(classId, currentClass) {
   try {
-    // 1. Fetch KPI Stats
-    api.getClassKpiStats(classId).then(kpi => {
+    // 1. Fetch Students from BE to keep global state.students always in sync
+    const studentsPromise = api.getStudents({}, { silent: true }).then(updatedStudents => {
+      if (updatedStudents && Array.isArray(updatedStudents)) {
+        state.students = updatedStudents
+      }
+    }).catch(err => console.warn('Failed to refresh students list:', err))
+
+    // 2. Fetch KPI Stats
+    const kpiPromise = api.getClassKpiStats(classId).then(kpi => {
       cachedKpiStats = kpi
       updateKpiUI(kpi)
     }).catch(err => console.warn('Failed to load KPI stats:', err))
 
-    // 2. Fetch Attendance History
-    api.getAttendanceHistory(classId).then(history => {
+    // 3. Fetch Attendance History
+    const historyPromise = api.getAttendanceHistory(classId).then(history => {
       cachedAttendanceHistory = history
       const tabBadgeAtt = document.getElementById('tab-badge-attendance')
       if (tabBadgeAtt) tabBadgeAtt.textContent = (history || []).length
@@ -872,8 +879,8 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
       }
     }).catch(err => console.warn('Failed to load attendance history:', err))
 
-    // 3. Fetch Debt Summary
-    api.getClassDebtSummary(classId).then(debtList => {
+    // 4. Fetch Debt Summary
+    const debtPromise = api.getClassDebtSummary(classId).then(debtList => {
       cachedDebtSummary = debtList
       const list = debtList || []
       const totalDebt = list.reduce((sum, s) => sum + (s.unpaidDebt || 0), 0)
@@ -897,17 +904,21 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
         }
       }
 
-      // Sync debt into cached student list
+      // Sync debt into cached student list and sync balances with state.students
       if (debtList && debtList.length > 0) {
         cachedClassStudents = debtList.map(d => {
           const globalS = state.students.find(s => s.id === d.studentId) || {}
+          const resolvedBalance = (d.balance !== undefined ? d.balance : globalS.balance) || 0
+          if (globalS.id) {
+            globalS.balance = resolvedBalance
+          }
           return {
             id: d.studentId,
             fullName: d.fullName,
             username: d.username,
             studentCode: d.studentCode,
             status: d.status,
-            balance: (d.balance !== undefined ? d.balance : globalS.balance) || 0,
+            balance: resolvedBalance,
             attendanceRate: d.attendanceRate,
             unpaidDebt: d.unpaidDebt,
             attendedSessions: d.attendedSessions,
@@ -926,8 +937,8 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
       }
     }).catch(err => console.warn('Failed to load debt summary:', err))
 
-    // 4. Fetch Homeworks for class
-    api.getHomeworks('', classId).then(hws => {
+    // 5. Fetch Homeworks for class
+    const hwPromise = api.getHomeworks('', classId).then(hws => {
       cachedHomeworks = Array.isArray(hws) ? hws : (hws?.items || [])
       const tabBadgeHw = document.getElementById('tab-badge-homework')
       if (tabBadgeHw) tabBadgeHw.textContent = cachedHomeworks.length
@@ -940,6 +951,7 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
       }
     }).catch(err => console.warn('Failed to load homeworks:', err))
 
+    await Promise.allSettled([studentsPromise, kpiPromise, historyPromise, debtPromise, hwPromise])
   } catch (e) {
     console.error('Error fetching class details data:', e)
   }
@@ -1039,13 +1051,8 @@ function bindStudentsTabEvents(classId, currentClass) {
         await api.updateStudentClassStatus(classId, studentId, nextStatus)
         showToast(`Đã chuyển học sinh sang trạng thái ${label}`, 'success')
 
-        // Update local state
-        const target = cachedClassStudents.find(s => s.id === studentId || s.studentId === studentId)
-        if (target) target.status = nextStatus
-
-        refreshStudentsTable(currentClass)
-        // Refresh KPI
-        api.getClassKpiStats(classId).then(updateKpiUI)
+        // Refresh all class data & student states
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Cập nhật thất bại: ${err.message}`, 'error')
       }
@@ -1056,7 +1063,7 @@ function bindStudentsTabEvents(classId, currentClass) {
   document.querySelectorAll('.btn-add-balance-class-tab').forEach(btn => {
     btn.onclick = () => {
       const studentId = btn.getAttribute('data-id')
-      window._refreshClassDetailsTab = () => refreshStudentsTable(currentClass)
+      window._refreshClassDetailsTab = () => fetchClassKpiAndTabData(classId, currentClass)
       showAddBalanceModal(studentId)
     }
   })
@@ -1230,8 +1237,8 @@ function bindAttendanceTabEvents(classId, currentClass) {
         await api.deleteAttendanceSession(sessionId, classIdAttr, sessionDate)
         showToast('Đã xóa buổi điểm danh', 'success')
 
-        // Reload data
-        fetchClassKpiAndTabData(classId, currentClass)
+        // Reload data and student balances from BE
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Xóa thất bại: ${err.message}`, 'error')
       }
@@ -1408,8 +1415,8 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
 
         showToast('Điểm danh thành công!', 'success')
 
-        // Refresh all class data
-        fetchClassKpiAndTabData(classId, currentClass)
+        // Refresh all class data & student balances from BE
+        await fetchClassKpiAndTabData(classId, currentClass)
         return true
       } catch (err) {
         showToast(`Lưu điểm danh thất bại: ${err.message}`, 'error')
@@ -1533,7 +1540,7 @@ function bindTuitionTabEvents(classId, currentClass) {
       try {
         await api.markStudentTuitionPaid(classId, studentId)
         showToast(`Đã thu toàn bộ nợ của học sinh ${studentName}`, 'success')
-        fetchClassKpiAndTabData(classId, currentClass)
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Thu học phí thất bại: ${err.message}`, 'error')
       }
@@ -1555,7 +1562,7 @@ function bindTuitionTabEvents(classId, currentClass) {
           }
         }
         showToast('Đã đánh dấu đã đóng toàn bộ học phí cho lớp', 'success')
-        fetchClassKpiAndTabData(classId, currentClass)
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Xử lý thất bại: ${err.message}`, 'error')
       }
@@ -1666,7 +1673,7 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
           })
           showToast('Đã cập nhật trạng thái buổi học', 'success')
           closeModal()
-          fetchClassKpiAndTabData(classId, currentClass)
+          await fetchClassKpiAndTabData(classId, currentClass)
         } catch (err) {
           showToast(`Lỗi: ${err.message}`, 'error')
         }
