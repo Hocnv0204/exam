@@ -146,6 +146,7 @@ function renderStudentRow(s) {
         <div style="display:flex; gap:10px; align-items:center;">
           <a href="#student-details?studentId=${s.id}&classId=${s.classId || (s.classIds && s.classIds[0]) || ''}" title="Xem chi tiết học tập & học phí" style="color:#10b981; font-size:16px; text-decoration:none; display:inline-flex; align-items:center;"><i class="fa-solid fa-circle-user"></i></a>
           <button class="btn-add-balance" data-id="${s.id}" data-name="${s.fullName}" title="Nạp học phí (thêm số dư)" style="background:none; border:none; color:#f59e0b; cursor:pointer; font-size:16px;"><i class="fa-solid fa-wallet"></i></button>
+          <button class="btn-edit-balance" data-id="${s.id}" data-name="${s.fullName}" title="Sửa số dư" style="background:none; border:none; color:#16a34a; cursor:pointer; font-size:16px;"><i class="fa-solid fa-money-bill-transfer"></i></button>
           <button class="btn-edit-student" data-id="${s.id}" title="Chỉnh sửa thông tin học sinh" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;"><i class="fa-solid fa-pen-to-square"></i></button>
           <button class="btn-delete-student" data-id="${s.id}" data-name="${s.fullName}" title="Xóa" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;"><i class="fa-solid fa-trash"></i></button>
         </div>
@@ -463,6 +464,7 @@ export function showAddBalanceModal(studentId) {
       if (result.paid_sessions_count > 0) {
         msg += `\nĐã tự động trừ ${result.total_deducted.toLocaleString('vi-VN')}đ để thanh toán cho ${result.paid_sessions_count} buổi học.`
       }
+      if (window.closeModal) window.closeModal()
       showToast(msg, 'success')
     } catch (err) {
       // Demo mode
@@ -484,11 +486,81 @@ export function showAddBalanceModal(studentId) {
       if (window._refreshClassDetailsTab) {
         window._refreshClassDetailsTab()
       }
+      if (window.closeModal) window.closeModal()
       showToast(`Nạp ${amount.toLocaleString('vi-VN')}đ thành công! (Chế độ Demo)`, 'success')
     }
   })
 }
 window.showAddBalanceModal = showAddBalanceModal
+
+export function showEditBalanceModal(studentId) {
+  const student = state.students.find(s => s.id === studentId)
+  if (!student) {
+    showToast('Không tìm thấy thông tin học sinh!', 'error')
+    return
+  }
+
+  const modalHTML = `
+    <form id="edit-balance-modal-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:16px;">
+      <div style="font-size:14px; color:#334155; margin-bottom:8px;">
+        Học sinh: <strong style="color:#0f172a;">${student.fullName}</strong>
+      </div>
+      <div>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+          Số dư hiện tại (VND) <span style="color:#ef4444;">*</span>
+        </label>
+        <input type="text" id="modal-edit-balance-amount" class="form-input" value="${new Intl.NumberFormat('en-US').format(student.balance || 0)}" required oninput="let v = this.value.replace(/[^0-9]/g, ''); this.value = v ? new Intl.NumberFormat('en-US').format(v) : ''">
+      </div>
+    </form>
+  `
+
+  openModal('Sửa Số Dư', modalHTML, async () => {
+    const amountVal = document.getElementById('modal-edit-balance-amount')?.value.trim() || '0'
+    const amount = parseInt(amountVal.replace(/,/g, ''), 10) || 0
+
+    try {
+      showToast('Đang cập nhật số dư...', 'info')
+      await api.updateStudent({ studentId, balance: amount })
+
+      try {
+        const updatedStudents = await api.getStudents({}, { silent: true })
+        if (updatedStudents && Array.isArray(updatedStudents)) {
+          state.students = updatedStudents
+        }
+      } catch (err) {
+        console.warn('Lỗi khi cập nhật lại danh sách học sinh:', err)
+      }
+
+      student.balance = amount
+      const freshStudent = state.students.find(s => s.id === studentId)
+      if (freshStudent) freshStudent.balance = amount
+
+      if (filteredStudents !== null) {
+        const item = filteredStudents.find(s => s.id === studentId)
+        if (item) item.balance = amount
+      }
+
+      if (window._refreshStudentMgmtTable) window._refreshStudentMgmtTable(false)
+      if (window._refreshClassDetailsTab) window._refreshClassDetailsTab()
+
+      if (window.closeModal) window.closeModal()
+      showToast('Cập nhật số dư thành công', 'success')
+    } catch (err) {
+      // Demo mode fallback
+      student.balance = amount
+      if (filteredStudents !== null) {
+        const item = filteredStudents.find(s => s.id === studentId)
+        if (item) item.balance = amount
+      }
+      if (window._refreshStudentMgmtTable) window._refreshStudentMgmtTable(false)
+      if (window._refreshClassDetailsTab) window._refreshClassDetailsTab()
+      
+      if (window.closeModal) window.closeModal()
+      showToast('Cập nhật số dư thành công (Demo)', 'success')
+    }
+  })
+}
+window.showEditBalanceModal = showEditBalanceModal
 
 export function bindStudentMgmtEvents() {
   bindSidebarEvents()
@@ -644,6 +716,15 @@ function bindTableActionEvents() {
     btn.onclick = () => {
       const id = btn.getAttribute('data-id')
       showAddBalanceModal(id)
+    }
+  })
+
+  document.querySelectorAll('.btn-edit-balance').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-id')
+      if (window.showEditBalanceModal) {
+        window.showEditBalanceModal(id)
+      }
     }
   })
 

@@ -4,7 +4,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
-import { showAddBalanceModal } from './student-mgmt.js'
+import { showAddBalanceModal, showEditBalanceModal } from './student-mgmt.js'
 
 // Module-level state for the active class view
 let activeTab = 'students' // 'students' | 'attendance' | 'tuition' | 'homework' | 'settings'
@@ -339,6 +339,9 @@ function renderStudentsTabHTML(currentClass, classStudents) {
                     <div style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
                       <button class="btn-add-balance-class-tab" data-id="${s.id || s.studentId}" title="Nạp số dư" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fff7ed; border:1px solid #ffedd5; color:#f59e0b; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
                         <i class="fa-solid fa-wallet"></i> Nạp tiền
+                      </button>
+                      <button class="btn-edit-balance-class-tab" data-id="${s.id || s.studentId}" title="Sửa số dư" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#f0fdf4; border:1px solid #dcfce7; color:#16a34a; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-solid fa-pen-to-square"></i> Sửa số dư
                       </button>
                       <a href="#student-details?studentId=${s.id || s.studentId}&classId=${currentClass.id}" class="btn-secondary" title="Xem chi tiết học tập & lịch học" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
                         <i class="fa-solid fa-calendar-day" style="color:#0066cc;"></i> Chi tiết
@@ -1046,8 +1049,21 @@ function bindStudentsTabEvents(classId, currentClass) {
   document.querySelectorAll('.btn-add-balance-class-tab').forEach(btn => {
     btn.onclick = () => {
       const studentId = btn.getAttribute('data-id')
-      window._refreshClassDetailsTab = () => refreshStudentsTable(currentClass)
+      window._refreshClassDetailsTab = () => fetchClassKpiAndTabData(currentClass.id, currentClass) // Fix: trigger API reload instead of just re-rendering old data
       showAddBalanceModal(studentId)
+    }
+  })
+
+  // Edit balance from class tab
+  document.querySelectorAll('.btn-edit-balance-class-tab').forEach(btn => {
+    btn.onclick = () => {
+      const studentId = btn.getAttribute('data-id')
+      window._refreshClassDetailsTab = () => fetchClassKpiAndTabData(currentClass.id, currentClass)
+      if (window.showEditBalanceModal) {
+        window.showEditBalanceModal(studentId)
+      } else {
+        showToast('Tính năng đang được cập nhật...', 'info')
+      }
     }
   })
 
@@ -1092,6 +1108,20 @@ function refreshStudentsTable(currentClass) {
 
 // Modal: Thêm học sinh vào lớp
 function showAddStudentModal(classId, currentClass) {
+  // If we don't have the global students list (because we skipped fetching it to optimize), fetch it now
+  if (!state.students || state.students.length <= cachedClassStudents.length) {
+    showToast('Đang tải danh sách học sinh...', 'info')
+    api.getStudents().then(allStudents => {
+      state.students = allStudents || []
+      // Re-trigger the modal with full list
+      closeModal()
+      showAddStudentModal(classId, currentClass)
+    }).catch(err => {
+      showToast('Lỗi khi tải danh sách học sinh: ' + err.message, 'error')
+    })
+    return
+  }
+
   // Find students in system who are NOT yet enrolled in this class
   const enrolledIds = new Set(cachedClassStudents.map(s => s.id || s.studentId))
   const candidateStudents = state.students.filter(s => !enrolledIds.has(s.id))

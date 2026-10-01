@@ -170,13 +170,41 @@ async function router() {
         const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
 
         state.classChaptersCache = state.classChaptersCache || {}
-        const needClasses = (!state.classes || state.classes.length === 0 || hash === 'classes-admin')
+        let needClasses = (!state.classes || state.classes.length === 0 || hash === 'classes-admin')
         const needChapters = classId ? !state.classChaptersCache[classId] : false
-        const needStudents = ['students', 'classes-admin', 'class-details', 'student-details'].includes(hash) &&
+        let needStudents = ['students', 'classes-admin', 'student-details'].includes(hash) &&
           (!state.students || state.students.length === 0 || hash === 'students')
 
         const prefetchTasks = []
         const taskTypes = []
+
+        // If hard reload on class-details, don't fetch ALL classes and ALL students. 
+        // We will fetch just the required class stats to populate the state.
+        if (hash === 'class-details' && (!state.classes || state.classes.length === 0)) {
+          needClasses = false;
+          needStudents = false;
+          prefetchTasks.push(
+            api.getClassKpiStats(classId).then(res => {
+              if (res.classInfo) {
+                if (!state.classes) state.classes = []
+                state.classes.push({
+                  id: res.classInfo.id,
+                  name: res.classInfo.name,
+                  tuitionFee: res.classInfo.tuitionFee,
+                  is_archived: res.classInfo.isArchived,
+                  studentsCount: (res.students || []).length
+                })
+              }
+              if (res.students) {
+                if (!state.students) state.students = []
+                res.students.forEach(s => {
+                  if (!state.students.find(x => x.id === s.id)) state.students.push(s)
+                })
+              }
+            })
+          )
+          taskTypes.push('class-details-preload')
+        }
 
         if (needClasses) {
           prefetchTasks.push(api.getClasses())
