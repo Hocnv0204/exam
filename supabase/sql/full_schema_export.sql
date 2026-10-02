@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.homeworks (
     pass_score NUMERIC(5,2) NOT NULL DEFAULT 5.00,
     max_score NUMERIC(5,2) NOT NULL DEFAULT 10.00,
     is_published BOOLEAN NOT NULL DEFAULT TRUE,
+    source_homework_id UUID REFERENCES public.homeworks(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -110,6 +110,7 @@ serve(async (req: Request) => {
       const selectClause = `
         id,
         lesson_id,
+        source_homework_id,
         title,
         pdf_path,
         duration_minutes,
@@ -233,6 +234,7 @@ serve(async (req: Request) => {
         return {
           id: hw.id,
           lessonId: hw.lesson_id,
+          sourceHomeworkId: hw.source_homework_id || null,
           title: hw.title,
           pdfPath: hw.pdf_path,
           durationMinutes: hw.duration_minutes !== undefined ? hw.duration_minutes : 45,
@@ -340,6 +342,24 @@ serve(async (req: Request) => {
       }
 
       // 1. Bulk insert questions
+      // Sanitize question numbers: ensure no duplicate question_number exists (enforces uq_homework_question_num)
+      const seenQNums = new Set<number>()
+      let hasDuplicateOrInvalidQNums = false
+      for (const q of questions) {
+        const num = Number(q.questionNumber)
+        if (!Number.isInteger(num) || num < 1 || seenQNums.has(num)) {
+          hasDuplicateOrInvalidQNums = true
+          break
+        }
+        seenQNums.add(num)
+      }
+
+      if (hasDuplicateOrInvalidQNums) {
+        questions.forEach((q: any, idx: number) => {
+          q.questionNumber = idx + 1
+        })
+      }
+
       const parsedPrompts = questions.map((q: any) => {
         let p: any = null
         if (typeof q.prompt === 'object' && q.prompt !== null) p = q.prompt
@@ -352,11 +372,22 @@ serve(async (req: Request) => {
       const questionsPayload = questions.map((q: any, idx: number) => {
         const p = parsedPrompts[idx] || {}
         const isTf = q.questionType === 'TRUE_FALSE'
+        const diff = q.difficulty || p.difficulty || 'THONG_HIEU'
+
+        let promptToSave = typeof q.prompt === 'string' ? q.prompt : JSON.stringify(q.prompt || {})
+        try {
+          const parsed = JSON.parse(promptToSave)
+          if (!parsed.difficulty) {
+            parsed.difficulty = diff
+            promptToSave = JSON.stringify(parsed)
+          }
+        } catch (_) {}
+
         return {
           homework_id: homework.id,
-          question_number: q.questionNumber,
+          question_number: q.questionNumber || (idx + 1),
           question_type: q.questionType,
-          prompt: typeof q.prompt === 'string' ? q.prompt : JSON.stringify(q.prompt || {}),
+          prompt: promptToSave,
           content: q.content || p.text || (typeof q.prompt === 'string' && !q.prompt.startsWith('{') ? q.prompt : null),
           options: q.options || (isTf ? null : (p.options || null)),
           statements: q.statements || (isTf ? (p.statements || p.options || null) : null),
@@ -379,7 +410,7 @@ serve(async (req: Request) => {
       // 2. Map question answers and bulk insert into question_answers
       const qMap = new Map(insertedQuestions.map((iq: any) => [iq.question_number, iq.id]))
       const answersPayload = questions.map((q: any, idx: number) => {
-        const qId = qMap.get(q.questionNumber)
+        const qId = qMap.get(q.questionNumber) || insertedQuestions[idx]?.id
         const p = parsedPrompts[idx] || {}
         return {
           question_id: qId,
@@ -511,6 +542,266 @@ serve(async (req: Request) => {
       )
     }
 
+    // POST: Assign/Clone homework to other classes
+    if (req.method === 'POST' && action === 'assign-to-class') {
+      const body = await req.json()
+      const {
+        sourceHomeworkId,
+        targetClassIds,
+        targetLessonId,
+        smartMapping = true,
+        customSettings = {}
+      } = body
+
+      if (!sourceHomeworkId) {
+        return errorResponse('Missing required sourceHomeworkId', 400)
+      }
+      if (!targetClassIds || !Array.isArray(targetClassIds) || targetClassIds.length === 0) {
+        return errorResponse('Missing or empty targetClassIds', 400)
+      }
+
+      // 1. Fetch Source Homework + Questions + Answer Keys + Source Chapter/Lesson info
+      const [hwRes, qRes] = await Promise.all([
+        serviceRoleClient
+          .from('homeworks')
+          .select(`
+            *,
+            lessons (
+              id,
+              title,
+              chapter_id,
+              chapters (
+                id,
+                title,
+                class_id,
+                classes (
+                  id,
+                  name,
+                  grade_block
+                )
+              )
+            )
+          `)
+          .eq('id', sourceHomeworkId)
+          .single(),
+        serviceRoleClient
+          .from('questions')
+          .select(`
+            *,
+            question_answers (*)
+          `)
+          .eq('homework_id', sourceHomeworkId)
+          .order('question_number', { ascending: true })
+      ])
+
+      if (hwRes.error || !hwRes.data) {
+        return errorResponse(`Source homework not found: ${hwRes.error?.message}`, 404)
+      }
+
+      const sourceHw = hwRes.data
+      const sourceQuestions = qRes.data || []
+      const sourceLesson = sourceHw.lessons
+      const sourceChapter = sourceLesson?.chapters
+      const sourceChapterTitle = sourceChapter?.title || 'Chương 1'
+      const sourceLessonTitle = sourceLesson?.title || 'Bài 1'
+
+      const createdHomeworks = []
+      const errors = []
+
+      // 2. Loop over each target class
+      for (const targetClassId of targetClassIds) {
+        try {
+          let resolvedLessonId = targetLessonId
+
+          // If targetLessonId is not provided or multiple target classes, resolve lesson for this class
+          if (!resolvedLessonId || targetClassIds.length > 1) {
+            // Check if there is already a chapter with the same title in target class
+            const { data: existingChapters } = await serviceRoleClient
+              .from('chapters')
+              .select('id, title')
+              .eq('class_id', targetClassId)
+              .ilike('title', sourceChapterTitle.trim())
+              .limit(1)
+
+            let chapterId: string
+            if (existingChapters && existingChapters.length > 0) {
+              chapterId = existingChapters[0].id
+            } else {
+              // Create new chapter in target class
+              const { data: newCh, error: chErr } = await serviceRoleClient
+                .from('chapters')
+                .insert({
+                  class_id: targetClassId,
+                  title: sourceChapterTitle,
+                  order_index: 0
+                })
+                .select()
+                .single()
+
+              if (chErr || !newCh) {
+                throw new Error(`Failed to create chapter in class ${targetClassId}: ${chErr?.message}`)
+              }
+              chapterId = newCh.id
+            }
+
+            // Check if there is already a lesson with the same title in that chapter
+            const { data: existingLessons } = await serviceRoleClient
+              .from('lessons')
+              .select('id, title')
+              .eq('chapter_id', chapterId)
+              .ilike('title', sourceLessonTitle.trim())
+              .limit(1)
+
+            if (existingLessons && existingLessons.length > 0) {
+              resolvedLessonId = existingLessons[0].id
+            } else {
+              // Create new lesson
+              const { data: newLes, error: lesErr } = await serviceRoleClient
+                .from('lessons')
+                .insert({
+                  chapter_id: chapterId,
+                  title: sourceLessonTitle,
+                  order_index: 0
+                })
+                .select()
+                .single()
+
+              if (lesErr || !newLes) {
+                throw new Error(`Failed to create lesson in class ${targetClassId}: ${lesErr?.message}`)
+              }
+              resolvedLessonId = newLes.id
+            }
+          }
+
+          // 3. Create Homework in Target Class
+          const newTitle = customSettings.title || sourceHw.title
+          const newDeadline = customSettings.deadline !== undefined ? customSettings.deadline : sourceHw.deadline
+          const newDuration = customSettings.durationMinutes !== undefined ? customSettings.durationMinutes : sourceHw.duration_minutes
+          const newMaxAttempts = customSettings.maxAttempts !== undefined ? customSettings.maxAttempts : sourceHw.max_attempts
+          const newMaxViolations = customSettings.maxViolations !== undefined ? customSettings.maxViolations : sourceHw.max_violations
+          const newIsPublished = customSettings.isPublished !== undefined ? customSettings.isPublished : sourceHw.is_published
+          const newShowSolutions = customSettings.showSolutions !== undefined ? customSettings.showSolutions : sourceHw.show_solutions
+
+          const { data: newHw, error: newHwErr } = await serviceRoleClient
+            .from('homeworks')
+            .insert({
+              lesson_id: resolvedLessonId,
+              source_homework_id: sourceHomeworkId,
+              title: newTitle,
+              pdf_path: sourceHw.pdf_path,
+              duration_minutes: newDuration,
+              pass_score: sourceHw.pass_score,
+              max_score: sourceHw.max_score,
+              is_published: newIsPublished,
+              deadline: newDeadline,
+              max_attempts: newMaxAttempts,
+              type: sourceHw.type || 'PRACTICE',
+              max_violations: newMaxViolations,
+              show_solutions: newShowSolutions
+            })
+            .select()
+            .single()
+
+          if (newHwErr || !newHw) {
+            throw new Error(`Failed to create cloned homework in class ${targetClassId}: ${newHwErr?.message}`)
+          }
+
+          // 4. Bulk Insert Questions for new Homework
+          if (sourceQuestions.length > 0) {
+            const questionsPayload = sourceQuestions.map((q: any) => ({
+              homework_id: newHw.id,
+              question_number: q.question_number,
+              question_type: q.question_type,
+              prompt: q.prompt,
+              content: q.content,
+              options: q.options,
+              statements: q.statements,
+              part_title: q.part_title,
+              points: q.points,
+              question_bank_id: q.question_bank_id || null
+            }))
+
+            const { data: insertedQuestions, error: insQErr } = await serviceRoleClient
+              .from('questions')
+              .insert(questionsPayload)
+              .select()
+
+            if (insQErr || !insertedQuestions) {
+              // Rollback created homework
+              await serviceRoleClient.from('homeworks').delete().eq('id', newHw.id)
+              throw new Error(`Failed to copy questions to class ${targetClassId}: ${insQErr?.message}`)
+            }
+
+            // 5. Bulk Insert Question Answers
+            const qMap = new Map(insertedQuestions.map((iq: any) => [iq.question_number, iq.id]))
+            const answersPayload: any[] = []
+
+            for (const sq of sourceQuestions) {
+              const newQId = qMap.get(sq.question_number)
+              const sqAnswers = Array.isArray(sq.question_answers) ? sq.question_answers[0] : sq.question_answers
+              if (newQId && sqAnswers) {
+                answersPayload.push({
+                  question_id: newQId,
+                  mc_answer: sqAnswers.mc_answer,
+                  tf_answers: sqAnswers.tf_answers,
+                  sa_answer: sqAnswers.sa_answer,
+                  sa_tolerance: sqAnswers.sa_tolerance,
+                  explanation: sqAnswers.explanation
+                })
+              }
+            }
+
+            if (answersPayload.length > 0) {
+              const { error: insAnsErr } = await serviceRoleClient
+                .from('question_answers')
+                .insert(answersPayload)
+
+              if (insAnsErr) {
+                console.error(`[assign-to-class] Failed to copy answer keys for class ${targetClassId}:`, insAnsErr)
+              }
+            }
+
+            // 6. Bump Question Bank Usage Log if questions are linked to question_bank
+            const qbIds = sourceQuestions.map((q: any) => q.question_bank_id).filter(Boolean)
+            if (qbIds.length > 0) {
+              try {
+                await serviceRoleClient.rpc('fn_bump_qb_usage_with_log', {
+                  p_question_ids: qbIds,
+                  p_class_id: targetClassId,
+                  p_homework_id: newHw.id
+                })
+              } catch (logErr) {
+                console.warn(`[assign-to-class] Failed to log question bank usage:`, logErr)
+              }
+            }
+          }
+
+          createdHomeworks.push({
+            classId: targetClassId,
+            homeworkId: newHw.id,
+            lessonId: resolvedLessonId,
+            title: newHw.title
+          })
+        } catch (clsErr: any) {
+          errors.push({
+            classId: targetClassId,
+            error: clsErr.message || 'Unknown error'
+          })
+        }
+      }
+
+      if (createdHomeworks.length === 0 && errors.length > 0) {
+        return errorResponse(`Failed to assign homework: ${errors[0].error}`, 500, { errors })
+      }
+
+      return jsonResponse({
+        success: true,
+        message: `Đã gán bài tập thành công cho ${createdHomeworks.length} lớp`,
+        createdHomeworks,
+        errors: errors.length > 0 ? errors : undefined
+      })
+    }
+
     // PUT / PATCH: Update Homework
     if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update') {
       const body = await req.json()
@@ -556,6 +847,23 @@ serve(async (req: Request) => {
 
       // Handle Questions and Answer Keys update in-place to preserve submission_answers
       if (questions) {
+        // Sanitize incoming question numbers if duplicates exist
+        const seenUpdateQNums = new Set<number>()
+        let hasDuplicateUpdateQNums = false
+        for (const q of questions) {
+          const num = Number(q.questionNumber)
+          if (!Number.isInteger(num) || num < 1 || seenUpdateQNums.has(num)) {
+            hasDuplicateUpdateQNums = true
+            break
+          }
+          seenUpdateQNums.add(num)
+        }
+        if (hasDuplicateUpdateQNums) {
+          questions.forEach((q: any, idx: number) => {
+            q.questionNumber = idx + 1
+          })
+        }
+
         // Fetch existing questions
         const { data: existingQuestions, error: fetchQErr } = await serviceRoleClient
           .from('questions')

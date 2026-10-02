@@ -4,10 +4,11 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
-import { showAddBalanceModal, showEditBalanceModal } from './student-mgmt.js'
+import { showAddBalanceModal } from './student-mgmt.js'
 
 // Module-level state for the active class view
 let activeTab = 'students' // 'students' | 'attendance' | 'tuition' | 'homework' | 'settings'
+let currentViewingClassId = null
 let cachedKpiStats = null
 let cachedDebtSummary = null
 let cachedAttendanceHistory = null
@@ -21,6 +22,15 @@ export function renderClassDetailsView() {
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const classId = params.get('classId')
+
+  if (currentViewingClassId !== classId) {
+    currentViewingClassId = classId
+    cachedKpiStats = null
+    cachedDebtSummary = null
+    cachedAttendanceHistory = null
+    cachedHomeworks = null
+    cachedClassStudents = []
+  }
 
   const currentClass = state.classes.find(c => c.id === classId)
   if (!currentClass) {
@@ -340,9 +350,6 @@ function renderStudentsTabHTML(currentClass, classStudents) {
                       <button class="btn-add-balance-class-tab" data-id="${s.id || s.studentId}" title="Nạp số dư" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fff7ed; border:1px solid #ffedd5; color:#f59e0b; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
                         <i class="fa-solid fa-wallet"></i> Nạp tiền
                       </button>
-                      <button class="btn-edit-balance-class-tab" data-id="${s.id || s.studentId}" title="Sửa số dư" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#f0fdf4; border:1px solid #dcfce7; color:#16a34a; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
-                        <i class="fa-solid fa-pen-to-square"></i> Sửa số dư
-                      </button>
                       <a href="#student-details?studentId=${s.id || s.studentId}&classId=${currentClass.id}" class="btn-secondary" title="Xem chi tiết học tập & lịch học" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
                         <i class="fa-solid fa-calendar-day" style="color:#0066cc;"></i> Chi tiết
                       </a>
@@ -367,6 +374,15 @@ function renderStudentsTabHTML(currentClass, classStudents) {
 function renderAttendanceTabHTML(currentClass) {
   const history = cachedAttendanceHistory || []
 
+  // Extract unique months (YYYY-MM)
+  const uniqueMonths = [...new Set(history.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean).sort().reverse()
+  
+  // Format month function
+  const formatMonth = (m) => {
+    const [year, month] = m.split('-')
+    return `Tháng ${month}/${year}`
+  }
+
   return `
     <div class="card" style="padding:24px; border-radius:16px;">
       <!-- Action Header -->
@@ -379,7 +395,13 @@ function renderAttendanceTabHTML(currentClass) {
             Điểm danh học sinh từng buổi học. Mỗi học sinh có mặt sẽ tự động phát sinh học phí buổi đó.
           </p>
         </div>
-        <div class="class-toolbar-actions">
+        <div class="class-toolbar-actions" style="display:flex; align-items:center; gap:12px;">
+          ${uniqueMonths.length > 0 ? `
+            <select id="attendance-month-filter" class="form-input" style="width:auto; min-width:140px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1; outline:none; cursor:pointer;">
+              <option value="all">Tất cả các tháng</option>
+              ${uniqueMonths.map(m => `<option value="${m}">${formatMonth(m)}</option>`).join('')}
+            </select>
+          ` : ''}
           <button id="btn-open-attendance-modal" class="btn-primary" style="padding:10px 22px; font-size:14px; font-weight:700; width:auto; border-radius:10px; background:#10b981; border-color:#10b981; box-shadow:0 4px 12px rgba(16,185,129,0.25); display:inline-flex; align-items:center; gap:8px;">
             <i class="fa-solid fa-clipboard-check"></i> Điểm danh hôm nay
           </button>
@@ -413,7 +435,7 @@ function renderAttendanceTabHTML(currentClass) {
               const rate = h.attendanceRate !== undefined ? h.attendanceRate : (h.totalCount > 0 ? Math.round((h.presentCount / h.totalCount) * 100) : 0)
               
               return `
-                <tr id="session-row-${h.id}">
+                <tr id="session-row-${h.id}" class="attendance-row" data-month="${(h.sessionDate || '').substring(0, 7)}">
                   <td>
                     <div style="font-weight:700; color:#0f172a; display:inline-flex; align-items:center; gap:8px;">
                       <i class="fa-regular fa-calendar" style="color:#0066cc;"></i> ${formattedDate}
@@ -844,14 +866,21 @@ function bindActiveTabEvents(classId, currentClass) {
 // ---------------------------------------------------------
 async function fetchClassKpiAndTabData(classId, currentClass) {
   try {
-    // 1. Fetch KPI Stats
-    api.getClassKpiStats(classId).then(kpi => {
+    // 1. Fetch Students from BE to keep global state.students always in sync
+    const studentsPromise = api.getStudents({}, { silent: true }).then(updatedStudents => {
+      if (updatedStudents && Array.isArray(updatedStudents)) {
+        state.students = updatedStudents
+      }
+    }).catch(err => console.warn('Failed to refresh students list:', err))
+
+    // 2. Fetch KPI Stats
+    const kpiPromise = api.getClassKpiStats(classId).then(kpi => {
       cachedKpiStats = kpi
       updateKpiUI(kpi)
     }).catch(err => console.warn('Failed to load KPI stats:', err))
 
-    // 2. Fetch Attendance History
-    api.getAttendanceHistory(classId).then(history => {
+    // 3. Fetch Attendance History
+    const historyPromise = api.getAttendanceHistory(classId).then(history => {
       cachedAttendanceHistory = history
       const tabBadgeAtt = document.getElementById('tab-badge-attendance')
       if (tabBadgeAtt) tabBadgeAtt.textContent = (history || []).length
@@ -865,8 +894,8 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
       }
     }).catch(err => console.warn('Failed to load attendance history:', err))
 
-    // 3. Fetch Debt Summary
-    api.getClassDebtSummary(classId).then(debtList => {
+    // 4. Fetch Debt Summary
+    const debtPromise = api.getClassDebtSummary(classId).then(debtList => {
       cachedDebtSummary = debtList
       const list = debtList || []
       const totalDebt = list.reduce((sum, s) => sum + (s.unpaidDebt || 0), 0)
@@ -890,17 +919,21 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
         }
       }
 
-      // Sync debt into cached student list
+      // Sync debt into cached student list and sync balances with state.students
       if (debtList && debtList.length > 0) {
         cachedClassStudents = debtList.map(d => {
           const globalS = state.students.find(s => s.id === d.studentId) || {}
+          const resolvedBalance = (d.balance !== undefined ? d.balance : globalS.balance) || 0
+          if (globalS.id) {
+            globalS.balance = resolvedBalance
+          }
           return {
             id: d.studentId,
             fullName: d.fullName,
             username: d.username,
             studentCode: d.studentCode,
             status: d.status,
-            balance: (d.balance !== undefined ? d.balance : globalS.balance) || 0,
+            balance: resolvedBalance,
             attendanceRate: d.attendanceRate,
             unpaidDebt: d.unpaidDebt,
             attendedSessions: d.attendedSessions,
@@ -919,8 +952,8 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
       }
     }).catch(err => console.warn('Failed to load debt summary:', err))
 
-    // 4. Fetch Homeworks for class
-    api.getHomeworks('', classId).then(hws => {
+    // 5. Fetch Homeworks for class
+    const hwPromise = api.getHomeworks('', classId).then(hws => {
       cachedHomeworks = Array.isArray(hws) ? hws : (hws?.items || [])
       const tabBadgeHw = document.getElementById('tab-badge-homework')
       if (tabBadgeHw) tabBadgeHw.textContent = cachedHomeworks.length
@@ -933,6 +966,7 @@ async function fetchClassKpiAndTabData(classId, currentClass) {
       }
     }).catch(err => console.warn('Failed to load homeworks:', err))
 
+    await Promise.allSettled([studentsPromise, kpiPromise, historyPromise, debtPromise, hwPromise])
   } catch (e) {
     console.error('Error fetching class details data:', e)
   }
@@ -1032,13 +1066,8 @@ function bindStudentsTabEvents(classId, currentClass) {
         await api.updateStudentClassStatus(classId, studentId, nextStatus)
         showToast(`Đã chuyển học sinh sang trạng thái ${label}`, 'success')
 
-        // Update local state
-        const target = cachedClassStudents.find(s => s.id === studentId || s.studentId === studentId)
-        if (target) target.status = nextStatus
-
-        refreshStudentsTable(currentClass)
-        // Refresh KPI
-        api.getClassKpiStats(classId).then(updateKpiUI)
+        // Refresh all class data & student states
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Cập nhật thất bại: ${err.message}`, 'error')
       }
@@ -1049,21 +1078,17 @@ function bindStudentsTabEvents(classId, currentClass) {
   document.querySelectorAll('.btn-add-balance-class-tab').forEach(btn => {
     btn.onclick = () => {
       const studentId = btn.getAttribute('data-id')
-      window._refreshClassDetailsTab = () => fetchClassKpiAndTabData(currentClass.id, currentClass) // Fix: trigger API reload instead of just re-rendering old data
-      showAddBalanceModal(studentId)
-    }
-  })
-
-  // Edit balance from class tab
-  document.querySelectorAll('.btn-edit-balance-class-tab').forEach(btn => {
-    btn.onclick = () => {
-      const studentId = btn.getAttribute('data-id')
-      window._refreshClassDetailsTab = () => fetchClassKpiAndTabData(currentClass.id, currentClass)
-      if (window.showEditBalanceModal) {
-        window.showEditBalanceModal(studentId)
-      } else {
-        showToast('Tính năng đang được cập nhật...', 'info')
+      window._refreshClassDetailsTab = (sId, newBal) => {
+        if (sId && newBal !== undefined) {
+          const cachedItem = cachedClassStudents.find(s => s.id === sId || s.studentId === sId)
+          if (cachedItem) cachedItem.balance = newBal
+          const stateItem = state.students.find(s => s.id === sId)
+          if (stateItem) stateItem.balance = newBal
+          refreshStudentsTable(currentClass)
+        }
+        fetchClassKpiAndTabData(classId, currentClass)
       }
+      showAddBalanceModal(studentId)
     }
   })
 
@@ -1108,20 +1133,6 @@ function refreshStudentsTable(currentClass) {
 
 // Modal: Thêm học sinh vào lớp
 function showAddStudentModal(classId, currentClass) {
-  // If we don't have the global students list (because we skipped fetching it to optimize), fetch it now
-  if (!state.students || state.students.length <= cachedClassStudents.length) {
-    showToast('Đang tải danh sách học sinh...', 'info')
-    api.getStudents().then(allStudents => {
-      state.students = allStudents || []
-      // Re-trigger the modal with full list
-      closeModal()
-      showAddStudentModal(classId, currentClass)
-    }).catch(err => {
-      showToast('Lỗi khi tải danh sách học sinh: ' + err.message, 'error')
-    })
-    return
-  }
-
   // Find students in system who are NOT yet enrolled in this class
   const enrolledIds = new Set(cachedClassStudents.map(s => s.id || s.studentId))
   const candidateStudents = state.students.filter(s => !enrolledIds.has(s.id))
@@ -1221,6 +1232,43 @@ function showAddStudentModal(classId, currentClass) {
 // TAB 2 BINDINGS: ĐIỂM DANH (ATTENDANCE ENGINE)
 // ---------------------------------------------------------
 function bindAttendanceTabEvents(classId, currentClass) {
+  // Bộ lọc theo tháng
+  const monthFilter = document.getElementById('attendance-month-filter')
+  if (monthFilter) {
+    monthFilter.addEventListener('change', (e) => {
+      const selectedMonth = e.target.value
+      const rows = document.querySelectorAll('.attendance-row')
+      let visibleCount = 0
+      
+      rows.forEach(row => {
+        if (selectedMonth === 'all' || row.dataset.month === selectedMonth) {
+          row.style.display = ''
+          visibleCount++
+        } else {
+          row.style.display = 'none'
+        }
+      })
+
+      let emptyRow = document.getElementById('attendance-empty-row')
+      if (visibleCount === 0) {
+        if (!emptyRow) {
+          emptyRow = document.createElement('tr')
+          emptyRow.id = 'attendance-empty-row'
+          emptyRow.innerHTML = `
+            <td colspan="6" style="text-align:center; padding:48px 20px; color:#64748b;">
+              <i class="fa-solid fa-calendar-xmark" style="font-size:36px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
+              Không có buổi điểm danh nào trong tháng này.
+            </td>
+          `
+          document.getElementById('attendance-history-tbody').appendChild(emptyRow)
+        }
+        emptyRow.style.display = ''
+      } else {
+        if (emptyRow) emptyRow.style.display = 'none'
+      }
+    })
+  }
+
   // Nút Điểm danh hôm nay
   const openModalBtn = document.getElementById('btn-open-attendance-modal')
   if (openModalBtn) {
@@ -1250,8 +1298,8 @@ function bindAttendanceTabEvents(classId, currentClass) {
         await api.deleteAttendanceSession(sessionId, classIdAttr, sessionDate)
         showToast('Đã xóa buổi điểm danh', 'success')
 
-        // Reload data
-        fetchClassKpiAndTabData(classId, currentClass)
+        // Reload data and student balances from BE
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Xóa thất bại: ${err.message}`, 'error')
       }
@@ -1428,8 +1476,8 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
 
         showToast('Điểm danh thành công!', 'success')
 
-        // Refresh all class data
-        fetchClassKpiAndTabData(classId, currentClass)
+        // Refresh all class data & student balances from BE
+        await fetchClassKpiAndTabData(classId, currentClass)
         return true
       } catch (err) {
         showToast(`Lưu điểm danh thất bại: ${err.message}`, 'error')
@@ -1553,7 +1601,7 @@ function bindTuitionTabEvents(classId, currentClass) {
       try {
         await api.markStudentTuitionPaid(classId, studentId)
         showToast(`Đã thu toàn bộ nợ của học sinh ${studentName}`, 'success')
-        fetchClassKpiAndTabData(classId, currentClass)
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Thu học phí thất bại: ${err.message}`, 'error')
       }
@@ -1575,7 +1623,7 @@ function bindTuitionTabEvents(classId, currentClass) {
           }
         }
         showToast('Đã đánh dấu đã đóng toàn bộ học phí cho lớp', 'success')
-        fetchClassKpiAndTabData(classId, currentClass)
+        await fetchClassKpiAndTabData(classId, currentClass)
       } catch (err) {
         showToast(`Xử lý thất bại: ${err.message}`, 'error')
       }
@@ -1686,7 +1734,7 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
           })
           showToast('Đã cập nhật trạng thái buổi học', 'success')
           closeModal()
-          fetchClassKpiAndTabData(classId, currentClass)
+          await fetchClassKpiAndTabData(classId, currentClass)
         } catch (err) {
           showToast(`Lỗi: ${err.message}`, 'error')
         }

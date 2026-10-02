@@ -1020,27 +1020,26 @@ export function bindTrialEvents() {
     }
   })
 
-  // Fetch trial lessons if not loaded
-  if (!trialLoaded && !isLoadingTrial) {
+  // Fetch fresh trial lessons from API
+  if (!isLoadingTrial) {
     isLoadingTrial = true
-    try {
-      api.getTrialLessons().then(lessons => {
-        cachedTrialLessons = lessons || []
-        isLoadingTrial = false
-        trialLoaded = true
+    api.getTrialLessons().then(lessons => {
+      const isDifferent = JSON.stringify(cachedTrialLessons) !== JSON.stringify(lessons || [])
+      cachedTrialLessons = lessons || []
+      isLoadingTrial = false
+      trialLoaded = true
+      if (isDifferent) {
         const app = document.getElementById('app')
-        if (app) {
+        const currentHash = window.location.hash.replace('#', '').split('?')[0]
+        if (app && ['trial', 'roadmap', 'roadmap-12', 'roadmap-11'].includes(currentHash)) {
           app.innerHTML = renderTrialView()
           bindTrialEvents()
         }
-      }).catch(err => {
-        console.error('[Trial] Error loading trial lessons:', err)
-        isLoadingTrial = false
-        trialLoaded = true
-      })
-    } catch (err) {
+      }
+    }).catch(err => {
+      console.error('[Trial] Error loading trial lessons:', err)
       isLoadingTrial = false
       trialLoaded = true
-    }
+    })
   }
 }

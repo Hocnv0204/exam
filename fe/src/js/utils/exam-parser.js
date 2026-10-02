@@ -482,24 +482,58 @@ export function parseExamMarkdown(rawText, defaultSectionType = 'MULTIPLE_CHOICE
       continue
     }
 
-    // Check Question Start: [Câu 1], [Câu 1] [TF], Câu 1:, Câu 1.
-    const qMatch = trimmed.match(/^\[(?:Câu|Bài)\s*(\d+)\](?:\s*\[(TF|SA|MC|ĐS|TLN)\])?\s*[:.-]?\s*(.*)$/i) ||
-                   trimmed.match(/^(?:Câu|Bài)\s*(\d+)(?:\s*\[(TF|SA|MC|ĐS|TLN)\])?\s*[:.-]\s*(.*)$/i)
-    if (qMatch && !trimmed.startsWith('[Lời giải') && !trimmed.startsWith('[Đáp án') && !trimmed.startsWith('[Dung sai')) {
+    // Check Question Start: [Câu 1], [Câu 1] [TF] [THONG_HIEU], [Câu 1] [NB], Câu 1:, Câu 1.
+    const qMatch = trimmed.match(/^\[(?:Câu|Bài)\s*(\d+)\](.*)$/i) ||
+                   trimmed.match(/^(?:Câu|Bài)\s*(\d+)(.*)$/i)
+    if (qMatch && !trimmed.startsWith('[Lời giải') && !trimmed.startsWith('[Đáp án') && !trimmed.startsWith('[Dung sai') && !trimmed.startsWith('[Hướng dẫn giải') && !trimmed.startsWith('[Giải chi tiết')) {
       flushCurrentQuestion()
 
       const qNum = parseInt(qMatch[1], 10)
-      const typeTag = (qMatch[2] || '').toUpperCase()
-      const sameLinePrompt = (qMatch[3] || '').trim()
+      let rest = (qMatch[2] || '').trim()
 
       let qType = currentSectionType
-      if (typeTag === 'TF' || typeTag === 'ĐS') qType = 'TRUE_FALSE'
-      else if (typeTag === 'SA' || typeTag === 'TLN') qType = 'SHORT_ANSWER'
-      else if (typeTag === 'MC') qType = 'MULTIPLE_CHOICE'
+      let qDiff = null
+
+      // Extract all bracketed tags after question number: [TF], [SA], [MC], [NHAN_BIET], [NB], etc.
+      while (rest) {
+        const tagMatch = rest.match(/^\[([a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF\s]+)\]\s*(.*)$/)
+        if (!tagMatch) break
+
+        const rawTag = tagMatch[1].trim().toUpperCase()
+        if (rawTag === 'TF' || rawTag === 'ĐS' || rawTag === 'TRUE_FALSE') {
+          qType = 'TRUE_FALSE'
+          rest = tagMatch[2].trim()
+        } else if (rawTag === 'SA' || rawTag === 'TLN' || rawTag === 'SHORT_ANSWER') {
+          qType = 'SHORT_ANSWER'
+          rest = tagMatch[2].trim()
+        } else if (rawTag === 'MC' || rawTag === 'MULTIPLE_CHOICE') {
+          qType = 'MULTIPLE_CHOICE'
+          rest = tagMatch[2].trim()
+        } else if (rawTag === 'NHAN_BIET' || rawTag === 'NB' || rawTag === 'NHẬN BIẾT') {
+          qDiff = 'NHAN_BIET'
+          rest = tagMatch[2].trim()
+        } else if (rawTag === 'THONG_HIEU' || rawTag === 'TH' || rawTag === 'THÔNG HIỂU') {
+          qDiff = 'THONG_HIEU'
+          rest = tagMatch[2].trim()
+        } else if (rawTag === 'VAN_DUNG' || rawTag === 'VD' || rawTag === 'VẬN DỤNG') {
+          qDiff = 'VAN_DUNG'
+          rest = tagMatch[2].trim()
+        } else if (rawTag === 'VAN_DUNG_CAO' || rawTag === 'VDC' || rawTag === 'VẬN DỤNG CAO') {
+          qDiff = 'VAN_DUNG_CAO'
+          rest = tagMatch[2].trim()
+        } else {
+          // If not a recognized type or difficulty tag, leave rest intact (could be math/bracketed text)
+          break
+        }
+      }
+
+      // Strip leading punctuation (: . -) before prompt
+      const sameLinePrompt = rest.replace(/^[:.-]\s*/, '').trim()
 
       currentQ = {
         questionNumber: qNum,
         questionType: qType,
+        difficulty: qDiff,
         promptLines: sameLinePrompt ? [sameLinePrompt] : [],
         options: [],
         mcAnswer: null,
@@ -585,12 +619,25 @@ export function parseExamMarkdown(rawText, defaultSectionType = 'MULTIPLE_CHOICE
 
   flushCurrentQuestion()
 
-  // Ensure 1-based sequential renumbering if necessary
-  questions.forEach((q, idx) => {
-    if (!q.questionNumber || isNaN(q.questionNumber)) {
-      q.questionNumber = idx + 1
+  // Validate and ensure 1-based sequential numbering (1..N) without duplicates or gaps.
+  // Standard Vietnamese MOET exams often restart numbering at [Câu 1] in each section (Phần I, II, III).
+  // A homework in the database requires unique question_number across the entire exam.
+  const seenNumbers = new Set()
+  let needsRenumbering = false
+  for (let i = 0; i < questions.length; i++) {
+    const num = questions[i].questionNumber
+    if (!num || isNaN(num) || num < 1 || seenNumbers.has(num)) {
+      needsRenumbering = true
+      break
     }
-  })
+    seenNumbers.add(num)
+  }
+
+  if (needsRenumbering) {
+    questions.forEach((q, idx) => {
+      q.questionNumber = idx + 1
+    })
+  }
 
   return { questions }
 }
@@ -607,9 +654,17 @@ export function formatQuestionToMarkdown(q) {
   const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
   const isMc = !isTf && !isSa
 
+  let diffTag = ''
+  const rawDiff = (q.difficulty || '').toUpperCase()
+  if (rawDiff === 'NHAN_BIET' || rawDiff === 'NB') diffTag = ' [NHAN_BIET]'
+  else if (rawDiff === 'THONG_HIEU' || rawDiff === 'TH') diffTag = ' [THONG_HIEU]'
+  else if (rawDiff === 'VAN_DUNG' || rawDiff === 'VD') diffTag = ' [VAN_DUNG]'
+  else if (rawDiff === 'VAN_DUNG_CAO' || rawDiff === 'VDC') diffTag = ' [VAN_DUNG_CAO]'
+
   let headerTag = `[Câu ${qNum}]`
-  if (isTf) headerTag = `[Câu ${qNum}] [TF]`
-  else if (isSa) headerTag = `[Câu ${qNum}] [SA]`
+  if (isTf) headerTag = `[Câu ${qNum}] [TF]${diffTag}`
+  else if (isSa) headerTag = `[Câu ${qNum}] [SA]${diffTag}`
+  else headerTag = `[Câu ${qNum}]${diffTag}`
 
   const lines = [headerTag]
 

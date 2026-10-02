@@ -5,13 +5,12 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+import { openAssignHomeworkModal } from '../components/assign-homework-modal.js'
 
 let currentHomeworks = []
 let totalHomeworks = 0
 let globalStats = { total: 0, practiceCount: 0, examCount: 0, classesCount: 0 }
 let allClasses = []
-let chaptersCache = {} // classId -> chapters array
-let lessonsCache = {}  // chapterId -> lessons array
 
 let filterState = {
   search: '',
@@ -230,14 +229,17 @@ export function bindHomeworkMgmtEvents() {
 async function loadData() {
   const tableBody = document.getElementById('hw-table-body')
   try {
-    // 1. Populate allClasses: use state.classes if cached, or fetch via api.getClasses()
-    if (state.classes && state.classes.length > 0) {
-      allClasses = state.classes
-    } else {
-      const cls = await api.getClasses()
-      allClasses = cls || []
-      state.classes = allClasses
-    }
+    // 1. Populate allClasses fresh via api.getClasses()
+    const cls = await api.getClasses()
+    allClasses = (cls || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+      studentsCount: c.studentsCount || 0,
+      tuitionFee: c.tuitionFee || 0,
+      progress: 0
+    }))
+    state.classes = allClasses
 
     // 2. Populate Class Filter dropdown
     populateClassDropdown()
@@ -418,14 +420,9 @@ async function handleClassChange(classId) {
   if (lessonSelect) lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
 
   try {
-    if (!chaptersCache[classId]) {
-      const chapters = await api.getChapters(classId)
-      chaptersCache[classId] = chapters || []
-    }
-    const chapters = chaptersCache[classId]
-
+    const chapters = await api.getChapters(classId)
     let chHtml = '<option value="">Tất cả chương</option>'
-    chapters.forEach(ch => {
+    ;(chapters || []).forEach(ch => {
       chHtml += `<option value="${ch.id}">${ch.title}</option>`
     })
     if (chapterSelect) chapterSelect.innerHTML = chHtml
@@ -452,14 +449,9 @@ async function handleChapterChange(chapterId) {
   if (lessonSelect) lessonSelect.innerHTML = '<option value="">Đang tải bài học...</option>'
 
   try {
-    if (!lessonsCache[chapterId]) {
-      const lessons = await api.getLessons(chapterId)
-      lessonsCache[chapterId] = lessons || []
-    }
-    const lessons = lessonsCache[chapterId]
-
+    const lessons = await api.getLessons(chapterId)
     let lHtml = '<option value="">Tất cả bài học</option>'
-    lessons.forEach(l => {
+    ;(lessons || []).forEach(l => {
       lHtml += `<option value="${l.id}">${l.title}</option>`
     })
     if (lessonSelect) lessonSelect.innerHTML = lHtml
@@ -554,9 +546,10 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
         <td style="padding:12px 16px; text-align:center; font-weight:700; color:#64748b;">${fromIndex + index + 1}</td>
         <td style="padding:12px 16px;">
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <strong style="color:#0f172a; font-size:14px;">${hw.title}</strong>
               ${typeBadge}
+              ${hw.sourceHomeworkId ? `<span class="badge" style="background:#eff6ff; color:#0284c7; border:1px solid #bfdbfe; padding:2px 6px; border-radius:4px; font-weight:600; font-size:10.5px;" title="Bài tập được gán/sao chép từ lớp khác"><i class="fa-solid fa-copy"></i> Bản sao</span>` : ''}
             </div>
             ${hw.pdfPath ? `
               <div style="font-size:11px; color:#64748b; display:flex; align-items:center; gap:4px;">
@@ -594,11 +587,11 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
                 <i class="fa-solid fa-desktop"></i>
               </button>
             ` : ''}
-            <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem lịch sử & câu sai" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
+            <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem kết quả & lịch sử làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
               <i class="fa-solid fa-chart-pie"></i>
             </button>
-            <button class="btn-secondary btn-unsubmitted-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Theo dõi học sinh chưa làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fff7ed; border:1px solid #fed7aa; color:#ea580c;">
-              <i class="fa-solid fa-user-clock"></i>
+            <button class="btn-secondary btn-assign-hw" data-id="${hw.id}" title="Gán bài tập cho lớp khác" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a;">
+              <i class="fa-solid fa-share-nodes"></i>
             </button>
             <button class="btn-secondary btn-edit-hw" data-id="${hw.id}" title="Sửa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #cbd5e1; color:#0066cc;">
               <i class="fa-solid fa-pen-to-square"></i>
@@ -631,20 +624,7 @@ function attachRowActions(tableBody) {
     })
   })
 
-  // Attach Unsubmitted buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...&tab=unsubmitted
-  tableBody.querySelectorAll('.btn-unsubmitted-hw').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const hwId = btn.getAttribute('data-id')
-      const classId = btn.getAttribute('data-classid')
-      let hash = '#admin-history'
-      if (classId && hwId) {
-        hash += `?classId=${classId}&homeworkId=${hwId}&tab=unsubmitted`
-      } else if (hwId) {
-        hash += `?homeworkId=${hwId}&tab=unsubmitted`
-      }
-      window.location.hash = hash
-    })
-  })
+
 
   // Attach Proctoring buttons listeners -> Redirect to /exam-proctoring?homeworkId=...
   tableBody.querySelectorAll('.btn-proctor-hw').forEach(btn => {
@@ -652,6 +632,19 @@ function attachRowActions(tableBody) {
       const hwId = btn.getAttribute('data-id')
       if (hwId) {
         window.location.hash = `#exam-proctoring?homeworkId=${hwId}`
+      }
+    })
+  })
+
+  // Attach Assign buttons listeners
+  tableBody.querySelectorAll('.btn-assign-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hwId = btn.getAttribute('data-id')
+      const targetHw = currentHomeworks.find(h => h.id === hwId)
+      if (targetHw) {
+        openAssignHomeworkModal(targetHw, async () => {
+          await fetchHomeworksData()
+        })
       }
     })
   })

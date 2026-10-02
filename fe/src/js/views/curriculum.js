@@ -5,6 +5,7 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api, SUPABASE_URL } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
+import { openAssignHomeworkModal } from '../components/assign-homework-modal.js'
 
 window.previewTheoryPdf = (disp, mappedUrl) => {
   openModal(
@@ -30,10 +31,6 @@ let expandedChapterIds = new Set()
 let expandedLessonIds = new Set()
 
 async function ensureCurriculumLoaded(classId) {
-  if (state.curriculums.some(c => c.classId === classId)) {
-    return // Already loaded!
-  }
-
   isLoadingCurriculum = true
   // Re-render immediately to show loading spinner
   const app = document.getElementById('app')
@@ -313,9 +310,14 @@ function renderChapterCard(ch) {
                           <i class="fa-solid fa-file-signature" style="color:#64748b; font-size:11px; margin-right:4px;"></i>
                           ${hw.title} <span style="font-size:11px; color:#94a3b8;">(${hw.durationMinutes || 45} phút)</span>
                         </div>
-                        <button class="btn-secondary btn-edit-homework" data-id="${hw.id}" style="padding:2px 8px; font-size:11px; cursor:pointer; background:#ffffff; border-color:#cbd5e1;">
-                          <i class="fa-solid fa-wrench"></i> Sửa
-                        </button>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                          <button class="btn-secondary btn-assign-homework" data-id="${hw.id}" data-title="${hw.title}" data-duration="${hw.durationMinutes || 45}" data-type="${hw.type || 'PRACTICE'}" data-chapter-title="${ch.title}" data-lesson-title="${l.title}" title="Gán sang lớp khác" style="padding:2px 8px; font-size:11px; cursor:pointer; background:#f0fdf4; border-color:#bbf7d0; color:#16a34a;">
+                            <i class="fa-solid fa-share-nodes"></i> Gán
+                          </button>
+                          <button class="btn-secondary btn-edit-homework" data-id="${hw.id}" style="padding:2px 8px; font-size:11px; cursor:pointer; background:#ffffff; border-color:#cbd5e1;">
+                            <i class="fa-solid fa-wrench"></i> Sửa
+                          </button>
+                        </div>
                       </div>
                     `).join('') : `
                       <div style="color:#94a3b8; font-size:12px; padding:4px 0; font-style:italic;">Chưa có bài tập nào</div>
@@ -737,6 +739,34 @@ export function bindCurriculumEvents() {
           showToast(`Cập nhật thất bại: ${err.message}`, 'error')
           return false
         }
+      })
+    })
+  })
+
+  // Assign Homework Event
+  document.querySelectorAll('.btn-assign-homework').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const hwId = btn.getAttribute('data-id')
+      const hwTitle = btn.getAttribute('data-title') || 'Bài tập'
+      const hwDuration = parseInt(btn.getAttribute('data-duration') || '45', 10)
+      const hwType = btn.getAttribute('data-type') || 'PRACTICE'
+      const chapterTitle = btn.getAttribute('data-chapter-title') || ''
+      const lessonTitle = btn.getAttribute('data-lesson-title') || ''
+      const currClass = state.classes.find(c => c.id === activeClassId)
+
+      openAssignHomeworkModal({
+        id: hwId,
+        title: hwTitle,
+        durationMinutes: hwDuration,
+        type: hwType,
+        classId: activeClassId,
+        className: currClass?.name || 'Lớp học',
+        chapterTitle,
+        lessonTitle
+      }, async () => {
+        // Reload curriculum if needed
+        ensureCurriculumLoaded(activeClassId)
       })
     })
   })

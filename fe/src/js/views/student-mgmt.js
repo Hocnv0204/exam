@@ -336,6 +336,16 @@ export function showEditStudentModal(studentId) {
         balance
       })
 
+      // Fe call lại API để cập nhật danh sách học sinh mới nhất từ BE
+      try {
+        const updatedStudents = await api.getStudents({}, { silent: true })
+        if (updatedStudents && Array.isArray(updatedStudents)) {
+          state.students = updatedStudents
+        }
+      } catch (err) {
+        console.warn('Lỗi khi cập nhật lại danh sách học sinh:', err)
+      }
+
       // Update local state
       student.fullName = fullName
       student.className = classNames
@@ -359,6 +369,10 @@ export function showEditStudentModal(studentId) {
       } else {
         const searchInput = document.getElementById('student-search-input')
         searchInput?.dispatchEvent(new Event('input'))
+      }
+
+      if (window._refreshClassDetailsTab) {
+        window._refreshClassDetailsTab(studentId, balance)
       }
 
       showToast(`Đã cập nhật thành công thông tin học sinh "${fullName}"!`, 'success')
@@ -385,6 +399,10 @@ export function showEditStudentModal(studentId) {
         const searchInput = document.getElementById('student-search-input')
         searchInput?.dispatchEvent(new Event('input'))
       }
+
+      if (window._refreshClassDetailsTab) {
+        window._refreshClassDetailsTab(studentId, balance)
+      }
       showToast(`Đã cập nhật thông tin học sinh "${fullName}" (Chế độ Demo)!`, 'success')
     }
   })
@@ -392,6 +410,16 @@ export function showEditStudentModal(studentId) {
 
 window.showCreateStudentModal = showCreateStudentModal
 window.showEditStudentModal = showEditStudentModal
+
+function escapeHtml(str) {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 export function showAddBalanceModal(studentId) {
   const student = state.students.find(s => s.id === studentId)
@@ -403,7 +431,7 @@ export function showAddBalanceModal(studentId) {
   const modalHTML = `
     <form id="add-balance-modal-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:16px;">
       <div style="font-size:14px; color:#334155; margin-bottom:8px;">
-        Học sinh: <strong style="color:#0f172a;">${student.fullName}</strong><br/>
+        Học sinh: <strong style="color:#0f172a;">${escapeHtml(student.fullName)}</strong><br/>
         Số dư hiện tại: <strong style="color:#10b981; font-size:16px;">${(student.balance || 0).toLocaleString('vi-VN')} đ</strong>
       </div>
       <div>
@@ -428,7 +456,7 @@ export function showAddBalanceModal(studentId) {
       showToast('Đang nạp tiền...', 'info')
       const result = await api.addStudentBalance(studentId, amount)
 
-      // Fe call lại API để cập nhật danh sách học sinh mới nhất
+      // Fe call lại API để cập nhật danh sách học sinh mới nhất từ BE
       try {
         const updatedStudents = await api.getStudents({}, { silent: true })
         if (updatedStudents && Array.isArray(updatedStudents)) {
@@ -440,9 +468,12 @@ export function showAddBalanceModal(studentId) {
 
       // Cập nhật lại thông tin student trong state cục bộ
       const freshStudent = state.students.find(s => s.id === studentId) || student
-      const newBalance = result.balance !== undefined ? result.balance : ((freshStudent.balance || 0) + amount)
+      const newBalance = (result && result.balance !== undefined)
+        ? result.balance
+        : (freshStudent ? freshStudent.balance : ((student.balance || 0) + amount))
+
       student.balance = newBalance
-      freshStudent.balance = newBalance
+      if (freshStudent) freshStudent.balance = newBalance
 
       if (filteredStudents !== null) {
         const item = filteredStudents.find(s => s.id === studentId)
@@ -457,15 +488,16 @@ export function showAddBalanceModal(studentId) {
       }
 
       if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab()
+        window._refreshClassDetailsTab(studentId, newBalance)
       }
 
       let msg = `Nạp ${amount.toLocaleString('vi-VN')}đ thành công! Số dư mới: ${newBalance.toLocaleString('vi-VN')}đ`
-      if (result.paid_sessions_count > 0) {
-        msg += `\nĐã tự động trừ ${result.total_deducted.toLocaleString('vi-VN')}đ để thanh toán cho ${result.paid_sessions_count} buổi học.`
+      if (result && result.paid_sessions_count > 0) {
+        msg += `\nĐã tự động trừ ${(result.total_deducted || 0).toLocaleString('vi-VN')}đ để thanh toán cho ${result.paid_sessions_count} buổi học.`
       }
       if (window.closeModal) window.closeModal()
       showToast(msg, 'success')
+      return true
     } catch (err) {
       // Demo mode
       const newBalance = (student.balance || 0) + amount
@@ -484,10 +516,11 @@ export function showAddBalanceModal(studentId) {
       }
 
       if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab()
+        window._refreshClassDetailsTab(studentId, newBalance)
       }
       if (window.closeModal) window.closeModal()
       showToast(`Nạp ${amount.toLocaleString('vi-VN')}đ thành công! (Chế độ Demo)`, 'success')
+      return true
     }
   })
 }

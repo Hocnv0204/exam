@@ -38,8 +38,6 @@ try {
 let mcAnswers = {}
 let tfAnswers = {}
 let saAnswers = {}
-let chaptersCache = {}
-let lessonsCache = {}
 
 function initAnswersState() {
   mcAnswers = {}
@@ -486,16 +484,19 @@ export function renderCreateHwView() {
   const pdfDownloadUrl = (isEdit && hw?.pdfUrl) ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''
   const pdfDownloadName = hw?.pdfPath || 'Homework_Attachment.pdf'
 
-  let deadlineVal = ''
+  let deadlineDateVal = ''
+  let deadlineHourVal = '23'
+  let deadlineMinuteVal = '59'
+
   if (isEdit && hw && (hw.deadline || hw.deadline_at)) {
     const d = new Date(hw.deadline || hw.deadline_at)
     if (!isNaN(d.getTime())) {
       const year = d.getFullYear()
       const month = String(d.getMonth() + 1).padStart(2, '0')
       const day = String(d.getDate()).padStart(2, '0')
-      const hours = String(d.getHours()).padStart(2, '0')
-      const minutes = String(d.getMinutes()).padStart(2, '0')
-      deadlineVal = `${year}-${month}-${day}T${hours}:${minutes}`
+      deadlineDateVal = `${year}-${month}-${day}`
+      deadlineHourVal = String(d.getHours()).padStart(2, '0')
+      deadlineMinuteVal = String(d.getMinutes()).padStart(2, '0')
     }
   }
 
@@ -527,6 +528,7 @@ export function renderCreateHwView() {
           return {
             questionNumber: q.question_number || q.questionNumber,
             questionType: q.question_type || q.questionType,
+            difficulty: pObj.difficulty || q.difficulty || 'THONG_HIEU',
             points: q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
             promptText: pObj.text || q.prompt || '',
             imageUrl: pObj.imageUrl || '',
@@ -585,16 +587,19 @@ export function renderCreateHwView() {
     }
   }
 
-  const classOptions = state.classes.map(c => {
-    const isSel = isEdit && (hw.classId === c.id || hw.class_id === c.id)
-    return `<option value="${c.id}" ${isSel ? 'selected' : ''}>${c.name}</option>`
-  }).join('')
+  const classOptions = [
+    `<option value="">-- Chọn lớp học --</option>`,
+    ...(state.classes || []).map(c => {
+      const isSel = isEdit && (hw.classId === c.id || hw.class_id === c.id)
+      return `<option value="${c.id}" ${isSel ? 'selected' : ''}>${c.name}</option>`
+    })
+  ].join('')
 
   let displayTitle = isEdit ? (hw?.title || '') : ''
-  if (isEdit && hw?.title && hw?.lessonTitle) {
-    const prefix = `${hw.lessonTitle} - `
-    if (displayTitle.startsWith(prefix)) {
-      displayTitle = displayTitle.substring(prefix.length)
+  if (isEdit && hw?.title) {
+    const lTitle = hw.lessonTitle || hw.lesson_title
+    if (lTitle && displayTitle.startsWith(`${lTitle} - `)) {
+      displayTitle = displayTitle.substring(`${lTitle} - `.length)
     }
   }
 
@@ -638,7 +643,7 @@ export function renderCreateHwView() {
                   <div>
                     <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Tên bài tập <span style="color:#ef4444;">*</span></label>
                     <input type="text" id="hw-title" class="form-input" placeholder="Ví dụ: TN - 1, Bài tập 1..." value="${displayTitle}" style="padding:8px 12px; font-size:13px;">
-                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tiền tố tên bài học sẽ tự động được thêm vào trước tên bài tập khi gửi dữ liệu</div>
+                    <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tên bài học sẽ tự động được ghép phía trước khi lưu bài</div>
                   </div>
 
                   <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
@@ -651,13 +656,13 @@ export function renderCreateHwView() {
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Chọn chương <span style="color:#ef4444;">*</span></label>
                       <select id="hw-chapter-select" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
-                        <option value="">Đang tải chương...</option>
+                        <option value="">${isEdit ? 'Đang tải chương...' : 'Chọn lớp học trước...'}</option>
                       </select>
                     </div>
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Chọn bài học <span style="color:#ef4444;">*</span></label>
                       <select id="hw-lesson-select" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
-                        <option value="">Chọn chương trước...</option>
+                        <option value="">${isEdit ? 'Đang tải bài học...' : 'Chọn chương trước...'}</option>
                       </select>
                     </div>
                   </div>
@@ -684,16 +689,42 @@ export function renderCreateHwView() {
                     </div>
                   </div>
 
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                    <div>
-                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Hạn chót nộp bài (Deadline)</label>
-                      <input type="datetime-local" id="hw-deadline" class="form-input" value="${deadlineVal}" style="padding:8px 12px; font-size:13px; background:#ffffff;">
+                  <!-- Deadline Row -->
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <label style="font-size:12px; font-weight:600; margin:0;">
+                        <i class="fa-regular fa-calendar-days" style="color:#0284c7;"></i> Hạn chót nộp bài (24h)
+                      </label>
+                      <span style="font-size:11px; color:#64748b;">(Không bắt buộc)</span>
                     </div>
-                    <div style="display:flex; align-items:flex-end;">
-                      <button class="btn-primary" id="save-homework-btn" style="width:100%; padding:9px 12px; font-size:13px; cursor:pointer; height:38px;">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu & Xuất bản'}
+                    <div style="display:flex; gap:6px; align-items:center;">
+                      <input type="date" id="hw-deadline-date" class="form-input" value="${deadlineDateVal}" style="flex:1; min-width:140px; padding:8px 10px; font-size:13px; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1;" title="Chọn ngày hết hạn">
+                      <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+                        <select id="hw-deadline-hour" class="form-input" style="width:64px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer;" title="Chọn giờ (00 - 23)">
+                          ${Array.from({ length: 24 }, (_, i) => {
+                            const val = String(i).padStart(2, '0')
+                            return `<option value="${val}" ${val === deadlineHourVal ? 'selected' : ''}>${val}h</option>`
+                          }).join('')}
+                        </select>
+                        <span style="font-weight:700; color:#64748b;">:</span>
+                        <select id="hw-deadline-minute" class="form-input" style="width:64px; padding:8px 4px; font-size:13px; font-weight:600; text-align:center; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer;" title="Chọn phút (00 - 59)">
+                          ${Array.from({ length: 60 }, (_, i) => {
+                            const val = String(i).padStart(2, '0')
+                            return `<option value="${val}" ${val === deadlineMinuteVal ? 'selected' : ''}>${val}p</option>`
+                          }).join('')}
+                        </select>
+                      </div>
+                      <button type="button" id="hw-deadline-clear-btn" title="Xóa hạn chót" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; cursor:pointer; color:#64748b; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; height:37px; transition:all 0.2s;" onmouseover="this.style.background='#fee2e2'; this.style.color='#ef4444'; this.style.borderColor='#fca5a5';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'; this.style.borderColor='#cbd5e1';">
+                        <i class="fa-solid fa-xmark"></i>
                       </button>
                     </div>
+                  </div>
+
+                  <!-- Save Button Row -->
+                  <div style="margin-top:2px;">
+                    <button class="btn-primary" id="save-homework-btn" style="width:100%; padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer; min-height:42px; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap; border-radius:10px; box-shadow:0 3px 10px rgba(0,102,204,0.25);">
+                      <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu bài tập'}
+                    </button>
                   </div>
 
                   <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-top:2px;">
@@ -898,19 +929,6 @@ export function bindCreateHwEvents() {
   const hwData = state.editHomeworkData
   const downloadBtn = document.getElementById('download-hw-pdf-btn')
 
-  // Pre-seed cache from homework-detail if available to avoid extra network requests
-  if (isEditMode && hwData) {
-    const hw = hwData.homework
-    const editClassId = hw ? (hw.classId || hw.class_id) : null
-    const editChapterId = hw ? (hw.chapterId || hw.chapter_id) : null
-    if (editClassId && hwData.classChapters && hwData.classChapters.length > 0) {
-      chaptersCache[editClassId] = hwData.classChapters
-    }
-    if (editChapterId && hwData.chapterLessons && hwData.chapterLessons.length > 0) {
-      lessonsCache[editChapterId] = hwData.chapterLessons
-    }
-  }
-
   // Helper to refresh interactive cards
   const refreshInteractiveCards = () => {
     const previewContainer = document.getElementById('interactive-preview-container')
@@ -1049,6 +1067,7 @@ export function bindCreateHwEvents() {
       }
 
       const newQ = parsed.questions[0]
+      newQ.questionNumber = qIndex + 1
       // Preserve existing image if user didn't supply new one but kept [Ảnh] or old image was attached
       if (newText.includes('[Ảnh]') && !newQ.imageUrl && q.imageUrl) {
         newQ.imageUrl = q.imageUrl
@@ -1466,6 +1485,10 @@ export function bindCreateHwEvents() {
       interactiveMarkdown = text
       const parsed = parseExamMarkdown(text)
       if (parsed.questions && parsed.questions.length > 0) {
+        // Guarantee sequential 1..N numbering
+        parsed.questions.forEach((q, idx) => {
+          q.questionNumber = idx + 1
+        })
         // Preserve any existing attached images if questions match by index or type+number
         parsed.questions.forEach((newQ, idx) => {
           let oldQ = interactiveQuestions[idx]
@@ -1587,44 +1610,11 @@ export function bindCreateHwEvents() {
   const typeSelect = document.getElementById('hw-type')
   const maxAttemptsInput = document.getElementById('hw-max-attempts')
 
-  let previousLessonTitle = ''
-
   const getSelectedLessonTitle = () => {
     if (!lessonSelect || lessonSelect.selectedIndex < 0) return ''
     const opt = lessonSelect.options[lessonSelect.selectedIndex]
     if (!opt || !opt.value) return ''
     return opt.textContent.trim()
-  }
-
-  const applyLessonPrefixToTitle = (newLessonTitle) => {
-    const titleInput = document.getElementById('hw-title')
-    if (!titleInput || !newLessonTitle) return
-    const currentVal = titleInput.value.trim()
-
-    // If input is empty
-    if (!currentVal) {
-      titleInput.value = `${newLessonTitle} - `
-      previousLessonTitle = newLessonTitle
-      return
-    }
-
-    // If title currently starts with previousLessonTitle, replace old prefix with new prefix
-    if (previousLessonTitle && currentVal.startsWith(previousLessonTitle)) {
-      const suffix = currentVal.substring(previousLessonTitle.length).replace(/^[\s\-–—:]+/, '').trim()
-      titleInput.value = suffix ? `${newLessonTitle} - ${suffix}` : `${newLessonTitle} - `
-      previousLessonTitle = newLessonTitle
-      return
-    }
-
-    // If title already starts with newLessonTitle, don't duplicate
-    if (currentVal.startsWith(newLessonTitle)) {
-      previousLessonTitle = newLessonTitle
-      return
-    }
-
-    // If title already has some custom name, prepend newLessonTitle
-    titleInput.value = `${newLessonTitle} - ${currentVal}`
-    previousLessonTitle = newLessonTitle
   }
 
   // Disable max attempts if Exam
@@ -1657,7 +1647,15 @@ export function bindCreateHwEvents() {
 
   const updateChaptersDropdown = async (targetChapterId = null, targetLessonId = null) => {
     const classId = classSelect?.value
-    if (!classId) return
+    if (!classId) {
+      if (chapterSelect) {
+        chapterSelect.innerHTML = '<option value="">Chọn lớp học trước...</option>'
+      }
+      if (lessonSelect) {
+        lessonSelect.innerHTML = '<option value="">Chọn chương trước...</option>'
+      }
+      return
+    }
 
     if (chapterSelect) {
       chapterSelect.innerHTML = '<option value="">Đang tải chương...</option>'
@@ -1667,11 +1665,7 @@ export function bindCreateHwEvents() {
     }
 
     try {
-      let chapters = chaptersCache[classId]
-      if (!chapters) {
-        chapters = await api.getChapters(classId)
-        chaptersCache[classId] = chapters || []
-      }
+      const chapters = await api.getChapters(classId)
       let chOptions = '<option value="">-- Chọn chương --</option>'
 
       const isEdit = !!state.editHomeworkData
@@ -1687,7 +1681,7 @@ export function bindCreateHwEvents() {
       }
 
       if (chapterSelect) {
-        chapterSelect.innerHTML = chOptions
+        chapterSelect.innerHTML = (chapters && chapters.length > 0) ? chOptions : '<option value="">Chưa có chương nào</option>'
       }
 
       // If we have a pre-selected chapter
@@ -1717,11 +1711,7 @@ export function bindCreateHwEvents() {
     }
 
     try {
-      let lessons = lessonsCache[chapterId]
-      if (!lessons) {
-        lessons = await api.getLessons(chapterId)
-        lessonsCache[chapterId] = lessons || []
-      }
+      const lessons = await api.getLessons(chapterId)
       let lOptions = '<option value="">-- Chọn bài học --</option>'
 
       const isEdit = !!state.editHomeworkData
@@ -1734,15 +1724,9 @@ export function bindCreateHwEvents() {
       }
 
       if (lessonSelect) {
-        lessonSelect.innerHTML = lOptions || '<option value="">Chưa có bài học nào</option>'
+        lessonSelect.innerHTML = (lessons && lessons.length > 0) ? lOptions : '<option value="">Chưa có bài học nào</option>'
         if (!isEdit && lessons && lessons.length === 1) {
           lessonSelect.value = lessons[0].id
-          applyLessonPrefixToTitle(lessons[0].title)
-        } else if (isEdit && editLessonId) {
-          const currentOpt = lessonSelect.options[lessonSelect.selectedIndex]
-          if (currentOpt && currentOpt.value) {
-            previousLessonTitle = currentOpt.textContent.trim()
-          }
         }
       }
     } catch (e) {
@@ -1765,17 +1749,39 @@ export function bindCreateHwEvents() {
   const hw = isEdit ? state.editHomeworkData.homework : null
 
   const initDropdowns = async () => {
+    // If state.classes is empty, load it fresh
+    if (!state.classes || state.classes.length === 0) {
+      try {
+        const classesRes = await api.getClasses()
+        state.classes = (classesRes || []).map(c => ({
+          id: c.id,
+          name: c.name,
+          gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+          studentsCount: c.studentsCount || 0,
+          tuitionFee: c.tuitionFee || 0,
+          progress: 0
+        }))
+        if (classSelect) {
+          const editClassId = hw ? (hw.classId || hw.class_id) : null
+          classSelect.innerHTML = [
+            `<option value="">-- Chọn lớp học --</option>`,
+            ...state.classes.map(c => `<option value="${c.id}" ${editClassId === c.id ? 'selected' : ''}>${c.name}</option>`)
+          ].join('')
+        }
+      } catch (e) {
+        console.warn('Failed to load classes', e)
+      }
+    }
+
     let initialChapterId = hw ? (hw.chapterId || hw.chapter_id) : null
     let initialLessonId = hw ? (hw.lessonId || hw.lesson_id) : null
     let initialClassId = hw ? (hw.classId || hw.class_id) : null
 
     if (initialClassId && classSelect) {
       classSelect.value = initialClassId
-    }
-    await updateChaptersDropdown(initialChapterId, initialLessonId)
-
-    if (isEdit && hw) {
-      previousLessonTitle = hw.lessonTitle || getSelectedLessonTitle()
+      await updateChaptersDropdown(initialChapterId, initialLessonId)
+    } else if (classSelect && classSelect.value) {
+      await updateChaptersDropdown(null, null)
     }
   }
 
@@ -2108,15 +2114,20 @@ export function bindCreateHwEvents() {
     const lessonId = document.getElementById('hw-lesson-select')?.value
     const selectedLessonTitle = getSelectedLessonTitle()
     const duration = parseInt(document.getElementById('hw-duration')?.value || '45', 10)
-    const deadlineRaw = document.getElementById('hw-deadline')?.value
-    const maxAttemptsVal = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
-    const maxViolationsVal = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
+    const deadlineDate = document.getElementById('hw-deadline-date')?.value
+    let deadline = null
+    if (deadlineDate) {
+      const deadlineHour = document.getElementById('hw-deadline-hour')?.value || '23'
+      const deadlineMinute = document.getElementById('hw-deadline-minute')?.value || '59'
+      const dlObj = new Date(`${deadlineDate}T${deadlineHour}:${deadlineMinute}:00`)
+      if (!isNaN(dlObj.getTime())) {
+        deadline = dlObj.toISOString()
+      }
+    }
+    const maxAttempts = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
+    const maxViolations = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
     const typeVal = document.getElementById('hw-type')?.value || 'PRACTICE'
     const showSolutions = document.getElementById('hw-show-solutions') ? document.getElementById('hw-show-solutions').checked : true
-
-    const deadline = deadlineRaw ? new Date(deadlineRaw).toISOString() : null
-    const maxAttempts = maxAttemptsVal > 0 ? maxAttemptsVal : null
-    const maxViolations = maxViolationsVal > 0 ? maxViolationsVal : 3
 
     if (!title) {
       showToast('Vui lòng nhập tên bài tập!', 'error')
@@ -2165,10 +2176,12 @@ export function bindCreateHwEvents() {
         const opts = q.options || []
         const statements = isTf ? opts : (q.statements || [])
 
+        const difficulty = q.difficulty || 'THONG_HIEU'
         return {
           id: `q_${idx + 1}`,
-          questionNumber: q.questionNumber || (idx + 1),
+          questionNumber: idx + 1,
           questionType: q.questionType,
+          difficulty,
           points: q.points || (isTf ? 1.0 : (isSa ? 0.5 : 0.25)),
           prompt: JSON.stringify({
             isInteractive: true,
@@ -2176,7 +2189,8 @@ export function bindCreateHwEvents() {
             imageUrl: q.imageUrl || '',
             options: isMc ? opts : [],
             statements: isTf ? statements : [],
-            explanation: q.explanation || ''
+            explanation: q.explanation || '',
+            difficulty
           }),
           content: q.promptText || '',
           options: isMc ? opts : null,
@@ -2333,6 +2347,15 @@ export function bindCreateHwEvents() {
       }
     } catch (err) {
       showToast(`Lưu bài tập thất bại: ${err.message}`, 'error')
+    }
+  })
+
+  // Clear Deadline Event
+  document.getElementById('hw-deadline-clear-btn')?.addEventListener('click', () => {
+    const dateInput = document.getElementById('hw-deadline-date')
+    if (dateInput) {
+      dateInput.value = ''
+      showToast('Đã xóa hạn nộp bài', 'info')
     }
   })
 }
