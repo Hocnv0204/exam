@@ -374,6 +374,15 @@ function renderStudentsTabHTML(currentClass, classStudents) {
 function renderAttendanceTabHTML(currentClass) {
   const history = cachedAttendanceHistory || []
 
+  // Extract unique months (YYYY-MM)
+  const uniqueMonths = [...new Set(history.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean).sort().reverse()
+  
+  // Format month function
+  const formatMonth = (m) => {
+    const [year, month] = m.split('-')
+    return `Tháng ${month}/${year}`
+  }
+
   return `
     <div class="card" style="padding:24px; border-radius:16px;">
       <!-- Action Header -->
@@ -386,7 +395,13 @@ function renderAttendanceTabHTML(currentClass) {
             Điểm danh học sinh từng buổi học. Mỗi học sinh có mặt sẽ tự động phát sinh học phí buổi đó.
           </p>
         </div>
-        <div class="class-toolbar-actions">
+        <div class="class-toolbar-actions" style="display:flex; align-items:center; gap:12px;">
+          ${uniqueMonths.length > 0 ? `
+            <select id="attendance-month-filter" class="form-input" style="width:auto; min-width:140px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1; outline:none; cursor:pointer;">
+              <option value="all">Tất cả các tháng</option>
+              ${uniqueMonths.map(m => `<option value="${m}">${formatMonth(m)}</option>`).join('')}
+            </select>
+          ` : ''}
           <button id="btn-open-attendance-modal" class="btn-primary" style="padding:10px 22px; font-size:14px; font-weight:700; width:auto; border-radius:10px; background:#10b981; border-color:#10b981; box-shadow:0 4px 12px rgba(16,185,129,0.25); display:inline-flex; align-items:center; gap:8px;">
             <i class="fa-solid fa-clipboard-check"></i> Điểm danh hôm nay
           </button>
@@ -420,7 +435,7 @@ function renderAttendanceTabHTML(currentClass) {
               const rate = h.attendanceRate !== undefined ? h.attendanceRate : (h.totalCount > 0 ? Math.round((h.presentCount / h.totalCount) * 100) : 0)
               
               return `
-                <tr id="session-row-${h.id}">
+                <tr id="session-row-${h.id}" class="attendance-row" data-month="${(h.sessionDate || '').substring(0, 7)}">
                   <td>
                     <div style="font-weight:700; color:#0f172a; display:inline-flex; align-items:center; gap:8px;">
                       <i class="fa-regular fa-calendar" style="color:#0066cc;"></i> ${formattedDate}
@@ -1217,6 +1232,43 @@ function showAddStudentModal(classId, currentClass) {
 // TAB 2 BINDINGS: ĐIỂM DANH (ATTENDANCE ENGINE)
 // ---------------------------------------------------------
 function bindAttendanceTabEvents(classId, currentClass) {
+  // Bộ lọc theo tháng
+  const monthFilter = document.getElementById('attendance-month-filter')
+  if (monthFilter) {
+    monthFilter.addEventListener('change', (e) => {
+      const selectedMonth = e.target.value
+      const rows = document.querySelectorAll('.attendance-row')
+      let visibleCount = 0
+      
+      rows.forEach(row => {
+        if (selectedMonth === 'all' || row.dataset.month === selectedMonth) {
+          row.style.display = ''
+          visibleCount++
+        } else {
+          row.style.display = 'none'
+        }
+      })
+
+      let emptyRow = document.getElementById('attendance-empty-row')
+      if (visibleCount === 0) {
+        if (!emptyRow) {
+          emptyRow = document.createElement('tr')
+          emptyRow.id = 'attendance-empty-row'
+          emptyRow.innerHTML = `
+            <td colspan="6" style="text-align:center; padding:48px 20px; color:#64748b;">
+              <i class="fa-solid fa-calendar-xmark" style="font-size:36px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
+              Không có buổi điểm danh nào trong tháng này.
+            </td>
+          `
+          document.getElementById('attendance-history-tbody').appendChild(emptyRow)
+        }
+        emptyRow.style.display = ''
+      } else {
+        if (emptyRow) emptyRow.style.display = 'none'
+      }
+    })
+  }
+
   // Nút Điểm danh hôm nay
   const openModalBtn = document.getElementById('btn-open-attendance-modal')
   if (openModalBtn) {
