@@ -1,4 +1,4 @@
-import { renderSidebar } from '../components/sidebar.js'
+import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
@@ -333,6 +333,7 @@ export function renderQuestionBankView() {
 // Events & Data Lifecycle
 // ========================================================
 export async function bindQuestionBankEvents() {
+  bindSidebarEvents()
   await loadInitialData()
   setupFilterListeners()
   setupHeaderActionListeners()
