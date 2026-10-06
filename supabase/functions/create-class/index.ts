@@ -295,6 +295,15 @@ serve(async (req: Request) => {
       if (action === 'get-attendance-history') {
         const classId = url.searchParams.get('classId')
         if (!classId) return errorResponse('classId is required', 400)
+        // Phân trang server: ?month=YYYY-MM&page=1&pageSize=10
+        // Không truyền month/page/pageSize -> trả mảng cũ (tương thích ngược)
+        const monthParam = url.searchParams.get('month')
+        const hasPaging = monthParam !== null || url.searchParams.get('page') !== null || url.searchParams.get('pageSize') !== null
+        const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
+        const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get('pageSize') || '10', 10) || 10))
+        if (monthParam !== null && monthParam !== '' && !/^\d{4}-\d{2}$/.test(monthParam)) {
+          return errorResponse('month phải có dạng YYYY-MM', 400)
+        }
 
         // 1. Fetch Class, Students, Attendance Sessions, Student Sessions
         const [classRes, scRes, legacyRes, sessionsRes, studentSessionsRes] = await Promise.all([
@@ -426,7 +435,9 @@ serve(async (req: Request) => {
 
         // Format dates into history array sorted descending by date
         const sortedDates = Array.from(dateMap.keys()).sort().reverse()
-        const formatted = sortedDates.map(date => {
+        const months = [...new Set(sortedDates.map(d => d.substring(0, 7)))].filter(Boolean)
+        const scopedDates = monthParam ? sortedDates.filter(d => d.startsWith(monthParam)) : sortedDates
+        const formatted = scopedDates.map(date => {
           const entry = dateMap.get(date)!
           const recList = Array.from(entry.studentRecords.values())
           const presentCount = recList.filter(r => r.isPresent).length
@@ -454,7 +465,20 @@ serve(async (req: Request) => {
           }
         })
 
-        return jsonResponse(formatted)
+        if (!hasPaging) {
+          return jsonResponse(formatted)
+        }
+        const total = formatted.length
+        const totalPages = Math.max(1, Math.ceil(total / pageSize))
+        const safePage = Math.min(page, totalPages)
+        return jsonResponse({
+          items: formatted.slice((safePage - 1) * pageSize, safePage * pageSize),
+          total,
+          page: safePage,
+          pageSize,
+          totalPages,
+          months
+        })
       }
       if (action === 'get-class-kpi-stats') {
         const classId = url.searchParams.get('classId')

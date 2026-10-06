@@ -62,12 +62,12 @@ let generatorState = {
   targetLessonId: '',
   title: '',
   type: 'PRACTICE',
-  durationMinutes: 60,
+  durationMinutes: 90,
   passScore: 5.0,
   maxScore: 10.0,
   deadline: '',
   maxViolations: 3,
-  showSolutions: true,
+  showSolutions: false,
   mcCount: 12,
   tfCount: 4,
   saCount: 6,
@@ -1309,7 +1309,7 @@ function openCreateFromSelectedModal(questionBankIds) {
           </div>
           <div>
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Thời gian làm bài (phút)</label>
-            <input type="number" id="create-selected-duration" value="60" min="5" style="width:120px; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px;" />
+            <input type="number" id="create-selected-duration" value="90" min="5" style="width:120px; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px;" />
           </div>
         </div>
         <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:flex-end; gap:12px;">
@@ -1350,7 +1350,7 @@ function openCreateFromSelectedModal(questionBankIds) {
     const title = document.getElementById('create-selected-title')?.value.trim()
     const targetLessonId = lessonSel?.value
     const type = document.getElementById('create-selected-type')?.value || 'PRACTICE'
-    const durationMinutes = Number(document.getElementById('create-selected-duration')?.value) || 60
+    const durationMinutes = Number(document.getElementById('create-selected-duration')?.value) || 90
     if (!title) return showToast('Vui lòng nhập tên đề!', 'warning')
     if (!targetLessonId) return showToast('Vui lòng chọn bài học đích!', 'warning')
     btn.disabled = true
@@ -2355,7 +2355,7 @@ async function openMatrixGeneratorModal() {
               </div>
               <div>
                 <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Thời gian làm bài (Phút)</label>
-                <input type="number" id="gen-exam-duration" min="5" value="60" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff;" />
+                <input type="number" id="gen-exam-duration" min="5" value="90" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff;" />
               </div>
             </div>
 
@@ -2385,7 +2385,7 @@ async function openMatrixGeneratorModal() {
             <!-- Toggles -->
             <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
               <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#334155; cursor:pointer;">
-                <input type="checkbox" id="gen-show-solutions" checked style="width:16px; height:16px; cursor:pointer;" />
+                <input type="checkbox" id="gen-show-solutions" style="width:16px; height:16px; cursor:pointer;" />
                 Cho phép học sinh xem lời giải chi tiết sau khi nộp
               </label>
               <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#334155; cursor:pointer;" title="Tự động tạo 4 mã đề hoán vị trật tự câu hỏi và phương án ABCD (Mã 101, 102, 103, 104)">
@@ -3519,8 +3519,8 @@ async function openMatrixGeneratorModal() {
       return showToast('Vui lòng chọn Bài học đích để lưu trữ bài tập!', 'warning')
     }
     const type = document.getElementById('gen-exam-type')?.value || 'PRACTICE'
-    const durationMinutes = Number(document.getElementById('gen-exam-duration')?.value) || 60
-    const showSolutions = document.getElementById('gen-show-solutions')?.checked ?? true
+    const durationMinutes = Number(document.getElementById('gen-exam-duration')?.value) || 90
+    const showSolutions = document.getElementById('gen-show-solutions')?.checked ?? false
 
     const questionBankIds = generatorState.previewQuestions.map(q => q.id)
     const isMultiVariants = document.getElementById('gen-multi-variants')?.checked

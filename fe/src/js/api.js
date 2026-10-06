@@ -409,7 +409,13 @@ export const api = {
   setStudentSessions: (studentId, classId, sessionDates, month) => request('create-class?action=set-student-sessions', { method: 'POST', body: JSON.stringify({ studentId, classId, sessionDates, month }) }),
   getAttendance: (classId, date) => request(`create-class?action=get-attendance&classId=${classId}&date=${date}`, { method: 'GET' }),
   saveAttendance: (data) => request('create-class?action=save-attendance', { method: 'POST', body: JSON.stringify(data) }),
-  getAttendanceHistory: (classId) => request(`create-class?action=get-attendance-history&classId=${classId}`, { method: 'GET' }),
+  getAttendanceHistory: (classId, params = {}) => {
+    const sp = new URLSearchParams({ action: 'get-attendance-history', classId })
+    if (params.month) sp.set('month', params.month)
+    if (params.page) sp.set('page', String(params.page))
+    if (params.pageSize) sp.set('pageSize', String(params.pageSize))
+    return request(`create-class?${sp.toString()}`, { method: 'GET' })
+  },
   deleteAttendanceSession: (sessionId, classId, sessionDate) => request(`create-class?action=delete-attendance-session&sessionId=${sessionId || ''}${classId ? `&classId=${classId}` : ''}${sessionDate ? `&sessionDate=${sessionDate}` : ''}`, { method: 'DELETE' }),
   getClassKpiStats: (classId) => request(`create-class?action=get-class-kpi-stats&classId=${classId}`, { method: 'GET' }),
   getClassDebtSummary: (classId) => request(`create-class?action=get-class-debt-summary&classId=${classId}`, { method: 'GET' }),

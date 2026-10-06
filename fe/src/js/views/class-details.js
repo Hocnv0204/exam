@@ -13,6 +13,12 @@ let currentViewingClassId = null
 let cachedKpiStats = null
 let cachedDebtSummary = null
 let cachedAttendanceHistory = null
+let attendancePage = 1
+let attendanceMonth = 'all'
+let attendanceTotal = 0
+let attendanceTotalPages = 1
+let attendanceMonths = []
+const ATTENDANCE_PAGE_SIZE = 10
 let cachedHomeworks = null
 let cachedClassStudents = []
 let studentSearchQuery = ''
@@ -37,6 +43,11 @@ export function renderClassDetailsView() {
     cachedKpiStats = null
     cachedDebtSummary = null
     cachedAttendanceHistory = null
+    attendancePage = 1
+    attendanceMonth = 'all'
+    attendanceTotal = 0
+    attendanceTotalPages = 1
+    attendanceMonths = []
     cachedHomeworks = null
     cachedClassStudents = []
     loadedScopes = {}
@@ -378,9 +389,10 @@ function renderStudentsTabHTML(currentClass, classStudents) {
 // =========================================================
 function renderAttendanceTabHTML(currentClass) {
   const history = cachedAttendanceHistory || []
+  attendancePage = 1
 
-  // Extract unique months (YYYY-MM)
-  const uniqueMonths = [...new Set(history.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean).sort().reverse()
+  // Extract unique months (YYYY-MM): ưu tiên danh sách server trả về
+  const uniqueMonths = (attendanceMonths.length > 0 ? attendanceMonths : [...new Set(history.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean)).sort().reverse()
   
   // Format month function
   const formatMonth = (m) => {
@@ -404,7 +416,7 @@ function renderAttendanceTabHTML(currentClass) {
           ${uniqueMonths.length > 0 ? `
             <select id="attendance-month-filter" class="form-input" style="width:auto; min-width:140px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1; outline:none; cursor:pointer;">
               <option value="all">Tất cả các tháng</option>
-              ${uniqueMonths.map(m => `<option value="${m}">${formatMonth(m)}</option>`).join('')}
+              ${uniqueMonths.map(m => `<option value="${m}" ${m === attendanceMonth ? 'selected' : ''}>${formatMonth(m)}</option>`).join('')}
             </select>
           ` : ''}
           <button id="btn-open-attendance-modal" class="btn-primary" style="padding:10px 22px; font-size:14px; font-weight:700; width:auto; border-radius:10px; background:#10b981; border-color:#10b981; box-shadow:0 4px 12px rgba(16,185,129,0.25); display:inline-flex; align-items:center; gap:8px;">
@@ -483,6 +495,10 @@ function renderAttendanceTabHTML(currentClass) {
             }).join('')}
           </tbody>
         </table>
+      </div>
+
+      <!-- Pagination -->
+      <div id="attendance-pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; flex-wrap:wrap; gap:10px;">
       </div>
     </div>
   `
@@ -1115,15 +1131,31 @@ function applyDebtSummary(classId, currentClass, debtList) {
   }
 }
 
-// Tab Điểm danh: lịch sử các buổi học
+// Tab Điểm danh: lịch sử các buổi học (phân trang + lọc tháng ở server)
 function loadAttendanceScope(classId, currentClass, force = false) {
-  const key = scopeKey(classId, 'attendance')
-  if (!force && isScopeLoaded(classId, 'attendance')) return Promise.resolve(cachedAttendanceHistory)
+  const key = scopeKey(classId, `attendance:${attendanceMonth}:${attendancePage}`)
+  if (!force && isScopeLoaded(classId, 'attendance') && activeTab !== 'attendance') return Promise.resolve(cachedAttendanceHistory)
   if (!force && pendingLoads[key]) return pendingLoads[key]
-  const p = api.getAttendanceHistory(classId).then(history => {
+  const params = { page: attendancePage, pageSize: ATTENDANCE_PAGE_SIZE }
+  if (attendanceMonth && attendanceMonth !== 'all') params.month = attendanceMonth
+  const p = api.getAttendanceHistory(classId, params).then(res => {
+    let history = []
+    if (Array.isArray(res)) {
+      // Tương thích ngược backend cũ (trả mảng)
+      history = res
+      attendanceTotal = res.length
+      attendanceTotalPages = Math.max(1, Math.ceil(res.length / ATTENDANCE_PAGE_SIZE))
+      attendanceMonths = [...new Set(res.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean).sort().reverse()
+    } else if (res && typeof res === 'object') {
+      history = res.items || []
+      attendanceTotal = res.total ?? history.length
+      attendanceTotalPages = res.totalPages ?? 1
+      attendancePage = res.page ?? attendancePage
+      if (Array.isArray(res.months)) attendanceMonths = res.months
+    }
     cachedAttendanceHistory = history
     const tabBadgeAtt = document.getElementById('tab-badge-attendance')
-    if (tabBadgeAtt) tabBadgeAtt.textContent = (history || []).length
+    if (tabBadgeAtt) tabBadgeAtt.textContent = attendanceTotal
 
     if (activeTab === 'attendance') {
       const container = document.getElementById('class-tab-content-container')
@@ -1440,46 +1472,80 @@ function showAddStudentModal(classId, currentClass) {
   }, 100)
 }
 
+// Phân trang tab điểm danh bằng dữ liệu server (kết hợp lọc tháng)
+function updateAttendancePager() {
+  const pager = document.getElementById('attendance-pagination')
+  const tbody = document.getElementById('attendance-history-tbody')
+  if (!tbody || !pager) return
+
+  const rows = [...tbody.querySelectorAll('.attendance-row')]
+  rows.forEach(row => { row.style.display = '' })
+
+  let emptyRow = document.getElementById('attendance-empty-row')
+  if (rows.length === 0) {
+    if (!emptyRow) {
+      emptyRow = document.createElement('tr')
+      emptyRow.id = 'attendance-empty-row'
+      emptyRow.innerHTML = `
+        <td colspan="6" style="text-align:center; padding:48px 20px; color:#64748b;">
+          <i class="fa-solid fa-calendar-xmark" style="font-size:36px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
+          Không có buổi điểm danh nào trong phạm vi này.
+        </td>
+      `
+      tbody.appendChild(emptyRow)
+    }
+    emptyRow.style.display = ''
+  } else if (emptyRow) {
+    emptyRow.style.display = 'none'
+  }
+
+  if (rows.length === 0 || attendanceTotalPages <= 1) {
+    pager.innerHTML = rows.length === 0 ? '' : `<div style="font-size:13px; color:#64748b;">Tổng ${attendanceTotal} buổi</div>`
+    return
+  }
+  const from = (attendancePage - 1) * ATTENDANCE_PAGE_SIZE + 1
+  const to = Math.min(attendancePage * ATTENDANCE_PAGE_SIZE, attendanceTotal)
+  let nums = ''
+  const startP = Math.max(1, Math.min(attendancePage - 2, attendanceTotalPages - 4))
+  const endP = Math.min(attendanceTotalPages, startP + 4)
+  for (let p = startP; p <= endP; p++) {
+    nums += `<button data-att-page="${p}" style="min-width:32px; height:32px; border-radius:8px; border:1px solid ${p === attendancePage ? '#0066cc' : '#cbd5e1'}; background:${p === attendancePage ? '#0066cc' : '#ffffff'}; color:${p === attendancePage ? '#ffffff' : '#334155'}; font-weight:700; font-size:13px; cursor:pointer;">${p}</button>`
+  }
+  pager.innerHTML = `
+    <div style="font-size:13px; color:#64748b;">Hiển thị ${from}–${to} / ${attendanceTotal} buổi</div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <button data-att-page="prev" ${attendancePage <= 1 ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${attendancePage <= 1 ? '0.4' : '1'};">‹ Trước</button>
+      ${nums}
+      <button data-att-page="next" ${attendancePage >= attendanceTotalPages ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${attendancePage >= attendanceTotalPages ? '0.4' : '1'};">Sau ›</button>
+    </div>
+  `
+  pager.querySelectorAll('[data-att-page]').forEach(btn => {
+    btn.onclick = () => {
+      const v = btn.getAttribute('data-att-page')
+      if (v === 'prev') attendancePage--
+      else if (v === 'next') attendancePage++
+      else attendancePage = parseInt(v, 10) || 1
+      const classId = currentViewingClassId
+      const currentClass = state.classes.find(c => c.id === classId)
+      if (classId && currentClass) loadAttendanceScope(classId, currentClass, true)
+    }
+  })
+}
+
 // ---------------------------------------------------------
 // TAB 2 BINDINGS: ĐIỂM DANH (ATTENDANCE ENGINE)
 // ---------------------------------------------------------
 function bindAttendanceTabEvents(classId, currentClass) {
-  // Bộ lọc theo tháng
+  // Bộ lọc theo tháng (gọi server, reset về trang 1)
   const monthFilter = document.getElementById('attendance-month-filter')
   if (monthFilter) {
-    monthFilter.addEventListener('change', (e) => {
-      const selectedMonth = e.target.value
-      const rows = document.querySelectorAll('.attendance-row')
-      let visibleCount = 0
-      
-      rows.forEach(row => {
-        if (selectedMonth === 'all' || row.dataset.month === selectedMonth) {
-          row.style.display = ''
-          visibleCount++
-        } else {
-          row.style.display = 'none'
-        }
-      })
-
-      let emptyRow = document.getElementById('attendance-empty-row')
-      if (visibleCount === 0) {
-        if (!emptyRow) {
-          emptyRow = document.createElement('tr')
-          emptyRow.id = 'attendance-empty-row'
-          emptyRow.innerHTML = `
-            <td colspan="6" style="text-align:center; padding:48px 20px; color:#64748b;">
-              <i class="fa-solid fa-calendar-xmark" style="font-size:36px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
-              Không có buổi điểm danh nào trong tháng này.
-            </td>
-          `
-          document.getElementById('attendance-history-tbody').appendChild(emptyRow)
-        }
-        emptyRow.style.display = ''
-      } else {
-        if (emptyRow) emptyRow.style.display = 'none'
-      }
+    monthFilter.addEventListener('change', () => {
+      attendanceMonth = monthFilter.value || 'all'
+      attendancePage = 1
+      loadAttendanceScope(classId, currentClass, true)
     })
   }
+  updateAttendancePager()
 
   // Nút Điểm danh hôm nay
   const openModalBtn = document.getElementById('btn-open-attendance-modal')

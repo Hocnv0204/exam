@@ -687,7 +687,7 @@ export function renderCreateHwView() {
                     </div>
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian (Phút)</label>
-                      <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 45 : 45}" min="5" style="padding:8px 12px; font-size:13px;">
+                      <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 90 : 90}" min="5" style="padding:8px 12px; font-size:13px;">
                     </div>
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Giới hạn vi phạm</label>
@@ -739,7 +739,7 @@ export function renderCreateHwView() {
 
                   <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-top:2px;">
                     <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin:0;">
-                      <input type="checkbox" id="hw-show-solutions" ${isEdit ? (hw?.showSolutions !== false && hw?.show_solutions !== false ? 'checked' : '') : 'checked'} style="width:18px; height:18px; accent-color:#0066cc; cursor:pointer;">
+                      <input type="checkbox" id="hw-show-solutions" ${isEdit ? (hw?.showSolutions !== false && hw?.show_solutions !== false ? 'checked' : '') : ''} style="width:18px; height:18px; accent-color:#0066cc; cursor:pointer;">
                       <span style="font-size:13px; font-weight:600; color:#1e293b;"><i class="fa-regular fa-eye" style="color:#0066cc; margin-right:4px;"></i> Hiển thị đáp án & giải thích sau khi nộp</span>
                     </label>
                     <div style="font-size:11px; color:#64748b; margin-left:28px; margin-top:3px;">
@@ -1787,7 +1787,26 @@ export function bindCreateHwEvents() {
     let initialLessonId = hw ? (hw.lessonId || hw.lesson_id) : null
     let initialClassId = hw ? (hw.classId || hw.class_id) : null
 
+    // Tạo mới từ tab Chương trình học: tự fill lớp/chương/bài theo URL (?classId=&chapterId=&lessonId=)
+    if (!isEdit) {
+      const hashQuery = (window.location.hash.split('?')[1] || '')
+      const urlParams = new URLSearchParams(hashQuery)
+      if (urlParams.get('classId')) initialClassId = urlParams.get('classId')
+      if (urlParams.get('chapterId')) initialChapterId = urlParams.get('chapterId')
+      if (urlParams.get('lessonId')) initialLessonId = urlParams.get('lessonId')
+    }
+
     if (initialClassId && classSelect) {
+      // Nếu option lớp chưa có trong select (state.classes vừa load), thêm tạm để chọn được
+      if (![...classSelect.options].some(o => o.value === initialClassId)) {
+        const cls = (state.classes || []).find(c => c.id === initialClassId)
+        if (cls) {
+          const opt = document.createElement('option')
+          opt.value = cls.id
+          opt.textContent = cls.name
+          classSelect.appendChild(opt)
+        }
+      }
       classSelect.value = initialClassId
       await updateChaptersDropdown(initialChapterId, initialLessonId)
     } else if (classSelect && classSelect.value) {
@@ -2123,7 +2142,7 @@ export function bindCreateHwEvents() {
     const classId = document.getElementById('hw-class-select')?.value
     const lessonId = document.getElementById('hw-lesson-select')?.value
     const selectedLessonTitle = getSelectedLessonTitle()
-    const duration = parseInt(document.getElementById('hw-duration')?.value || '45', 10)
+    const duration = parseInt(document.getElementById('hw-duration')?.value || '90', 10)
     const deadlineDate = document.getElementById('hw-deadline-date')?.value
     let deadline = null
     if (deadlineDate) {
@@ -2137,7 +2156,7 @@ export function bindCreateHwEvents() {
     const maxAttempts = parseInt(document.getElementById('hw-max-attempts')?.value || '0', 10)
     const maxViolations = parseInt(document.getElementById('hw-max-violations')?.value || '3', 10)
     const typeVal = document.getElementById('hw-type')?.value || 'PRACTICE'
-    const showSolutions = document.getElementById('hw-show-solutions') ? document.getElementById('hw-show-solutions').checked : true
+    const showSolutions = document.getElementById('hw-show-solutions') ? document.getElementById('hw-show-solutions').checked : false
 
     if (!title) {
       showToast('Vui lòng nhập tên bài tập!', 'error')
