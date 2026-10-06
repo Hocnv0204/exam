@@ -333,6 +333,19 @@ export function renderMyClassesView() {
             `).join('')}
           </div>
 
+          <!-- Weak Topics Panel -->
+          <div class="card" style="margin-bottom:20px; border:1px solid #fecaca; background:linear-gradient(180deg,#fffafa 0%,#ffffff 100%);">
+            <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:4px;">
+              <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;"></i> Điểm yếu cần luyện
+            </h3>
+            <p style="font-size:12px; color:#64748b; margin:0 0 12px 0;">Các chương bạn làm sai nhiều nhất — hãy ưu tiên ôn lại trước khi làm bài mới.</p>
+            <div id="weak-topics-container">
+              <p style="font-size:13px; color:#64748b; margin:0;">
+                <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc;"></i> Đang phân tích kết quả làm bài...
+              </p>
+            </div>
+          </div>
+
           <!-- Bottom Summary Panel -->
           <div class="card">
             <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:12px;">
@@ -361,6 +374,7 @@ export function bindMyClassesEvents() {
   // Load todo homeworks for student notifications
   if (!classId && state.user?.role === 'STUDENT') {
     loadTodoHomeworks()
+    loadWeakTopics()
   }
 
   // Toggle collapse/expand chapter lessons
@@ -474,6 +488,52 @@ export function bindMyClassesEvents() {
       )
     }
   })
+}
+
+async function loadWeakTopics() {
+  const container = document.getElementById('weak-topics-container')
+  if (!container) return
+
+  try {
+    const res = await api.getWeakTopics({ limit: 3 })
+    const topics = res?.topics || []
+    if (topics.length === 0) {
+      container.innerHTML = `
+        <p style="font-size:13px; color:#64748b; margin:0;">
+          ${res && res.totalAnswered > 0
+            ? 'Tuyệt vời! Bạn không có chương yếu rõ rệt. Duy trì phong độ nhé.'
+            : 'Chưa đủ dữ liệu — hãy làm thêm bài tập để hệ thống nhận diện điểm yếu của bạn.'}
+        </p>
+      `
+      return
+    }
+
+    container.innerHTML = topics.map((t, idx) => {
+      const rate = t.wrongRate ?? 0
+      const color = rate >= 60 ? '#ef4444' : rate >= 40 ? '#f59e0b' : '#eab308'
+      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'
+      return `
+        <div style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:#ffffff; border:1px solid #fee2e2; border-radius:10px; margin-bottom:8px;">
+          <span style="font-size:18px;">${medal}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.chapterTitle)}</div>
+            <div style="height:6px; background:#fee2e2; border-radius:3px; overflow:hidden; margin-top:6px;">
+              <div style="width:${Math.min(100, rate)}%; height:100%; background:${color}; border-radius:3px;"></div>
+            </div>
+          </div>
+          <div style="text-align:right; flex-shrink:0;">
+            <div style="font-size:14px; font-weight:800; color:${color};">${rate}% sai</div>
+            <div style="font-size:11px; color:#64748b;">${t.wrong}/${t.answered} câu</div>
+          </div>
+        </div>
+      `
+    }).join('')
+  } catch (err) {
+    console.warn('Failed to load weak topics:', err)
+    container.innerHTML = `
+      <p style="font-size:13px; color:#64748b; margin:0;">Chưa thể phân tích lúc này.</p>
+    `
+  }
 }
 
 async function loadTodoHomeworks() {

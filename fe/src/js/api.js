@@ -430,6 +430,13 @@ export const api = {
   createMeetSession: (lessonId, title) => request('meet-create', { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, title }) }),
   getMeetSession: (lessonId) => request(`meet-create?lessonId=${lessonId}`, { method: 'GET', silent: true }),
   syncMeetNow: (lessonId) => request('meet-sync', { method: 'POST', body: JSON.stringify({ lesson_id: lessonId }) }),
+  getWeakTopics: (params = {}) => {
+    const sp = new URLSearchParams({ action: 'weak-topics' })
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') sp.set(k, String(v))
+    })
+    return request(`adaptive?${sp.toString()}`, { method: 'GET', silent: true })
+  },
   createHomework: (data) => request('create-homework', { method: 'POST', body: JSON.stringify(data) }),
   assignHomeworkToClass: (data) => request('create-homework?action=assign-to-class', { method: 'POST', body: JSON.stringify(data) }),
   updateHomework: (data) => request('create-homework', { method: 'PUT', body: JSON.stringify(data) }),

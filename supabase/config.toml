@@ -74,3 +74,6 @@ verify_jwt = true
 
 [functions.meet-sync]
 verify_jwt = false
+
+[functions.adaptive]
+verify_jwt = true
