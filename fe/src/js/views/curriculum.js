@@ -1119,6 +1119,21 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
           const res = await api.syncMeetNow(lessonId)
           if (res?.outcome === 'READY') {
             showToast('Đã lấy được video! Bài học được gắn link tự động.', 'success')
+            // Renew: lấy drive_url mới về patch vào state rồi mới render,
+            // tránh refreshUI từ dữ liệu cũ (vẫn hiện card chờ)
+            try {
+              const meet = await api.getMeetSession(lessonId)
+              const driveUrl = meet?.recordings?.find(r => r.drive_url)?.drive_url
+              if (driveUrl) {
+                const currObj = state.curriculums.find(c => c.classId === activeClassId)
+                const lesson = currObj?.chapters
+                  ?.find(c => c.id === chIdForMeet)?.lessons
+                  ?.find(l => l.id === lessonId)
+                if (lesson) lesson.videoUrl = driveUrl
+              }
+            } catch (e) {
+              console.warn('Renew lesson video_url failed:', e)
+            }
           } else if (res?.outcome === 'EXPIRED') {
             showToast('Buổi học đã quá hạn 7 ngày, không còn bản ghi.', 'error')
           } else if (res?.outcome === 'ERROR') {
