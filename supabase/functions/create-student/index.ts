@@ -126,20 +126,9 @@ serve(async (req: Request) => {
           return errorResponse(error.message, 500)
         }
 
-        // Ghi sổ nạp tiền vào ví (topup), best-effort
-        try {
-          await serviceRoleClient.from('tuition_transactions').insert({
-            student_id: studentId,
-            class_id: null,
-            type: 'topup',
-            amount: amount,
-            balance_after: (data as any)?.balance ?? null,
-            receipt_no: 'BL-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(),
-            note: 'Nạp tiền vào ví học phí',
-            created_by: user.id
-          })
-        } catch (_) {}
-
+        // Ghi sổ nạp tiền vào ví (topup) do SQL fn_add_student_balance tự ghi
+        // (giữ single source of truth trong DB để không trùng dòng).
+        // Xem migration 20261007000001_tuition_ledger.sql.
         return jsonResponse(data)
       }
 
