@@ -9,6 +9,12 @@ import { renderPaginationBar, bindPaginationEvents } from '../components/paginat
 // ========================================================
 // View State
 // ========================================================
+function escapeHtmlAttr(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+function escapeTextarea(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
 let allQuestions = []
 let allClasses = []
 let cachedGradeBlocksList = []
@@ -281,6 +287,9 @@ export function renderQuestionBankView() {
               <button id="qb-bulk-apply-btn" style="height:34px; padding:0 16px; border-radius:8px; border:none; background:linear-gradient(135deg, #0284c7, #0369a1); color:#ffffff; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fa-solid fa-check-double"></i> Gán hàng loạt
               </button>
+              <button id="qb-bulk-create-btn" style="height:34px; padding:0 16px; border-radius:8px; border:none; background:linear-gradient(135deg, #16a34a, #15803d); color:#ffffff; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-file-circle-plus"></i> Tạo đề từ đã chọn
+              </button>
               <button id="qb-bulk-deselect-btn" style="height:34px; padding:0 12px; border-radius:8px; border:1px solid #475569; background:#1e293b; color:#cbd5e1; font-size:13px; cursor:pointer;">
                 Bỏ chọn
               </button>
@@ -487,6 +496,7 @@ function setupFilterListeners() {
     filterState.lessonId = ''
     filterState.lessonIds = []
     filterState.page = 1
+    selectedQuestionIds.clear()
 
     // Populate chapters from all classes in this gradeBlock
     if (filterState.gradeBlock) {
@@ -505,6 +515,7 @@ function setupFilterListeners() {
     filterState.lessonId = ''
     filterState.lessonIds = []
     filterState.page = 1
+    selectedQuestionIds.clear()
 
     await populateMainFilterLessons(filterState.chapterId)
     await fetchAndRenderQuestions({ includeStats: true })
@@ -514,6 +525,7 @@ function setupFilterListeners() {
   typeSelect?.addEventListener('change', async (e) => {
     filterState.questionType = e.target.value
     filterState.page = 1
+    selectedQuestionIds.clear()
     await fetchAndRenderQuestions()
   })
 
@@ -521,6 +533,7 @@ function setupFilterListeners() {
   diffSelect?.addEventListener('change', async (e) => {
     filterState.difficulty = e.target.value
     filterState.page = 1
+    selectedQuestionIds.clear()
     await fetchAndRenderQuestions()
   })
 
@@ -528,6 +541,7 @@ function setupFilterListeners() {
   unassignedSelect?.addEventListener('change', async (e) => {
     filterState.unassigned = e.target.value
     filterState.page = 1
+    selectedQuestionIds.clear()
     await fetchAndRenderQuestions({ includeStats: true })
   })
 
@@ -538,6 +552,7 @@ function setupFilterListeners() {
     searchTimer = setTimeout(async () => {
       filterState.search = e.target.value
       filterState.page = 1
+      selectedQuestionIds.clear()
       await fetchAndRenderQuestions()
     }, 350)
   })
@@ -557,6 +572,7 @@ function setupFilterListeners() {
       page: 1,
       pageSize: 10
     }
+    selectedQuestionIds.clear()
     mainFilterLessonsCache = []
     if (gradeBlockSelect) gradeBlockSelect.value = ''
     if (chapterSelect) chapterSelect.innerHTML = '<option value="">-- Tất cả Chương --</option>'
@@ -1117,6 +1133,9 @@ function updateBulkActionBar() {
     const someSelected = allQuestions.some(q => selectedQuestionIds.has(q.id))
     selectAllPage.checked = allSelected
     selectAllPage.indeterminate = someSelected && !allSelected
+  } else if (selectAllPage) {
+    selectAllPage.checked = false
+    selectAllPage.indeterminate = false
   }
 }
 
@@ -1235,6 +1254,116 @@ function setupHeaderActionListeners() {
     } finally {
       applyBtn.disabled = false
       applyBtn.innerHTML = '<i class="fa-solid fa-check-double"></i> Gán hàng loạt'
+    }
+  })
+
+  document.getElementById('qb-bulk-create-btn')?.addEventListener('click', () => {
+    if (selectedQuestionIds.size === 0) {
+      return showToast('Vui lòng tick chọn ít nhất một câu hỏi trong danh sách!', 'warning')
+    }
+    openCreateFromSelectedModal(Array.from(selectedQuestionIds))
+  })
+}
+
+function openCreateFromSelectedModal(questionBankIds) {
+  const modalContainer = document.getElementById('qb-modal-container')
+  if (!modalContainer) return
+  modalContainer.innerHTML = `
+    <div class="modal-backdrop" id="create-selected-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="modal-content" onclick="event.stopPropagation()" style="width:100%; max-width:640px; background:#ffffff; border-radius:16px; overflow:hidden;">
+        <div style="padding:18px 24px; border-bottom:1px solid #e2e8f0; background:#f0fdf4; display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="font-size:17px; font-weight:700; color:#0f172a; margin:0;">Tạo đề từ ${questionBankIds.length} câu đã chọn</h3>
+          <button id="create-selected-close-btn" style="background:none; border:none; font-size:20px; color:#94a3b8; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div style="padding:20px 24px; display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Tên đề / bài tập *</label>
+            <input type="text" id="create-selected-title" placeholder="Ví dụ: Đề ôn tập chương 1" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px;" />
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Lớp đích *</label>
+              <select id="create-selected-class" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px;">
+                <option value="">-- Chọn lớp --</option>
+                ${allClasses.map(c => `<option value="${c.id}">${escapeHtmlAttr(c.name)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Loại đề</label>
+              <select id="create-selected-type" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px;">
+                <option value="PRACTICE">Bài luyện tập</option>
+                <option value="EXAM">Bài thi</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Chương đích</label>
+              <select id="create-selected-chapter" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px;"><option value="">-- Chọn lớp trước --</option></select>
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Bài học đích *</label>
+              <select id="create-selected-lesson" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px;"><option value="">-- Chọn chương trước --</option></select>
+            </div>
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Thời gian làm bài (phút)</label>
+            <input type="number" id="create-selected-duration" value="60" min="5" style="width:120px; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px;" />
+          </div>
+        </div>
+        <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:flex-end; gap:12px;">
+          <button id="create-selected-cancel-btn" style="padding:9px 18px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; cursor:pointer;">Hủy</button>
+          <button id="create-selected-submit-btn" style="padding:9px 24px; font-size:13px; font-weight:600; border-radius:8px; background:#16a34a; color:#ffffff; border:none; cursor:pointer;">Tạo đề</button>
+        </div>
+      </div>
+    </div>
+  `
+  const closeModal = () => { modalContainer.innerHTML = '' }
+  document.getElementById('create-selected-close-btn')?.addEventListener('click', closeModal)
+  document.getElementById('create-selected-cancel-btn')?.addEventListener('click', closeModal)
+  document.getElementById('create-selected-backdrop')?.addEventListener('click', (e) => { if (e.target.id === 'create-selected-backdrop') closeModal() })
+  const classSel = document.getElementById('create-selected-class')
+  const chapterSel = document.getElementById('create-selected-chapter')
+  const lessonSel = document.getElementById('create-selected-lesson')
+  classSel?.addEventListener('change', async (e) => {
+    const clId = e.target.value
+    chapterSel.innerHTML = '<option value="">Đang tải...</option>'
+    lessonSel.innerHTML = '<option value="">-- Chọn chương trước --</option>'
+    if (!clId) { chapterSel.innerHTML = '<option value="">-- Chọn lớp trước --</option>'; return }
+    try {
+      const chapters = await api.getChapters(clId, true)
+      chapterSel.innerHTML = '<option value="">-- Chọn chương --</option>' + (chapters || []).map(ch => `<option value="${ch.id}">${escapeHtmlAttr(ch.title)}</option>`).join('')
+    } catch (_) { chapterSel.innerHTML = '<option value="">Lỗi tải chương</option>' }
+  })
+  chapterSel?.addEventListener('change', async (e) => {
+    const chId = e.target.value
+    lessonSel.innerHTML = '<option value="">Đang tải...</option>'
+    if (!chId) { lessonSel.innerHTML = '<option value="">-- Chọn chương trước --</option>'; return }
+    try {
+      const lessons = await api.getLessons(chId)
+      lessonSel.innerHTML = '<option value="">-- Chọn bài học --</option>' + (lessons || []).map(l => `<option value="${l.id}">${escapeHtmlAttr(l.title)}</option>`).join('')
+    } catch (_) { lessonSel.innerHTML = '<option value="">Lỗi tải bài học</option>' }
+  })
+  document.getElementById('create-selected-submit-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget
+    const title = document.getElementById('create-selected-title')?.value.trim()
+    const targetLessonId = lessonSel?.value
+    const type = document.getElementById('create-selected-type')?.value || 'PRACTICE'
+    const durationMinutes = Number(document.getElementById('create-selected-duration')?.value) || 60
+    if (!title) return showToast('Vui lòng nhập tên đề!', 'warning')
+    if (!targetLessonId) return showToast('Vui lòng chọn bài học đích!', 'warning')
+    btn.disabled = true
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tạo...'
+    try {
+      const res = await api.createHomeworkFromBankQuestions({ targetLessonId, title, type, durationMinutes, questionBankIds })
+      showToast(res.message || 'Đã tạo đề thành công!', 'success')
+      selectedQuestionIds.clear()
+      updateBulkActionBar()
+      closeModal()
+    } catch (err) {
+      showToast('Lỗi tạo đề: ' + err.message, 'error')
+      btn.disabled = false
+      btn.textContent = 'Tạo đề'
     }
   })
 }
@@ -2744,10 +2873,10 @@ async function openMatrixGeneratorModal() {
   }
 
   function setSubValues(part, nb, th, vd, vdc) {
-    const nbEl = document.getElementById(`gen-${part}-${nb}`)
-    const thEl = document.getElementById(`gen-${part}-${th}`)
-    const vdEl = document.getElementById(`gen-${part}-${vd}`)
-    const vdcEl = document.getElementById(`gen-${part}-${vdc}`)
+    const nbEl = document.getElementById(`gen-${part}-nb`)
+    const thEl = document.getElementById(`gen-${part}-th`)
+    const vdEl = document.getElementById(`gen-${part}-vd`)
+    const vdcEl = document.getElementById(`gen-${part}-vdc`)
     if (nbEl) nbEl.value = Math.max(0, nb)
     if (thEl) thEl.value = Math.max(0, th)
     if (vdEl) vdEl.value = Math.max(0, vd)
@@ -3473,16 +3602,37 @@ function openEditQuestionModal(q) {
           <!-- Prompt text -->
           <div style="margin-bottom:14px;">
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Nội dung câu hỏi (Hỗ trợ LaTeX)</label>
-            <textarea id="edit-q-prompt" style="width:100%; height:120px; font-family:'Fira Code', monospace; font-size:13px; padding:10px; border:1px solid #cbd5e1; border-radius:8px;">${promptData.text || ''}</textarea>
+            <textarea id="edit-q-prompt" style="width:100%; height:120px; font-family:'Fira Code', monospace; font-size:13px; padding:10px; border:1px solid #cbd5e1; border-radius:8px;">${escapeTextarea(promptData.text || '')}</textarea>
           </div>
 
           <!-- Specific Answer editing -->
           ${q.question_type === 'MULTIPLE_CHOICE' ? `
             <div style="margin-bottom:14px;">
               <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Đáp án đúng (A, B, C hoặc D)</label>
-              <input type="text" id="edit-q-mc" value="${q.mc_answer || ''}" style="width:80px; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-weight:700; font-size:14px; text-transform:uppercase;" />
+              <input type="text" id="edit-q-mc" value="${escapeHtmlAttr(q.mc_answer || '')}" style="width:80px; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-weight:700; font-size:14px; text-transform:uppercase;" />
             </div>
           ` : ''}
+
+          ${q.question_type === 'TRUE_FALSE' ? (() => {
+            let tf = {}
+            try { tf = typeof q.tf_answers === 'string' ? JSON.parse(q.tf_answers) : (q.tf_answers || {}) } catch (_) { tf = {} }
+            return `
+            <div style="margin-bottom:14px;">
+              <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Đáp án Đúng / Sai cho 4 ý a, b, c, d</label>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px;">
+                ${['a', 'b', 'c', 'd'].map(k => `
+                  <label style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; font-size:13px; font-weight:600;">
+                    <span>Ý ${k})</span>
+                    <select id="edit-q-tf-${k}" style="height:30px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700;">
+                      <option value="true" ${tf[k] === true ? 'selected' : ''}>ĐÚNG</option>
+                      <option value="false" ${tf[k] !== true ? 'selected' : ''}>SAI</option>
+                    </select>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+            `
+          })() : ''}
 
           ${q.question_type === 'SHORT_ANSWER' ? `
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
@@ -3500,7 +3650,7 @@ function openEditQuestionModal(q) {
           <!-- Explanation -->
           <div style="margin-bottom:14px;">
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Lời giải chi tiết</label>
-            <textarea id="edit-q-explanation" style="width:100%; height:100px; font-family:'Fira Code', monospace; font-size:13px; padding:10px; border:1px solid #cbd5e1; border-radius:8px;">${promptData.explanation || ''}</textarea>
+            <textarea id="edit-q-explanation" style="width:100%; height:100px; font-family:'Fira Code', monospace; font-size:13px; padding:10px; border:1px solid #cbd5e1; border-radius:8px;">${escapeTextarea(promptData.explanation || '')}</textarea>
           </div>
         </div>
 
@@ -3535,7 +3685,19 @@ function openEditQuestionModal(q) {
     }
 
     if (q.question_type === 'MULTIPLE_CHOICE') {
-      updatePayload.mc_answer = document.getElementById('edit-q-mc')?.value?.trim().toUpperCase() || null
+      const mc = document.getElementById('edit-q-mc')?.value?.trim().toUpperCase() || null
+      if (mc && !['A', 'B', 'C', 'D'].includes(mc)) {
+        showToast('Đáp án trắc nghiệm phải là A, B, C hoặc D!', 'error')
+        return
+      }
+      updatePayload.mc_answer = mc
+    } else if (q.question_type === 'TRUE_FALSE') {
+      updatePayload.tf_answers = {
+        a: document.getElementById('edit-q-tf-a')?.value === 'true',
+        b: document.getElementById('edit-q-tf-b')?.value === 'true',
+        c: document.getElementById('edit-q-tf-c')?.value === 'true',
+        d: document.getElementById('edit-q-tf-d')?.value === 'true'
+      }
     } else if (q.question_type === 'SHORT_ANSWER') {
       updatePayload.sa_answer = document.getElementById('edit-q-sa')?.value?.trim() || null
       updatePayload.sa_tolerance = Number(document.getElementById('edit-q-tolerance')?.value) || 0

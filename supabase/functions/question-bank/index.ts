@@ -401,7 +401,7 @@ function shuffleVariantQuestions(
   orderedQuestions: any[]
 ): {
   variantQuestions: any[];
-  optionMaps: Record<number, Record<string, string>>;
+  optionMaps: Record<string, Record<string, string>>;
 } {
   const mcList = orderedQuestions.filter(q => q.question_type === 'MULTIPLE_CHOICE')
   const tfList = orderedQuestions.filter(q => q.question_type === 'TRUE_FALSE')
@@ -422,7 +422,7 @@ function shuffleVariantQuestions(
   const shuffledTF = shuffleArray(tfList)
   const shuffledSA = shuffleArray(saList)
 
-  const optionMaps: Record<number, Record<string, string>> = {}
+  const optionMaps: Record<string, Record<string, string>> = {}
   const letters = ['A', 'B', 'C', 'D']
 
   const processedMC = shuffledMC.map((qbQ, idx) => {
@@ -449,12 +449,13 @@ function shuffleVariantQuestions(
     const newAnsIdx = shuffledIndices.indexOf(oldAnsIdx)
     const newAnswer = newAnsIdx !== -1 ? letters[newAnsIdx] : oldAnswer
 
-    // Lưu option map (A -> C, B -> A...)
+    // Lưu option map (old -> new, ví dụ A -> C nghĩa là đáp án A cũ nay ở vị trí C)
     const mapForQ: Record<string, string> = {}
     letters.forEach((l, i) => {
-      mapForQ[l] = letters[shuffledIndices[i]]
+      mapForQ[l] = letters[shuffledIndices.indexOf(i)]
     })
-    optionMaps[idx + 1] = mapForQ
+    // Key theo bank question id để FE tra cứu ổn định (không phụ thuộc thứ tự shuffle)
+    optionMaps[qbQ.id] = mapForQ
 
     const newPrompt = {
       ...parsedPrompt,
@@ -878,7 +879,10 @@ serve(async (req: Request) => {
             explanation: q.explanation || ''
           })
 
-          const qType = q.questionType || (promptPayload.options && promptPayload.options.length ? 'MULTIPLE_CHOICE' : (promptPayload.statements && promptPayload.statements.length ? 'TRUE_FALSE' : 'SHORT_ANSWER'))
+          const VALID_QTYPES = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER']
+          const VALID_DIFFS = ['NHAN_BIET', 'THONG_HIEU', 'VAN_DUNG', 'VAN_DUNG_CAO']
+          let qType = q.questionType || (promptPayload.options && promptPayload.options.length ? 'MULTIPLE_CHOICE' : (promptPayload.statements && promptPayload.statements.length ? 'TRUE_FALSE' : 'SHORT_ANSWER'))
+          if (!VALID_QTYPES.includes(qType)) qType = 'MULTIPLE_CHOICE'
 
           if (qType === 'TRUE_FALSE' && (!promptPayload.statements || promptPayload.statements.length === 0) && promptPayload.options.length > 0) {
             promptPayload.statements = promptPayload.options
@@ -898,7 +902,7 @@ serve(async (req: Request) => {
               else if (raw === 'VAN_DUNG_CAO' || raw === 'VDC' || raw === 'VẬN DỤNG CAO') detectedDiff = 'VAN_DUNG_CAO'
             }
           }
-          const finalDiff = detectedDiff || defaultDifficulty
+          const finalDiff = VALID_DIFFS.includes(detectedDiff) ? detectedDiff : (VALID_DIFFS.includes(defaultDifficulty) ? defaultDifficulty : 'THONG_HIEU')
           promptPayload.difficulty = finalDiff
 
           return {
@@ -915,8 +919,8 @@ serve(async (req: Request) => {
             tf_answers: q.tfAnswers || promptPayload.tfAnswers || null,
             sa_answer: q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : (promptPayload.saAnswer ? String(promptPayload.saAnswer) : null),
             sa_tolerance: Number(q.saTolerance) || promptPayload.saTolerance || 0,
-            points: Number(q.points) || (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
-            tags: Array.isArray(q.tags) ? q.tags : [],
+            points: (() => { const p = Number(q.points); return (isFinite(p) && p > 0 && p <= 10) ? p : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)) })(),
+            tags: Array.isArray(q.tags) ? Array.from(new Set(q.tags.map((t: any) => String(t).trim().toLowerCase()).filter(Boolean))).slice(0, 20) : [],
             usage_count: 0
           }
         })
@@ -2058,9 +2062,41 @@ serve(async (req: Request) => {
     // ========================================================
     if (req.method === 'PUT') {
       const body = await req.json()
-      const { id, ids, ...updates } = body
+      const { id, ids, ...rawUpdates } = body
       if (!id && (!ids || !Array.isArray(ids) || ids.length === 0)) {
         return errorResponse('Thiếu ID câu hỏi cần cập nhật', 400)
+      }
+
+      // Whitelist các trường được phép sửa để tránh ghi đè usage_count/content_hash/created_at/id
+      const ALLOWED_UPDATE_FIELDS = new Set([
+        'grade_block', 'class_id', 'chapter_id', 'lesson_id',
+        'question_type', 'difficulty', 'prompt',
+        'mc_answer', 'tf_answers', 'sa_answer', 'sa_tolerance',
+        'points', 'tags', 'no_shuffle_options', 'subject', 'grade_level'
+      ])
+      const updates: Record<string, any> = {}
+      for (const [k, v] of Object.entries(rawUpdates)) {
+        if (ALLOWED_UPDATE_FIELDS.has(k)) updates[k] = v
+      }
+      if (Object.keys(updates).length === 0) {
+        return errorResponse('Không có trường hợp lệ nào để cập nhật', 400)
+      }
+
+      const VALID_QTYPES = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER']
+      const VALID_DIFFS = ['NHAN_BIET', 'THONG_HIEU', 'VAN_DUNG', 'VAN_DUNG_CAO']
+      if (updates.question_type !== undefined && !VALID_QTYPES.includes(updates.question_type)) {
+        return errorResponse('question_type không hợp lệ', 400)
+      }
+      if (updates.difficulty !== undefined && !VALID_DIFFS.includes(updates.difficulty)) {
+        return errorResponse('difficulty không hợp lệ', 400)
+      }
+      if (updates.points !== undefined) {
+        const p = Number(updates.points)
+        if (!isFinite(p) || p < 0 || p > 10) return errorResponse('points phải trong khoảng 0..10', 400)
+        updates.points = p
+      }
+      if (updates.tags !== undefined && !Array.isArray(updates.tags)) {
+        return errorResponse('tags phải là mảng', 400)
       }
 
       if (updates.prompt) {
