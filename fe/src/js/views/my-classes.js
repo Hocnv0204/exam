@@ -513,10 +513,10 @@ async function loadWeakTopics() {
       const color = rate >= 60 ? '#ef4444' : rate >= 40 ? '#f59e0b' : '#eab308'
       const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'
       return `
-        <div style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:#ffffff; border:1px solid #fee2e2; border-radius:10px; margin-bottom:8px;">
+        <div class="weak-topic-row" ${t.classId ? `data-class-id="${t.classId}"` : ''} style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:#ffffff; border:1px solid #fee2e2; border-radius:10px; margin-bottom:8px; ${t.classId ? 'cursor:pointer;' : ''}" ${t.classId ? 'title="Bấm để mở lớp ôn lại chương này"' : ''}>
           <span style="font-size:18px;">${medal}</span>
           <div style="flex:1; min-width:0;">
-            <div style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.chapterTitle)}</div>
+            <div style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.chapterTitle)} ${t.classId ? '<i class="fa-solid fa-arrow-right" style="font-size:11px; color:#94a3b8;"></i>' : ''}</div>
             <div style="height:6px; background:#fee2e2; border-radius:3px; overflow:hidden; margin-top:6px;">
               <div style="width:${Math.min(100, rate)}%; height:100%; background:${color}; border-radius:3px;"></div>
             </div>
@@ -528,6 +528,12 @@ async function loadWeakTopics() {
         </div>
       `
     }).join('')
+
+    container.querySelectorAll('.weak-topic-row[data-class-id]').forEach(row => {
+      row.onclick = () => {
+        window.location.hash = `#my-classes?classId=${row.getAttribute('data-class-id')}`
+      }
+    })
   } catch (err) {
     console.warn('Failed to load weak topics:', err)
     container.innerHTML = `

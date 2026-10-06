@@ -430,6 +430,7 @@ export const api = {
   createMeetSession: (lessonId, title) => request('meet-create', { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, title }) }),
   getMeetSession: (lessonId) => request(`meet-create?lessonId=${lessonId}`, { method: 'GET', silent: true }),
   syncMeetNow: (lessonId) => request('meet-sync', { method: 'POST', body: JSON.stringify({ lesson_id: lessonId }) }),
+  generatePractice: (data) => request('question-bank?action=generate-practice', { method: 'POST', body: JSON.stringify(data) }),
   getWeakTopics: (params = {}) => {
     const sp = new URLSearchParams({ action: 'weak-topics' })
     Object.entries(params).forEach(([k, v]) => {

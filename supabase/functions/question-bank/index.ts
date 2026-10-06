@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin, requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
+import { computeClassWeakOverview, allocateLargestRemainder } from '../adaptive/logic.ts'
 
 async function getScopeTargetIds(
   serviceRoleClient: any,
@@ -76,6 +77,110 @@ async function unbumpQuestionUsage(
       console.warn('[unbumpQuestionUsage old RPC fallback]', oldRpcErr.message)
     }
   }
+}
+
+// Tạo 1 đề (PRACTICE/EXAM) từ danh sách câu ngân hàng đã sắp xếp.
+// Dùng chung cho create-from-selected và generate-practice.
+// Ném Error khi lỗi (caller map thành HTTP 500); tự rollback xóa homework dở.
+async function createSingleHomeworkFromBank(
+  serviceRoleClient: any,
+  opts: {
+    targetLessonId: string
+    title: string
+    durationMinutes?: number
+    passScore?: number
+    maxScore?: number
+    type?: string
+    deadline?: string | null
+    maxViolations?: number
+    showSolutions?: boolean
+    orderedQuestions: any[]
+    targetClassId?: string | null
+  }
+): Promise<{ homeworkId: string; totalQuestions: number }> {
+  const { targetLessonId, title, orderedQuestions } = opts
+  const durationMinutes = opts.durationMinutes ?? 60
+  const passScore = opts.passScore ?? 5.0
+  const maxScore = opts.maxScore ?? 10.0
+  const type = opts.type || 'PRACTICE'
+  const finalMaxAttempts = type === 'EXAM' ? 1 : 3
+
+  const { data: newHw, error: hwCreateError } = await serviceRoleClient
+    .from('homeworks')
+    .insert({
+      lesson_id: targetLessonId,
+      title,
+      pdf_path: '',
+      duration_minutes: durationMinutes,
+      pass_score: passScore,
+      max_score: maxScore,
+      is_published: true,
+      type: type || 'PRACTICE',
+      max_attempts: finalMaxAttempts,
+      deadline: opts.deadline || null,
+      max_violations: opts.maxViolations || 3,
+      show_solutions: opts.showSolutions !== false
+    })
+    .select('id')
+    .single()
+
+  if (hwCreateError) throw new Error(hwCreateError.message)
+  const homeworkId = newHw.id
+
+  const questionsToInsert: any[] = []
+  const answersToInsert: any[] = []
+
+  orderedQuestions.forEach((qbQ, idx) => {
+    const qNum = idx + 1
+    const questionId = crypto.randomUUID()
+    const parsedPrompt = normalizeBankPromptPayload(qbQ.prompt)
+
+    let partTitle = ''
+    if (qbQ.question_type === 'MULTIPLE_CHOICE') partTitle = 'Phần I: Câu hỏi trắc nghiệm nhiều phương án lựa chọn'
+    else if (qbQ.question_type === 'TRUE_FALSE') partTitle = 'Phần II: Câu hỏi trắc nghiệm đúng sai'
+    else if (qbQ.question_type === 'SHORT_ANSWER') partTitle = 'Phần III: Câu hỏi trắc nghiệm trả lời ngắn'
+
+    questionsToInsert.push({
+      id: questionId,
+      homework_id: homeworkId,
+      question_bank_id: qbQ.id, // Phase 4.1: Truy vết nguồn gốc câu hỏi từ ngân hàng
+      question_number: qNum,
+      question_type: qbQ.question_type,
+      prompt: qbQ.prompt,
+      content: parsedPrompt.text || '',
+      options: parsedPrompt.options || null,
+      statements: parsedPrompt.statements || null,
+      part_title: parsedPrompt.partTitle || partTitle,
+      points: qbQ.points || (qbQ.question_type === 'TRUE_FALSE' ? 1.0 : (qbQ.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
+    })
+
+    answersToInsert.push({
+      question_id: questionId,
+      mc_answer: qbQ.mc_answer || null,
+      tf_answers: qbQ.tf_answers || null,
+      sa_answer: qbQ.sa_answer !== undefined && qbQ.sa_answer !== null ? String(qbQ.sa_answer) : null,
+      sa_tolerance: qbQ.sa_tolerance || 0,
+      explanation: parsedPrompt.explanation || null
+    })
+  })
+
+  const { error: qInsertErr } = await serviceRoleClient.from('questions').insert(questionsToInsert)
+  if (qInsertErr) {
+    await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
+    throw new Error(qInsertErr.message)
+  }
+
+  const { error: aInsertErr } = await serviceRoleClient.from('question_answers').insert(answersToInsert)
+  if (aInsertErr) {
+    await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
+    throw new Error(aInsertErr.message)
+  }
+
+  // Tăng usage_count bằng RPC nguyên tử kèm log lịch sử sử dụng theo lớp và đề thi (Phase 4.1 & 5.1)
+  const pickedIds = orderedQuestions.map((q: any) => q.id)
+  await bumpQuestionUsage(serviceRoleClient, pickedIds, opts.targetClassId || null, homeworkId)
+
+  return { homeworkId, totalQuestions: orderedQuestions.length }
 }
 
 function normalizeBankPromptPayload(rawPrompt: any, fallbackData: any = {}): any {
@@ -828,6 +933,140 @@ serve(async (req: Request) => {
           importedCount: (inserted || []).length,
           message: `Đã nhập thành công ${(inserted || []).length} câu hỏi vào Ngân hàng đề!`
         })
+      }
+
+      // ----------------------------------------------------
+      // Action: Sinh đề luyện bù từ chương yếu (Học thích ứng bước 2)
+      // Body: { classId, totalQuestions?=10, title?, targetLessonId?, durationMinutes?=45, deadline?, maxChapters?=4 }
+      // ----------------------------------------------------
+      if (action === 'generate-practice') {
+        const {
+          classId: practiceClassId,
+          totalQuestions = 10,
+          title: practiceTitle = null,
+          targetLessonId: practiceLessonId = null,
+          durationMinutes: practiceDuration = 45,
+          deadline: practiceDeadline = null,
+          maxChapters = 4,
+        } = body
+
+        if (!practiceClassId) return errorResponse('Thiếu classId!', 400)
+        const total = Math.min(50, Math.max(3, Number(totalQuestions) || 10))
+
+        // 1. Điểm yếu cả lớp (tái dùng lõi adaptive).
+        let overview
+        try {
+          overview = await computeClassWeakOverview(serviceRoleClient, practiceClassId, 3, 10)
+        } catch (e) {
+          return errorResponse((e as Error).message, 500)
+        }
+        const weakChapters = (overview.chapters || []).slice(0, Math.max(1, Math.min(6, Number(maxChapters) || 4)))
+        if (weakChapters.length === 0) {
+          return errorResponse('Lớp chưa có đủ dữ liệu làm bài để xác định chương yếu (cần mỗi chương có ít nhất 3 câu đã làm).', 400)
+        }
+
+        // 2. Chia chỉ tiêu theo số câu sai (chương càng yếu càng nhiều câu).
+        const weights: Record<string, number> = {}
+        weakChapters.forEach((c: { chapterId: string; wrong: number }) => {
+          weights[c.chapterId] = Math.max(1, c.wrong)
+        })
+        const quotas = allocateLargestRemainder(total, weights)
+
+        // 3. Bốc từng chương: ưu tiên câu dễ + ít dùng (luyện bù, không thi).
+        const DIFF_RANK: Record<string, number> = { NHAN_BIET: 0, THONG_HIEU: 1, VAN_DUNG: 2, VAN_DUNG_CAO: 3 }
+        const rankPool = (arr: any[]) =>
+          arr.sort((a, b) =>
+            ((DIFF_RANK[a.difficulty] ?? 1) - (DIFF_RANK[b.difficulty] ?? 1)) ||
+            ((a.usage_count || 0) - (b.usage_count || 0)) ||
+            (Math.random() - 0.5))
+        const pickedIds: string[] = []
+        const pickedIdsSet = new Set<string>()
+        const distribution: Array<{ chapterId: string; chapterTitle: string; quota: number; picked: number }> = []
+
+        for (const ch of weakChapters as Array<{ chapterId: string; chapterTitle: string }>) {
+          const quota = quotas[ch.chapterId] || 0
+          if (quota <= 0) continue
+          const { data: pool } = await buildPoolQuery(
+            serviceRoleClient,
+            normalizeScopeInput({ chapterId: ch.chapterId }),
+            'id, question_type, difficulty, usage_count, chapter_id, lesson_id',
+          )
+          const avail = (pool || []).filter((q: any) => !pickedIdsSet.has(q.id))
+          if (avail.length === 0) {
+            distribution.push({ chapterId: ch.chapterId, chapterTitle: ch.chapterTitle, quota, picked: 0 })
+            continue
+          }
+          const takeOfType = (type: string, n: number): number => {
+            const arr = rankPool(avail.filter((q: any) => q.question_type === type && !pickedIdsSet.has(q.id)))
+            const take = arr.slice(0, Math.min(n, arr.length))
+            take.forEach((q: any) => { pickedIdsSet.add(q.id); pickedIds.push(q.id) })
+            return take.length
+          }
+          const mcQ = Math.round(quota * 0.6)
+          const tfQ = Math.round(quota * 0.15)
+          const saQ = Math.max(0, quota - mcQ - tfQ)
+          let got = takeOfType('MULTIPLE_CHOICE', mcQ) + takeOfType('TRUE_FALSE', tfQ) + takeOfType('SHORT_ANSWER', saQ)
+          // Bù phần thiếu bằng câu còn lại cùng chương.
+          if (got < quota) {
+            const rest = rankPool(avail.filter((q: any) => !pickedIdsSet.has(q.id))).slice(0, quota - got)
+            rest.forEach((q: any) => { pickedIdsSet.add(q.id); pickedIds.push(q.id) })
+            got += rest.length
+          }
+          distribution.push({ chapterId: ch.chapterId, chapterTitle: ch.chapterTitle, quota, picked: got })
+        }
+
+        if (pickedIds.length === 0) {
+          return errorResponse('Ngân hàng không đủ câu hỏi cho các chương yếu của lớp.', 400)
+        }
+
+        // 4. Lấy full dòng ngân hàng theo đúng thứ tự đã bốc.
+        const { data: fullRows, error: fullErr } = await serviceRoleClient
+          .from('question_bank')
+          .select('*')
+          .in('id', pickedIds)
+        if (fullErr) return errorResponse(fullErr.message, 500)
+        const rowMap = new Map(((fullRows || []) as any[]).map((q: any) => [q.id, q]))
+        const orderedQuestions = pickedIds.map((id) => rowMap.get(id)).filter(Boolean)
+        if (orderedQuestions.length === 0) {
+          return errorResponse('Không lấy được nội dung câu hỏi đã bốc.', 500)
+        }
+
+        // 5. Bài học đích: param hoặc bài đầu của chương yếu nhất.
+        let finalLessonId: string | null = practiceLessonId || null
+        if (!finalLessonId) {
+          const { data: firstLessons } = await serviceRoleClient
+            .from('lessons')
+            .select('id')
+            .eq('chapter_id', weakChapters[0].chapterId)
+            .order('order_index', { ascending: true })
+            .limit(1)
+          finalLessonId = ((firstLessons || []) as Array<{ id: string }>)[0]?.id || null
+        }
+        if (!finalLessonId) return errorResponse('Không xác định được bài học để gắn đề luyện.', 400)
+
+        const hwTitle = practiceTitle ||
+          `Luyện bù: ${weakChapters.map((c: { chapterTitle: string }) => c.chapterTitle).join(', ').slice(0, 80)}`
+
+        try {
+          const created = await createSingleHomeworkFromBank(serviceRoleClient, {
+            targetLessonId: finalLessonId,
+            title: hwTitle,
+            durationMinutes: Number(practiceDuration) || 45,
+            type: 'PRACTICE',
+            deadline: practiceDeadline,
+            orderedQuestions,
+            targetClassId: practiceClassId,
+          })
+          return jsonResponse({
+            success: true,
+            homeworkId: created.homeworkId,
+            totalQuestions: created.totalQuestions,
+            distribution,
+            message: `Đã tạo đề luyện bù "${hwTitle}" với ${created.totalQuestions} câu từ ${distribution.filter((d) => d.picked > 0).length} chương yếu!`
+          })
+        } catch (e) {
+          return errorResponse((e as Error).message, 500)
+        }
       }
 
       // ----------------------------------------------------
@@ -1723,89 +1962,31 @@ serve(async (req: Request) => {
         }
 
         // ========================================================
-        // Kịch bản Đơn đề thông thường
+        // Kịch bản Đơn đề thông thường (dùng helper chung với generate-practice)
         // ========================================================
-        const { data: newHw, error: hwCreateError } = await serviceRoleClient
-          .from('homeworks')
-          .insert({
-            lesson_id: targetLessonId,
+        try {
+          const created = await createSingleHomeworkFromBank(serviceRoleClient, {
+            targetLessonId,
             title,
-            pdf_path: '',
-            duration_minutes: durationMinutes,
-            pass_score: passScore,
-            max_score: maxScore,
-            is_published: true,
-            type: type || 'PRACTICE',
-            max_attempts: finalMaxAttempts,
-            deadline: deadline || null,
-            max_violations: maxViolations || 3,
-            show_solutions: showSolutions !== false
+            durationMinutes,
+            passScore,
+            maxScore,
+            type,
+            deadline,
+            maxViolations,
+            showSolutions,
+            orderedQuestions,
+            targetClassId,
           })
-          .select('id')
-          .single()
-
-        if (hwCreateError) return errorResponse(hwCreateError.message, 500)
-        const homeworkId = newHw.id
-
-        const questionsToInsert: any[] = []
-        const answersToInsert: any[] = []
-
-        orderedQuestions.forEach((qbQ, idx) => {
-          const qNum = idx + 1
-          const questionId = crypto.randomUUID()
-          const parsedPrompt = normalizeBankPromptPayload(qbQ.prompt)
-
-          let partTitle = ''
-          if (qbQ.question_type === 'MULTIPLE_CHOICE') partTitle = 'Phần I: Câu hỏi trắc nghiệm nhiều phương án lựa chọn'
-          else if (qbQ.question_type === 'TRUE_FALSE') partTitle = 'Phần II: Câu hỏi trắc nghiệm đúng sai'
-          else if (qbQ.question_type === 'SHORT_ANSWER') partTitle = 'Phần III: Câu hỏi trắc nghiệm trả lời ngắn'
-
-          questionsToInsert.push({
-            id: questionId,
-            homework_id: homeworkId,
-            question_bank_id: qbQ.id, // Phase 4.1: Truy vết nguồn gốc câu hỏi từ ngân hàng
-            question_number: qNum,
-            question_type: qbQ.question_type,
-            prompt: qbQ.prompt,
-            content: parsedPrompt.text || '',
-            options: parsedPrompt.options || null,
-            statements: parsedPrompt.statements || null,
-            part_title: parsedPrompt.partTitle || partTitle,
-            points: qbQ.points || (qbQ.question_type === 'TRUE_FALSE' ? 1.0 : (qbQ.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
+          return jsonResponse({
+            success: true,
+            homeworkId: created.homeworkId,
+            totalQuestions: created.totalQuestions,
+            message: `Đã tạo thành công đề thi "${title}" với ${created.totalQuestions} câu hỏi đã chọn!`
           })
-
-          answersToInsert.push({
-            question_id: questionId,
-            mc_answer: qbQ.mc_answer || null,
-            tf_answers: qbQ.tf_answers || null,
-            sa_answer: qbQ.sa_answer !== undefined && qbQ.sa_answer !== null ? String(qbQ.sa_answer) : null,
-            sa_tolerance: qbQ.sa_tolerance || 0,
-            explanation: parsedPrompt.explanation || null
-          })
-        })
-
-        const { error: qInsertErr } = await serviceRoleClient.from('questions').insert(questionsToInsert)
-        if (qInsertErr) {
-          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
-          return errorResponse(qInsertErr.message, 500)
+        } catch (e) {
+          return errorResponse((e as Error).message, 500)
         }
-
-        const { error: aInsertErr } = await serviceRoleClient.from('question_answers').insert(answersToInsert)
-        if (aInsertErr) {
-          await serviceRoleClient.from('homeworks').delete().eq('id', homeworkId)
-          return errorResponse(aInsertErr.message, 500)
-        }
-
-        // Tăng usage_count bằng RPC nguyên tử kèm log lịch sử sử dụng theo lớp và đề thi (Phase 4.1 & 5.1)
-        const pickedIds = orderedQuestions.map((q: any) => q.id)
-        await bumpQuestionUsage(serviceRoleClient, pickedIds, targetClassId, homeworkId)
-
-        return jsonResponse({
-          success: true,
-          homeworkId,
-          totalQuestions: orderedQuestions.length,
-          message: `Đã tạo thành công đề thi "${title}" với ${orderedQuestions.length} câu hỏi đã chọn!`
-        })
       }
 
       // ----------------------------------------------------

@@ -672,7 +672,10 @@ function renderHomeworkTabHTML(currentClass) {
             Các bài tập, bài thi trắc nghiệm và tự luận được phân bổ cho lớp học này.
           </p>
         </div>
-        <div class="class-toolbar-actions">
+        <div class="class-toolbar-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="btn-generate-practice" style="padding:10px 20px; font-size:13px; font-weight:700; border-radius:10px; width:auto; display:inline-flex; align-items:center; gap:8px; cursor:pointer; border:none; color:#ffffff; background:linear-gradient(135deg,#7c3aed,#0066cc); box-shadow:0 2px 8px rgba(124,58,237,0.3);" title="Tự sinh đề luyện tập từ các chương cả lớp đang yếu">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Tạo đề luyện bù
+          </button>
           <a href="#create-homework" class="btn-primary" style="padding:10px 20px; font-size:13px; font-weight:700; border-radius:10px; width:auto; text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
             <i class="fa-solid fa-plus"></i> Tạo bài tập mới
           </a>
@@ -915,7 +918,7 @@ function bindActiveTabEvents(classId, currentClass) {
   } else if (activeTab === 'tuition') {
     bindTuitionTabEvents(classId, currentClass)
   } else if (activeTab === 'homework') {
-    // homework links are hash-based
+    bindHomeworkTabEvents(classId, currentClass)
   } else if (activeTab === 'settings') {
     bindSettingsTabEvents(classId, currentClass)
   }
@@ -1924,6 +1927,46 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
       }
     })
   }, 100)
+}
+
+// ---------------------------------------------------------
+// TAB BINDINGS: BÀI TẬP — sinh đề luyện bù từ chương yếu
+// ---------------------------------------------------------
+function bindHomeworkTabEvents(classId, currentClass) {
+  const genBtn = document.getElementById('btn-generate-practice')
+  if (!genBtn) return
+
+  genBtn.onclick = () => {
+    const modalHTML = `
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <p style="font-size:13px; color:#64748b; margin:0; line-height:1.5;">
+          Hệ thống phân tích kết quả cả lớp <strong>${escapeHtml(currentClass.name)}</strong>, chia số câu theo mức độ yếu từng chương (ưu tiên câu dễ) rồi tạo đề <strong>Luyện tập</strong>.
+        </p>
+        <div>
+          <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tổng số câu</label>
+          <input type="number" id="modal-practice-total" class="form-input" min="3" max="50" value="10">
+        </div>
+        <div>
+          <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tiêu đề (để trống để tự đặt)</label>
+          <input type="text" id="modal-practice-title" class="form-input" placeholder="Ví dụ: Luyện bù tuần 6">
+        </div>
+      </div>
+    `
+    openModal('Tạo đề luyện bù', modalHTML, async () => {
+      const total = Math.min(50, Math.max(3, parseInt(document.getElementById('modal-practice-total')?.value, 10) || 10))
+      const title = document.getElementById('modal-practice-title')?.value.trim() || undefined
+      try {
+        showToast('Đang phân tích điểm yếu và bốc câu hỏi...', 'info')
+        const res = await api.generatePractice({ classId, totalQuestions: total, title })
+        showToast(res?.message || 'Đã tạo đề luyện bù!', 'success')
+        await loadHomeworkScope(classId, currentClass, true)
+        return true
+      } catch (err) {
+        showToast(`Tạo đề thất bại: ${err.message}`, 'error')
+        return false
+      }
+    })
+  }
 }
 
 // ---------------------------------------------------------
