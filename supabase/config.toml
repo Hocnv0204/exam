@@ -68,3 +68,9 @@ verify_jwt = true
 
 [functions.reopen-submission]
 verify_jwt = true
+
+[functions.meet-create]
+verify_jwt = true
+
+[functions.meet-sync]
+verify_jwt = false

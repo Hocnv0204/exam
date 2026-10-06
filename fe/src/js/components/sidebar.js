@@ -39,9 +39,6 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'classes-admin' ? 'active' : ''}" onclick="window.location.hash='#classes-admin'">
           <i class="fa-solid fa-book-bookmark"></i> Quản lý lớp học
         </div>
-        <div class="nav-item ${currentRoute === 'curriculum' ? 'active' : ''}" onclick="window.location.hash='#curriculum'">
-          <i class="fa-solid fa-book-open"></i> Chương & Bài học
-        </div>
         <div class="nav-item ${currentRoute === 'homework-mgmt' || currentRoute === 'create-homework' ? 'active' : ''}" onclick="window.location.hash='#homework-mgmt'">
           <i class="fa-solid fa-list-check"></i> Quản lý bài tập
         </div>

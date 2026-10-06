@@ -27,6 +27,8 @@ window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
   )
 }
 
+let collapsedChapterIds = new Set()
+
 export function renderMyClassesView() {
   const hashUrl = window.location.hash.replace('#', '')
   const [_, queryString] = hashUrl.split('?')
@@ -222,71 +224,64 @@ export function renderMyClassesView() {
                 </div>
               `
             })() : `
-              <div class="grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
-                <!-- Left: Chapters list -->
-                <div style="grid-column: span 2;">
-                  <div class="page-header" style="margin-bottom:16px;">
-                    <h2 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a;">
-                      <i class="fa-solid fa-book-open" style="color:#0066cc;"></i> Chương & Bài học
-                    </h2>
+              <div>
+                <div class="page-header" style="margin-bottom:16px;">
+                  <h2 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a;">
+                    <i class="fa-solid fa-book-open" style="color:#0066cc;"></i> Chương & Bài học
+                  </h2>
+                </div>
+
+                ${(classChapters.length === 0) ? `
+                  <div class="card" style="text-align:center; padding:32px; color:#64748b;">
+                    <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
+                    <p style="font-weight:600;">Lớp học này chưa cập nhật danh sách bài học.</p>
                   </div>
-
-                  ${(classChapters.length === 0) ? `
-                    <div class="card" style="text-align:center; padding:32px; color:#64748b;">
-                      <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
-                      <p style="font-weight:600;">Lớp học này chưa cập nhật danh sách bài học.</p>
-                    </div>
-                  ` : classChapters.map(ch => `
-                    <div class="card" style="padding:18px; margin-bottom:16px;">
-                      <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                          <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">${ch.title}</h3>
-                        </div>
-                        <span style="font-size:12px; color:#64748b;">${ch.lessons?.length || 0} bài học</span>
+                ` : classChapters.map(ch => {
+                  const isCollapsed = collapsedChapterIds.has(ch.id)
+                  return `
+                  <div class="card" style="padding:18px; margin-bottom:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" class="chapter-card-header" data-ch-id="${ch.id}">
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <i class="fa-solid ${isCollapsed ? 'fa-folder' : 'fa-folder-open'}" style="color:#0066cc; font-size:16px;"></i>
+                        <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">${escapeHtml(ch.title)}</h3>
                       </div>
+                      <div style="display:flex; align-items:center; gap:12px;">
+                        <span style="font-size:12px; color:#64748b; font-weight:500;">${ch.lessons?.length || 0} bài học</span>
+                        <button type="button" class="btn-toggle-chapter" data-ch-id="${ch.id}" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:4px 10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#475569; font-weight:600; transition:all 0.15s ease;">
+                          <span class="btn-toggle-label">${isCollapsed ? 'Mở rộng' : 'Thu gọn'}</span>
+                          <i class="fa-solid ${isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'} btn-toggle-icon" style="font-size:11px; color:#64748b;"></i>
+                        </button>
+                      </div>
+                    </div>
 
-                      <div style="margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; display:flex; flex-direction:column; gap:10px;">
-                        ${(ch.lessons || []).map((l, lIdx) => {
-                          const isSelected = lessonId === l.id
-                          const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
-                          return `
-                            <div class="lesson-item-btn" data-id="${l.id}" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:${isSelected ? '#e0f2fe' : '#f8fafc'}; border:1px solid ${isSelected ? '#0066cc' : 'transparent'}; border-radius:10px; cursor:pointer; transition:all 0.15s ease;">
-                              <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                                <span style="width:26px; height:26px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#cbd5e1'}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${l.order_index || l.code || (lIdx + 1)}</span>
-                                <div>
-                                  <div style="font-weight:600; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                    <span>${l.title}</span>
-                                    ${createdDateStr ? `
-                                      <span style="font-size:11px; color:#64748b; font-weight:normal; background:#ffffff; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
-                                        <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> ${createdDateStr}
-                                      </span>
-                                    ` : ''}
-                                  </div>
+                    <div class="chapter-lessons-body" id="chapter-lessons-${ch.id}" style="margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; display:${isCollapsed ? 'none' : 'flex'}; flex-direction:column; gap:10px;">
+                      ${(ch.lessons || []).map((l, lIdx) => {
+                        const isSelected = lessonId === l.id
+                        const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
+                        return `
+                          <div class="lesson-item-btn" data-id="${l.id}" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:${isSelected ? '#e0f2fe' : '#f8fafc'}; border:1px solid ${isSelected ? '#0066cc' : 'transparent'}; border-radius:10px; cursor:pointer; transition:all 0.15s ease;">
+                            <div style="display:flex; align-items:center; gap:12px; flex:1;">
+                              <span style="width:26px; height:26px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#cbd5e1'}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${l.order_index || l.code || (lIdx + 1)}</span>
+                              <div>
+                                <div style="font-weight:600; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                  <span>${escapeHtml(l.title)}</span>
+                                  ${createdDateStr ? `
+                                    <span style="font-size:11px; color:#64748b; font-weight:normal; background:#ffffff; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
+                                      <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> ${createdDateStr}
+                                    </span>
+                                  ` : ''}
                                 </div>
                               </div>
-                              <div style="color:${isSelected ? '#0066cc' : '#94a3b8'};">
-                                <i class="fa-solid fa-chevron-right"></i>
-                              </div>
                             </div>
-                          `
-                        }).join('')}
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-
-                <!-- Right: Prompt to select lesson -->
-                <div>
-                  <div class="card">
-                    <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:16px; color:#0f172a;">
-                      <i class="fa-solid fa-list-check" style="color:#0066cc;"></i> Danh sách bài tập
-                    </h3>
-                    <div style="text-align:center; padding:24px 12px; color:#64748b;">
-                      <i class="fa-solid fa-arrow-left-long" style="font-size:24px; color:#94a3b8; margin-bottom:10px; display:block;"></i>
-                      <span style="font-size:13px;">Chọn một bài học ở cột bên trái để xem bài tập và nội dung học chi tiết.</span>
+                            <div style="color:${isSelected ? '#0066cc' : '#94a3b8'};">
+                              <i class="fa-solid fa-chevron-right"></i>
+                            </div>
+                          </div>
+                        `
+                      }).join('')}
                     </div>
                   </div>
-                </div>
+                `}).join('')}
               </div>
             `}
           </div>
@@ -367,6 +362,46 @@ export function bindMyClassesEvents() {
   if (!classId && state.user?.role === 'STUDENT') {
     loadTodoHomeworks()
   }
+
+  // Toggle collapse/expand chapter lessons
+  document.querySelectorAll('.chapter-card-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const chId = header.getAttribute('data-ch-id')
+      if (!chId) return
+      const body = document.getElementById(`chapter-lessons-${chId}`)
+      const label = header.querySelector('.btn-toggle-label')
+      const icon = header.querySelector('.btn-toggle-icon')
+      const folderIcon = header.querySelector('.fa-folder, .fa-folder-open')
+      if (!body) return
+
+      const isHidden = body.style.display === 'none'
+      if (isHidden) {
+        body.style.display = 'flex'
+        collapsedChapterIds.delete(chId)
+        if (label) label.textContent = 'Thu gọn'
+        if (icon) {
+          icon.classList.remove('fa-chevron-down')
+          icon.classList.add('fa-chevron-up')
+        }
+        if (folderIcon) {
+          folderIcon.classList.remove('fa-folder')
+          folderIcon.classList.add('fa-folder-open')
+        }
+      } else {
+        body.style.display = 'none'
+        collapsedChapterIds.add(chId)
+        if (label) label.textContent = 'Mở rộng'
+        if (icon) {
+          icon.classList.remove('fa-chevron-up')
+          icon.classList.add('fa-chevron-down')
+        }
+        if (folderIcon) {
+          folderIcon.classList.remove('fa-folder-open')
+          folderIcon.classList.add('fa-folder')
+        }
+      }
+    })
+  })
 
   // Click on Class Card -> Route to My Classes with classId
   document.querySelectorAll('.select-class-card').forEach(card => {

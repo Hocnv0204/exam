@@ -113,6 +113,15 @@ async function router() {
       window.location.hash = '#admin-dashboard'
       return
     }
+    if (state.user.role === 'ADMIN' && hash === 'curriculum') {
+      const classId = params.get('classId') || (state.classes && state.classes.length > 0 ? state.classes[0].id : null)
+      if (classId) {
+        window.location.hash = `#class-details?classId=${classId}&tab=curriculum`
+      } else {
+        window.location.hash = '#classes-admin'
+      }
+      return
+    }
   }
 
   const route = routes[hash] || routes['login']
