@@ -389,7 +389,6 @@ function renderStudentsTabHTML(currentClass, classStudents) {
 // =========================================================
 function renderAttendanceTabHTML(currentClass) {
   const history = cachedAttendanceHistory || []
-  attendancePage = 1
 
   // Extract unique months (YYYY-MM): ưu tiên danh sách server trả về
   const uniqueMonths = (attendanceMonths.length > 0 ? attendanceMonths : [...new Set(history.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean)).sort().reverse()
