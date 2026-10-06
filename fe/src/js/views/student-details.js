@@ -157,6 +157,19 @@ export function renderStudentDetailsView() {
               <!-- Loaded via JS -->
             </div>
           </div>
+
+          <!-- Weak Topics -->
+          <div class="card" style="padding:20px; margin-top:24px; border:1px solid #fecaca;">
+            <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; color:#0f172a; margin:0 0 4px 0; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;"></i> Điểm yếu theo chương
+            </h3>
+            <p style="font-size:12px; color:#64748b; margin:0 0 12px 0;">Các chương học sinh này làm sai nhiều nhất trong lớp hiện tại.</p>
+            <div id="student-weak-topics-container">
+              <p style="font-size:13px; color:#64748b; margin:0;">
+                <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc;"></i> Đang phân tích kết quả làm bài...
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -220,6 +233,56 @@ export function bindStudentDetailsEvents() {
   // Initial schedule loading
   if (studentId && classId && monthPicker) {
     loadStudentSchedule(studentId, classId, monthPicker.value)
+  }
+
+  // Weak topics for this student in current class
+  if (studentId && classId) {
+    loadStudentWeakTopics(studentId, classId)
+  }
+}
+
+async function loadStudentWeakTopics(studentId, classId) {
+  const container = document.getElementById('student-weak-topics-container')
+  if (!container) return
+
+  try {
+    const res = await api.getWeakTopics({ studentId, classId, limit: 5 })
+    const topics = res?.topics || []
+    if (topics.length === 0) {
+      container.innerHTML = `
+        <p style="font-size:13px; color:#64748b; margin:0;">
+          ${res && res.totalAnswered > 0
+            ? 'Học sinh không có chương yếu rõ rệt trong lớp này.'
+            : 'Chưa đủ dữ liệu làm bài để phân tích.'}
+        </p>
+      `
+      return
+    }
+
+    container.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${topics.map((t) => {
+          const rate = t.wrongRate ?? 0
+          const color = rate >= 60 ? '#ef4444' : rate >= 40 ? '#f59e0b' : '#eab308'
+          return `
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; justify-content:space-between; gap:8px; font-size:13px; margin-bottom:4px;">
+                  <strong style="color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${t.chapterTitle}</strong>
+                  <span style="font-weight:800; color:${color}; flex-shrink:0;">${rate}% sai (${t.wrong}/${t.answered})</span>
+                </div>
+                <div style="height:6px; background:#f1f5f9; border-radius:3px; overflow:hidden;">
+                  <div style="width:${Math.min(100, rate)}%; height:100%; background:${color}; border-radius:3px;"></div>
+                </div>
+              </div>
+            </div>
+          `
+        }).join('')}
+      </div>
+    `
+  } catch (err) {
+    console.warn('Failed to load student weak topics:', err)
+    container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Chưa thể phân tích lúc này.</p>`
   }
 }
 

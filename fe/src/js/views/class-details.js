@@ -888,6 +888,19 @@ function refreshCurriculumTabUI(classId, currentClass) {
   if (container && activeTab === 'curriculum') {
     container.innerHTML = renderCurriculumTabHTML(currentClass)
     bindCurriculumTabEvents(classId, currentClass, () => refreshCurriculumTabUI(classId, currentClass))
+    // Admin: gắn huy hiệu tỉ lệ sai cả lớp lên từng chương (học thích ứng)
+    if (state.user?.role === 'ADMIN') {
+      api.getWeakTopics({ classId, limit: 50 }).then(res => {
+        const chapters = res?.chapters || []
+        chapters.forEach(c => {
+          document.querySelectorAll(`[data-weak-chapter="${c.chapterId}"]`).forEach(el => {
+            el.style.display = 'inline-flex'
+            el.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${c.wrongRate}% sai`
+            el.title = `${c.wrong} / ${c.answered} câu sai cả lớp ở chương này`
+          })
+        })
+      }).catch(() => {})
+    }
   }
 }
 

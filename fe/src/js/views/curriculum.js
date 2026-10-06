@@ -319,6 +319,8 @@ function renderSidebarChapter(ch) {
           <span style="font-size:11px; font-weight:600; background:#f1f5f9; color:#64748b; padding:1px 6px; border-radius:6px; flex-shrink:0;">
             ${lessonCount} bài
           </span>
+          <span class="chapter-weak-badge" data-weak-chapter="${ch.id}" style="display:none; font-size:11px; font-weight:700; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; padding:1px 6px; border-radius:6px; flex-shrink:0;" title="Tỉ lệ làm sai của cả lớp ở chương này">
+          </span>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px;">
           <button class="btn-edit-chapter" data-id="${ch.id}" data-title="${escapeHtml(ch.title)}" title="Sửa tên chương" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:13px; padding:2px;" onclick="event.stopPropagation();">
