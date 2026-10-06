@@ -525,19 +525,29 @@ export function renderCreateHwView() {
             pObj = typeof q.prompt === 'string' && q.prompt.startsWith('{') ? JSON.parse(q.prompt) : {}
           } catch (e) {}
           const qa = q.answerKey || {}
+          const qType = q.question_type || q.questionType
+          // TRUE_FALSE statements are saved in prompt.statements (and DB column `statements`),
+          // NOT in prompt.options (which is [] for TF). Fall back through all sources
+          // so edit->save roundtrip never wipes the 4 mệnh đề a/b/c/d.
+          const tfStatements = (Array.isArray(pObj.statements) && pObj.statements.length > 0)
+            ? pObj.statements
+            : (Array.isArray(pObj.options) && pObj.options.length > 0 ? pObj.options : (Array.isArray(q.statements) && q.statements.length > 0 ? q.statements : []))
+          const mcOptions = (Array.isArray(pObj.options) && pObj.options.length > 0)
+            ? pObj.options
+            : (Array.isArray(q.options) && q.options.length > 0 ? q.options : [])
           return {
             questionNumber: q.question_number || q.questionNumber,
-            questionType: q.question_type || q.questionType,
+            questionType: qType,
             difficulty: pObj.difficulty || q.difficulty || 'THONG_HIEU',
             points: q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
-            promptText: pObj.text || q.prompt || '',
+            promptText: pObj.text || q.content || (typeof q.prompt === 'string' && !q.prompt.startsWith('{') ? q.prompt : ''),
             imageUrl: pObj.imageUrl || '',
-            options: pObj.options || [],
-            explanation: pObj.explanation || '',
-            mcAnswer: qa.mc_answer || 'A',
-            tfAnswers: qa.tf_answers || { a: true, b: true, c: false, d: true },
-            saAnswer: qa.sa_answer !== undefined && qa.sa_answer !== null ? String(qa.sa_answer) : '',
-            saTolerance: qa.sa_tolerance || 0,
+            options: qType === 'TRUE_FALSE' ? tfStatements : mcOptions,
+            explanation: pObj.explanation || qa.explanation || '',
+            mcAnswer: qa.mc_answer || pObj.mcAnswer || 'A',
+            tfAnswers: qa.tf_answers || pObj.tfAnswers || { a: true, b: true, c: false, d: true },
+            saAnswer: (qa.sa_answer !== undefined && qa.sa_answer !== null ? String(qa.sa_answer) : (pObj.saAnswer !== undefined && pObj.saAnswer !== null ? String(pObj.saAnswer) : '')),
+            saTolerance: qa.sa_tolerance ?? pObj.saTolerance ?? 0,
             hasImagePlaceholder: !!pObj.imageUrl
           }
         })
@@ -2173,7 +2183,7 @@ export function bindCreateHwEvents() {
         const isMc = q.questionType === 'MULTIPLE_CHOICE'
         const isSa = q.questionType === 'SHORT_ANSWER'
 
-        const opts = q.options || []
+        const opts = (q.options && q.options.length > 0) ? q.options : (q.statements || [])
         const statements = isTf ? opts : (q.statements || [])
 
         const difficulty = q.difficulty || 'THONG_HIEU'
