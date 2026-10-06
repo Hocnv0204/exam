@@ -316,14 +316,13 @@ function renderStudentsTabHTML(currentClass, classStudents) {
               <th>Mã học sinh</th>
               <th>Trạng thái</th>
               <th>Chuyên cần</th>
-              <th>Số dư & Nợ</th>
               <th style="text-align:center;">Thao tác</th>
             </tr>
           </thead>
           <tbody id="class-students-tbody">
             ${filtered.length === 0 ? `
               <tr>
-                <td colspan="6" style="text-align:center; padding:48px 20px; color:#64748b;">
+                <td colspan="5" style="text-align:center; padding:48px 20px; color:#64748b;">
                   <i class="fa-solid fa-users-slash" style="font-size:36px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
                   ${studentSearchQuery || studentStatusFilter !== 'ALL' ? 'Không tìm thấy học sinh nào khớp với bộ lọc.' : 'Chưa có học sinh nào trong lớp này.'}
                 </td>
@@ -332,7 +331,6 @@ function renderStudentsTabHTML(currentClass, classStudents) {
               const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
               const isActive = (s.status || 'ACTIVE') === 'ACTIVE'
               const attendanceRate = s.attendanceRate !== undefined ? s.attendanceRate : 100
-              const unpaidDebt = s.unpaidDebt || 0
               
               return `
                 <tr id="student-row-${s.id}">
@@ -352,26 +350,11 @@ function renderStudentsTabHTML(currentClass, classStudents) {
                     </button>
                   </td>
                   <td>
-                    ${s.attendedSessions !== undefined ? `<div style="font-size:13px; font-weight:600; color:#334155; margin-top:3px;"><i class="fa-regular fa-calendar-check" style="color:#0066cc;"></i> ${s.attendedSessions} buổi đã học</div>` : '<div style="font-size:13px; font-weight:600; color:#94a3b8;">Chưa điểm danh</div>'}
-                  </td>
-                  <td>
-                    <div style="font-size:12px; font-weight:600; margin-bottom:4px; color:#10b981;">Số dư: ${(s.balance || 0).toLocaleString('vi-VN')} đ</div>
-                    ${unpaidDebt > 0 ? `
-                      <span class="badge badge-unpaid">
-                        Nợ: ${unpaidDebt.toLocaleString('vi-VN')} VND
-                      </span>
-                      ${s.unpaidSessions ? `<div style="font-size:11px; color:#b45309; margin-top:3px; font-weight:600;"><i class="fa-regular fa-clock"></i> ${s.unpaidSessions} buổi chưa đóng</div>` : ''}
-                    ` : `
-                      <span class="badge badge-paid">
-                        0 VND (Đã đủ)
-                      </span>
-                    `}
+                    ${s.attendedSessions !== undefined ? `<div style="font-size:13px; font-weight:600; color:#334155; margin-top:3px;"><i class="fa-regular fa-calendar-check" style="color:#0066cc;"></i> ${s.attendedSessions} buổi đã học <span style="color:#94a3b8; font-weight:500;">(${attendanceRate}%)</span></div>` : '<div style="font-size:13px; font-weight:600; color:#94a3b8;">Chưa điểm danh</div>'}
+                    <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Chi tiết học phí xem ở tab Học phí</div>
                   </td>
                   <td style="text-align:center;">
                     <div style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
-                      <button class="btn-add-balance-class-tab" data-id="${s.id || s.studentId}" title="Nạp số dư" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fff7ed; border:1px solid #ffedd5; color:#f59e0b; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
-                        <i class="fa-solid fa-wallet"></i> Nạp tiền
-                      </button>
                       <a href="#student-details?studentId=${s.id || s.studentId}&classId=${currentClass.id}" class="btn-secondary" title="Xem chi tiết học tập & lịch học" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
                         <i class="fa-solid fa-calendar-day" style="color:#0066cc;"></i> Chi tiết
                       </a>
@@ -510,8 +493,49 @@ function renderAttendanceTabHTML(currentClass) {
 // =========================================================
 function renderTuitionTabHTML(currentClass) {
   const debtList = cachedDebtSummary || []
-  const totalDebt = debtList.reduce((sum, s) => sum + (s.unpaidDebt || 0), 0)
+  const feePerSession = Number(currentClass.tuitionFee || 0)
+  const fmt = (n) => (Number(n || 0)).toLocaleString('vi-VN')
+
+  // ---- Tổng hợp toàn lớp ----
+  let totalAttended = 0, totalPaidSessions = 0, totalUnpaidSessions = 0, totalWaived = 0
+  let totalPaidAmount = 0, totalDebt = 0, totalBalance = 0
+  debtList.forEach(s => {
+    totalAttended += (s.attendedSessions || 0)
+    totalPaidSessions += (s.paidSessions || 0)
+    totalUnpaidSessions += (s.unpaidSessions || 0)
+    totalWaived += (s.waivedSessions || 0)
+    totalPaidAmount += (s.paidAmount !== undefined ? s.paidAmount : ((s.paidSessions || 0) * feePerSession))
+    totalDebt += (s.unpaidDebt || 0)
+    totalBalance += (s.balance || 0)
+  })
   const owingCount = debtList.filter(s => (s.unpaidDebt || 0) > 0).length
+
+  // ---- Nợ theo tháng: gom các buổi có mặt theo YYYY-MM ----
+  const monthMap = new Map()
+  debtList.forEach(s => {
+    ;(s.sessions || []).forEach(sess => {
+      if (!sess.isPresent || !sess.sessionDate) return
+      const key = String(sess.sessionDate).slice(0, 7)
+      if (!/^\d{4}-\d{2}$/.test(key)) return
+      if (!monthMap.has(key)) monthMap.set(key, { sessions: 0, paid: 0, debt: 0, waived: 0 })
+      const m = monthMap.get(key)
+      m.sessions += 1
+      if (sess.paymentStatus === 'waived') m.waived += 1
+      else if (sess.isPaid) m.paid += Number(sess.feeAmount || 0)
+      else m.debt += Number(sess.feeAmount || 0)
+    })
+  })
+  const monthRows = Array.from(monthMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))
+
+  const summaryCard = (label, value, sub, color, bg, border, icon) => `
+    <div class="card" style="margin:0; padding:16px 18px; border-radius:16px; border:1px solid ${border}; background:${bg};">
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:${color}; text-transform:uppercase;">
+        <i class="${icon}"></i> ${label}
+      </div>
+      <div style="font-size:22px; font-weight:800; color:#0f172a; font-family:var(--font-heading); margin-top:6px;">${value}</div>
+      <div style="font-size:12px; color:#64748b; margin-top:2px;">${sub}</div>
+    </div>
+  `
 
   return `
     <div style="display:flex; flex-direction:column; gap:24px;">
@@ -524,7 +548,7 @@ function renderTuitionTabHTML(currentClass) {
           <div>
             <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">Học phí quy định của lớp</div>
             <div style="font-size:22px; font-weight:800; color:#0f172a; font-family:var(--font-heading);">
-              ${(Number(currentClass.tuitionFee || 0)).toLocaleString('vi-VN')} <span style="font-size:14px; color:#64748b; font-weight:600;">VND / buổi</span>
+              ${fmt(feePerSession)} <span style="font-size:14px; color:#64748b; font-weight:600;">VND / buổi</span>
             </div>
           </div>
         </div>
@@ -535,14 +559,49 @@ function renderTuitionTabHTML(currentClass) {
         </div>
       </div>
 
-      <!-- Financial Summary Cards -->
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
-        <div class="card" style="margin:0; padding:18px 20px; border-radius:16px; border:1px solid #fed7aa; background:#fffbeb;">
-          <div style="font-size:12px; font-weight:700; color:#b45309; text-transform:uppercase;">Tổng học phí chưa thu</div>
-          <div style="font-size:24px; font-weight:800; color:#b45309; font-family:var(--font-heading); margin-top:4px;">
-            ${totalDebt.toLocaleString('vi-VN')} VND
-          </div>
-          <div style="font-size:12px; color:#92400e; margin-top:4px;">${owingCount} học sinh đang còn nợ</div>
+      <!-- Overview: tổng quan học phí -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+        ${summaryCard('Tổng số học sinh', debtList.length, `${owingCount} em còn nợ`, '#0066cc', '#eff6ff', '#bfdbfe', 'fa-solid fa-users')}
+        ${summaryCard('Buổi đã học', totalAttended, `${totalPaidSessions} đã đóng • ${totalUnpaidSessions} chưa đóng${totalWaived ? ` • ${totalWaived} miễn` : ''}`, '#0f172a', '#f8fafc', '#e2e8f0', 'fa-regular fa-calendar-check')}
+        ${summaryCard('Đã thu', fmt(totalPaidAmount) + ' đ', 'Cộng dồn các buổi đã đóng', '#15803d', '#f0fdf4', '#bbf7d0', 'fa-solid fa-sack-dollar')}
+        ${summaryCard('Còn nợ', fmt(totalDebt) + ' đ', `${owingCount} học sinh đang nợ`, '#b45309', '#fffbeb', '#fde68a', 'fa-solid fa-clock')}
+        ${summaryCard('Số dư ví', fmt(totalBalance) + ' đ', 'Tổng tiền HS đã nạp còn lại trong ví', '#7c3aed', '#faf5ff', '#e9d5ff', 'fa-solid fa-wallet')}
+      </div>
+
+      <!-- Nợ theo tháng -->
+      <div class="card" style="padding:24px; border-radius:16px;">
+        <h2 style="font-family:var(--font-heading); font-size:16px; font-weight:700; color:#0f172a; margin:0 0 4px 0;">
+          <i class="fa-solid fa-calendar-days" style="color:#0066cc;"></i> Nợ & thu theo tháng
+        </h2>
+        <div style="font-size:12px; color:#64748b; margin-bottom:14px;">Tổng hợp từ các buổi điểm danh có mặt, theo tháng học.</div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tháng</th>
+                <th>Lượt học</th>
+                <th>Đã thu</th>
+                <th>Chưa thu (nợ)</th>
+                <th>Được miễn</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${monthRows.length === 0 ? `
+                <tr><td colspan="5" style="text-align:center; padding:24px; color:#64748b;">Chưa có buổi điểm danh nào.</td></tr>
+              ` : monthRows.map(([key, m]) => {
+                const [yy, mm] = key.split('-')
+                return `
+                  <tr>
+                    <td style="font-weight:700;">Tháng ${mm}/${yy}</td>
+                    <td>${m.sessions} lượt</td>
+                    <td style="color:#15803d; font-weight:700;">${fmt(m.paid)} đ</td>
+                    <td style="color:#b45309; font-weight:700;">${fmt(m.debt)} đ</td>
+                    <td>${m.waived} buổi</td>
+                  </tr>
+                `
+              }).join('')}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -550,12 +609,18 @@ function renderTuitionTabHTML(currentClass) {
       <div class="card" style="padding:24px; border-radius:16px;">
         <div class="class-tab-toolbar">
           <h2 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a; margin:0;">
-            <i class="fa-solid fa-file-invoice-dollar" style="color:#0066cc;"></i> Bảng theo dõi công nợ học sinh
+            <i class="fa-solid fa-file-invoice-dollar" style="color:#0066cc;"></i> Công nợ từng học sinh
           </h2>
           <div class="class-toolbar-actions">
+            <button id="btn-tuition-transactions" class="btn-secondary" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-receipt"></i> Sổ giao dịch
+            </button>
+            <button id="btn-tuition-export" class="btn-secondary" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-file-excel"></i> Xuất Excel
+            </button>
             ${owingCount > 0 ? `
               <button id="btn-collect-all-class-tuition" class="btn-primary" style="padding:8px 18px; font-size:13px; font-weight:700; border-radius:10px; width:auto; background:#10b981; border-color:#10b981; display:inline-flex; align-items:center; gap:6px;">
-                <i class="fa-solid fa-check-double"></i> Đánh dấu thu tất cả nợ
+                <i class="fa-solid fa-check-double"></i> Thu tất cả nợ
               </button>
             ` : ''}
           </div>
@@ -566,10 +631,10 @@ function renderTuitionTabHTML(currentClass) {
             <thead>
               <tr>
                 <th>Học sinh</th>
-                <th>Số buổi có mặt</th>
+                <th>Đã học</th>
+                <th>Số dư ví</th>
                 <th>Đã đóng</th>
                 <th>Chưa đóng</th>
-                <th>Tổng học phí đã đóng</th>
                 <th>Trạng thái</th>
                 <th style="text-align:center;">Thao tác</th>
               </tr>
@@ -585,7 +650,7 @@ function renderTuitionTabHTML(currentClass) {
               ` : debtList.map(s => {
                 const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
                 const hasDebt = (s.unpaidDebt || 0) > 0
-                const paidMoney = s.paidAmount !== undefined ? s.paidAmount : ((s.paidSessions || 0) * (Number(currentClass.tuitionFee) || 0))
+                const paidMoney = s.paidAmount !== undefined ? s.paidAmount : ((s.paidSessions || 0) * feePerSession)
 
                 return `
                   <tr id="debt-row-${s.studentId}">
@@ -598,42 +663,45 @@ function renderTuitionTabHTML(currentClass) {
                         </div>
                       </div>
                     </td>
-                    <td style="font-weight:600; color:#0f172a;">${s.attendedSessions || 0} buổi</td>
                     <td>
-                      <span class="badge badge-paid">
-                        ${s.paidSessions || 0} buổi
-                      </span>
+                      <div style="font-weight:700; color:#0f172a;">${s.attendedSessions || 0} buổi</div>
+                      ${(s.waivedSessions || 0) > 0 ? `<div style="font-size:11px; color:#64748b;">${s.waivedSessions} buổi miễn</div>` : ''}
+                    </td>
+                    <td>
+                      <div style="font-weight:700; color:#7c3aed;">${fmt(s.balance || 0)} đ</div>
+                    </td>
+                    <td>
+                      <div style="font-weight:600; color:#15803d;">${s.paidSessions || 0} buổi</div>
+                      <div style="font-size:12px; color:#64748b;">${fmt(paidMoney)} đ</div>
                     </td>
                     <td>
                       ${(s.unpaidSessions || 0) > 0 ? `
-                        <span class="badge badge-unpaid">
-                          ${s.unpaidSessions} buổi
-                        </span>
-                      ` : `
-                        <span class="badge badge-paid">0 buổi</span>
-                      `}
-                    </td>
-                    <td>
-                      <strong style="color:#15803d; font-size:14px; font-family:var(--font-heading);">
-                        ${paidMoney.toLocaleString('vi-VN')} VND
-                      </strong>
+                        <div style="font-weight:700; color:#b45309;">${s.unpaidSessions} buổi</div>
+                        <div style="font-size:12px; color:#b45309;">${fmt(s.unpaidDebt)} đ</div>
+                      ` : `<span style="font-size:12px; color:#94a3b8;">—</span>`}
                     </td>
                     <td>
                       ${hasDebt ? `
                         <span class="badge badge-unpaid">
-                          <i class="fa-solid fa-clock" style="font-size:9px;"></i> Còn nợ ${(s.unpaidDebt || 0).toLocaleString('vi-VN')} đ
+                          <i class="fa-solid fa-clock" style="font-size:9px;"></i> Nợ ${fmt(s.unpaidDebt)} đ
                         </span>
                       ` : `
                         <span class="badge badge-paid">
-                          <i class="fa-solid fa-check" style="font-size:10px;"></i> Đã đóng đủ
+                          <i class="fa-solid fa-check" style="font-size:10px;"></i> Đủ
                         </span>
                       `}
                     </td>
                     <td style="text-align:center;">
-                      <div style="display:inline-flex; align-items:center; gap:8px;">
+                      <div style="display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;">
+                        <button class="btn-add-balance-class-tab" data-id="${s.studentId}" title="Nạp tiền vào ví" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fff7ed; border:1px solid #ffedd5; color:#f59e0b; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-wallet"></i> Nạp tiền
+                        </button>
                         ${hasDebt ? `
                           <button class="btn-collect-student-tuition btn-primary" data-student-id="${s.studentId}" data-student-name="${escapeHtml(s.fullName)}" data-debt="${s.unpaidDebt}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; width:auto; background:#10b981; border-color:#10b981; display:inline-flex; align-items:center; gap:4px; font-weight:600;">
                             <i class="fa-solid fa-check"></i> Thu nợ
+                          </button>
+                          <button class="btn-waive-student-tuition btn-secondary" data-student-id="${s.studentId}" data-student-name="${escapeHtml(s.fullName)}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px;" title="Miễn toàn bộ nợ còn lại">
+                            <i class="fa-solid fa-hand-holding-heart"></i> Miễn
                           </button>
                         ` : ''}
                         <button class="btn-view-student-sessions btn-secondary" data-student-id="${s.studentId}" data-student-name="${escapeHtml(s.fullName)}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
@@ -1252,24 +1320,6 @@ function bindStudentsTabEvents(classId, currentClass) {
     }
   })
 
-  // Add balance from class tab
-  document.querySelectorAll('.btn-add-balance-class-tab').forEach(btn => {
-    btn.onclick = () => {
-      const studentId = btn.getAttribute('data-id')
-      window._refreshClassDetailsTab = (sId, newBal) => {
-        if (sId && newBal !== undefined) {
-          const cachedItem = cachedClassStudents.find(s => s.id === sId || s.studentId === sId)
-          if (cachedItem) cachedItem.balance = newBal
-          const stateItem = state.students.find(s => s.id === sId)
-          if (stateItem) stateItem.balance = newBal
-          refreshStudentsTable(currentClass)
-        }
-        refreshClassData(classId, currentClass)
-      }
-      showAddBalanceModal(studentId)
-    }
-  })
-
   // Remove student from class
   document.querySelectorAll('.btn-remove-from-class').forEach(btn => {
     btn.onclick = async () => {
@@ -1774,6 +1824,23 @@ function bindTuitionTabEvents(classId, currentClass) {
     quickEditBtn.onclick = () => showEditClassModal(currentClass)
   }
 
+  // Top-up wallet moved here from Students tab
+  document.querySelectorAll('.btn-add-balance-class-tab').forEach(btn => {
+    btn.onclick = () => {
+      const studentId = btn.getAttribute('data-id')
+      window._refreshClassDetailsTab = (sId, newBal) => {
+        if (sId && newBal !== undefined) {
+          const cachedItem = cachedClassStudents.find(s => s.id === sId || s.studentId === sId)
+          if (cachedItem) cachedItem.balance = newBal
+          const stateItem = state.students.find(s => s.id === sId)
+          if (stateItem) stateItem.balance = newBal
+        }
+        refreshClassData(classId, currentClass)
+      }
+      showAddBalanceModal(studentId)
+    }
+  })
+
   // Collect single student's debt
   document.querySelectorAll('.btn-collect-student-tuition').forEach(btn => {
     btn.onclick = async () => {
@@ -1824,6 +1891,37 @@ function bindTuitionTabEvents(classId, currentClass) {
       showStudentSessionDebtModal(classId, currentClass, studentId, studentName)
     }
   })
+
+  // Waive all unpaid debt of a student
+  document.querySelectorAll('.btn-waive-student-tuition').forEach(btn => {
+    btn.onclick = async () => {
+      const studentId = btn.getAttribute('data-student-id')
+      const studentName = btn.getAttribute('data-student-name')
+      const reason = prompt(`Nhập lý do miễn học phí cho "${studentName}" (để trống nếu không cần):`, '')
+      if (reason === null) return
+      if (!confirm(`Xác nhận MIỄN toàn bộ nợ còn lại của "${studentName}"?`)) return
+      showToast('Đang miễn học phí...', 'info')
+      try {
+        await api.waiveTuition({ classId, studentId, reason: reason || '' })
+        showToast(`Đã miễn nợ cho ${studentName}`, 'success')
+        await Promise.all([loadStudentsScope(classId, currentClass, true), loadKpiStats(classId, true)])
+      } catch (err) {
+        showToast(`Miễn thất bại: ${err.message}`, 'error')
+      }
+    }
+  })
+
+  // Transaction ledger modal
+  const txBtn = document.getElementById('btn-tuition-transactions')
+  if (txBtn) {
+    txBtn.onclick = () => showTuitionTransactionsModal(classId, currentClass)
+  }
+
+  // Export debt + transactions to CSV
+  const exportBtn = document.getElementById('btn-tuition-export')
+  if (exportBtn) {
+    exportBtn.onclick = () => exportTuitionCsv(classId, currentClass)
+  }
 }
 
 // Modal xem chi tiết từng buổi học và toggle trạng thái đóng tiền của học sinh
@@ -1868,6 +1966,7 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
               const [y, m, d] = (sess.sessionDate || '').split('-')
               const formattedDate = d && m && y ? `${d}/${m}/${y}` : sess.sessionDate
               const isPaid = sess.paymentStatus === 'paid'
+              const isWaived = sess.paymentStatus === 'waived'
 
               return `
                 <tr>
@@ -1879,14 +1978,19 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
                     <strong>${(sess.feeAmount || 0).toLocaleString('vi-VN')} đ</strong>
                   </td>
                   <td>
-                    <span class="badge ${isPaid ? 'badge-paid' : 'badge-unpaid'}">
-                      ${isPaid ? 'Đã đóng' : 'Chưa đóng'}
+                    <span class="badge ${isPaid ? 'badge-paid' : (isWaived ? 'badge-waived' : 'badge-unpaid')}">
+                      ${isPaid ? 'Đã đóng' : (isWaived ? 'Được miễn' : 'Chưa đóng')}
                     </span>
                   </td>
                   <td style="text-align:center;">
                     <button class="btn-toggle-session-payment btn-secondary" data-record-id="${sess.recordId || ''}" data-student-id="${studentId}" data-session-date="${sess.sessionDate}" data-current-status="${sess.paymentStatus}" style="padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; font-weight:600;">
                       ${isPaid ? 'Đổi sang Chưa đóng' : 'Đánh dấu Đã đóng'}
                     </button>
+                    ${(!isPaid && !isWaived) ? `
+                      <button class="btn-waive-session-payment btn-secondary" data-record-id="${sess.recordId || ''}" style="padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; font-weight:600; margin-left:6px;" title="Miễn buổi này">
+                        Miễn
+                      </button>
+                    ` : ''}
                   </td>
                 </tr>
               `
@@ -1926,7 +2030,163 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
         }
       }
     })
+    document.querySelectorAll('.btn-waive-session-payment').forEach(btn => {
+      btn.onclick = async () => {
+        const recordId = btn.getAttribute('data-record-id')
+        if (!recordId) return
+        const reason = prompt('Nhập lý do miễn buổi này (để trống nếu không cần):', '')
+        if (reason === null) return
+        showToast('Đang miễn buổi học...', 'info')
+        try {
+          await api.waiveTuition({ recordIds: [recordId], reason: reason || '' })
+          showToast('Đã miễn buổi học', 'success')
+          closeModal()
+          await Promise.all([loadStudentsScope(classId, currentClass, true), loadKpiStats(classId, true)])
+        } catch (err) {
+          showToast(`Lỗi: ${err.message}`, 'error')
+        }
+      }
+    })
   }, 100)
+}
+
+const TUITION_TX_LABELS = {
+  topup: 'Nạp ví',
+  auto_deduct: 'Trừ ví (điểm danh)',
+  refund: 'Hoàn tiền',
+  manual_collect: 'Thu tay',
+  waive: 'Miễn'
+}
+
+// Modal sổ giao dịch học phí của lớp
+async function showTuitionTransactionsModal(classId, currentClass) {
+  openModal('Sổ giao dịch học phí', '<div style="text-align:center; padding:24px; color:#64748b;">Đang tải...</div>')
+  try {
+    const txs = await api.getTuitionTransactions(`classId=${classId}&limit=100`)
+    const rows = Array.isArray(txs) ? txs : []
+    const bodyHTML = `
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:12px; color:#64748b;">Lớp <strong>${escapeHtml(currentClass?.name || '')}</strong> — ${rows.length} giao dịch gần nhất. Số dương là tiền vào (nạp/hoàn tính theo ví), số thu/miễn ghi theo giá trị buổi.</div>
+        <div style="max-height:380px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:10px;">
+          <table class="data-table" style="margin:0;">
+            <thead><tr><th>Thời gian</th><th>Biên lai</th><th>Học sinh</th><th>Loại</th><th style="text-align:right;">Số tiền</th><th></th></tr></thead>
+            <tbody>
+              ${rows.length === 0 ? '<tr><td colspan="6" style="text-align:center; padding:24px; color:#64748b;">Chưa có giao dịch nào. Các lần điểm danh trừ ví, nạp ví, thu/miễn tay sẽ tự ghi vào đây.</td></tr>' : rows.map(t => `
+                <tr>
+                  <td style="font-size:12px;">${new Date(t.createdAt).toLocaleString('vi-VN')}</td>
+                  <td style="font-family:monospace; font-size:12px;">${escapeHtml(t.receiptNo || '')}</td>
+                  <td style="font-weight:600;">${escapeHtml(t.studentName || t.username || '')}</td>
+                  <td><span class="badge" style="font-size:11px;">${TUITION_TX_LABELS[t.type] || t.type}</span></td>
+                  <td style="text-align:right; font-weight:700; color:${Number(t.amount) < 0 ? '#b91c1c' : '#15803d'};">${Number(t.amount).toLocaleString('vi-VN')} đ</td>
+                  <td style="text-align:center;">
+                    <button class="btn-print-tx-receipt btn-secondary" data-tx='${escapeHtml(JSON.stringify(t))}' style="padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer;">In BL</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="font-size:11px; color:#64748b;">${escapeHtml('Ghi chú chi tiết từng dòng nằm ở cột loại + thời gian. Bấm "In BL" để mở biên lai in được.')}</div>
+      </div>
+    `
+    openModal('Sổ giao dịch học phí', bodyHTML)
+    setTimeout(() => {
+      document.querySelectorAll('.btn-print-tx-receipt').forEach(btn => {
+        btn.onclick = () => {
+          try {
+            printTuitionReceipt(JSON.parse(btn.getAttribute('data-tx')), currentClass)
+          } catch (e) {
+            showToast('Không mở được biên lai', 'error')
+          }
+        }
+      })
+    }, 100)
+  } catch (err) {
+    openModal('Sổ giao dịch học phí', `<div style="padding:24px; text-align:center; color:#b91c1c;">Lỗi tải sổ: ${escapeHtml(err.message)}</div>`)
+  }
+}
+
+// In biên lai thu học phí (mở cửa sổ in)
+function printTuitionReceipt(tx, currentClass) {
+  const w = window.open('', '_blank', 'width=640,height=760')
+  if (!w) {
+    showToast('Trình duyệt chặn popup, hãy cho phép popup để in biên lai', 'error')
+    return
+  }
+  const amountText = Number(tx.amount).toLocaleString('vi-VN')
+  w.document.write(`
+    <html><head><title>Biên lai ${escapeHtml(tx.receiptNo || '')}</title>
+    <style>body{font-family:Arial,sans-serif;padding:32px;color:#111}h1{font-size:20px}.box{border:1px solid #333;border-radius:8px;padding:20px;margin-top:16px}table{width:100%;border-collapse:collapse;margin-top:12px}td{padding:8px;border-bottom:1px dotted #999;font-size:14px}.sign{display:flex;justify-content:space-between;margin-top:48px;font-size:13px}@media print{button{display:none}}</style>
+    </head><body>
+      <h1>BIÊN LAI HỌC PHÍ</h1>
+      <div>Số biên lai: <strong>${escapeHtml(tx.receiptNo || '')}</strong></div>
+      <div class="box"><table>
+        <tr><td>Lớp</td><td><strong>${escapeHtml(currentClass?.name || '')}</strong></td></tr>
+        <tr><td>Học sinh</td><td><strong>${escapeHtml(tx.studentName || '')}</strong></td></tr>
+        <tr><td>Loại giao dịch</td><td>${escapeHtml(TUITION_TX_LABELS[tx.type] || tx.type)}</td></tr>
+        <tr><td>Số tiền</td><td><strong>${amountText} VND</strong></td></tr>
+        <tr><td>Thời gian</td><td>${escapeHtml(new Date(tx.createdAt).toLocaleString('vi-VN'))}</td></tr>
+        <tr><td>Ghi chú</td><td>${escapeHtml(tx.note || '')}</td></tr>
+      </table></div>
+      <div class="sign"><span>Người nộp</span><span>Người thu</span></div>
+      <br><button onclick="window.print()">In biên lai</button>
+    </body></html>
+  `)
+  w.document.close()
+}
+
+// Xuất công nợ + giao dịch ra CSV
+async function exportTuitionCsv(classId, currentClass) {
+  showToast('Đang chuẩn bị file xuất...', 'info')
+  try {
+    const [txs] = await Promise.all([
+      api.getTuitionTransactions(`classId=${classId}&limit=200`).catch(() => [])
+    ])
+    const debtList = (typeof cachedDebtSummary !== 'undefined' ? cachedDebtSummary : []) || []
+    const lines = ['Lop,' + `"${(currentClass?.name || '').replace(/"/g, '""')}"`, '']
+    lines.push('CONG NO THEO HOC SINH')
+    lines.push('Ho ten,Tai khoan,So buoi da hoc,So du vi (VND),Da dong (buoi),Da dong (VND),Chua dong (buoi),Con no (VND)')
+    debtList.forEach(s => {
+      const paidMoney = s.paidAmount !== undefined ? s.paidAmount : ((s.paidSessions || 0) * (Number(currentClass?.tuitionFee) || 0))
+      lines.push([s.fullName, s.username, s.attendedSessions || 0, s.balance || 0, s.paidSessions || 0, paidMoney, s.unpaidSessions || 0, s.unpaidDebt || 0].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    })
+    lines.push('', 'NO VA THU THEO THANG (tu diem danh)')
+    lines.push('Thang,Luot hoc,Da thu (VND),Chua thu (VND),Mien (buoi)')
+    const monthAgg = new Map()
+    debtList.forEach(s => {
+      ;(s.sessions || []).forEach(sess => {
+        if (!sess.isPresent || !sess.sessionDate) return
+        const key = String(sess.sessionDate).slice(0, 7)
+        if (!/^\d{4}-\d{2}$/.test(key)) return
+        if (!monthAgg.has(key)) monthAgg.set(key, { sessions: 0, paid: 0, debt: 0, waived: 0 })
+        const m = monthAgg.get(key)
+        m.sessions += 1
+        if (sess.paymentStatus === 'waived') m.waived += 1
+        else if (sess.isPaid) m.paid += Number(sess.feeAmount || 0)
+        else m.debt += Number(sess.feeAmount || 0)
+      })
+    })
+    Array.from(monthAgg.entries()).sort((a, b) => b[0].localeCompare(a[0])).forEach(([key, m]) => {
+      lines.push([key, m.sessions, m.paid, m.debt, m.waived].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    })
+    lines.push('', 'SO GIAO DICH GAN NHAT')
+    lines.push('Thoi gian,So bien lai,Hoc sinh,Loai,So tien,Ghi chu')
+    ;(Array.isArray(txs) ? txs : []).forEach(t => {
+      lines.push([new Date(t.createdAt).toLocaleString('vi-VN'), t.receiptNo || '', t.studentName || '', TUITION_TX_LABELS[t.type] || t.type, t.amount, (t.note || '').replace(/\r?\n/g, ' ')].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    })
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `hoc-phi-${(currentClass?.name || 'lop').replace(/\s+/g, '-')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 2000)
+    showToast('Đã xuất file Excel (CSV)', 'success')
+  } catch (err) {
+    showToast(`Xuất thất bại: ${err.message}`, 'error')
+  }
 }
 
 // ---------------------------------------------------------

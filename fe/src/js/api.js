@@ -415,6 +415,8 @@ export const api = {
   getClassDebtSummary: (classId) => request(`create-class?action=get-class-debt-summary&classId=${classId}`, { method: 'GET' }),
   markTuitionPaid: (data) => request('create-class?action=mark-tuition-paid', { method: 'POST', body: JSON.stringify(data) }),
   markStudentTuitionPaid: (classId, studentId) => request('create-class?action=mark-student-tuition-paid', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
+  waiveTuition: (data) => request('create-class?action=waive-tuition', { method: 'POST', body: JSON.stringify(data) }),
+  getTuitionTransactions: (params = '') => request(`create-class?action=list-transactions${params ? `&${params}` : ''}`, { method: 'GET' }),
   updateStudentClassStatus: (classId, studentId, status) => request('create-class?action=update-student-class-status', { method: 'POST', body: JSON.stringify({ classId, studentId, status }) }),
   addStudentToClass: (classId, studentId) => request('create-class?action=add-student-to-class', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
   archiveClass: (classId, isArchived) => request('create-class?action=archive-class', { method: 'POST', body: JSON.stringify({ classId, isArchived }) }),

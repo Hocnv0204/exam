@@ -867,6 +867,34 @@ serve(async (req: Request) => {
         return jsonResponse(result)
       }
 
+      if (action === 'list-transactions') {
+        const classId = url.searchParams.get('classId')
+        const studentId = url.searchParams.get('studentId')
+        const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10)))
+        let query = serviceRoleClient
+          .from('tuition_transactions')
+          .select('id, student_id, class_id, type, amount, balance_after, receipt_no, note, created_at, profiles:student_id(username, full_name)')
+          .order('created_at', { ascending: false })
+          .limit(limit)
+        if (classId) query = query.eq('class_id', classId)
+        if (studentId) query = query.eq('student_id', studentId)
+        const { data, error } = await query
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse((data || []).map((t: any) => ({
+          id: t.id,
+          studentId: t.student_id,
+          studentName: t.profiles?.full_name || t.profiles?.username || '',
+          username: t.profiles?.username || '',
+          classId: t.class_id,
+          type: t.type,
+          amount: Number(t.amount),
+          balanceAfter: t.balance_after !== null ? Number(t.balance_after) : null,
+          receiptNo: t.receipt_no,
+          note: t.note,
+          createdAt: t.created_at
+        })))
+      }
+
       if (user.role === 'ADMIN') {
         const { data: classes, error } = await serviceRoleClient
           .from('classes')
@@ -1281,6 +1309,26 @@ serve(async (req: Request) => {
             }
           }
 
+          // Ghi sổ thu tay (manual_collect) khi đánh dấu đã đóng
+          if (isPaid) {
+            try {
+              const { data: feeRows } = await serviceRoleClient
+                .from('attendance_records')
+                .select('student_id, fee_amount, attendance_sessions!inner(class_id)')
+                .in('id', recordIds)
+              const rows = (feeRows || []).map((r: any) => ({
+                student_id: r.student_id,
+                class_id: (r as any).attendance_sessions?.class_id || classId || null,
+                type: 'manual_collect',
+                amount: Number(r.fee_amount || 0),
+                receipt_no: 'BL-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(),
+                note: 'Thu học phí thủ công' + (classId ? '' : ''),
+                created_by: user.id
+              }))
+              if (rows.length > 0) await serviceRoleClient.from('tuition_transactions').insert(rows)
+            } catch (_) {}
+          }
+
           return jsonResponse({ success: true, updatedCount: recordIds.length })
         }
 
@@ -1319,9 +1367,67 @@ serve(async (req: Request) => {
               updated_at: new Date().toISOString()
             })
             .in('id', recIds)
+          // Ghi sổ thu toàn bộ nợ của HS
+          try {
+            const { data: feeRows } = await serviceRoleClient
+              .from('attendance_records')
+              .select('fee_amount')
+              .in('id', recIds)
+            const total = (feeRows || []).reduce((s: number, r: any) => s + Number(r.fee_amount || 0), 0)
+            await serviceRoleClient.from('tuition_transactions').insert({
+              student_id: studentId,
+              class_id: classId,
+              type: 'manual_collect',
+              amount: total,
+              receipt_no: 'BL-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(),
+              note: `Thu toàn bộ nợ (${recIds.length} buổi)`,
+              created_by: user.id
+            })
+          } catch (_) {}
         }
 
         return jsonResponse({ success: true, updatedCount: recIds.length })
+      }
+
+      if (action === 'waive-tuition') {
+        const body = await req.json()
+        const { recordIds, classId, studentId, reason } = body
+        const nowIso = new Date().toISOString()
+        let targetIds: string[] = Array.isArray(recordIds) ? recordIds : []
+        if (targetIds.length === 0 && classId && studentId) {
+          const { data: unpaid } = await serviceRoleClient
+            .from('attendance_records')
+            .select('id, attendance_sessions!inner(class_id)')
+            .eq('attendance_sessions.class_id', classId)
+            .eq('student_id', studentId)
+            .eq('is_present', true)
+            .eq('payment_status', 'unpaid')
+          targetIds = (unpaid || []).map((r: any) => r.id)
+        }
+        if (targetIds.length === 0) return errorResponse('Không có buổi chưa đóng nào để miễn', 400)
+        const { data: recs } = await serviceRoleClient
+          .from('attendance_records')
+          .select('id, student_id, fee_amount, attendance_sessions!inner(class_id, session_date)')
+          .in('id', targetIds)
+        const { error: waiveErr } = await serviceRoleClient
+          .from('attendance_records')
+          .update({ payment_status: 'waived', paid_at: null, updated_at: nowIso })
+          .in('id', targetIds)
+        if (waiveErr) return errorResponse(waiveErr.message, 500)
+        // Ghi sổ miễn (không thu tiền, amount = +fee được miễn để đối chiếu)
+        try {
+          const rows = (recs || []).map((r: any) => ({
+            student_id: r.student_id,
+            class_id: (r as any).attendance_sessions?.class_id || classId || null,
+            type: 'waive',
+            amount: Number(r.fee_amount || 0),
+            receipt_no: 'BL-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(),
+            note: (reason ? reason + ' | ' : '') + 'Miễn học phí buổi ' + ((r as any).attendance_sessions?.session_date || ''),
+            created_by: user.id
+          }))
+          if (rows.length > 0) await serviceRoleClient.from('tuition_transactions').insert(rows)
+        } catch (_) {}
+        return jsonResponse({ success: true, updatedCount: targetIds.length })
       }
 
       if (action === 'update-student-class-status') {

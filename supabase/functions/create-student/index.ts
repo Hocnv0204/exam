@@ -126,6 +126,20 @@ serve(async (req: Request) => {
           return errorResponse(error.message, 500)
         }
 
+        // Ghi sổ nạp tiền vào ví (topup), best-effort
+        try {
+          await serviceRoleClient.from('tuition_transactions').insert({
+            student_id: studentId,
+            class_id: null,
+            type: 'topup',
+            amount: amount,
+            balance_after: (data as any)?.balance ?? null,
+            receipt_no: 'BL-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(),
+            note: 'Nạp tiền vào ví học phí',
+            created_by: user.id
+          })
+        } catch (_) {}
+
         return jsonResponse(data)
       }
 
