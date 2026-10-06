@@ -873,7 +873,7 @@ serve(async (req: Request) => {
         const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10)))
         let query = serviceRoleClient
           .from('tuition_transactions')
-          .select('id, student_id, class_id, type, amount, balance_after, receipt_no, note, created_at, profiles:student_id(username, full_name)')
+          .select('id, student_id, class_id, type, amount, balance_after, receipt_no, note, created_at, profiles:student_id(username, full_name), classes:class_id(name)')
           .order('created_at', { ascending: false })
           .limit(limit)
         if (classId) query = query.eq('class_id', classId)
@@ -886,6 +886,7 @@ serve(async (req: Request) => {
           studentName: t.profiles?.full_name || t.profiles?.username || '',
           username: t.profiles?.username || '',
           classId: t.class_id,
+          className: (t as any).classes?.name || '',
           type: t.type,
           amount: Number(t.amount),
           balanceAfter: t.balance_after !== null ? Number(t.balance_after) : null,

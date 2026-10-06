@@ -4,7 +4,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
-import { showAddBalanceModal } from './student-mgmt.js'
+import { showAddBalanceModal, showEditBalanceModal } from './student-mgmt.js'
 import { renderCurriculumTabHTML, bindCurriculumTabEvents, ensureCurriculumLoaded } from './curriculum.js'
 
 // Module-level state for the active class view
@@ -539,32 +539,10 @@ function renderTuitionTabHTML(currentClass) {
 
   return `
     <div style="display:flex; flex-direction:column; gap:24px;">
-      <!-- Tuition Fee Configuration Card -->
-      <div class="card class-tab-toolbar" style="padding:20px 24px; border-radius:16px; background:#ffffff; border:1px solid #e2e8f0; margin-bottom:0;">
-        <div style="display:flex; align-items:center; gap:16px;">
-          <div style="width:48px; height:48px; border-radius:12px; background:#f0fdf4; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
-            <i class="fa-solid fa-money-bill-wave"></i>
-          </div>
-          <div>
-            <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">Học phí quy định của lớp</div>
-            <div style="font-size:22px; font-weight:800; color:#0f172a; font-family:var(--font-heading);">
-              ${fmt(feePerSession)} <span style="font-size:14px; color:#64748b; font-weight:600;">VND / buổi</span>
-            </div>
-          </div>
-        </div>
-        <div class="class-toolbar-actions">
-          <button id="btn-quick-edit-tuition" class="btn-secondary" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-            <i class="fa-solid fa-pen"></i> Đổi mức học phí
-          </button>
-        </div>
-      </div>
-
-      <!-- Overview: tổng quan học phí -->
+      <!-- Overview: tổng quan học phí (bỏ các số đã có ở header/KPI: mức phí/buổi, tổng HS, còn nợ tổng) -->
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
-        ${summaryCard('Tổng số học sinh', debtList.length, `${owingCount} em còn nợ`, '#0066cc', '#eff6ff', '#bfdbfe', 'fa-solid fa-users')}
         ${summaryCard('Buổi đã học', totalAttended, `${totalPaidSessions} đã đóng • ${totalUnpaidSessions} chưa đóng${totalWaived ? ` • ${totalWaived} miễn` : ''}`, '#0f172a', '#f8fafc', '#e2e8f0', 'fa-regular fa-calendar-check')}
         ${summaryCard('Đã thu', fmt(totalPaidAmount) + ' đ', 'Cộng dồn các buổi đã đóng', '#15803d', '#f0fdf4', '#bbf7d0', 'fa-solid fa-sack-dollar')}
-        ${summaryCard('Còn nợ', fmt(totalDebt) + ' đ', `${owingCount} học sinh đang nợ`, '#b45309', '#fffbeb', '#fde68a', 'fa-solid fa-clock')}
         ${summaryCard('Số dư ví', fmt(totalBalance) + ' đ', 'Tổng tiền HS đã nạp còn lại trong ví', '#7c3aed', '#faf5ff', '#e9d5ff', 'fa-solid fa-wallet')}
       </div>
 
@@ -612,7 +590,10 @@ function renderTuitionTabHTML(currentClass) {
             <i class="fa-solid fa-file-invoice-dollar" style="color:#0066cc;"></i> Công nợ từng học sinh
           </h2>
           <div class="class-toolbar-actions">
-            <button id="btn-tuition-transactions" class="btn-secondary" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+            <button id="btn-quick-edit-tuition" class="btn-secondary" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;" title="Đổi mức học phí/buổi của lớp (${fmt(feePerSession)} VND)">
+              <i class="fa-solid fa-pen"></i> Đổi mức học phí
+            </button>
+            <button id="btn-goto-ledger" class="btn-secondary" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
               <i class="fa-solid fa-receipt"></i> Sổ giao dịch
             </button>
             <button id="btn-tuition-export" class="btn-secondary" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
@@ -695,6 +676,9 @@ function renderTuitionTabHTML(currentClass) {
                       <div style="display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;">
                         <button class="btn-add-balance-class-tab" data-id="${s.studentId}" title="Nạp tiền vào ví" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#fff7ed; border:1px solid #ffedd5; color:#f59e0b; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
                           <i class="fa-solid fa-wallet"></i> Nạp tiền
+                        </button>
+                        <button class="btn-edit-balance-class-tab" data-id="${s.studentId}" title="Sửa trực tiếp số dư ví" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-pen"></i> Sửa số dư
                         </button>
                         ${hasDebt ? `
                           <button class="btn-collect-student-tuition btn-primary" data-student-id="${s.studentId}" data-student-name="${escapeHtml(s.fullName)}" data-debt="${s.unpaidDebt}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; width:auto; background:#10b981; border-color:#10b981; display:inline-flex; align-items:center; gap:4px; font-weight:600;">
@@ -1841,6 +1825,24 @@ function bindTuitionTabEvents(classId, currentClass) {
     }
   })
 
+  // Edit wallet balance directly (next to Top-up)
+  document.querySelectorAll('.btn-edit-balance-class-tab').forEach(btn => {
+    btn.onclick = () => {
+      const studentId = btn.getAttribute('data-id')
+      // showEditBalanceModal tra cứu state.students — đảm bảo HS của lớp có mặt trong đó
+      if (!state.students.some(s => s.id === studentId)) {
+        const debt = (cachedDebtSummary || []).find(s => s.studentId === studentId)
+        if (debt) {
+          state.students.push({ id: studentId, fullName: debt.fullName, username: debt.username, balance: debt.balance || 0 })
+        }
+      }
+      window._refreshClassDetailsTab = () => {
+        refreshClassData(classId, currentClass)
+      }
+      showEditBalanceModal(studentId)
+    }
+  })
+
   // Collect single student's debt
   document.querySelectorAll('.btn-collect-student-tuition').forEach(btn => {
     btn.onclick = async () => {
@@ -1911,10 +1913,12 @@ function bindTuitionTabEvents(classId, currentClass) {
     }
   })
 
-  // Transaction ledger modal
-  const txBtn = document.getElementById('btn-tuition-transactions')
-  if (txBtn) {
-    txBtn.onclick = () => showTuitionTransactionsModal(classId, currentClass)
+  // Open global ledger page filtered to this class
+  const gotoLedger = document.getElementById('btn-goto-ledger')
+  if (gotoLedger) {
+    gotoLedger.onclick = () => {
+      window.location.hash = `#tuition-ledger?classId=${classId}`
+    }
   }
 
   // Export debt + transactions to CSV
@@ -2056,54 +2060,6 @@ const TUITION_TX_LABELS = {
   refund: 'Hoàn tiền',
   manual_collect: 'Thu tay',
   waive: 'Miễn'
-}
-
-// Modal sổ giao dịch học phí của lớp
-async function showTuitionTransactionsModal(classId, currentClass) {
-  openModal('Sổ giao dịch học phí', '<div style="text-align:center; padding:24px; color:#64748b;">Đang tải...</div>')
-  try {
-    const txs = await api.getTuitionTransactions(`classId=${classId}&limit=100`)
-    const rows = Array.isArray(txs) ? txs : []
-    const bodyHTML = `
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <div style="font-size:12px; color:#64748b;">Lớp <strong>${escapeHtml(currentClass?.name || '')}</strong> — ${rows.length} giao dịch gần nhất. Số dương là tiền vào (nạp/hoàn tính theo ví), số thu/miễn ghi theo giá trị buổi.</div>
-        <div style="max-height:380px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:10px;">
-          <table class="data-table" style="margin:0;">
-            <thead><tr><th>Thời gian</th><th>Biên lai</th><th>Học sinh</th><th>Loại</th><th style="text-align:right;">Số tiền</th><th></th></tr></thead>
-            <tbody>
-              ${rows.length === 0 ? '<tr><td colspan="6" style="text-align:center; padding:24px; color:#64748b;">Chưa có giao dịch nào. Các lần điểm danh trừ ví, nạp ví, thu/miễn tay sẽ tự ghi vào đây.</td></tr>' : rows.map(t => `
-                <tr>
-                  <td style="font-size:12px;">${new Date(t.createdAt).toLocaleString('vi-VN')}</td>
-                  <td style="font-family:monospace; font-size:12px;">${escapeHtml(t.receiptNo || '')}</td>
-                  <td style="font-weight:600;">${escapeHtml(t.studentName || t.username || '')}</td>
-                  <td><span class="badge" style="font-size:11px;">${TUITION_TX_LABELS[t.type] || t.type}</span></td>
-                  <td style="text-align:right; font-weight:700; color:${Number(t.amount) < 0 ? '#b91c1c' : '#15803d'};">${Number(t.amount).toLocaleString('vi-VN')} đ</td>
-                  <td style="text-align:center;">
-                    <button class="btn-print-tx-receipt btn-secondary" data-tx='${escapeHtml(JSON.stringify(t))}' style="padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer;">In BL</button>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div style="font-size:11px; color:#64748b;">${escapeHtml('Ghi chú chi tiết từng dòng nằm ở cột loại + thời gian. Bấm "In BL" để mở biên lai in được.')}</div>
-      </div>
-    `
-    openModal('Sổ giao dịch học phí', bodyHTML)
-    setTimeout(() => {
-      document.querySelectorAll('.btn-print-tx-receipt').forEach(btn => {
-        btn.onclick = () => {
-          try {
-            printTuitionReceipt(JSON.parse(btn.getAttribute('data-tx')), currentClass)
-          } catch (e) {
-            showToast('Không mở được biên lai', 'error')
-          }
-        }
-      })
-    }, 100)
-  } catch (err) {
-    openModal('Sổ giao dịch học phí', `<div style="padding:24px; text-align:center; color:#b91c1c;">Lỗi tải sổ: ${escapeHtml(err.message)}</div>`)
-  }
 }
 
 // In biên lai thu học phí (mở cửa sổ in)

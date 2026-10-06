@@ -48,6 +48,9 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'admin-history' ? 'active' : ''}" onclick="window.location.hash='#admin-history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài
         </div>
+        <div class="nav-item ${currentRoute === 'tuition-ledger' ? 'active' : ''}" onclick="window.location.hash='#tuition-ledger'">
+          <i class="fa-solid fa-receipt"></i> Sổ giao dịch học phí
+        </div>
       ` : `
         <div class="nav-section-title">Dành cho học sinh</div>
         <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
