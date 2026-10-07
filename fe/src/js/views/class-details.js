@@ -739,6 +739,9 @@ function renderHomeworkTabHTML(currentClass) {
                       <a href="#admin-history?classId=${currentClass.id}&homeworkId=${hw.id}&tab=unsubmitted" class="btn-primary" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px; width:auto;">
                         <i class="fa-solid fa-square-poll-vertical"></i> Kết quả
                       </a>
+                      <a href="#create-homework?homeworkId=${hw.id}" class="btn-secondary" title="Sửa đề & đáp án" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
+                        <i class="fa-solid fa-pen-to-square" style="color:#0066cc;"></i> Sửa bài
+                      </a>
                     </div>
                   </td>
                 </tr>
@@ -1102,6 +1105,7 @@ function loadHomeworkScope(classId, currentClass, force = false) {
       const container = document.getElementById('class-tab-content-container')
       if (container) {
         container.innerHTML = renderHomeworkTabHTML(currentClass)
+        bindHomeworkTabEvents(classId, currentClass)
       }
     }
     markScopeLoaded(classId, 'homework')
