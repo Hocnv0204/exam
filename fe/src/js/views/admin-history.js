@@ -1273,7 +1273,7 @@ export function bindAdminHistoryEvents() {
       e.stopPropagation()
       const hwId = btn.getAttribute('data-hwid')
       if (hwId) {
-        window.location.hash = `#create-hw?editId=${hwId}`
+        window.location.hash = `#create-homework?homeworkId=${hwId}`
       }
     })
   })

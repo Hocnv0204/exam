@@ -126,6 +126,9 @@ serve(async (req: Request) => {
           return errorResponse(error.message, 500)
         }
 
+        // Ghi sổ nạp tiền vào ví (topup) do SQL fn_add_student_balance tự ghi
+        // (giữ single source of truth trong DB để không trùng dòng).
+        // Xem migration 20261007000001_tuition_ledger.sql.
         return jsonResponse(data)
       }
 
