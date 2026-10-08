@@ -170,15 +170,15 @@ export function renderClassDetailsView() {
               </div>
             </div>
 
-            <!-- Card 2: Chuyên cần 30 ngày -->
+            <!-- Card 2: Tổng số buổi đã học -->
             <div class="class-kpi-card">
               <div class="class-kpi-icon" style="background:#f0fdf4; color:#16a34a;">
                 <i class="fa-solid fa-calendar-check"></i>
               </div>
               <div class="class-kpi-content">
-                <div class="class-kpi-title">Chuyên cần 30 ngày</div>
-                <div class="class-kpi-value" id="kpi-attendance-rate" style="color:#16a34a;">--%</div>
-                <div class="class-kpi-subtitle">Tỷ lệ có mặt các buổi gần nhất</div>
+                <div class="class-kpi-title">Tổng số buổi đã học</div>
+                <div class="class-kpi-value" id="kpi-total-sessions" style="color:#0f172a;">--</div>
+                <div class="class-kpi-subtitle">Số buổi học lớp đã diễn ra</div>
               </div>
             </div>
 
@@ -194,15 +194,15 @@ export function renderClassDetailsView() {
               </div>
             </div>
 
-            <!-- Card 4: Bài tập đang mở -->
+            <!-- Card 4: Buổi học tháng này -->
             <div class="class-kpi-card">
               <div class="class-kpi-icon" style="background:#f5f3ff; color:#7c3aed;">
-                <i class="fa-solid fa-book-open-reader"></i>
+                <i class="fa-solid fa-calendar-days"></i>
               </div>
               <div class="class-kpi-content">
-                <div class="class-kpi-title">Bài tập đang mở</div>
-                <div class="class-kpi-value" id="kpi-open-homeworks">0</div>
-                <div class="class-kpi-subtitle" id="kpi-pending-submissions">Đang tải...</div>
+                <div class="class-kpi-title">Buổi học tháng này</div>
+                <div class="class-kpi-value" id="kpi-month-sessions">0</div>
+                <div class="class-kpi-subtitle" id="kpi-month-sessions-sub">Tính đến hôm nay</div>
               </div>
             </div>
 
@@ -1251,12 +1251,10 @@ function updateKpiUI(kpi) {
     `
   }
 
-  // KPI 2: Attendance Rate
-  const attRateEl = document.getElementById('kpi-attendance-rate')
-  if (attRateEl) {
-    const rate = kpi.attendanceRate30Days !== undefined ? kpi.attendanceRate30Days : 100
-    attRateEl.textContent = `${rate}%`
-    attRateEl.style.color = rate >= 80 ? '#16a34a' : '#d97706'
+  // KPI 2: Tổng số buổi đã học
+  const totalSessEl = document.getElementById('kpi-total-sessions')
+  if (totalSessEl) {
+    totalSessEl.textContent = kpi.sessions?.totalHeld ?? 0
   }
 
   // KPI 3: Unpaid Tuition
@@ -1270,12 +1268,13 @@ function updateKpiUI(kpi) {
     unpaidCountEl.textContent = `${kpi.uncollectedTuition?.owingStudentsCount ?? 0} học sinh còn nợ`
   }
 
-  // KPI 4: Homeworks
-  const hwOpenEl = document.getElementById('kpi-open-homeworks')
-  const hwPendingEl = document.getElementById('kpi-pending-submissions')
-  if (hwOpenEl) hwOpenEl.textContent = kpi.homeworks?.openCount ?? 0
-  if (hwPendingEl) {
-    hwPendingEl.textContent = `${kpi.homeworks?.pendingSubmissionsCount ?? 0} bài tập chưa nộp`
+  // KPI 4: Buổi học tháng này (tính đến hôm nay)
+  const monthSessEl = document.getElementById('kpi-month-sessions')
+  const monthSessSub = document.getElementById('kpi-month-sessions-sub')
+  if (monthSessEl) monthSessEl.textContent = kpi.sessions?.monthHeld ?? 0
+  if (monthSessSub) {
+    const [y, m] = (kpi.sessions?.month || '').split('-')
+    monthSessSub.textContent = y && m ? `Tháng ${m}/${y}, tính đến hôm nay` : 'Tính đến hôm nay'
   }
 
   // KPI 5: Latest Session

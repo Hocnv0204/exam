@@ -655,6 +655,11 @@ serve(async (req: Request) => {
         const sortedDates = Array.from(allDates).sort().reverse()
         const latestDate = sortedDates[0] || null
 
+        // Tổng số buổi đã học + số buổi trong tháng hiện tại (tính đến hôm nay)
+        const todayStr = now.toISOString().split('T')[0]
+        const monthPrefix = todayStr.slice(0, 7)
+        const monthHeld = sortedDates.filter((d) => d.slice(0, 7) === monthPrefix && d <= todayStr).length
+
         let latestSessionInfo = null
         if (latestDate) {
           let presentCount = 0
@@ -714,6 +719,11 @@ serve(async (req: Request) => {
             totalCount: classHomeworks.length,
             openCount: openHomeworks.length,
             pendingSubmissionsCount
+          },
+          sessions: {
+            totalHeld: sortedDates.length,
+            monthHeld,
+            month: monthPrefix
           },
           latestSession: latestSessionInfo
         })
