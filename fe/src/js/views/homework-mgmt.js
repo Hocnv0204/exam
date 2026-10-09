@@ -590,6 +590,10 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
             <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem kết quả & lịch sử làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
               <i class="fa-solid fa-chart-pie"></i>
             </button>
+            ${(hw.pdfPath && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath !== 'INTERACTIVE') ? `
+            <button class="btn-secondary btn-pdf-hw" data-id="${hw.id}" title="Mở file PDF đề bài trong tab mới" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #fecaca; color:#ef4444;">
+              <i class="fa-solid fa-file-pdf"></i>
+            </button>` : ''}
             <button class="btn-secondary btn-assign-hw" data-id="${hw.id}" title="Gán bài tập cho lớp khác" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a;">
               <i class="fa-solid fa-share-nodes"></i>
             </button>
@@ -609,6 +613,12 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
 }
 
 function attachRowActions(tableBody) {
+  // Attach PDF buttons -> open homework PDF in new tab
+  tableBody.querySelectorAll('.btn-pdf-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      window.openHomeworkPdf?.(btn.getAttribute('data-id'))
+    })
+  })
   // Attach History buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...
   tableBody.querySelectorAll('.btn-history-hw').forEach(btn => {
     btn.addEventListener('click', () => {

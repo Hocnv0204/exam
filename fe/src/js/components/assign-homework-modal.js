@@ -3,6 +3,26 @@ import { showToast } from './toast.js'
 import { api } from '../api.js'
 
 /**
+ * Bóc phần tên người dùng khỏi tiêu đề đầy đủ (bỏ tiền tố "Tên bài học - "),
+ * giống logic form tạo/sửa bài tập (create-hw.js).
+ */
+function stripLessonPrefix(fullTitle, lessonTitle) {
+  const t = String(fullTitle || '')
+  if (lessonTitle && t.startsWith(`${lessonTitle} - `)) {
+    return t.substring(`${lessonTitle} - `.length)
+  }
+  return t
+}
+
+function escapeAttr(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+/**
  * Mở modal gán / nhân bản bài tập sang một hoặc nhiều lớp học khác
  * @param {Object} homework Thông tin bài tập cần gán { id, title, type, durationMinutes, deadline, classId, className, chapterTitle, lessonTitle }
  * @param {Function} onSuccess Callback khi gán thành công
@@ -36,21 +56,11 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
   const hwDuration = homework.durationMinutes || 45
   const hwMaxAttempts = homework.maxAttempts !== undefined ? homework.maxAttempts : (isExam ? 1 : 0)
 
-  // Format existing deadline for input
-  let defaultDateVal = ''
-  let defaultHourVal = '23'
-  let defaultMinuteVal = '59'
-  if (homework.deadline) {
-    const d = new Date(homework.deadline)
-    if (!isNaN(d.getTime())) {
-      const year = d.getFullYear()
-      const month = String(d.getMonth() + 1).padStart(2, '0')
-      const day = String(d.getDate()).padStart(2, '0')
-      defaultDateVal = `${year}-${month}-${day}`
-      defaultHourVal = String(d.getHours()).padStart(2, '0')
-      defaultMinuteVal = String(d.getMinutes()).padStart(2, '0')
-    }
-  }
+  // Deadline mặc định: hôm nay lúc 23:59 (không copy deadline bài gốc)
+  const _today = new Date()
+  const defaultDateVal = `${_today.getFullYear()}-${String(_today.getMonth() + 1).padStart(2, '0')}-${String(_today.getDate()).padStart(2, '0')}`
+  const defaultHourVal = '23'
+  const defaultMinuteVal = '59'
 
   // Render Body HTML
   const bodyHTML = `
@@ -152,7 +162,9 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
           <!-- Tên bài tập mới -->
           <div>
             <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Tên bài tập tại lớp mới</label>
-            <input type="text" id="assign-custom-title" class="form-input" value="${hwTitle}" style="padding:8px 12px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+            <input type="text" id="assign-custom-title" class="form-input" value="${escapeAttr(stripLessonPrefix(hwTitle, homework.lessonTitle))}" placeholder="Ví dụ: TN - 1, Bài tập 1..." style="padding:8px 12px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+            <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tên bài học đích sẽ tự động được ghép phía trước khi gán</div>
+            <div style="font-size:12px; color:#0f172a; margin-top:4px;">Tên đầy đủ: <strong id="assign-title-preview"></strong></div>
           </div>
 
           <!-- Hạn chót nộp bài (Deadline) -->
@@ -243,8 +255,14 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
         }
       }
 
-      // Collect custom settings
-      const customTitle = document.getElementById('assign-custom-title')?.value.trim() || hwTitle
+      // Collect custom settings (tên đầy đủ = tên bài đích + tên người dùng nhập)
+      const userTitlePart = document.getElementById('assign-custom-title')?.value.trim() || stripLessonPrefix(hwTitle, homework.lessonTitle)
+      const targetLessonName = getAssignTargetLessonName()
+      let customTitle = userTitlePart
+      if (targetLessonName) {
+        const prefix = `${targetLessonName} - `
+        customTitle = userTitlePart.startsWith(prefix) ? userTitlePart : `${prefix}${userTitlePart}`
+      }
       const customDuration = parseInt(document.getElementById('assign-custom-duration')?.value || String(hwDuration), 10)
       const customAttempts = parseInt(document.getElementById('assign-custom-attempts')?.value || '0', 10)
       const isPublished = document.getElementById('assign-is-published')?.checked !== false
@@ -397,6 +415,7 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
     if (!lessonSelect) return
     if (!chapterId) {
       lessonSelect.innerHTML = '<option value="">Chọn chương trước...</option>'
+      updateAssignTitlePreview()
       return
     }
     lessonSelect.innerHTML = '<option value="">Đang tải bài học...</option>'
@@ -411,4 +430,31 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
       lessonSelect.innerHTML = '<option value="">Lỗi khi tải bài học</option>'
     }
   })
+
+  // Tên bài đích hiện tại (manual: bài đang chọn; smart: cùng tên bài gốc)
+  function getAssignTargetLessonName() {
+    const manualMode = document.querySelector('input[name="assign-mapping-mode"]:checked')?.value === 'manual'
+    if (manualMode && lessonSelect?.value) {
+      const opt = lessonSelect.querySelector(`option[value="${lessonSelect.value}"]`)
+      const name = opt?.textContent?.trim()
+      if (name) return name
+    }
+    return homework.lessonTitle || ''
+  }
+
+  // Preview tên đầy đủ: "Tên bài đích - tên người dùng nhập"
+  function updateAssignTitlePreview() {
+    const previewEl = document.getElementById('assign-title-preview')
+    if (!previewEl) return
+    const userPart = document.getElementById('assign-custom-title')?.value.trim() || stripLessonPrefix(hwTitle, homework.lessonTitle)
+    const targetName = getAssignTargetLessonName()
+    previewEl.textContent = targetName ? `${targetName} - ${userPart}` : userPart
+  }
+
+  document.getElementById('assign-custom-title')?.addEventListener('input', updateAssignTitlePreview)
+  lessonSelect?.addEventListener('change', updateAssignTitlePreview)
+  mappingRadios.forEach(radio => {
+    radio.addEventListener('change', updateAssignTitlePreview)
+  })
+  updateAssignTitlePreview()
 }

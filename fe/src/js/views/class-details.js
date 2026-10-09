@@ -809,6 +809,10 @@ function renderHomeworkTabHTML(currentClass) {
                       <a href="#create-homework?homeworkId=${hw.id}" class="btn-secondary" title="Sửa đề & đáp án" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
                         <i class="fa-solid fa-pen-to-square" style="color:#0066cc;"></i> Sửa bài
                       </a>
+                      ${(hw.pdfPath && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath !== 'INTERACTIVE') ? `
+                      <button class="btn-secondary" onclick="window.openHomeworkPdf('${hw.id}')" title="Mở file PDF đề bài trong tab mới" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem PDF
+                      </button>` : ''}
                     </div>
                   </td>
                 </tr>
