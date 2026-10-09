@@ -21,6 +21,126 @@ serve(async (req: Request) => {
     if (req.method === 'GET') {
       const todoOnly = url.searchParams.get('todoOnly') === 'true'
 
+      // Trang "Bài tập của tôi": gộp bài được giao + lần nộp mới nhất, phân trang + lọc ở server
+      // ?action=my-homeworks&status=all|done|todo&classId=&type=&search=&page=&pageSize=
+      if (action === 'my-homeworks' && user.role === 'STUDENT') {
+        if (!user.classIds || user.classIds.length === 0) {
+          return jsonResponse({ items: [], total: 0, page: 1, pageSize: 10, totalPages: 1, stats: { total: 0, done: 0, todo: 0, avgScore: null } })
+        }
+        const statusFilter = url.searchParams.get('status') || 'all'
+        const classFilter = url.searchParams.get('classId') || ''
+        const typeFilter = url.searchParams.get('type') || ''
+        const search = (url.searchParams.get('search') || '').trim()
+        const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
+        const pageSize = Math.min(50, Math.max(1, parseInt(url.searchParams.get('pageSize') || '10', 10) || 10))
+        if (!['all', 'done', 'todo'].includes(statusFilter)) return errorResponse('status phải là all|done|todo', 400)
+
+        let hwQuery = serviceRoleClient
+          .from('homeworks')
+          .select(`
+            id,
+            title,
+            duration_minutes,
+            deadline,
+            max_attempts,
+            type,
+            pdf_path,
+            created_at,
+            pass_score,
+            max_score,
+            lessons!inner (
+              id,
+              title,
+              chapters!inner (
+                id,
+                title,
+                class_id,
+                classes!inner (
+                  id,
+                  name
+                )
+              )
+            )
+          `)
+          .eq('is_published', true)
+          .in('lessons.chapters.class_id', user.classIds)
+          .order('created_at', { ascending: false })
+        if (classFilter) hwQuery = hwQuery.eq('lessons.chapters.class_id', classFilter)
+        if (typeFilter) hwQuery = hwQuery.eq('type', typeFilter)
+        if (search) hwQuery = hwQuery.ilike('title', `%${search}%`)
+
+        const [hwRes, subRes] = await Promise.all([
+          hwQuery,
+          serviceRoleClient
+            .from('submissions')
+            .select('id, homework_id, total_score, max_score, is_late, submitted_at')
+            .eq('student_id', user.id)
+            .eq('status', 'SUBMITTED')
+            .order('submitted_at', { ascending: false })
+        ])
+        if (hwRes.error) return errorResponse(hwRes.error.message, 500)
+        if (subRes.error) return errorResponse(subRes.error.message, 500)
+
+        const latestByHw = new Map<string, any>()
+        for (const s of (subRes.data || [])) {
+          if (!latestByHw.has(s.homework_id)) latestByHw.set(s.homework_id, s)
+        }
+
+        const merged = (hwRes.data || []).map((hw: any) => {
+          const classInfo = (hw.lessons as any)?.chapters?.classes
+          const sub = latestByHw.get(hw.id) || null
+          const score = sub ? Number(sub.total_score) : null
+          return {
+            id: hw.id,
+            title: hw.title,
+            durationMinutes: hw.duration_minutes,
+            deadline: hw.deadline,
+            maxAttempts: hw.max_attempts,
+            type: hw.type || 'PRACTICE',
+            pdfPath: hw.pdf_path,
+            createdAt: hw.created_at,
+            classId: classInfo?.id || null,
+            className: classInfo?.name || 'Lớp học',
+            done: !!sub,
+            score,
+            maxScore: sub ? Number(sub.max_score || hw.max_score || 10) : Number(hw.max_score || 10),
+            isPassed: sub ? score >= Number(hw.pass_score ?? 5) : null,
+            isLate: sub ? !!sub.is_late : false,
+            submittedAt: sub ? sub.submitted_at : null,
+            submissionId: sub ? sub.id : null
+          }
+        })
+
+        const scoped = statusFilter === 'all' ? merged : merged.filter((m: any) => statusFilter === 'done' ? m.done : !m.done)
+        // Chưa làm xếp hạn gần trước; đã làm xếp mới nộp trước
+        const todos = scoped.filter((m: any) => !m.done).sort((a: any, b: any) => {
+          const da = a.deadline ? new Date(a.deadline).getTime() : Infinity
+          const db = b.deadline ? new Date(b.deadline).getTime() : Infinity
+          return da - db
+        })
+        const dones = scoped.filter((m: any) => m.done).sort((a: any, b: any) =>
+          new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+        const ordered = statusFilter === 'done' ? dones : (statusFilter === 'todo' ? todos : [...todos, ...dones])
+
+        const doneScores = merged.filter((m: any) => m.done && m.score !== null).map((m: any) => m.score)
+        const total = ordered.length
+        const totalPages = Math.max(1, Math.ceil(total / pageSize))
+        const safePage = Math.min(page, totalPages)
+        return jsonResponse({
+          items: ordered.slice((safePage - 1) * pageSize, safePage * pageSize),
+          total,
+          page: safePage,
+          pageSize,
+          totalPages,
+          stats: {
+            total: merged.length,
+            done: merged.filter((m: any) => m.done).length,
+            todo: merged.filter((m: any) => !m.done).length,
+            avgScore: doneScores.length > 0 ? Math.round((doneScores.reduce((s: number, v: number) => s + v, 0) / doneScores.length) * 100) / 100 : null
+          }
+        })
+      }
+
       if (todoOnly && user.role === 'STUDENT') {
         if (!user.classIds || user.classIds.length === 0) {
           return jsonResponse([])

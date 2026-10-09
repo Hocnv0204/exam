@@ -475,6 +475,7 @@ export const api = {
     return request(`create-homework${query ? `?${query}` : ''}`, { method: 'GET', ...options })
   },
   getTodoHomeworks: (params = '') => request(`create-homework?todoOnly=true${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
+  getMyHomeworks: (params = '') => request(`create-homework?action=my-homeworks${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
   submitExamLog: (data, options = {}) => request('exam-log', { method: 'POST', body: JSON.stringify(data), keepalive: true, silent: true, ...options }),
   getExamLogs: (homeworkId, params = '', options = {}) => request(`exam-log?homeworkId=${homeworkId}${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET', ...options }),

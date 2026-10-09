@@ -15,6 +15,7 @@ import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-de
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
 import { renderTrialView, bindTrialEvents } from './views/trial.js'
+import { renderMyHomeworksView, bindMyHomeworksEvents } from './views/my-homeworks.js'
 import { renderQuestionBankView, bindQuestionBankEvents } from './views/question-bank.js'
 import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } from './views/grade-blocks.js'
 import { renderExamRoomView, bindExamRoomEvents } from './views/exam-room.js'
@@ -30,6 +31,7 @@ const routes = {
   'roadmap-12': { render: renderTrialView, bind: bindTrialEvents },
   'roadmap-11': { render: renderTrialView, bind: bindTrialEvents },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
+  'my-homeworks': { render: renderMyHomeworksView, bind: bindMyHomeworksEvents },
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
   'create-homework': { render: renderCreateHwView, bind: bindCreateHwEvents },
@@ -107,7 +109,7 @@ async function router() {
   // Route Guard: Access Control based on Role
   if (state.token && state.user) {
     const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring', 'tuition-ledger', 'activity-logs']
-    const studentOnlyRoutes = ['my-classes', 'homework-attempt', 'history', 'exam-room']
+    const studentOnlyRoutes = ['my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
       window.location.hash = '#my-classes'

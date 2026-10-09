@@ -159,13 +159,18 @@ export function renderMyClassesView() {
                     `}
 
                     <!-- Lesson Information -->
-                    <div class="card" style="padding:20px;">
+                    <div class="card" style="padding:20px; margin-bottom:0;">
                       <h2 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a; margin-bottom:10px;">${activeLesson.title}</h2>
-                      <div style="font-size:14px; color:#475569; line-height:1.6; margin-bottom:20px;">
+                      <div style="font-size:14px; color:#475569; line-height:1.6;">
                         ${activeLesson.content || 'Không có mô tả chi tiết cho bài học này.'}
                       </div>
+                    </div>
+                  </div>
 
-                      <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; color:#0f172a; margin-bottom:12px; border-top:1px solid #f1f5f9; padding-top:16px;">
+                  <!-- Right column beside video: Tài liệu + Bài tập -->
+                  <div style="display:flex; flex-direction:column; gap:20px;">
+                    <div class="card" style="padding:20px; margin:0;">
+                      <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; color:#0f172a; margin:0 0 12px 0;">
                         <i class="fa-solid fa-paperclip" style="color:#0066cc;"></i> Tài liệu đính kèm
                       </h3>
                       ${(!activeLesson.theoryFiles || activeLesson.theoryFiles.length === 0) ? `
@@ -191,15 +196,13 @@ export function renderMyClassesView() {
                           }).join('')}
                         </div>
                       `}
-                    </div>
                   </div>
 
-                  <!-- Right Side: Homework of Lesson -->
-                  <div>
-                    <div class="card" style="padding:20px;">
-                      <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin-bottom:16px; color:#0f172a; display:flex; align-items:center; gap:8px;">
-                        <i class="fa-solid fa-list-check" style="color:#0066cc;"></i> Bài tập tự luyện
-                      </h3>
+                  <!-- Homework of Lesson -->
+                  <div class="card" style="padding:20px; margin:0;">
+                    <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin:0 0 16px 0; color:#0f172a; display:flex; align-items:center; gap:8px;">
+                      <i class="fa-solid fa-list-check" style="color:#0066cc;"></i> Bài tập tự luyện
+                    </h3>
 
                       <div style="display:flex; flex-direction:column; gap:12px;">
                         ${(activeLessonHomeworks.length === 0) ? `
@@ -278,26 +281,53 @@ export function renderMyClassesView() {
                       </div>
                     </div>
 
-                    <div class="chapter-lessons-body" id="chapter-lessons-${ch.id}" style="margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; display:${isCollapsed ? 'none' : 'flex'}; flex-direction:column; gap:10px;">
+                    <div class="chapter-lessons-body" id="chapter-lessons-${ch.id}" style="margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; display:${isCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:10px;">
                       ${(ch.lessons || []).map((l, lIdx) => {
                         const isSelected = lessonId === l.id
                         const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
+                        const hwCount = (l.homeworks || []).length
+                        const hasVideo = !!(l.videoUrl)
+                        const fileCount = (l.theoryFiles || []).length
+                        const upcoming = (l.homeworks || [])
+                          .filter(h => h.deadline && !isNaN(new Date(h.deadline).getTime()))
+                          .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))[0]
+                        const upcomingOverdue = upcoming ? (new Date() > new Date(upcoming.deadline)) : false
                         return `
-                          <div class="lesson-item-btn" data-id="${l.id}" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:${isSelected ? '#e0f2fe' : '#f8fafc'}; border:1px solid ${isSelected ? '#0066cc' : 'transparent'}; border-radius:10px; cursor:pointer; transition:all 0.15s ease;">
-                            <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                              <span style="width:26px; height:26px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#cbd5e1'}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${l.order_index || l.code || (lIdx + 1)}</span>
-                              <div>
-                                <div style="font-weight:600; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                  <span>${escapeHtml(l.title)}</span>
+                          <div class="lesson-item-btn" data-id="${l.id}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:${isSelected ? '#e0f2fe' : '#ffffff'}; border:1px solid ${isSelected ? '#0066cc' : '#e2e8f0'}; border-radius:12px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                            <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:0;">
+                              <span style="width:32px; height:32px; background:${isSelected ? '#0066cc' : '#eff6ff'}; color:${isSelected ? '#ffffff' : '#0066cc'}; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0;">${l.order_index || l.code || (lIdx + 1)}</span>
+                              <div style="min-width:0; flex:1;">
+                                <div style="font-weight:700; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(l.title)}">
+                                  ${escapeHtml(l.title)}
+                                </div>
+                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:5px;">
+                                  <span style="font-size:11px; font-weight:700; color:#475569; background:#f1f5f9; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid fa-list-check" style="color:#0066cc; font-size:10px;"></i> ${hwCount} bài tập
+                                  </span>
+                                  ${hasVideo ? `
+                                    <span style="font-size:11px; font-weight:700; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                      <i class="fa-solid fa-circle-play" style="font-size:10px;"></i> Video
+                                    </span>
+                                  ` : ''}
+                                  ${fileCount > 0 ? `
+                                    <span style="font-size:11px; font-weight:700; color:#475569; background:#f1f5f9; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                      <i class="fa-solid fa-paperclip" style="font-size:10px;"></i> ${fileCount} tài liệu
+                                    </span>
+                                  ` : ''}
                                   ${createdDateStr ? `
-                                    <span style="font-size:11px; color:#64748b; font-weight:normal; background:#ffffff; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
+                                    <span style="font-size:11px; color:#64748b; background:#ffffff; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;" title="Ngày tạo: ${createdDateStr}">
                                       <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> ${createdDateStr}
+                                    </span>
+                                  ` : ''}
+                                  ${upcoming ? `
+                                    <span style="font-size:11px; font-weight:700; color:${upcomingOverdue ? '#b91c1c' : '#b45309'}; background:${upcomingOverdue ? '#fef2f2' : '#fffbeb'}; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid ${upcomingOverdue ? '#fecaca' : '#fde68a'};" title="Hạn gần nhất: ${escapeHtml(upcoming.title)}">
+                                      <i class="fa-regular fa-clock" style="font-size:10px;"></i> ${upcomingOverdue ? 'Quá hạn' : 'Hạn'}: ${new Date(upcoming.deadline).toLocaleDateString('vi-VN')}
                                     </span>
                                   ` : ''}
                                 </div>
                               </div>
                             </div>
-                            <div style="color:${isSelected ? '#0066cc' : '#94a3b8'};">
+                            <div style="color:${isSelected ? '#0066cc' : '#94a3b8'}; flex-shrink:0;">
                               <i class="fa-solid fa-chevron-right"></i>
                             </div>
                           </div>
@@ -431,7 +461,7 @@ export function bindMyClassesEvents() {
 
       const isHidden = body.style.display === 'none'
       if (isHidden) {
-        body.style.display = 'flex'
+        body.style.display = 'grid'
         collapsedChapterIds.delete(chId)
         if (label) label.textContent = 'Thu gọn'
         if (icon) {
