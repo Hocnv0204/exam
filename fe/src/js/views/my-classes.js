@@ -173,7 +173,8 @@ export function renderMyClassesView() {
                       ` : `
                         <div style="display:flex; flex-direction:column; gap:8px;">
                           ${activeLesson.theoryFiles.map(file => {
-                            const dispName = file.split('_').slice(1).join('_') || file
+                            const rawName = file.startsWith('http') ? (file.split('/').pop() || file) : file
+                            const dispName = rawName.split('_').slice(1).join('_') || rawName
                             return `
                               <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
                                 <span style="font-size:13px; font-weight:600; color:#334155; font-family:monospace;">${dispName}</span>
@@ -486,9 +487,10 @@ export function bindMyClassesEvents() {
   document.querySelectorAll('.btn-preview-theory').forEach(btn => {
     btn.onclick = () => {
       const file = btn.getAttribute('data-file')
-      const displayName = file.split('_').slice(1).join('_') || file
-      const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
-      const mappedUrl = fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+      const rawName = file.startsWith('http') ? (file.split('/').pop() || file) : file
+      const displayName = rawName.split('_').slice(1).join('_') || rawName
+      const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+      const mappedUrl = file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
       openModal(
         displayName,
         `<div id="modal-pdf-container" style="width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;"></div>
@@ -513,15 +515,16 @@ export function bindMyClassesEvents() {
   document.querySelectorAll('.btn-download-theory').forEach(btn => {
     btn.onclick = () => {
       const file = btn.getAttribute('data-file')
-      const displayName = file.split('_').slice(1).join('_') || file
+      const rawName = file.startsWith('http') ? (file.split('/').pop() || file) : file
+      const displayName = rawName.split('_').slice(1).join('_') || rawName
       openModal(
         'Xác nhận tải tài liệu',
         `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">
           Bạn có chắc chắn muốn tải xuống tài liệu lý thuyết <strong>"${displayName}"</strong> không?
          </p>`,
         () => {
-          const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
-          window.open(fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321'), '_blank')
+          const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+          window.open(file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321'), '_blank')
           return true
         }
       )

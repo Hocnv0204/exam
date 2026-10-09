@@ -19,9 +19,10 @@ function escapeHtml(unsafe) {
 
 function formatTheoryFileName(file) {
   if (!file) return ''
-  let clean = file.replace(/^[0-9]+_+/, '')
+  const base = file.startsWith('http') ? (file.split('/').pop() || file) : file
+  let clean = base.replace(/^[0-9]+_+/, '')
   clean = clean.replace(/_+/g, ' ').trim()
-  return clean || file
+  return clean || base
 }
 
 // Copy text với fallback cho trình duyệt cũ / iframe không có quyền clipboard.
@@ -436,8 +437,8 @@ function renderLessonWorkspace(ch, l) {
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:10px;">
           ${theoryFiles.map(file => {
             const cleanName = formatTheoryFileName(file)
-            const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
-            const mappedUrl = fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+            const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+            const mappedUrl = file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
             return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; gap:10px;">
                 <div style="display:flex; align-items:center; gap:10px; overflow:hidden; flex:1; min-width:0;">
@@ -833,13 +834,15 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
             theoryFiles: nextFiles,
             isTrial: lesson.isTrial || lesson.is_trial || false
           })
-          // Best-effort: xóa object trong storage
-          try {
-            await fetch(`${SUPABASE_URL}/storage/v1/object/pdf-files/${file}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': `Bearer ${state.token}` }
-            })
-          } catch (_) {}
+          // Best-effort: xóa object trong storage nếu là file Supabase Storage
+          if (!file.startsWith('http')) {
+            try {
+              await fetch(`${SUPABASE_URL}/storage/v1/object/pdf-files/${file}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+              })
+            } catch (_) {}
+          }
           lesson.theoryFiles = nextFiles
           showToast('Đã xóa file thành công!', 'success')
           refreshUI()

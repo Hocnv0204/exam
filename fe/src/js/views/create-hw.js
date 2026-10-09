@@ -448,7 +448,7 @@ function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
         <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:10px; margin-bottom:12px; padding:8px 14px; box-sizing:border-box;">
           <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden;">
             <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
-            <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath || 'Chưa chọn file PDF'}</span>
+            <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath ? (hw.pdfPath.split('/').pop() || hw.pdfPath) : 'Chưa chọn file PDF'}</span>
           </div>
           <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
             <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
@@ -482,7 +482,7 @@ export function renderCreateHwView() {
   const questions = isEdit ? (state.editHomeworkData.questions || []) : []
 
   const pdfDownloadUrl = (isEdit && hw?.pdfUrl) ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''
-  const pdfDownloadName = hw?.pdfPath || 'Homework_Attachment.pdf'
+  const pdfDownloadName = (hw?.pdfPath && !hw.pdfPath.startsWith('http')) ? hw.pdfPath : (hw?.pdfPath ? hw.pdfPath.split('/').pop() : 'Homework_Attachment.pdf')
 
   let deadlineDateVal = ''
   let deadlineHourVal = '23'
@@ -516,7 +516,7 @@ export function renderCreateHwView() {
         currentMode = 'INTERACTIVE'
         const hasPdf = !!(hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))
         if (hasPdf && !isInteractivePdfRemoved) {
-          interactivePdfName = hw.pdfPath
+          interactivePdfName = hw.pdfPath.startsWith('http') ? (hw.pdfPath.split('/').pop() || hw.pdfPath) : hw.pdfPath
           interactivePdfUrl = hw.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''
         }
         interactiveQuestions = questions.map(q => {

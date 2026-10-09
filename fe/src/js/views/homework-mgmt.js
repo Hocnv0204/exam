@@ -552,8 +552,8 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
               ${hw.sourceHomeworkId ? `<span class="badge" style="background:#eff6ff; color:#0284c7; border:1px solid #bfdbfe; padding:2px 6px; border-radius:4px; font-weight:600; font-size:10.5px;" title="Bài tập được gán/sao chép từ lớp khác"><i class="fa-solid fa-copy"></i> Bản sao</span>` : ''}
             </div>
             ${hw.pdfPath ? `
-              <div style="font-size:11px; color:#64748b; display:flex; align-items:center; gap:4px;">
-                <i class="fa-regular fa-file-pdf" style="color:#ef4444;"></i> ${hw.pdfPath}
+              <div style="font-size:11px; color:#64748b; display:flex; align-items:center; gap:4px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${hw.pdfPath}">
+                <i class="fa-regular fa-file-pdf" style="color:#ef4444; flex-shrink:0;"></i> <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${hw.pdfPath.split('/').pop()}</span>
               </div>
             ` : ''}
           </div>

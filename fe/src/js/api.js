@@ -530,20 +530,35 @@ export const api = {
   updateQuestionInBank: (data) => request('question-bank', { method: 'PUT', body: JSON.stringify(data) }),
   uploadFile: async (file) => {
     const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
+    const contentType = file.type || 'application/pdf'
     showLoading()
     try {
-      const response = await fetch(`${SUPABASE_URL}/storage/v1/object/pdf-files/${fileName}`, {
+      // 1. Lấy Pre-signed URL từ Edge Function mới
+      const result = await request('upload-r2', {
         method: 'POST',
+        body: JSON.stringify({ fileName, contentType })
+      })
+
+      if (!result || !result.uploadUrl) {
+        throw new Error('Không thể lấy đường dẫn upload (Pre-signed URL) từ server.')
+      }
+
+      // 2. Upload file trực tiếp lên R2 bằng Pre-signed URL
+      const uploadRes = await fetch(result.uploadUrl, {
+        method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${state.token}`
+          'Content-Type': contentType
         },
         body: file
       })
-      if (!response.ok) {
-        const errText = await response.text()
-        throw new Error(`Upload failed: ${errText}`)
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text()
+        throw new Error(`Upload to R2 failed: ${errText}`)
       }
-      return fileName
+
+      // 3. Trả về publicUrl thay vì fileName
+      return result.publicUrl
     } finally {
       hideLoading()
     }
