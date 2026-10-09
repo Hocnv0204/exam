@@ -156,20 +156,6 @@ export function renderClassDetailsView() {
 
           <!-- Dashboard Stats (5 KPI Cards) -->
           <div class="class-kpi-grid" id="class-kpi-container">
-            <!-- Card 1: Tổng học sinh -->
-            <div class="class-kpi-card">
-              <div class="class-kpi-icon" style="background:#eff6ff; color:#0066cc;">
-                <i class="fa-solid fa-users"></i>
-              </div>
-              <div class="class-kpi-content">
-                <div class="class-kpi-title">Tổng học sinh</div>
-                <div class="class-kpi-value" id="kpi-total-students">${classStudents.length}</div>
-                <div class="class-kpi-subtitle" id="kpi-student-status-breakdown">
-                  <span style="color:#15803d; font-weight:700;">${classStudents.length} đang học</span> / <span>0 tạm nghỉ</span>
-                </div>
-              </div>
-            </div>
-
             <!-- Card 2: Tổng số buổi đã học -->
             <div class="class-kpi-card">
               <div class="class-kpi-icon" style="background:#f0fdf4; color:#16a34a;">
@@ -215,6 +201,18 @@ export function renderClassDetailsView() {
                 <div class="class-kpi-title">Buổi học gần nhất</div>
                 <div class="class-kpi-value" id="kpi-latest-session-date" style="font-size:16px;">Chưa có</div>
                 <div class="class-kpi-subtitle" id="kpi-latest-session-present">Chưa điểm danh</div>
+              </div>
+            </div>
+
+            <!-- Card 6: Bài tập đang mở -->
+            <div class="class-kpi-card">
+              <div class="class-kpi-icon" style="background:#fff7ed; color:#ea580c;">
+                <i class="fa-solid fa-list-check"></i>
+              </div>
+              <div class="class-kpi-content">
+                <div class="class-kpi-title">Bài tập đang mở</div>
+                <div class="class-kpi-value" id="kpi-open-homeworks">0</div>
+                <div class="class-kpi-subtitle" id="kpi-pending-submissions">Hạn sau thời điểm hiện tại</div>
               </div>
             </div>
           </div>
@@ -1290,6 +1288,15 @@ function updateKpiUI(kpi) {
   }
   if (sessPresentEl && kpi.latestSession) {
     sessPresentEl.innerHTML = `<span style="color:#15803d; font-weight:700;">${kpi.latestSession.presentCount}/${kpi.latestSession.totalCount} có mặt</span>`
+  }
+
+  // KPI 6: Bài tập đang mở (deadline sau thời điểm hiện tại)
+  const openHwEl = document.getElementById('kpi-open-homeworks')
+  const pendingEl = document.getElementById('kpi-pending-submissions')
+  if (openHwEl) openHwEl.textContent = kpi.homeworks?.openCount ?? 0
+  if (pendingEl) {
+    const pending = kpi.homeworks?.pendingSubmissionsCount ?? 0
+    pendingEl.textContent = `${pending} lượt chưa nộp`
   }
 }
 
