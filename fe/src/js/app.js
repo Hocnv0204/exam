@@ -20,6 +20,7 @@ import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } fr
 import { renderExamRoomView, bindExamRoomEvents } from './views/exam-room.js'
 import { renderExamProctoringView, bindExamProctoringEvents } from './views/exam-proctoring.js'
 import { renderTuitionLedgerView, bindTuitionLedgerEvents } from './views/tuition-ledger.js'
+import { renderActivityLogsView, bindActivityLogsEvents } from './views/activity-logs.js'
 import { showTrialRegistrationModal } from './components/modal.js'
 
 const routes = {
@@ -45,7 +46,8 @@ const routes = {
   'grade-blocks': { render: renderGradeBlocksView, bind: bindGradeBlocksEvents },
   'exam-room': { render: renderExamRoomView, bind: bindExamRoomEvents },
   'exam-proctoring': { render: renderExamProctoringView, bind: bindExamProctoringEvents },
-  'tuition-ledger': { render: renderTuitionLedgerView, bind: bindTuitionLedgerEvents }
+  'tuition-ledger': { render: renderTuitionLedgerView, bind: bindTuitionLedgerEvents },
+  'activity-logs': { render: renderActivityLogsView, bind: bindActivityLogsEvents }
 }
 
 async function router() {
@@ -104,7 +106,7 @@ async function router() {
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring', 'tuition-ledger']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring', 'tuition-ledger', 'activity-logs']
     const studentOnlyRoutes = ['my-classes', 'homework-attempt', 'history', 'exam-room']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
@@ -176,7 +178,7 @@ async function router() {
 
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
       // 1 & 2. Unified Parallel Pre-fetch for Classes, Chapters, and Students
-      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank', 'tuition-ledger'].includes(hash)) {
+      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank', 'tuition-ledger', 'activity-logs'].includes(hash)) {
         const classId = hash === 'my-classes' ? params.get('classId') : null
         const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
 

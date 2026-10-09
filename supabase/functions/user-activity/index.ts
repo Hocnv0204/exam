@@ -84,12 +84,16 @@ serve(async (req: Request) => {
     }
 
     // ---- Thống kê + nhật ký 1 người dùng (ADMIN) ----
+    // Có userId: chi tiết 1 người. Không userId: liệt kê toàn hệ thống
+    // có phân trang + lọc (trang Nhật ký hoạt động).
     if (req.method === 'GET') {
       if (user.role !== 'ADMIN') {
         return errorResponse('Forbidden: Only admins can view activity logs', 403)
       }
       const userId = url.searchParams.get('userId') || url.searchParams.get('user_id')
-      if (!userId) return errorResponse('Missing userId', 400)
+      if (!userId) {
+        return await listActivityLogs(serviceRoleClient, url)
+      }
       const filterAction = url.searchParams.get('filterAction') || ''
       const from = url.searchParams.get('from') || ''
       const to = url.searchParams.get('to') || ''
@@ -158,3 +162,86 @@ serve(async (req: Request) => {
     return errorResponse(error.message || 'Unauthorized', 401)
   }
 })
+
+// Liệt kê log toàn hệ thống (trang Nhật ký hoạt động của admin).
+// Filters: filterAction, from, to (ISO), classId, search (tên/username).
+// Pagination: page (1-based), limit (max 100).
+async function listActivityLogs(
+  serviceRoleClient: any,
+  url: URL,
+): Promise<Response> {
+  const filterAction = url.searchParams.get('filterAction') || ''
+  const from = url.searchParams.get('from') || ''
+  const to = url.searchParams.get('to') || ''
+  const classId = url.searchParams.get('classId') || url.searchParams.get('class_id') || ''
+  const search = (url.searchParams.get('search') || '').trim().replace(/[,()]/g, '')
+  const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
+  const limit = Math.min(100, Math.max(10, parseInt(url.searchParams.get('limit') || '20', 10)))
+
+  // Giới hạn tập user theo lớp / từ khóa tìm kiếm.
+  let userIds: string[] | null = null
+  if (classId) {
+    const { data: joins, error: joinErr } = await serviceRoleClient
+      .from('student_classes')
+      .select('student_id')
+      .eq('class_id', classId)
+    if (joinErr) return errorResponse(joinErr.message, 500)
+    userIds = (joins || []).map((j: { student_id: string }) => j.student_id)
+    if (userIds.length === 0) {
+      return jsonResponse({ items: [], page, limit, total: 0, totalPages: 0 })
+    }
+  }
+  if (search) {
+    let profQuery = serviceRoleClient
+      .from('profiles')
+      .select('id')
+      .or(`full_name.ilike.%${search}%,username.ilike.%${search}%`)
+      .limit(500)
+    const { data: profs, error: profErr } = await profQuery
+    if (profErr) return errorResponse(profErr.message, 500)
+    const found = (profs || []).map((p: { id: string }) => p.id)
+    userIds = userIds ? userIds.filter((id) => found.includes(id)) : found
+    if (userIds.length === 0) {
+      return jsonResponse({ items: [], page, limit, total: 0, totalPages: 0 })
+    }
+  }
+
+  let query = serviceRoleClient
+    .from('user_activity_logs')
+    .select('id, user_id, action, metadata, duration_seconds, created_at, profiles!inner(id, full_name, username)', { count: 'exact' })
+    .order('created_at', { ascending: false })
+  if (userIds) query = query.in('user_id', userIds)
+  if (filterAction && ALLOWED_ACTIONS.includes(filterAction)) {
+    query = query.eq('action', filterAction)
+  }
+  if (from) query = query.gte('created_at', from)
+  if (to) query = query.lte('created_at', to)
+
+  const fromIdx = (page - 1) * limit
+  const { data: rows, error: qErr, count } = await query.range(fromIdx, fromIdx + limit - 1)
+  if (qErr) return errorResponse(qErr.message, 500)
+
+  const total = count ?? 0
+  const items = (rows || []).map((r: {
+    id: string; user_id: string; action: string; metadata: Record<string, unknown>;
+    duration_seconds: number | null; created_at: string;
+    profiles: { full_name: string; username: string } | null;
+  }) => ({
+    id: r.id,
+    userId: r.user_id,
+    userName: r.profiles?.full_name || r.profiles?.username || r.user_id,
+    username: r.profiles?.username || '',
+    action: r.action,
+    metadata: r.metadata || {},
+    durationSeconds: r.duration_seconds,
+    createdAt: r.created_at,
+  }))
+
+  return jsonResponse({
+    items,
+    page,
+    limit,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+  })
+}

@@ -404,6 +404,8 @@ export function bindMyClassesEvents() {
   if (!videoTrackInstalled) {
     videoTrackInstalled = true
     window.addEventListener('hashchange', flushVideoTrack)
+    // Đóng tab/tải lại trang: vẫn kịp gửi log nhờ keepalive
+    window.addEventListener('pagehide', flushVideoTrack)
   }
   flushVideoTrack()
   if (classId && lessonId && state.user?.role === 'STUDENT') {
