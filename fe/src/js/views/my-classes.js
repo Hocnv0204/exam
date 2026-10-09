@@ -394,6 +394,7 @@ export function bindMyClassesEvents() {
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const classId = params.get('classId')
+  const lessonId = params.get('lessonId')
 
   // Load todo homeworks for student notifications
   if (!classId && state.user?.role === 'STUDENT') {
