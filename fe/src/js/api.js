@@ -506,6 +506,15 @@ export const api = {
   // nên giữ lại để tránh lỗi runtime "api.xxx is not a function".
   getHomeworkDetail: (homeworkId, options = {}) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
+  setUserLock: (userId, locked) => request('user-activity?action=set-lock', { method: 'POST', body: JSON.stringify({ userId, locked }) }),
+  logActivity: (data, options = {}) => request('user-activity', { method: 'POST', body: JSON.stringify(data), silent: true, ...options }),
+  getUserActivity: (params = {}) => {
+    const sp = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') sp.set(k, String(v))
+    })
+    return request(`user-activity?${sp.toString()}`, { method: 'GET', silent: true })
+  },
   getTelegramConfig: (classId) => request(`create-class?action=get-telegram-config&classId=${classId}`, { method: 'GET' }),
   updateTelegramConfig: (data) => request('create-class?action=update-telegram-config', { method: 'PUT', body: JSON.stringify(data) }),
   deleteTelegramConfig: (classId) => request(`create-class?action=delete-telegram-config&classId=${classId}`, { method: 'DELETE' }),

@@ -61,6 +61,7 @@ serve(async (req: Request) => {
           role,
           class_id,
           balance,
+          is_locked,
           created_at,
           student_classes (
             class_id,
@@ -99,7 +100,8 @@ serve(async (req: Request) => {
           className: classNames.join(', ') || 'Chưa phân lớp',
           classId: classIds[0] || null,
           classIds,
-          status: 'Hoạt động',
+          status: (s as { is_locked?: boolean }).is_locked ? 'Tạm khóa' : 'Hoạt động',
+          isLocked: Boolean((s as { is_locked?: boolean }).is_locked),
           balance: s.balance || 0,
           createdAt: new Date(s.created_at).toLocaleDateString('vi-VN')
         }

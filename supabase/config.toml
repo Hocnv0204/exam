@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.adaptive]
 verify_jwt = true
+
+[functions.user-activity]
+verify_jwt = true

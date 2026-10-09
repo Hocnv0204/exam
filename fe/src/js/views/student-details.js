@@ -469,6 +469,63 @@ async function loadStudentSchedule(studentId, classId, month) {
 }
 
 function renderHomeworkStats(container, completed, uncompleted, submissions) {
+  // Giữ dữ liệu gốc để lọc lại theo ngày mà không gọi API thêm
+  const allHomeworks = [...(completed || []), ...(uncompleted || [])]
+  const allSubmissions = [...(submissions || [])]
+
+  // Mặc định: 1 tháng gần nhất (tính theo ngày địa phương)
+  const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const _today = new Date()
+  const defaultTo = fmtD(_today)
+  const defaultFrom = fmtD(new Date(_today.getTime() - 30 * 24 * 60 * 60 * 1000))
+  let filterFrom = defaultFrom
+  let filterTo = defaultTo
+
+  const inRange = (iso) => {
+    if (!iso) return false
+    const d = String(iso).slice(0, 10)
+    if (filterFrom && d < filterFrom) return false
+    if (filterTo && d > filterTo) return false
+    return true
+  }
+
+  container.innerHTML = `
+    <!-- Date Filter Bar -->
+    <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:12px 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;">
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Từ ngày</label>
+        <input type="date" id="stats-from-date" class="form-input" value="${defaultFrom}" style="padding:6px 10px; font-size:13px; width:auto;">
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Đến ngày</label>
+        <input type="date" id="stats-to-date" class="form-input" value="${defaultTo}" style="padding:6px 10px; font-size:13px; width:auto;">
+      </div>
+      <button id="stats-apply-filter" class="btn-primary" style="padding:7px 16px; font-size:13px; font-weight:600; border-radius:8px; width:auto; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+        <i class="fa-solid fa-filter"></i> Lọc
+      </button>
+      <button id="stats-clear-filter" class="btn-secondary" style="padding:7px 16px; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;" title="Về lại 1 tháng gần nhất">
+        <i class="fa-solid fa-rotate-left"></i> Mặc định
+      </button>
+      <span id="stats-filter-note" style="font-size:12px; color:#64748b; font-weight:600;"></span>
+    </div>
+    <div id="stats-filtered-body"></div>
+  `
+
+  const renderBody = () => {
+    // ĐÃ LÀM thì luôn tính là đã làm (không phụ thuộc khoảng ngày).
+    // Khoảng ngày chỉ lọc lượt nộp dùng cho đồ thị điểm + bảng chi tiết.
+    const allSubHwIds = new Set(allSubmissions.map(s => s.homeworkId || s.homework_id))
+    completed = allHomeworks.filter(hw => allSubHwIds.has(hw.id))
+    uncompleted = allHomeworks.filter(hw => !allSubHwIds.has(hw.id))
+    submissions = allSubmissions.filter(s => inRange(s.submittedAt || s.submitted_at))
+
+    const noteEl = container.querySelector('#stats-filter-note')
+    if (noteEl) {
+      noteEl.textContent = `Từ ${filterFrom || '...'} đến ${filterTo || '...'} (${submissions.length} lượt nộp)`
+    }
+    const clearBtn = container.querySelector('#stats-clear-filter')
+    if (clearBtn) clearBtn.style.display = 'inline-flex'
+
   let onTimeCount = 0
   let lateCount = 0
   for (const hw of completed) {
@@ -488,7 +545,16 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
   }
   const uncompletedCount = uncompleted.length
 
-  container.innerHTML = `
+  const bodyEl = container.querySelector('#stats-filtered-body')
+  if (!bodyEl) return
+  // Hủy biểu đồ cũ trước khi vẽ lại để tránh rò rỉ instance Chart.js
+  if (window.Chart) {
+    ['homework-pie-chart', 'homework-scores-chart'].forEach(id => {
+      const oldCanvas = document.getElementById(id)
+      if (oldCanvas) window.Chart.getChart(oldCanvas)?.destroy()
+    })
+  }
+  bodyEl.innerHTML = `
     <!-- Charts Section -->
     <div style="display:grid; grid-template-columns:1fr 2fr; gap:20px; margin-bottom:24px;">
       <!-- Pie Chart Card -->
@@ -910,6 +976,35 @@ function renderHomeworkStats(container, completed, uncompleted, submissions) {
 
   showCompletedBtn.onclick = () => toggleView('completed')
   showUncompletedBtn.onclick = () => toggleView('uncompleted')
+  } // end renderBody
+
+  container.querySelector('#stats-apply-filter').onclick = () => {
+    const fromVal = container.querySelector('#stats-from-date')?.value || ''
+    const toVal = container.querySelector('#stats-to-date')?.value || ''
+    if (fromVal && toVal && fromVal > toVal) {
+      showToast('Ngày bắt đầu không được sau ngày kết thúc!', 'error')
+      return
+    }
+    filterFrom = fromVal || defaultFrom
+    filterTo = toVal || defaultTo
+    const fromInput = container.querySelector('#stats-from-date')
+    const toInput = container.querySelector('#stats-to-date')
+    if (fromInput) fromInput.value = filterFrom
+    if (toInput) toInput.value = filterTo
+    renderBody()
+  }
+
+  container.querySelector('#stats-clear-filter').onclick = () => {
+    filterFrom = defaultFrom
+    filterTo = defaultTo
+    const fromInput = container.querySelector('#stats-from-date')
+    const toInput = container.querySelector('#stats-to-date')
+    if (fromInput) fromInput.value = defaultFrom
+    if (toInput) toInput.value = defaultTo
+    renderBody()
+  }
+
+  renderBody()
 }
 
 function updateSummaryMetrics(tuitionFee) {

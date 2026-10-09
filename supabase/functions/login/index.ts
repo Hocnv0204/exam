@@ -28,7 +28,7 @@ serve(async (req: Request) => {
     // 1. Parallel: Try signIn with synthetic email + fetch profile
     const profilePromise = serviceRoleClient
       .from('profiles')
-      .select('id, username, full_name, role, class_id')
+      .select('id, username, full_name, role, class_id, is_locked')
       .eq('username', username)
       .maybeSingle()
 
@@ -42,6 +42,11 @@ serve(async (req: Request) => {
     const profile = profileRes.data
     if (!profile) {
       return errorResponse('Invalid username or password', 401)
+    }
+
+    // Tài khoản bị tạm khóa: chặn đăng nhập ngay, không kiểm tra mật khẩu tiếp
+    if ((profile as { is_locked?: boolean }).is_locked) {
+      return errorResponse('Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ giáo viên!', 403)
     }
 
     let sessionData = signInRes.data
@@ -70,6 +75,20 @@ serve(async (req: Request) => {
         .select('class_id')
         .eq('student_id', profile.id)
       classIds = stClasses?.map((c) => c.class_id) || []
+    }
+
+    // Ghi log đăng nhập (chạy nền, không chặn response)
+    const loginLogTask = serviceRoleClient
+      .from('user_activity_logs')
+      .insert({ user_id: profile.id, action: 'LOGIN', metadata: {} })
+      .then(({ error }: { error: unknown }) => {
+        if (error) console.warn('[login] activity log failed:', (error as Error)?.message)
+      })
+    // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+    if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+      EdgeRuntime.waitUntil(loginLogTask)
+    } else {
+      loginLogTask.catch(() => {})
     }
 
     return jsonResponse({

@@ -108,6 +108,7 @@ export function renderStudentMgmtView() {
 
 function renderStudentRow(s) {
   const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
+  const isLocked = Boolean(s.isLocked)
   
   // Render classes as individual badges
   const classBadges = s.className ? s.className.split(', ').map(name => `
@@ -137,14 +138,22 @@ function renderStudentRow(s) {
         <div style="font-weight:600; color:#10b981;">${(s.balance || 0).toLocaleString('vi-VN')} đ</div>
       </td>
       <td>
+        ${isLocked ? `
+        <span class="badge badge-inactive" style="background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;">
+          <i class="fa-solid fa-lock" style="font-size:8px;"></i> Tạm khóa
+        </span>` : `
         <span class="badge ${s.status === 'Hoạt động' ? 'badge-active' : 'badge-inactive'}">
           <i class="fa-solid fa-circle" style="font-size:6px;"></i> ${s.status || 'Hoạt động'}
-        </span>
+        </span>`}
       </td>
       <td style="color:#64748b;">${s.createdAt || 'Mới khởi tạo'}</td>
       <td>
         <div style="display:flex; gap:10px; align-items:center;">
           <a href="#student-details?studentId=${s.id}&classId=${s.classId || (s.classIds && s.classIds[0]) || ''}" title="Xem chi tiết học tập & học phí" style="color:#10b981; font-size:16px; text-decoration:none; display:inline-flex; align-items:center;"><i class="fa-solid fa-circle-user"></i></a>
+          <button class="btn-view-activity" data-id="${s.id}" data-name="${s.fullName}" title="Xem nhật ký hoạt động" style="background:none; border:none; color:#7c3aed; cursor:pointer; font-size:16px;"><i class="fa-solid fa-clock-rotate-left"></i></button>
+          ${isLocked ? `
+          <button class="btn-unlock-student" data-id="${s.id}" data-name="${s.fullName}" title="Mở khóa tài khoản" style="background:none; border:none; color:#16a34a; cursor:pointer; font-size:16px;"><i class="fa-solid fa-lock-open"></i></button>` : `
+          <button class="btn-lock-student" data-id="${s.id}" data-name="${s.fullName}" title="Tạm khóa tài khoản" style="background:none; border:none; color:#d97706; cursor:pointer; font-size:16px;"><i class="fa-solid fa-lock"></i></button>`}
           <button class="btn-add-balance" data-id="${s.id}" data-name="${s.fullName}" title="Nạp học phí (thêm số dư)" style="background:none; border:none; color:#f59e0b; cursor:pointer; font-size:16px;"><i class="fa-solid fa-wallet"></i></button>
           <button class="btn-edit-balance" data-id="${s.id}" data-name="${s.fullName}" title="Sửa số dư" style="background:none; border:none; color:#16a34a; cursor:pointer; font-size:16px;"><i class="fa-solid fa-money-bill-transfer"></i></button>
           <button class="btn-edit-student" data-id="${s.id}" title="Chỉnh sửa thông tin học sinh" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -744,7 +753,152 @@ function updateTable(newStudent) {
   }
 }
 
+function formatActivitySeconds(total) {
+  const s = Number(total) || 0
+  if (s < 60) return `${s} giây`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} phút ${s % 60 > 0 ? `${s % 60} giây` : ''}`.trim()
+  const h = Math.floor(m / 60)
+  return `${h} giờ ${m % 60 > 0 ? `${m % 60} phút` : ''}`.trim()
+}
+
+const ACTIVITY_LABELS = {
+  LOGIN: 'Đăng nhập',
+  LOGOUT: 'Đăng xuất',
+  LESSON_VIEW: 'Mở bài học',
+  VIDEO_WATCH: 'Xem video',
+  HOMEWORK_START: 'Bắt đầu làm bài',
+  HOMEWORK_SUBMIT: 'Nộp bài',
+  EXAM_START: 'Vào phòng thi',
+  EXAM_SUBMIT: 'Nộp bài thi'
+}
+
+async function showUserActivityModal(studentId, studentName) {
+  openModal(
+    `Nhật ký hoạt động: ${studentName}`,
+    `<div id="user-activity-body" style="min-width:min(640px,80vw);">
+       <div style="text-align:center; padding:24px; color:#64748b;">
+         <i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải nhật ký...
+       </div>
+     </div>`
+  )
+  const mc = document.querySelector('#modal-container .modal-content')
+  if (mc) mc.style.maxWidth = '720px'
+
+  const render = async (filterAction = '') => {
+    const body = document.getElementById('user-activity-body')
+    if (!body) return
+    try {
+      const res = await api.getUserActivity({ userId: studentId, filterAction, limit: 50 })
+      const stats = res?.stats || {}
+      const logs = res?.logs || []
+      const byAction = stats.byAction || {}
+
+      body.innerHTML = `
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:14px;">
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:10px 12px; text-align:center;">
+            <div style="font-size:20px; font-weight:800; color:#0066cc;">${stats.loginCount || 0}</div>
+            <div style="font-size:11px; color:#475569; font-weight:600;">Lần đăng nhập</div>
+          </div>
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px 12px; text-align:center;">
+            <div style="font-size:15px; font-weight:800; color:#15803d;">${formatActivitySeconds(stats.videoSeconds)}</div>
+            <div style="font-size:11px; color:#475569; font-weight:600;">Xem video/bài học</div>
+          </div>
+          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:10px 12px; text-align:center;">
+            <div style="font-size:15px; font-weight:800; color:#b45309;">${formatActivitySeconds(stats.homeworkSeconds)}</div>
+            <div style="font-size:11px; color:#475569; font-weight:600;">Làm bài tập</div>
+          </div>
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; text-align:center;">
+            <div style="font-size:12px; font-weight:700; color:#0f172a;">${stats.lastActive ? new Date(stats.lastActive).toLocaleString('vi-VN') : '—'}</div>
+            <div style="font-size:11px; color:#475569; font-weight:600;">Hoạt động gần nhất</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+          <label style="font-size:12px; font-weight:600; color:#475569;">Loại log:</label>
+          <select id="activity-filter-action" class="form-input" style="width:auto; padding:6px 10px; font-size:12px;">
+            <option value="">Tất cả</option>
+            ${Object.keys(ACTIVITY_LABELS).map(k => `<option value="${k}" ${filterAction === k ? 'selected' : ''}>${ACTIVITY_LABELS[k]} (${byAction[k] || 0})</option>`).join('')}
+          </select>
+        </div>
+        <div style="max-height:320px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:10px;">
+          <table class="data-table" style="margin:0;">
+            <thead><tr><th>Thời gian</th><th>Hành động</th><th>Chi tiết</th></tr></thead>
+            <tbody>
+              ${logs.length === 0 ? `<tr><td colspan="3" style="text-align:center; padding:24px; color:#94a3b8;">Chưa có log nào.</td></tr>` : logs.map(l => {
+                const meta = l.metadata || {}
+                const detail = meta.homeworkTitle || meta.lessonTitle || meta.title || meta.lessonId || meta.homeworkId || ''
+                const dur = l.duration_seconds ? ` • ${formatActivitySeconds(l.duration_seconds)}` : ''
+                return `<tr>
+                  <td style="white-space:nowrap;">${new Date(l.created_at).toLocaleString('vi-VN')}</td>
+                  <td><span class="badge badge-paid">${ACTIVITY_LABELS[l.action] || l.action}</span></td>
+                  <td style="font-size:12px; color:#475569;">${escapeHtml(String(detail))}${escapeHtml(dur)}</td>
+                </tr>`
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `
+      body.querySelector('#activity-filter-action')?.addEventListener('change', (e) => render(e.target.value))
+    } catch (err) {
+      body.innerHTML = `<p style="color:#ef4444; font-size:13px;">Tải nhật ký thất bại: ${err.message}</p>`
+    }
+  }
+
+  render()
+}
+
 function bindTableActionEvents() {
+  document.querySelectorAll('.btn-view-activity').forEach(btn => {    btn.onclick = () => {
+      showUserActivityModal(btn.getAttribute('data-id'), btn.getAttribute('data-name'))
+    }
+  })
+
+  const refreshLockState = (id, locked) => {
+    const applyList = (list) => {
+      if (!Array.isArray(list)) return
+      const item = list.find(s => s.id === id)
+      if (item) {
+        item.isLocked = locked
+        item.status = locked ? 'Tạm khóa' : 'Hoạt động'
+      }
+    }
+    applyList(state.students)
+    applyList(filteredStudents)
+    if (window._refreshStudentMgmtTable) window._refreshStudentMgmtTable(true)
+  }
+
+  document.querySelectorAll('.btn-lock-student').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.getAttribute('data-id')
+      const name = btn.getAttribute('data-name')
+      if (!confirm(`Tạm khóa tài khoản "${name}"?\nHọc sinh sẽ không đăng nhập được và chuyển sang Tạm nghỉ ở các lớp.`)) return
+      try {
+        showToast('Đang tạm khóa tài khoản...', 'info')
+        await api.setUserLock(id, true)
+        showToast(`Đã tạm khóa tài khoản "${name}"`, 'success')
+        refreshLockState(id, true)
+      } catch (err) {
+        showToast(`Tạm khóa thất bại: ${err.message}`, 'error')
+      }
+    }
+  })
+
+  document.querySelectorAll('.btn-unlock-student').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.getAttribute('data-id')
+      const name = btn.getAttribute('data-name')
+      if (!confirm(`Mở khóa tài khoản "${name}"?\nHọc sinh đăng nhập lại được và chuyển về Đang học.`)) return
+      try {
+        showToast('Đang mở khóa tài khoản...', 'info')
+        await api.setUserLock(id, false)
+        showToast(`Đã mở khóa tài khoản "${name}"`, 'success')
+        refreshLockState(id, false)
+      } catch (err) {
+        showToast(`Mở khóa thất bại: ${err.message}`, 'error')
+      }
+    }
+  })
+
   document.querySelectorAll('.btn-add-balance').forEach(btn => {
     btn.onclick = () => {
       const id = btn.getAttribute('data-id')

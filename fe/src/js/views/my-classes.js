@@ -29,6 +29,29 @@ window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
 
 let collapsedChapterIds = new Set()
 
+// Đo thời gian xem bài học/video: log LESSON_VIEW khi mở, VIDEO_WATCH kèm
+// số giây khi rời bài (chỉ học sinh). Dùng keepalive để không mất log khi chuyển trang.
+let videoTrackStart = 0
+let videoTrackMeta = null
+let videoTrackInstalled = false
+
+function flushVideoTrack() {
+  if (!videoTrackStart || !videoTrackMeta) return
+  const secs = Math.max(0, Math.round((Date.now() - videoTrackStart) / 1000))
+  const meta = videoTrackMeta
+  videoTrackStart = 0
+  videoTrackMeta = null
+  // Ghi nhận cả lượt mở nhanh (<5s) với duration thực tế, bỏ qua 0 giây
+  if (secs <= 0) return
+  try {
+    api.logActivity({
+      action: 'VIDEO_WATCH',
+      metadata: meta,
+      durationSeconds: secs
+    }, { keepalive: true })
+  } catch (_) {}
+}
+
 export function renderMyClassesView() {
   const hashUrl = window.location.hash.replace('#', '')
   const [_, queryString] = hashUrl.split('?')
@@ -375,6 +398,20 @@ export function bindMyClassesEvents() {
   if (!classId && state.user?.role === 'STUDENT') {
     loadTodoHomeworks()
     loadWeakTopics()
+  }
+
+  // Theo dõi thời gian xem bài học của học sinh
+  if (!videoTrackInstalled) {
+    videoTrackInstalled = true
+    window.addEventListener('hashchange', flushVideoTrack)
+  }
+  flushVideoTrack()
+  if (classId && lessonId && state.user?.role === 'STUDENT') {
+    videoTrackStart = Date.now()
+    videoTrackMeta = { lessonId, classId }
+    try {
+      api.logActivity({ action: 'LESSON_VIEW', metadata: { lessonId, classId } })
+    } catch (_) {}
   }
 
   // Toggle collapse/expand chapter lessons

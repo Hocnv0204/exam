@@ -263,7 +263,7 @@ export async function requireAuth(req: Request): Promise<{
   const [profileRes, stClassesRes] = await Promise.all([
     serviceRoleClient
       .from('profiles')
-      .select('id, username, full_name, role, class_id')
+      .select('id, username, full_name, role, class_id, is_locked')
       .eq('id', userId)
       .single(),
     serviceRoleClient
@@ -274,6 +274,11 @@ export async function requireAuth(req: Request): Promise<{
 
   if (profileRes.error || !profileRes.data) {
     throw new Error('User profile not found')
+  }
+
+  // Tài khoản bị tạm khóa: chặn mọi API (login đã chặn riêng với message thân thiện)
+  if ((profileRes.data as { is_locked?: boolean }).is_locked) {
+    throw new Error('Account locked: contact your teacher')
   }
 
   const profile = profileRes.data

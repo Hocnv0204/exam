@@ -490,6 +490,27 @@ serve(async (req: Request) => {
       sendNotification().catch((e) => console.warn('[submit-homework] Background notify error:', e))
     }
 
+    // Ghi log thời gian làm bài (chạy nền, bỏ qua khách vãng lai không có user id)
+    if (user?.id) {
+      const submitLogTask = serviceRoleClient
+        .from('user_activity_logs')
+        .insert({
+          user_id: user.id,
+          action: 'HOMEWORK_SUBMIT',
+          metadata: { homeworkId, homeworkTitle: homework.title },
+          duration_seconds: Math.max(0, Math.floor(durationSecondsTaken || 0)),
+        })
+        .then(({ error }: { error: unknown }) => {
+          if (error) console.warn('[submit-homework] activity log failed:', (error as Error)?.message)
+        })
+      // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+        EdgeRuntime.waitUntil(submitLogTask)
+      } else {
+        submitLogTask.catch(() => {})
+      }
+    }
+
     // 8. Return complete submission result
     return jsonResponse(
       {
