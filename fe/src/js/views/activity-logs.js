@@ -13,7 +13,6 @@ let filterAction = ''
 let filterFrom = ''
 let filterTo = ''
 let cachedTotal = 0
-let searchDebounce = null
 
 const ACTIVITY_LABELS = {
   LOGIN: 'Đăng nhập',
@@ -84,8 +83,8 @@ export function renderActivityLogsView() {
               <button id="activity-apply-btn" class="btn-primary" style="width:auto; padding:10px 18px; cursor:pointer;">
                 <i class="fa-solid fa-filter"></i> Lọc
               </button>
-              <button id="activity-reset-btn" class="btn-secondary" style="width:auto; padding:10px 18px; cursor:pointer;">
-                <i class="fa-solid fa-rotate-left"></i> Đặt lại
+              <button id="activity-reset-btn" class="btn-secondary" style="width:auto; padding:10px 18px; cursor:pointer;" title="Xóa hết điều kiện lọc và tải lại">
+                <i class="fa-solid fa-rotate-left"></i> Làm mới
               </button>
             </div>
 
@@ -177,7 +176,7 @@ async function loadLogs() {
 export function bindActivityLogsEvents() {
   bindSidebarEvents()
 
-  document.getElementById('activity-apply-btn')?.addEventListener('click', () => {
+  const applyFilters = () => {
     filterSearch = document.getElementById('activity-search-input')?.value.trim() || ''
     filterClassId = document.getElementById('activity-class-filter')?.value || ''
     filterAction = document.getElementById('activity-action-filter')?.value || ''
@@ -189,6 +188,30 @@ export function bindActivityLogsEvents() {
     }
     filterFrom = fromVal
     filterTo = toVal
+    currentPage = 1
+    loadLogs()
+  }
+
+  document.getElementById('activity-apply-btn')?.addEventListener('click', applyFilters)
+
+  // Enter ở ô tìm kiếm / ngày thì lọc luôn (không tự gọi khi đang gõ)
+  ;['activity-search-input', 'activity-from-date', 'activity-to-date'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        applyFilters()
+      }
+    })
+  })
+
+  // Chọn dropdown Lớp / Hành động thì gọi API ngay, không cần bấm Lọc
+  document.getElementById('activity-class-filter')?.addEventListener('change', (e) => {
+    filterClassId = e.target.value || ''
+    currentPage = 1
+    loadLogs()
+  })
+  document.getElementById('activity-action-filter')?.addEventListener('change', (e) => {
+    filterAction = e.target.value || ''
     currentPage = 1
     loadLogs()
   })
@@ -211,15 +234,6 @@ export function bindActivityLogsEvents() {
     if (f) f.value = ''
     if (t) t.value = ''
     loadLogs()
-  })
-
-  document.getElementById('activity-search-input')?.addEventListener('input', (e) => {
-    if (searchDebounce) clearTimeout(searchDebounce)
-    searchDebounce = setTimeout(() => {
-      filterSearch = e.target.value.trim()
-      currentPage = 1
-      loadLogs()
-    }, 400)
   })
 
   loadLogs()
