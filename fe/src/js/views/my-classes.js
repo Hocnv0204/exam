@@ -361,6 +361,18 @@ export function renderMyClassesView() {
             </div>
           </div>
 
+          <!-- Latest homeworks: gọn ở đầu trang -->
+          <div class="card" style="padding:14px 18px; margin-bottom:20px; border:1px solid #bfdbfe; background:#f5faff;">
+            <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-bolt" style="color:#d97706;"></i> Bài tập mới giao
+            </h3>
+            <div id="latest-homeworks-container">
+              <p style="font-size:13px; color:#64748b; margin:0;">
+                <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc;"></i> Đang tải bài tập mới...
+              </p>
+            </div>
+          </div>
+
           <!-- Classes Cards Grid -->
           <div class="grid-4" style="margin-bottom:28px;">
             ${classes.map(c => `
@@ -399,18 +411,6 @@ export function renderMyClassesView() {
               </p>
             </div>
           </div>
-
-          <!-- Bottom Summary Panel -->
-          <div class="card">
-            <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:12px;">
-              <i class="fa-solid fa-bullhorn" style="color:#0066cc;"></i> Thông báo học tập
-            </h3>
-            <div id="todo-homeworks-container">
-              <p style="font-size:13px; color:#64748b; margin:0;">
-                Hãy chọn lớp học của bạn ở trên để kiểm tra toàn bộ danh sách bài học và bài tập về nhà chưa hoàn thành.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -428,7 +428,7 @@ export function bindMyClassesEvents() {
 
   // Load todo homeworks for student notifications
   if (!classId && state.user?.role === 'STUDENT') {
-    loadTodoHomeworks()
+    loadLatestHomeworksAll()
     loadWeakTopics()
   }
 
@@ -561,6 +561,64 @@ export function bindMyClassesEvents() {
       )
     }
   })
+}
+
+async function loadLatestHomeworksAll() {
+  const container = document.getElementById('latest-homeworks-container')
+  if (!container) return
+
+  try {
+    let classes = state.classes || []
+    if (state.user?.role === 'STUDENT' && Array.isArray(state.user?.classIds)) {
+      classes = classes.filter(c => state.user.classIds.includes(c.id))
+    }
+    if (classes.length === 0) {
+      container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Bạn chưa đăng ký lớp học nào.</p>`
+      return
+    }
+    const results = await Promise.allSettled(
+      classes.map(c => api.getHomeworks('', c.id, '', { silent: true }).then(res => ({ classObj: c, res })))
+    )
+    const merged = []
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue
+      const { classObj, res } = r.value
+      const list = Array.isArray(res) ? res : (res?.items || [])
+      list.forEach(hw => merged.push({ ...hw, _className: classObj.name }))
+    }
+    const sorted = merged
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .slice(0, 5)
+    if (sorted.length === 0) {
+      container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Chưa có bài tập nào được giao.</p>`
+      return
+    }
+    container.innerHTML = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:4px 24px;">
+        ${sorted.map((hw, idx) => {
+          const isExam = hw.type === 'EXAM'
+          const isOverdue = hw.deadline ? new Date() > new Date(hw.deadline) : false
+          const hwTitle = hw.title || hw.lessonTitle || 'Bài tập'
+          return `
+          <div style="display:flex; align-items:center; gap:10px; padding:8px 4px; ${idx > 0 ? 'border-top:1px solid #e2e8f0;' : ''}">
+            ${idx === 0 ? '<span style="font-size:10px; font-weight:800; color:#ffffff; background:#ef4444; padding:2px 7px; border-radius:6px; flex-shrink:0;">MỚI</span>' : ''}
+            <div style="flex:1 1 auto; min-width:0;">
+              <span style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" title="${hwTitle}">${hwTitle}</span>
+              <span style="font-size:11px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">
+                <span style="color:#0066cc; font-weight:600;">${hw._className || ''}</span> • ${isExam ? 'Bài thi' : 'Luyện tập'}${hw.deadline ? ` • <span style="color:${isOverdue ? '#b91c1c' : '#64748b'};">Hạn: ${new Date(hw.deadline).toLocaleDateString('vi-VN')}</span>` : ''}
+              </span>
+            </div>
+            <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}', '${hw.type || 'PRACTICE'}')" style="width:auto; flex-shrink:0; padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; ${isExam ? 'background:#dc2626; border-color:#dc2626;' : ''}">
+              ${isExam ? 'Vào thi' : 'Làm bài'}
+            </button>
+          </div>`
+        }).join('')}
+      </div>
+    `
+  } catch (err) {
+    console.warn('Failed to load latest homeworks:', err)
+    container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Chưa tải được bài tập mới.</p>`
+  }
 }
 
 async function loadWeakTopics() {
