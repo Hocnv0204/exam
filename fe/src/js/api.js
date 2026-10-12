@@ -350,8 +350,6 @@ async function request(endpoint, options = {}) {
           isRefreshing = false
         }
       }
-
-      // If we still get a 401, logout only for protected endpoints
       if (response.status === 401) {
         if (!isPublicEndpoint) {
           logout()
