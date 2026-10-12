@@ -17,6 +17,15 @@ let isDraftRestored = false
 let saDebounceTimer = null
 let flaggedQuestions = new Set()
 
+// Lưu nháp server (tiếp tục làm bài trên mọi thiết bị)
+let mergedDraft = null
+let solverSubmitted = false
+let draftSyncEnabled = false
+let currentDraftHwId = null
+let solverTimeLeft = null
+let serverDraftDirty = false
+let serverDraftTimer = null
+
 function escapeHtml(str) {
   if (!str) return ''
   return String(str)
@@ -241,7 +250,7 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
           <!-- Header Toolbar -->
           <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:12px 20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,0.03); flex-wrap:wrap; gap:10px;">
             <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 auto;">
-              <button type="button" class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : '#my-classes'}'" style="padding:6px 12px; font-size:12.5px; font-weight:600; border-radius:7px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; flex-shrink:0;">
+              <button type="button" class="btn-secondary btn-exit-solver" data-fallback="${isTrial ? '#trial' : '#my-classes'}" style="padding:6px 12px; font-size:12.5px; font-weight:600; border-radius:7px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; flex-shrink:0;">
                 <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Học thử' : 'Quay lại'}
               </button>
               <div style="min-width:0; overflow:hidden;">
@@ -386,6 +395,52 @@ function saveDraftToStorage(hwId, answers, timeLeft) {
   } catch (e) {
     console.warn('[Draft] Failed to save draft:', e)
   }
+  markServerDraftDirty(hwId)
+}
+
+function countAnswered() {
+  let n = 0
+  Object.values(studentAnswers.mc || {}).forEach(v => {
+    if (v !== null && v !== undefined && v !== '') n++
+  })
+  Object.values(studentAnswers.tf || {}).forEach(tf => {
+    if (tf && ['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) n++
+  })
+  Object.values(studentAnswers.sa || {}).forEach(v => {
+    if (String(v ?? '').trim() !== '') n++
+  })
+  return n
+}
+
+function markServerDraftDirty(hwId) {
+  if (!draftSyncEnabled || solverSubmitted) return
+  if (hwId && currentDraftHwId && hwId !== currentDraftHwId) return
+  serverDraftDirty = true
+  if (serverDraftTimer) return
+  serverDraftTimer = setTimeout(() => {
+    serverDraftTimer = null
+    flushServerDraft(false)
+  }, 30000)
+}
+
+async function flushServerDraft(useKeepalive = false) {
+  if (!draftSyncEnabled || !currentDraftHwId || solverSubmitted) {
+    serverDraftDirty = false
+    return
+  }
+  if (!serverDraftDirty) return
+  serverDraftDirty = false
+  if (countAnswered() === 0) return
+  try {
+    await api.saveDraft({
+      homeworkId: currentDraftHwId,
+      answers: studentAnswers,
+      timeLeft: typeof solverTimeLeft === 'number' ? solverTimeLeft : null,
+      answeredCount: countAnswered()
+    }, useKeepalive ? { keepalive: true } : {})
+  } catch (e) {
+    console.warn('[Draft] Server save failed:', e?.message)
+  }
 }
 
 function clearDraftStorage(hwId) {
@@ -468,8 +523,18 @@ export function renderHomeworkSolverView() {
     `
   }
 
-  // Check if there is an existing saved draft
-  const savedDraft = loadDraftFromStorage(hw.id)
+  // Check if there is an existing saved draft (local + server, bản mới hơn thắng)
+  const serverDraft = (state.serverDraft?.homeworkId === hw.id) ? state.serverDraft.draft : null
+  let savedDraft = loadDraftFromStorage(hw.id)
+  if (serverDraft?.updated_at &&
+      (!savedDraft?.updatedAt || new Date(serverDraft.updated_at) > new Date(savedDraft.updatedAt))) {
+    savedDraft = {
+      answers: serverDraft.answers || { mc: {}, tf: {}, sa: {} },
+      timeLeft: serverDraft.time_left_seconds,
+      updatedAt: serverDraft.updated_at
+    }
+  }
+  mergedDraft = savedDraft
   isDraftRestored = !!(savedDraft && savedDraft.answers && (
     Object.keys(savedDraft.answers.mc || {}).length > 0 ||
     Object.keys(savedDraft.answers.tf || {}).length > 0 ||
@@ -612,7 +677,7 @@ export function renderHomeworkSolverView() {
             <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
               <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:nowrap; gap:10px;">
                 <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto;">
-                  <button type="button" class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : '#my-classes'}'" style="padding:5px 10px; font-size:12px; font-weight:600; border-radius:6px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; flex-shrink:0;">
+                  <button type="button" class="btn-secondary btn-exit-solver" data-fallback="${isTrial ? '#trial' : '#my-classes'}" style="padding:5px 10px; font-size:12px; font-weight:600; border-radius:6px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; flex-shrink:0;">
                     <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Học thử' : 'Quay lại'}
                   </button>
                   <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
@@ -778,6 +843,85 @@ export function bindHomeworkSolverEvents() {
   const hw = state.currentHomework?.homework
   const questions = state.currentHomework?.questions || []
   if (!hw) return
+
+  // Reset trạng thái nháp cho lượt mở bài này
+  const isTrialMode = window.location.hash.includes('trial=true') || !state.token
+  solverSubmitted = false
+  serverDraftDirty = false
+  if (serverDraftTimer) { clearTimeout(serverDraftTimer); serverDraftTimer = null }
+  draftSyncEnabled = Boolean(
+    state.token && state.user?.role === 'STUDENT' && !isTrialMode && hw.type !== 'EXAM'
+  )
+  currentDraftHwId = draftSyncEnabled ? hw.id : null
+
+  const exitFallback = () => {
+    const btn = document.querySelector('.btn-exit-solver')
+    return btn?.getAttribute('data-fallback') || '#my-classes'
+  }
+
+  // Popup xác nhận khi thoát giữa chừng (chỉ khi đã làm ít nhất 1 câu, chưa nộp)
+  const confirmExitSolver = () => {
+    const fallback = exitFallback()
+    if (solverSubmitted || countAnswered() === 0) {
+      window.location.hash = fallback
+      return
+    }
+    const answered = countAnswered()
+    openModal(
+      'Bài đang làm dở',
+      `<div style="display:flex; flex-direction:column; gap:12px;">
+        <p style="font-size:14px; color:#475569; line-height:1.6; margin:0;">
+          Bạn đã làm được <strong>${answered} câu</strong>. Thoát bây giờ bài làm sẽ ra sao?
+        </p>
+        <button id="exit-save-draft-btn" class="btn-primary" style="padding:10px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <i class="fa-solid fa-floppy-disk"></i> Lưu nháp & thoát
+        </button>
+        <button id="exit-discard-btn" class="btn-secondary" style="padding:10px; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer;">
+          Thoát không lưu
+        </button>
+        <button id="exit-stay-btn" class="btn-secondary" style="padding:10px; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer;">
+          Ở lại làm tiếp
+        </button>
+      </div>`
+    )
+    setTimeout(() => {
+      document.getElementById('exit-save-draft-btn')?.addEventListener('click', async () => {
+        serverDraftDirty = true
+        try {
+          saveDraftToStorage(hw.id, studentAnswers, solverTimeLeft)
+          await flushServerDraft(false)
+          showToast('Đã lưu nháp bài làm!', 'success')
+        } catch (e) {
+          showToast('Lưu nháp thất bại, bản nháp trên máy vẫn còn.', 'error')
+        }
+        closeModal()
+        window.location.hash = fallback
+      })
+      document.getElementById('exit-discard-btn')?.addEventListener('click', async () => {
+        try {
+          clearDraftStorage(hw.id)
+          if (draftSyncEnabled) await api.deleteDraft(hw.id)
+        } catch (_) {}
+        serverDraftDirty = false
+        closeModal()
+        window.location.hash = fallback
+      })
+      document.getElementById('exit-stay-btn')?.addEventListener('click', () => closeModal())
+    }, 50)
+  }
+
+  document.querySelectorAll('.btn-exit-solver').forEach(btn => {
+    btn.addEventListener('click', confirmExitSolver)
+  })
+
+  // Cảnh báo native khi tải lại / đóng tab giữa chừng + lưu nháp server
+  const handleSolverUnload = (e) => {
+    if (solverSubmitted || countAnswered() === 0) return
+    serverDraftDirty = true
+    flushServerDraft(true)
+    e.preventDefault()
+  }
+  window.addEventListener('beforeunload', handleSolverUnload)
 
   const isInteractive = isInteractiveHomework(hw, questions)
 
@@ -1239,6 +1383,10 @@ export function bindHomeworkSolverEvents() {
       
       showToast('Nộp bài thành công! Đang tải kết quả chấm điểm...', 'success')
       
+      // Đánh dấu đã nộp để tắt cảnh báo thoát + không lưu nháp nữa
+      solverSubmitted = true
+      serverDraftDirty = false
+      if (serverDraftTimer) { clearTimeout(serverDraftTimer); serverDraftTimer = null }
       // Clear local draft storage on successful submit
       clearDraftStorage(hw.id)
 
@@ -1325,7 +1473,7 @@ export function bindHomeworkSolverEvents() {
   }
 
   // Timer Countdown Setup (deducting real elapsed time since last save)
-  const savedDraft = loadDraftFromStorage(hw.id)
+  const savedDraft = mergedDraft || loadDraftFromStorage(hw.id)
   let timeLeftSeconds = (hw.durationMinutes || 45) * 60
   if (savedDraft?.timeLeft && savedDraft.timeLeft > 0) {
     let elapsed = 0
@@ -1344,6 +1492,7 @@ export function bindHomeworkSolverEvents() {
     showToast('Đã tự động khôi phục bài làm từ bản lưu nháp gần nhất!', 'info')
     updateAutosaveIndicator(true)
   }
+  solverTimeLeft = timeLeftSeconds
 
   const updateTimerDisplay = () => {
     const timerDisplay = document.getElementById('exam-timer-display')
@@ -1380,6 +1529,7 @@ export function bindHomeworkSolverEvents() {
       }
 
       timeLeftSeconds--
+      solverTimeLeft = timeLeftSeconds
       updateTimerDisplay()
 
       if (timeLeftSeconds % 10 === 0) {
@@ -1398,6 +1548,9 @@ export function bindHomeworkSolverEvents() {
 
   // Cleanup handler for route changes to clear intervals
   const hashChangeListener = () => {
+    serverDraftDirty = true
+    flushServerDraft(true)
+    window.removeEventListener('beforeunload', handleSolverUnload)
     if (timerInterval) clearInterval(timerInterval)
     if (heartbeatInterval) clearInterval(heartbeatInterval)
     if (autosaveInterval) clearInterval(autosaveInterval)

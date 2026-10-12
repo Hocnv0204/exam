@@ -76,6 +76,16 @@ async function router() {
         try {
           const hwData = await api.getHomeworkDetail(homeworkId)
           state.currentHomework = hwData
+          // Prefetch nháp server để khôi phục khi mở bài (luyện tập, đã đăng nhập)
+          state.serverDraft = null
+          if (state.token && state.user?.role === 'STUDENT' && hwData?.homework?.type !== 'EXAM') {
+            try {
+              const draft = await api.getDraft(homeworkId)
+              if (draft) state.serverDraft = { homeworkId, draft }
+            } catch (e) {
+              console.warn('[Router] Failed to fetch server draft:', e?.message)
+            }
+          }
         } catch (e) {
           console.warn('[Router] Failed to fetch trial homework:', e)
         }

@@ -512,6 +512,23 @@ serve(async (req: Request) => {
     }
 
     // 8. Return complete submission result
+    // Xóa nháp server của bài này (đã nộp xong, chạy nền)
+    if (user?.id) {
+      const clearDraftTask = serviceRoleClient
+        .from('homework_drafts')
+        .delete()
+        .eq('student_id', user.id)
+        .eq('homework_id', homeworkId)
+        .then(({ error }: { error: unknown }) => {
+          if (error) console.warn('[submit-homework] clear draft failed:', (error as Error)?.message)
+        })
+      // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+        EdgeRuntime.waitUntil(clearDraftTask)
+      } else {
+        clearDraftTask.catch(() => {})
+      }
+    }
     return jsonResponse(
       {
         submissionId: submission.id,

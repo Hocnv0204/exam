@@ -373,6 +373,14 @@ export function renderMyClassesView() {
             </div>
           </div>
 
+          <!-- In-progress drafts: tiếp tục bài đang làm dở -->
+          <div class="card" id="inprogress-drafts-card" style="padding:14px 18px; margin-bottom:20px; border:1px solid #fde68a; background:#fffbeb; display:none;">
+            <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-hourglass-half" style="color:#d97706;"></i> Đang làm dở
+            </h3>
+            <div id="inprogress-drafts-container"></div>
+          </div>
+
           <!-- Classes Cards Grid -->
           <div class="grid-4" style="margin-bottom:28px;">
             ${classes.map(c => `
@@ -430,6 +438,7 @@ export function bindMyClassesEvents() {
   if (!classId && state.user?.role === 'STUDENT') {
     loadLatestHomeworksAll()
     loadWeakTopics()
+    loadInprogressDrafts()
   }
 
   // Theo dõi thời gian xem bài học của học sinh
@@ -561,6 +570,60 @@ export function bindMyClassesEvents() {
       )
     }
   })
+}
+
+async function loadInprogressDrafts() {
+  const card = document.getElementById('inprogress-drafts-card')
+  const container = document.getElementById('inprogress-drafts-container')
+  if (!card || !container) return
+
+  try {
+    const drafts = await api.getMyDrafts()
+    if (!drafts || drafts.length === 0) {
+      card.style.display = 'none'
+      return
+    }
+    card.style.display = 'block'
+    container.innerHTML = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:8px;">
+        ${drafts.map(d => `
+          <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#ffffff; border:1px solid #fde68a; border-radius:10px;">
+            <div style="flex:1 1 auto; min-width:0;">
+              <div style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${d.title || ''}">${d.title || 'Bài tập'}</div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">
+                ${d.className ? `<span style="color:#0066cc; font-weight:600;">${d.className}</span> • ` : ''}Đã làm ${d.answeredCount || 0} câu • ${d.updatedAt ? new Date(d.updatedAt).toLocaleString('vi-VN') : ''}
+              </div>
+            </div>
+            <button class="btn-primary" onclick="window.location.hash='#homework-attempt?homeworkId=${d.homeworkId}'" style="width:auto; flex-shrink:0; padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; background:#d97706; border-color:#d97706;">
+              Tiếp tục
+            </button>
+            <button class="btn-secondary btn-discard-draft" data-id="${d.homeworkId}" title="Xóa bản nháp" style="flex-shrink:0; padding:6px 9px; font-size:12px; border-radius:8px; cursor:pointer; color:#ef4444; border-color:#fecaca; background:#fff5f5;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    `
+    container.querySelectorAll('.btn-discard-draft').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Xóa bản nháp này? Bài làm dở sẽ mất.')) return
+        const hwId = btn.getAttribute('data-id')
+        try {
+          await api.deleteDraft(hwId)
+          try {
+            localStorage.removeItem(`homework_draft_${state.user?.id || 'guest'}_${hwId}`)
+          } catch (_) {}
+          showToast('Đã xóa bản nháp.', 'success')
+          loadInprogressDrafts()
+        } catch (err) {
+          showToast(`Xóa nháp thất bại: ${err.message}`, 'error')
+        }
+      })
+    })
+  } catch (err) {
+    console.warn('Failed to load drafts:', err)
+    card.style.display = 'none'
+  }
 }
 
 async function loadLatestHomeworksAll() {

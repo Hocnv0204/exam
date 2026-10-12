@@ -8,11 +8,18 @@ serve(async (req: Request) => {
   if (corsRes) return corsRes
 
   try {
+    const url = new URL(req.url)
+    const action = url.searchParams.get('action')
+
+    // ---- Nháp bài làm (STUDENT đã đăng nhập, không áp dụng khách vãng lai) ----
+    if (action === 'save-draft' || action === 'my-drafts' || action === 'get-draft' || action === 'delete-draft') {
+      return await handleDraftAction(req, action)
+    }
+
     if (req.method !== 'GET') {
       return errorResponse('Method not allowed', 405)
     }
 
-    const url = new URL(req.url)
     const homeworkId = url.searchParams.get('homeworkId')
 
     if (!homeworkId) {
@@ -173,3 +180,119 @@ serve(async (req: Request) => {
     return errorResponse(error.message || 'Unauthorized / Error', 401)
   }
 })
+
+// ---- Nháp bài làm luyện tập (lưu server để tiếp tục trên mọi thiết bị) ----
+async function handleDraftAction(req: Request, action: string): Promise<Response> {
+  const serviceRoleClient = createServiceRoleClient()
+  let user: { id: string; role: string }
+  try {
+    const auth = await requireAuth(req)
+    user = auth.user
+  } catch {
+    return errorResponse('Unauthorized', 401)
+  }
+  if (user.role !== 'STUDENT') {
+    return errorResponse('Forbidden: Only students can manage drafts', 403)
+  }
+
+  const url = new URL(req.url)
+
+  // Danh sách nháp của tôi (kèm tên bài + lớp để hiển thị "Đang làm dở")
+  if (req.method === 'GET' && action === 'my-drafts') {
+    const { data, error } = await serviceRoleClient
+      .from('homework_drafts')
+      .select(`
+        homework_id, answers, time_left_seconds, answered_count, updated_at,
+        homeworks!inner (
+          id, title, type, deadline, duration_minutes,
+          lessons (title, chapters (title, class_id, classes (id, name)))
+        )
+      `)
+      .eq('student_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(20)
+    if (error) return errorResponse(error.message, 500)
+    const items = (data || []).map((d: any) => {
+      const hw = d.homeworks || {}
+      const lesson = hw.lessons || {}
+      const ch = lesson.chapters || {}
+      return {
+        homeworkId: d.homework_id,
+        title: hw.title || 'Bài tập',
+        type: hw.type || 'PRACTICE',
+        deadline: hw.deadline || null,
+        durationMinutes: hw.duration_minutes || 45,
+        lessonTitle: lesson.title || '',
+        chapterTitle: ch.title || '',
+        classId: ch.class_id || ch.classes?.id || null,
+        className: ch.classes?.name || '',
+        answeredCount: d.answered_count || 0,
+        timeLeftSeconds: d.time_left_seconds,
+        updatedAt: d.updated_at,
+      }
+    })
+    return jsonResponse(items)
+  }
+
+  // Lấy 1 nháp để khôi phục khi mở bài
+  if (req.method === 'GET' && action === 'get-draft') {
+    const homeworkId = url.searchParams.get('homeworkId')
+    if (!homeworkId) return errorResponse('Missing homeworkId', 400)
+    const { data, error } = await serviceRoleClient
+      .from('homework_drafts')
+      .select('answers, time_left_seconds, answered_count, updated_at')
+      .eq('student_id', user.id)
+      .eq('homework_id', homeworkId)
+      .maybeSingle()
+    if (error) return errorResponse(error.message, 500)
+    return jsonResponse(data || null)
+  }
+
+  // Lưu nháp (upsert theo cặp student + homework)
+  if (req.method === 'POST' && action === 'save-draft') {
+    const body = await req.json().catch(() => ({}))
+    const homeworkId: string | undefined = body.homeworkId || body.homework_id
+    if (!homeworkId) return errorResponse('Missing homeworkId', 400)
+    const answers = body.answers && typeof body.answers === 'object'
+      ? { mc: body.answers.mc || {}, tf: body.answers.tf || {}, sa: body.answers.sa || {} }
+      : { mc: {}, tf: {}, sa: {} }
+
+    // Chỉ cho nháp bài đã xuất bản (rẻ: 1 hop select id)
+    const { data: hw } = await serviceRoleClient
+      .from('homeworks')
+      .select('id')
+      .eq('id', homeworkId)
+      .eq('is_published', true)
+      .maybeSingle()
+    if (!hw) return errorResponse('Homework not found or not published', 404)
+
+    const { error: upErr } = await serviceRoleClient
+      .from('homework_drafts')
+      .upsert({
+        student_id: user.id,
+        homework_id: homeworkId,
+        answers,
+        time_left_seconds: typeof body.timeLeft === 'number' ? Math.max(0, Math.floor(body.timeLeft)) : null,
+        answered_count: typeof body.answeredCount === 'number' ? Math.max(0, Math.floor(body.answeredCount)) : 0,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,homework_id' })
+    if (upErr) return errorResponse(upErr.message, 500)
+    return jsonResponse({ saved: true })
+  }
+
+  // Xóa nháp (khi nộp xong hoặc học sinh tự xóa)
+  if ((req.method === 'DELETE' || req.method === 'POST') && action === 'delete-draft') {
+    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+    const homeworkId = url.searchParams.get('homeworkId') || body.homeworkId || body.homework_id
+    if (!homeworkId) return errorResponse('Missing homeworkId', 400)
+    const { error: delErr } = await serviceRoleClient
+      .from('homework_drafts')
+      .delete()
+      .eq('student_id', user.id)
+      .eq('homework_id', homeworkId)
+    if (delErr) return errorResponse(delErr.message, 500)
+    return jsonResponse({ deleted: true })
+  }
+
+  return errorResponse('Method not allowed', 405)
+}

@@ -506,6 +506,10 @@ export const api = {
   // 2 hàm dưới đây vẫn đang được gọi ở app.js / exam-proctoring.js / student-mgmt.js
   // nên giữ lại để tránh lỗi runtime "api.xxx is not a function".
   getHomeworkDetail: (homeworkId, options = {}) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
+  saveDraft: (data, options = {}) => request('homework-detail?action=save-draft', { method: 'POST', body: JSON.stringify(data), silent: true, ...options }),
+  getMyDrafts: () => request('homework-detail?action=my-drafts', { method: 'GET', silent: true }),
+  getDraft: (homeworkId) => request(`homework-detail?action=get-draft&homeworkId=${homeworkId}`, { method: 'GET', silent: true }),
+  deleteDraft: (homeworkId) => request(`homework-detail?action=delete-draft&homeworkId=${homeworkId}`, { method: 'DELETE', silent: true }),
   deleteStudent: (studentId) => request(`create-student?studentId=${studentId}`, { method: 'DELETE' }),
   setUserLock: (userId, locked) => request('user-activity?action=set-lock', { method: 'POST', body: JSON.stringify({ userId, locked }) }),
   logActivity: (data, options = {}) => request('user-activity', { method: 'POST', body: JSON.stringify(data), silent: true, ...options }),
