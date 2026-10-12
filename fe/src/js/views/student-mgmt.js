@@ -826,7 +826,7 @@ async function showUserActivityModal(studentId, studentName) {
             <tbody>
               ${logs.length === 0 ? `<tr><td colspan="3" style="text-align:center; padding:24px; color:#94a3b8;">Chưa có log nào.</td></tr>` : logs.map(l => {
                 const meta = l.metadata || {}
-                const detail = meta.homeworkTitle || meta.lessonTitle || meta.title || meta.lessonId || meta.homeworkId || ''
+                const detail = l.detail || meta.homeworkTitle || meta.lessonTitle || meta.title || meta.lessonId || meta.homeworkId || ''
                 const dur = l.duration_seconds ? ` • ${formatActivitySeconds(l.duration_seconds)}` : ''
                 return `<tr>
                   <td style="white-space:nowrap;">${new Date(l.created_at).toLocaleString('vi-VN')}</td>

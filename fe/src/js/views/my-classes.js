@@ -450,10 +450,22 @@ export function bindMyClassesEvents() {
   }
   flushVideoTrack()
   if (classId && lessonId && state.user?.role === 'STUDENT') {
+    // Tra cứu tên bài/lớp để log audit đọc được ngay, không còn UUID thô
+    let lessonTitle = ''
+    let className = ''
+    for (const ch of (state.classChapters || [])) {
+      const found = (ch.lessons || []).find(l => l.id === lessonId)
+      if (found) {
+        lessonTitle = found.title || ''
+        const cls = (state.classes || []).find(c => c.id === classId)
+        className = cls?.name || ''
+        break
+      }
+    }
     videoTrackStart = Date.now()
-    videoTrackMeta = { lessonId, classId }
+    videoTrackMeta = { lessonId, classId, lessonTitle, className }
     try {
-      api.logActivity({ action: 'LESSON_VIEW', metadata: { lessonId, classId } })
+      api.logActivity({ action: 'LESSON_VIEW', metadata: { lessonId, classId, lessonTitle, className } })
     } catch (_) {}
   }
 

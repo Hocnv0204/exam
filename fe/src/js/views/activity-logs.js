@@ -34,6 +34,7 @@ function formatSecs(total) {
 }
 
 function logDetail(log) {
+  if (log.detail) return log.detail
   const meta = log.metadata || {}
   return meta.homeworkTitle || meta.lessonTitle || meta.title || meta.lessonId || meta.homeworkId || ''
 }

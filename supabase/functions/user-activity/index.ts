@@ -143,6 +143,12 @@ serve(async (req: Request) => {
         .eq('id', userId)
         .maybeSingle()
 
+      const detailMap = await enrichLogDetails(serviceRoleClient, (logs || []) as Array<{ metadata?: Record<string, unknown> }>)
+      const enrichedLogs = (logs || []).map((l: Record<string, unknown>, idx: number) => ({
+        ...(l as object),
+        detail: detailMap.get(idx) || '',
+      }))
+
       return jsonResponse({
         user: profile || null,
         stats: {
@@ -152,7 +158,7 @@ serve(async (req: Request) => {
           homeworkSeconds,
           lastActive: (logs || [])[0]?.created_at || null,
         },
-        logs: logs || [],
+        logs: enrichedLogs,
       })
     }
 
@@ -162,6 +168,61 @@ serve(async (req: Request) => {
     return errorResponse(error.message || 'Unauthorized', 401)
   }
 })
+
+// Dịch metadata thô (lessonId/homeworkId) thành chuỗi chi tiết phục vụ audit.
+// Ưu tiên tên đã lưu trong metadata, thiếu mới tra DB theo lô.
+async function enrichLogDetails(
+  serviceRoleClient: any,
+  logs: Array<{ metadata?: Record<string, unknown> }>,
+): Promise<Map<number, string>> {
+  const lessonIds = new Set<string>()
+  const homeworkIds = new Set<string>()
+  logs.forEach((l) => {
+    const m = l.metadata || {}
+    if (typeof m.lessonId === 'string' && !m.lessonTitle) lessonIds.add(m.lessonId)
+    if (typeof m.homeworkId === 'string' && !m.homeworkTitle) homeworkIds.add(m.homeworkId)
+  })
+
+  const lessonMap = new Map<string, string>()
+  const homeworkMap = new Map<string, string>()
+  const tasks: Promise<void>[] = []
+  if (lessonIds.size > 0) {
+    tasks.push(
+      serviceRoleClient
+        .from('lessons')
+        .select('id, title')
+        .in('id', [...lessonIds])
+        .then(({ data }: { data: Array<{ id: string; title: string }> | null }) => {
+          (data || []).forEach((r) => lessonMap.set(r.id, r.title))
+        })
+    )
+  }
+  if (homeworkIds.size > 0) {
+    tasks.push(
+      serviceRoleClient
+        .from('homeworks')
+        .select('id, title')
+        .in('id', [...homeworkIds])
+        .then(({ data }: { data: Array<{ id: string; title: string }> | null }) => {
+          (data || []).forEach((r) => homeworkMap.set(r.id, r.title))
+        })
+    )
+  }
+  await Promise.all(tasks)
+
+  const result = new Map<number, string>()
+  logs.forEach((l, idx) => {
+    const m = (l.metadata || {}) as Record<string, unknown>
+    const lessonTitle = typeof m.lessonTitle === 'string' && m.lessonTitle
+      ? m.lessonTitle
+      : (typeof m.lessonId === 'string' ? lessonMap.get(m.lessonId) : undefined)
+    const hwTitle = typeof m.homeworkTitle === 'string' && m.homeworkTitle
+      ? m.homeworkTitle
+      : (typeof m.homeworkId === 'string' ? homeworkMap.get(m.homeworkId) : undefined)
+    result.set(idx, (lessonTitle as string) || (hwTitle as string) || '')
+  })
+  return result
+}
 
 // Liệt kê log toàn hệ thống (trang Nhật ký hoạt động của admin).
 // Filters: filterAction, from, to (ISO), classId, search (tên/username).
@@ -222,17 +283,22 @@ async function listActivityLogs(
   if (qErr) return errorResponse(qErr.message, 500)
 
   const total = count ?? 0
+  const detailMap = await enrichLogDetails(
+    serviceRoleClient,
+    (rows || []) as Array<{ metadata?: Record<string, unknown> }>,
+  )
   const items = (rows || []).map((r: {
     id: string; user_id: string; action: string; metadata: Record<string, unknown>;
     duration_seconds: number | null; created_at: string;
     profiles: { full_name: string; username: string } | null;
-  }) => ({
+  }, idx: number) => ({
     id: r.id,
     userId: r.user_id,
     userName: r.profiles?.full_name || r.profiles?.username || r.user_id,
     username: r.profiles?.username || '',
     action: r.action,
     metadata: r.metadata || {},
+    detail: detailMap.get(idx) || '',
     durationSeconds: r.duration_seconds,
     createdAt: r.created_at,
   }))
