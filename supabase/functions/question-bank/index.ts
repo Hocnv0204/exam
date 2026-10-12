@@ -92,6 +92,7 @@ async function createSingleHomeworkFromBank(
     maxScore?: number
     type?: string
     deadline?: string | null
+    maxAttempts?: number | null
     maxViolations?: number
     showSolutions?: boolean
     orderedQuestions: any[]
@@ -103,7 +104,9 @@ async function createSingleHomeworkFromBank(
   const passScore = opts.passScore ?? 5.0
   const maxScore = opts.maxScore ?? 10.0
   const type = opts.type || 'PRACTICE'
-  const finalMaxAttempts = type === 'EXAM' ? 1 : 3
+  const finalMaxAttempts = opts.maxAttempts !== undefined && opts.maxAttempts !== null
+    ? opts.maxAttempts
+    : (type === 'EXAM' ? 1 : 3)
 
   const { data: newHw, error: hwCreateError } = await serviceRoleClient
     .from('homeworks')
@@ -1834,6 +1837,7 @@ serve(async (req: Request) => {
           maxScore = 10.0,
           type = 'PRACTICE',
           deadline = null,
+          maxAttempts = null,
           maxViolations = 3,
           showSolutions = true,
           questionBankIds = [],
@@ -1873,7 +1877,9 @@ serve(async (req: Request) => {
           return errorResponse('Một số câu hỏi được chọn không còn tồn tại trong ngân hàng!', 400)
         }
 
-        const finalMaxAttempts = type === 'EXAM' ? 1 : 3
+        const finalMaxAttempts = maxAttempts !== undefined && maxAttempts !== null
+          ? maxAttempts
+          : (type === 'EXAM' ? 1 : 3)
 
         // ========================================================
         // Kịch bản Hoán vị nhiều Mã đề (Phase 6.1)
@@ -1975,6 +1981,7 @@ serve(async (req: Request) => {
             maxScore,
             type,
             deadline,
+            maxAttempts,
             maxViolations,
             showSolutions,
             orderedQuestions,

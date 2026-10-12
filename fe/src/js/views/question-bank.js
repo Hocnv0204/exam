@@ -3,6 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
 import { parseExamMarkdown, renderMath, renderMarkdown, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
@@ -1307,9 +1308,11 @@ function openCreateFromSelectedModal(questionBankIds) {
               <select id="create-selected-lesson" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px;"><option value="">-- Chọn chương trước --</option></select>
             </div>
           </div>
-          <div>
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Thời gian làm bài (phút)</label>
-            <input type="number" id="create-selected-duration" value="90" min="5" style="width:120px; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px;" />
+          <div style="display:flex; flex-direction:column; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px;">
+            <div style="font-size:13px; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-sliders" style="color:#0066cc;"></i> Cấu hình bài tập
+            </div>
+            ${renderHomeworkConfigFields('cs')}
           </div>
         </div>
         <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:flex-end; gap:12px;">
@@ -1345,18 +1348,20 @@ function openCreateFromSelectedModal(questionBankIds) {
       lessonSel.innerHTML = '<option value="">-- Chọn bài học --</option>' + (lessons || []).map(l => `<option value="${l.id}">${escapeHtmlAttr(l.title)}</option>`).join('')
     } catch (_) { lessonSel.innerHTML = '<option value="">Lỗi tải bài học</option>' }
   })
+  bindHomeworkConfigFields('cs')
+  bindHomeworkTypeCoupling('create-selected-type', 'cs-attempts', 'cs-violations')
   document.getElementById('create-selected-submit-btn')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget
     const title = document.getElementById('create-selected-title')?.value.trim()
     const targetLessonId = lessonSel?.value
     const type = document.getElementById('create-selected-type')?.value || 'PRACTICE'
-    const durationMinutes = Number(document.getElementById('create-selected-duration')?.value) || 90
+    const cfg = collectHomeworkConfig('cs')
     if (!title) return showToast('Vui lòng nhập tên đề!', 'warning')
     if (!targetLessonId) return showToast('Vui lòng chọn bài học đích!', 'warning')
     btn.disabled = true
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tạo...'
     try {
-      const res = await api.createHomeworkFromBankQuestions({ targetLessonId, title, type, durationMinutes, questionBankIds })
+      const res = await api.createHomeworkFromBankQuestions({ targetLessonId, title, type, durationMinutes: cfg.durationMinutes, maxAttempts: type === 'EXAM' ? 1 : cfg.maxAttempts, maxViolations: cfg.maxViolations, deadline: cfg.deadline, showSolutions: cfg.showSolutions, questionBankIds })
       showToast(res.message || 'Đã tạo đề thành công!', 'success')
       selectedQuestionIds.clear()
       updateBulkActionBar()
@@ -2353,10 +2358,13 @@ async function openMatrixGeneratorModal() {
                   <option value="EXAM">Kiểm tra / Thi chính thức (Chỉ 1 lần làm)</option>
                 </select>
               </div>
-              <div>
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Thời gian làm bài (Phút)</label>
-                <input type="number" id="gen-exam-duration" min="5" value="90" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff;" />
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px; background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:12px;">
+              <div style="font-size:13px; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-sliders" style="color:#0066cc;"></i> Cấu hình bài tập
               </div>
+              ${renderHomeworkConfigFields('mx')}
             </div>
 
             <!-- Destination lesson selection -->
@@ -2384,10 +2392,6 @@ async function openMatrixGeneratorModal() {
 
             <!-- Toggles -->
             <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
-              <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#334155; cursor:pointer;">
-                <input type="checkbox" id="gen-show-solutions" style="width:16px; height:16px; cursor:pointer;" />
-                Cho phép học sinh xem lời giải chi tiết sau khi nộp
-              </label>
               <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#334155; cursor:pointer;" title="Tự động tạo 4 mã đề hoán vị trật tự câu hỏi và phương án ABCD (Mã 101, 102, 103, 104)">
                 <input type="checkbox" id="gen-multi-variants" style="width:16px; height:16px; cursor:pointer;" />
                 <i class="fa-solid fa-shuffle" style="color:#0284c7;"></i> Tự động tạo 4 mã đề hoán vị (101, 102, 103, 104)
@@ -3071,6 +3075,10 @@ async function openMatrixGeneratorModal() {
   // Trigger initial availability check
   checkLiveAvailability()
 
+  // Cụm cấu hình bài tập dùng chung form tạo bài tập
+  bindHomeworkConfigFields('mx')
+  bindHomeworkTypeCoupling('gen-exam-type', 'mx-attempts', 'mx-violations')
+
   // Step 1 -> Step 2: Roll & Preview
   const btnRollPreview = document.getElementById('btn-roll-preview')
   const btnFinalize = document.getElementById('btn-finalize-create-hw')
@@ -3207,7 +3215,7 @@ async function openMatrixGeneratorModal() {
       }
 
       const activeTitle = titleInput?.value || 'Đề kiểm tra xem trước'
-      const activeDuration = document.getElementById('gen-exam-duration')?.value || 60
+      const activeDuration = document.getElementById('mx-duration')?.value || 90
       document.getElementById('preview-exam-title').textContent = activeTitle
       document.getElementById('preview-meta-desc').textContent = `${generatorState.previewQuestions.length} câu hỏi • ${activeDuration} phút`
 
@@ -3519,8 +3527,8 @@ async function openMatrixGeneratorModal() {
       return showToast('Vui lòng chọn Bài học đích để lưu trữ bài tập!', 'warning')
     }
     const type = document.getElementById('gen-exam-type')?.value || 'PRACTICE'
-    const durationMinutes = Number(document.getElementById('gen-exam-duration')?.value) || 90
-    const showSolutions = document.getElementById('gen-show-solutions')?.checked ?? false
+    const cfg = collectHomeworkConfig('mx')
+    const showSolutions = cfg.showSolutions
 
     const questionBankIds = generatorState.previewQuestions.map(q => q.id)
     const isMultiVariants = document.getElementById('gen-multi-variants')?.checked
@@ -3534,7 +3542,10 @@ async function openMatrixGeneratorModal() {
         targetLessonId: destLessonId,
         title,
         type,
-        durationMinutes,
+        durationMinutes: cfg.durationMinutes,
+        maxAttempts: type === 'EXAM' ? 1 : cfg.maxAttempts,
+        maxViolations: cfg.maxViolations,
+        deadline: cfg.deadline,
         passScore: 5.0,
         maxScore: 10.0,
         showSolutions,

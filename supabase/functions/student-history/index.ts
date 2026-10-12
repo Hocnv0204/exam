@@ -609,7 +609,7 @@ serve(async (req: Request) => {
         })
       }
 
-      // Phân trang + tìm kiếm ở server cho màn theo dõi nộp bài (bài nộp sớm nhất trước)
+      // Phân trang + tìm kiếm ở server cho màn theo dõi nộp bài (bài nộp mới nhất trước)
       const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
       const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get('pageSize') || '20', 10) || 20))
       const search = (url.searchParams.get('search') || '').trim()
@@ -682,7 +682,7 @@ serve(async (req: Request) => {
           )
         `, { count: 'exact' })
         .eq('status', 'SUBMITTED')
-        .order('submitted_at', { ascending: true })
+        .order('submitted_at', { ascending: false })
         .not('student_id', 'is', null)
 
       if (user?.role === 'STUDENT') {

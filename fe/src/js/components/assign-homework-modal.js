@@ -198,8 +198,8 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
             </div>
           </div>
 
-          <!-- Thời gian & Lần làm tối đa -->
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <!-- Thời gian, vi phạm & Lần làm tối đa (giống form tạo bài tập) -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
             <div>
               <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
                 <i class="fa-regular fa-clock" style="color:#0284c7;"></i> Thời gian (Phút)
@@ -209,10 +209,25 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
 
             <div>
               <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
+                <i class="fa-solid fa-triangle-exclamation" style="color:#64748b;"></i> Giới hạn vi phạm
+              </label>
+              <input type="number" id="assign-custom-violations" class="form-input" value="3" min="1" max="10" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+            </div>
+
+            <div>
+              <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
                 <i class="fa-solid fa-rotate" style="color:#64748b;"></i> Lần làm tối đa
               </label>
               <input type="number" id="assign-custom-attempts" class="form-input" value="${hwMaxAttempts}" min="0" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;" ${isExam ? 'disabled title="Bài thi cố định 1 lần làm"' : ''}>
             </div>
+          </div>
+
+          <!-- Hiển thị đáp án (giống form tạo bài tập, mặc định theo bài gốc) -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px;">
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin:0;">
+              <input type="checkbox" id="assign-show-solutions" ${homework.showSolutions !== false && homework.show_solutions !== false ? 'checked' : ''} style="width:16px; height:16px; accent-color:#0066cc; cursor:pointer;">
+              <span style="font-size:12.5px; font-weight:600; color:#334155;"><i class="fa-regular fa-eye" style="color:#0066cc; margin-right:4px;"></i> Hiển thị đáp án & giải thích sau khi nộp</span>
+            </label>
           </div>
 
           <!-- Publish State -->
@@ -265,7 +280,9 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
       }
       const customDuration = parseInt(document.getElementById('assign-custom-duration')?.value || String(hwDuration), 10)
       const customAttempts = parseInt(document.getElementById('assign-custom-attempts')?.value || '0', 10)
+      const customViolations = parseInt(document.getElementById('assign-custom-violations')?.value || '3', 10)
       const isPublished = document.getElementById('assign-is-published')?.checked !== false
+      const showSolutions = document.getElementById('assign-show-solutions')?.checked !== false
 
       let customDeadline = null
       const dateVal = document.getElementById('assign-deadline-date')?.value
@@ -293,6 +310,8 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
             deadline: customDeadline,
             durationMinutes: customDuration,
             maxAttempts: isExam ? 1 : customAttempts,
+            maxViolations: customViolations,
+            showSolutions,
             isPublished
           }
         })
@@ -338,6 +357,13 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
       showToast('Đã xóa hạn nộp bài', 'info')
     }
   })
+
+  // Coupling giống form tạo bài tập: bài thi thì khóa lần làm, mở vi phạm và ngược lại
+  const assignViolationsInput = document.getElementById('assign-custom-violations')
+  if (assignViolationsInput) {
+    assignViolationsInput.disabled = !isExam
+    assignViolationsInput.style.backgroundColor = isExam ? '#ffffff' : '#f1f5f9'
+  }
 
   const updateManualModeAvailability = () => {
     const checkedCount = document.querySelectorAll('.target-class-checkbox:checked').length

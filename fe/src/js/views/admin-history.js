@@ -1025,7 +1025,7 @@ export async function loadAdminHistoryData(classId = '', homeworkId = '', mode =
       if (selectedHomeworkId) {
         queryStr += `&homeworkId=${selectedHomeworkId}`
       }
-      // Phân trang + tìm kiếm ở server cho danh sách bài nộp (bài nộp sớm nhất trước)
+      // Phân trang + tìm kiếm ở server cho danh sách bài nộp (bài nộp mới nhất trước)
       if (!selectedHomeworkId) {
         queryStr += `&page=${currentPage}&pageSize=${PAGE_SIZE}`
         if (searchQuery.trim()) {
@@ -1347,7 +1347,7 @@ function renderHistoryPager() {
     nums += `<button data-hist-page="${p}" style="min-width:32px; height:32px; border-radius:8px; border:1px solid ${p === currentPage ? '#0066cc' : '#cbd5e1'}; background:${p === currentPage ? '#0066cc' : '#ffffff'}; color:${p === currentPage ? '#ffffff' : '#334155'}; font-weight:700; font-size:13px; cursor:pointer;">${p}</button>`
   }
   pager.innerHTML = `
-    <div style="font-size:13px; color:#64748b;">Hiển thị ${from}–${to} / ${totalCount} bài nộp (sớm nhất trước)</div>
+    <div style="font-size:13px; color:#64748b;">Hiển thị ${from}–${to} / ${totalCount} bài nộp (mới nhất trước)</div>
     ${totalPages <= 1 ? '' : `
     <div style="display:flex; align-items:center; gap:6px;">
       <button data-hist-page="prev" ${currentPage <= 1 ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${currentPage <= 1 ? '0.4' : '1'};">‹ Trước</button>
