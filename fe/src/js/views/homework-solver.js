@@ -274,6 +274,9 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
                   <i class="fa-solid fa-file-arrow-down" style="font-size:14px; color:#0066cc;"></i> Tải file PDF
                 </button>
               ` : ''}
+              <button type="button" class="btn-secondary btn-manual-save-draft" style="padding:7px 14px; font-size:13px; font-weight:600; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; flex-shrink:0;" title="Lưu nháp bài làm ngay">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu nháp
+              </button>
               <div class="timer-box" style="padding:8px 16px; font-size:16px; font-weight:700; border-radius:8px; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fa-regular fa-clock"></i> <span id="exam-timer-display">${hw.durationMinutes || 45}:00</span>
               </div>
@@ -685,6 +688,9 @@ export function renderHomeworkSolverView() {
                 </div>
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap; flex-shrink:0;">
                   <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
+                  <button type="button" class="btn-secondary btn-manual-save-draft" style="padding:6px 14px; font-size:13px; font-weight:600; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; flex-shrink:0;" title="Lưu nháp bài làm ngay">
+                    <i class="fa-solid fa-floppy-disk"></i> Lưu nháp
+                  </button>
                   ${hw.pdfUrl ? `
                     <a id="btn-download-pdf-mode" href="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" download="${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="padding:6px 14px; font-size:13px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; flex-shrink:0; cursor:pointer;" title="Tải file PDF bài tập về máy">
                       <i class="fa-solid fa-download"></i> Tải PDF
@@ -869,19 +875,17 @@ export function bindHomeworkSolverEvents() {
     const answered = countAnswered()
     openModal(
       'Bài đang làm dở',
-      `<div style="display:flex; flex-direction:column; gap:12px;">
+      `<div style="display:flex; flex-direction:column; gap:10px;">
         <p style="font-size:14px; color:#475569; line-height:1.6; margin:0;">
           Bạn đã làm được <strong>${answered} câu</strong>. Thoát bây giờ bài làm sẽ ra sao?
         </p>
-        <button id="exit-save-draft-btn" class="btn-primary" style="padding:10px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+        <button id="exit-save-draft-btn" class="btn-primary" style="width:100%; padding:11px; font-size:14px; font-weight:700; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
           <i class="fa-solid fa-floppy-disk"></i> Lưu nháp & thoát
         </button>
-        <button id="exit-discard-btn" class="btn-secondary" style="padding:10px; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer;">
+        <button id="exit-discard-btn" style="width:100%; padding:11px; font-size:14px; font-weight:600; border-radius:10px; cursor:pointer; background:#ffffff; border:1px solid #fecaca; color:#dc2626; display:flex; align-items:center; justify-content:center; gap:8px;">
           Thoát không lưu
         </button>
-        <button id="exit-stay-btn" class="btn-secondary" style="padding:10px; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer;">
-          Ở lại làm tiếp
-        </button>
+        <p style="font-size:12px; color:#94a3b8; margin:2px 0 0 0; text-align:center;">Bấm Hủy hoặc <i class="fa-solid fa-xmark"></i> để ở lại làm tiếp</p>
       </div>`
     )
     setTimeout(() => {
@@ -906,12 +910,40 @@ export function bindHomeworkSolverEvents() {
         closeModal()
         window.location.hash = fallback
       })
-      document.getElementById('exit-stay-btn')?.addEventListener('click', () => closeModal())
     }, 50)
   }
 
   document.querySelectorAll('.btn-exit-solver').forEach(btn => {
     btn.addEventListener('click', confirmExitSolver)
+  })
+
+  // Nút lưu nháp thủ công: học sinh chủ động lưu bất cứ lúc nào
+  document.querySelectorAll('.btn-manual-save-draft').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (solverSubmitted) {
+        showToast('Bài đã nộp, không cần lưu nháp nữa.', 'info')
+        return
+      }
+      if (countAnswered() === 0) {
+        showToast('Bạn chưa làm câu nào để lưu nháp!', 'warning')
+        return
+      }
+      btn.disabled = true
+      const original = btn.innerHTML
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang lưu...'
+      try {
+        saveDraftToStorage(hw.id, studentAnswers, solverTimeLeft)
+        serverDraftDirty = true
+        await flushServerDraft(false)
+        const now = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        showToast(`Đã lưu nháp lúc ${now}! Mở lại bài này để tiếp tục.`, 'success')
+      } catch (e) {
+        showToast('Lưu nháp thất bại, thử lại sau.', 'error')
+      } finally {
+        btn.disabled = false
+        btn.innerHTML = original
+      }
+    })
   })
 
   // Cảnh báo native khi tải lại / đóng tab giữa chừng + lưu nháp server
