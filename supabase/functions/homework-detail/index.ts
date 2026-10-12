@@ -94,6 +94,19 @@ serve(async (req: Request) => {
       }
     }
 
+    // 2b. Bài giao riêng: chỉ học sinh trong danh sách mới được xem/làm
+    let assignedIds: string[] = []
+    if (!isTrialLesson) {
+      const { data: targets } = await serviceRoleClient
+        .from('homework_targets')
+        .select('student_id')
+        .eq('homework_id', homeworkId)
+      assignedIds = (targets || []).map((t: { student_id: string }) => t.student_id)
+      if (user && user.role === 'STUDENT' && assignedIds.length > 0 && !assignedIds.includes(user.id)) {
+        return errorResponse('Forbidden: This homework was assigned to other students', 403)
+      }
+    }
+
     // 3. Concurrently fetch: Attempts Count, Signed PDF URL, and Questions
     const attemptsPromise = (user && user.role === 'STUDENT')
       ? serviceRoleClient
@@ -171,6 +184,7 @@ serve(async (req: Request) => {
         lessonId: homework.lesson_id,
         chapterId: (homework.lessons as unknown as { chapter_id: string })?.chapter_id,
         classId: homeworkClassId,
+        assignedStudentIds: assignedIds,
       },
       questions: questionsResult,
       attemptsCount,

@@ -48,6 +48,7 @@ serve(async (req: Request) => {
             created_at,
             pass_score,
             max_score,
+            homework_targets (student_id),
             lessons!inner (
               id,
               title,
@@ -86,7 +87,13 @@ serve(async (req: Request) => {
           if (!latestByHw.has(s.homework_id)) latestByHw.set(s.homework_id, s)
         }
 
-        const merged = (hwRes.data || []).map((hw: any) => {
+        const merged = (hwRes.data || [])
+          // Bài giao riêng: chỉ hiện khi mình nằm trong danh sách target
+          .filter((hw: any) => {
+            const targets = (hw.homework_targets || []) as Array<{ student_id: string }>
+            return targets.length === 0 || targets.some((t) => t.student_id === user.id)
+          })
+          .map((hw: any) => {
           const classInfo = (hw.lessons as any)?.chapters?.classes
           const sub = latestByHw.get(hw.id) || null
           const score = sub ? Number(sub.total_score) : null
@@ -159,6 +166,7 @@ serve(async (req: Request) => {
               type,
               pdf_path,
               created_at,
+              homework_targets (student_id),
               lessons!inner (
                 id,
                 title,
@@ -186,7 +194,11 @@ serve(async (req: Request) => {
         if (hwRes.error) return errorResponse(hwRes.error.message, 500)
         if (subRes.error) return errorResponse(subRes.error.message, 500)
 
-        const homeworks = hwRes.data || []
+        // Bài giao riêng: chỉ hiện khi mình nằm trong danh sách target
+        const homeworks = (hwRes.data || []).filter((hw: any) => {
+          const targets = (hw.homework_targets || []) as Array<{ student_id: string }>
+          return targets.length === 0 || targets.some((t) => t.student_id === user.id)
+        })
         const submissions = subRes.data || []
 
         const submittedHwIds = new Set((submissions || []).map(s => s.homework_id))
@@ -243,6 +255,7 @@ serve(async (req: Request) => {
         type,
         max_violations,
         show_solutions,
+        homework_targets (student_id),
         lessons${needsInnerLesson ? '!inner' : ''} (
           id,
           title,
@@ -350,6 +363,7 @@ serve(async (req: Request) => {
         const lessonInfo = hw.lessons
         const chapterInfo = lessonInfo?.chapters
         const classInfo = chapterInfo?.classes
+        const targetIds = ((hw.homework_targets || []) as Array<{ student_id: string }>).map((t) => t.student_id)
 
         return {
           id: hw.id,
@@ -371,7 +385,9 @@ serve(async (req: Request) => {
           chapterId: chapterInfo?.id || lessonInfo?.chapter_id || null,
           chapterTitle: chapterInfo?.title || '',
           classId: classInfo?.id || chapterInfo?.class_id || null,
-          className: classInfo?.name || ''
+          className: classInfo?.name || '',
+          assignedStudentIds: targetIds,
+          targetCount: targetIds.length
         }
       })
 
@@ -424,6 +440,7 @@ serve(async (req: Request) => {
         type,
         maxViolations,
         showSolutions,
+        assignedStudentIds,
       } = validation.data
 
       // Automatically enforce max_attempts = 1 if it's an EXAM
@@ -459,6 +476,18 @@ serve(async (req: Request) => {
 
       if (homeworkError || !homework) {
         return errorResponse(`Failed to create homework: ${homeworkError?.message}`, 500)
+      }
+
+      // Giao riêng cho từng học sinh (không chọn = bài chung cả lớp)
+      const targetIds = (assignedStudentIds || []).filter(Boolean)
+      if (targetIds.length > 0) {
+        const { error: targetErr } = await serviceRoleClient
+          .from('homework_targets')
+          .insert(targetIds.map((sid: string) => ({ homework_id: homework.id, student_id: sid })))
+        if (targetErr) {
+          await serviceRoleClient.from('homeworks').delete().eq('id', homework.id)
+          return errorResponse(`Failed to assign students: ${targetErr.message}`, 500)
+        }
       }
 
       // 1. Bulk insert questions
@@ -930,7 +959,7 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts, type, maxViolations, showSolutions } = validation.data
+      const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts, type, maxViolations, showSolutions, assignedStudentIds } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
       if (lessonId !== undefined) updateData.lesson_id = lessonId
@@ -1103,6 +1132,22 @@ serve(async (req: Request) => {
           EdgeRuntime.waitUntil(regradeTask)
         } else {
           await regradeTask
+        }
+      }
+
+      // Đồng bộ danh sách giao riêng (có truyền = ghi đè; không truyền = giữ nguyên)
+      if (assignedStudentIds !== undefined) {
+        const { error: delTargetErr } = await serviceRoleClient
+          .from('homework_targets')
+          .delete()
+          .eq('homework_id', homeworkId)
+        if (delTargetErr) return errorResponse(delTargetErr.message, 500)
+        const targetIds = (assignedStudentIds || []).filter(Boolean)
+        if (targetIds.length > 0) {
+          const { error: insTargetErr } = await serviceRoleClient
+            .from('homework_targets')
+            .insert(targetIds.map((sid: string) => ({ homework_id: homeworkId, student_id: sid })))
+          if (insTargetErr) return errorResponse(insTargetErr.message, 500)
         }
       }
 

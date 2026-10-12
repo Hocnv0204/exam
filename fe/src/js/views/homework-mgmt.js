@@ -549,6 +549,7 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <strong style="color:#0f172a; font-size:14px;">${hw.title}</strong>
               ${typeBadge}
+              ${(hw.targetCount || 0) > 0 ? `<span class="badge" style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10.5px;" title="Bài giao riêng cho học sinh được chọn"><i class="fa-solid fa-user-check"></i> Riêng: ${hw.targetCount} HS</span>` : ''}
               ${hw.sourceHomeworkId ? `<span class="badge" style="background:#eff6ff; color:#0284c7; border:1px solid #bfdbfe; padding:2px 6px; border-radius:4px; font-weight:600; font-size:10.5px;" title="Bài tập được gán/sao chép từ lớp khác"><i class="fa-solid fa-copy"></i> Bản sao</span>` : ''}
             </div>
             ${hw.pdfPath ? `

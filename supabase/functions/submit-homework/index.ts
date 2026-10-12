@@ -75,6 +75,18 @@ serve(async (req: Request) => {
 
     const classIdOfHomework = (homework.lessons as unknown as { chapters: { class_id: string } })?.chapters?.class_id
 
+    // Bài giao riêng: chỉ học sinh trong danh sách mới được nộp
+    if (user && !isTrialHomework) {
+      const { data: targets } = await serviceRoleClient
+        .from('homework_targets')
+        .select('student_id')
+        .eq('homework_id', homeworkId)
+      const targetIds = (targets || []).map((t: { student_id: string }) => t.student_id)
+      if (targetIds.length > 0 && !targetIds.includes(user.id)) {
+        return errorResponse('Forbidden: This homework was assigned to other students', 403)
+      }
+    }
+
     // Check session for EXAM (if student)
     let examSessionId = null
     if (homework.type === 'EXAM' && user) {

@@ -629,18 +629,14 @@ export function renderCreateHwView() {
             <!-- RIGHT COLUMN: CONFIG & ANSWER KEY MATRIX (40%) -->
             <div class="question-column" style="overflow-y:auto; max-height:calc(100vh - 120px); display:flex; flex-direction:column; gap:20px; padding-right:4px;">
               
-              <!-- Question Bank Shortcut Banner -->
-              <div style="background:linear-gradient(135deg, #eff6ff, #f0fdf4); border:1px solid #bfdbfe; border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <span style="font-size:22px; color:#0284c7;"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
-                  <div>
-                    <div style="font-size:13px; font-weight:700; color:#0f172a;">Tạo đề ngẫu nhiên từ Ngân hàng đề?</div>
-                    <div style="font-size:12px; color:#64748b;">Bốc đề theo ma trận số câu, theo Lớp, Chương hoặc Bài học đã chuẩn bị sẵn.</div>
-                  </div>
-                </div>
-                <button type="button" onclick="window.location.hash='#question-bank'" style="padding:6px 14px; font-size:12px; font-weight:600; border-radius:8px; background:#0284c7; color:#ffffff; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(2,132,199,0.25);">
-                  <i class="fa-solid fa-boxes-stacked"></i> Mở Ngân hàng câu hỏi
-                </button>
+              <!-- Question Map (Sơ đồ câu hỏi) -->
+              <div class="card" style="margin:0; padding:14px 16px;">
+                <style>.hw-map-active{ outline:2px solid #0066cc !important; }</style>
+                <h3 style="font-family:var(--font-heading); font-size:14px; font-weight:700; margin:0 0 4px 0; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-map" style="color:#0066cc;"></i> Sơ đồ câu hỏi
+                </h3>
+                <div style="font-size:11px; color:#64748b; margin-bottom:10px;">Bấm vào ô để nhảy tới câu đó • <span style="color:#16a34a; font-weight:700;">xanh</span>: đã có đáp án • <span style="color:#d97706; font-weight:700;">vàng</span>: thiếu đáp án</div>
+                <div id="hw-question-map"></div>
               </div>
 
               <!-- General Homework Info Card -->
@@ -727,6 +723,23 @@ export function renderCreateHwView() {
                       <button type="button" id="hw-deadline-clear-btn" title="Xóa hạn chót" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; cursor:pointer; color:#64748b; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; height:37px; transition:all 0.2s;" onmouseover="this.style.background='#fee2e2'; this.style.color='#ef4444'; this.style.borderColor='#fca5a5';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'; this.style.borderColor='#cbd5e1';">
                         <i class="fa-solid fa-xmark"></i>
                       </button>
+                    </div>
+                  </div>
+
+                  <!-- Assign to specific students -->
+                  <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 14px;">
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:#92400e;">
+                      <i class="fa-solid fa-user-check"></i> Giao riêng cho học sinh (tùy chọn)
+                    </label>
+                    <div style="font-size:11px; color:#64748b; margin-bottom:8px;">Không chọn ai = cả lớp đều thấy bài này. Tick chọn để chỉ các em được chọn mới thấy và làm bài.</div>
+                    <div style="display:flex; gap:8px; margin-bottom:8px;">
+                      <button type="button" id="btn-assign-select-all" style="background:none; border:none; color:#0066cc; font-size:12px; font-weight:600; cursor:pointer; padding:0;">Chọn tất cả</button>
+                      <span style="color:#cbd5e1;">|</span>
+                      <button type="button" id="btn-assign-deselect-all" style="background:none; border:none; color:#64748b; font-size:12px; font-weight:600; cursor:pointer; padding:0;">Bỏ chọn</button>
+                      <span id="assign-selected-count" style="margin-left:auto; font-size:12px; font-weight:700; color:#92400e;"></span>
+                    </div>
+                    <div id="assign-students-list" style="max-height:160px; overflow-y:auto; border:1px solid #fde68a; border-radius:6px; padding:8px 10px; background:#ffffff; font-size:13px; color:#64748b;">
+                      Chọn lớp học ở trên để tải danh sách học sinh...
                     </div>
                   </div>
 
@@ -947,7 +960,84 @@ export function bindCreateHwEvents() {
       bindInteractiveCardEvents()
       renderMath(previewContainer)
     }
+    renderHwQuestionMap()
   }
+
+  // Sơ đồ câu hỏi: nhóm theo loại, bấm ô để cuộn tới câu (như lịch sử bài tập)
+  const renderHwQuestionMap = () => {
+    const mapEl = document.getElementById('hw-question-map')
+    if (!mapEl) return
+    if (currentMode !== 'INTERACTIVE') {
+      mapEl.innerHTML = `<div style="font-size:12px; color:#94a3b8; font-style:italic;">Sơ đồ chỉ khả dụng ở chế độ đề tương tác.</div>`
+      return
+    }
+    if (!Array.isArray(interactiveQuestions) || interactiveQuestions.length === 0) {
+      mapEl.innerHTML = `<div style="font-size:12px; color:#94a3b8; font-style:italic;">Chưa có câu hỏi nào. Thêm câu hỏi để xem sơ đồ.</div>`
+      return
+    }
+    const hasAnswerKey = (q) => {
+      if (q.questionType === 'MULTIPLE_CHOICE') return Boolean(q.mcAnswer)
+      if (q.questionType === 'TRUE_FALSE') {
+        const t = q.tfAnswers || {}
+        return ['a', 'b', 'c', 'd'].every(k => t[k] !== undefined)
+      }
+      if (q.questionType === 'SHORT_ANSWER') return q.saAnswer !== undefined && q.saAnswer !== null && String(q.saAnswer).trim() !== ''
+      return false
+    }
+    const groups = [
+      { type: 'MULTIPLE_CHOICE', title: 'Trắc nghiệm' },
+      { type: 'TRUE_FALSE', title: 'Đúng / Sai' },
+      { type: 'SHORT_ANSWER', title: 'Trả lời ngắn' },
+    ]
+    mapEl.innerHTML = groups.map(g => {
+      const list = interactiveQuestions.filter(q => q.questionType === g.type)
+      if (list.length === 0) return ''
+      return `
+        <div style="margin-bottom:10px;">
+          <div style="font-size:11px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+            <span>${g.title}</span>
+            <span style="font-size:10px; background:#f1f5f9; color:#64748b; padding:2px 6px; border-radius:4px;">${list.length} câu</span>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(36px, 1fr)); gap:6px;">
+            ${list.map(q => {
+              const done = hasAnswerKey(q)
+              const num = q.questionNumber
+              return `
+                <div class="hw-map-cell" data-qnum="${num}" title="Câu ${num} — ${done ? 'đã có đáp án' : 'thiếu đáp án'}" style="
+                  background:${done ? '#dcfce7' : '#fef3c7'};
+                  color:${done ? '#16a34a' : '#d97706'};
+                  border:1px solid ${done ? '#10b981' : '#f59e0b'};
+                  height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+                  font-weight:700; font-size:13px; cursor:pointer; user-select:none;">
+                  ${num}
+                </div>`
+            }).join('')}
+          </div>
+        </div>`
+    }).join('')
+
+    mapEl.querySelectorAll('.hw-map-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const qNum = cell.getAttribute('data-qnum')
+        const target = document.querySelector(`#interactive-preview-container .interactive-q-card[data-qnum="${qNum}"]`)
+        mapEl.querySelectorAll('.hw-map-cell').forEach(c => c.classList.remove('hw-map-active'))
+        cell.classList.add('hw-map-active')
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          const prevOutline = target.style.outline
+          const prevBg = target.style.background
+          target.style.outline = '2px solid #0066cc'
+          target.style.background = '#eff6ff'
+          setTimeout(() => {
+            target.style.outline = prevOutline
+            target.style.background = prevBg
+            cell.classList.remove('hw-map-active')
+          }, 1600)
+        }
+      })
+    })
+  }
+  window.refreshHwQuestionMap = renderHwQuestionMap
 
   // Synchronize counts and answers with the right column answer matrix
   const syncCountsFromInteractive = () => {
@@ -1746,12 +1836,65 @@ export function bindCreateHwEvents() {
     }
   }
 
-  classSelect?.addEventListener('change', () => {
-    updateChaptersDropdown()
+  // Danh sách học sinh để giao riêng (lọc theo lớp đang chọn)
+  const assignListEl = () => document.getElementById('assign-students-list')
+  const updateAssignCount = () => {
+    const n = document.querySelectorAll('.assign-student-cb:checked').length
+    const el = document.getElementById('assign-selected-count')
+    if (el) el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : ''
+  }
+  const collectAssignStudentIds = () =>
+    Array.from(document.querySelectorAll('.assign-student-cb:checked')).map(cb => cb.value)
+
+  async function loadAssignStudents(classId, preselected = null) {
+    const box = assignListEl()
+    if (!box) return
+    if (!classId) {
+      box.innerHTML = 'Chọn lớp học ở trên để tải danh sách học sinh...'
+      updateAssignCount()
+      return
+    }
+    box.innerHTML = '<span style="color:#0284c7;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải học sinh...</span>'
+    try {
+      const res = await api.getStudents({ classId }, { silent: true })
+      const list = Array.isArray(res) ? res : (res?.items || [])
+      const pre = new Set(preselected || [])
+      if (list.length === 0) {
+        box.innerHTML = 'Lớp này chưa có học sinh nào.'
+      } else {
+        box.innerHTML = list.map(s => `
+          <label style="display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; cursor:pointer; font-size:13px; color:#334155;">
+            <input type="checkbox" class="assign-student-cb" value="${s.id}" ${pre.has(s.id) ? 'checked' : ''} style="width:15px; height:15px; accent-color:#0066cc; cursor:pointer;">
+            <span style="font-weight:600;">${s.fullName || s.username}</span>
+            <span style="font-size:11px; color:#94a3b8;">${s.username || ''}</span>
+          </label>
+        `).join('')
+        box.querySelectorAll('.assign-student-cb').forEach(cb => {
+          cb.addEventListener('change', updateAssignCount)
+        })
+      }
+    } catch (err) {
+      box.innerHTML = 'Không tải được danh sách học sinh.'
+    }
+    updateAssignCount()
+  }
+
+  document.getElementById('btn-assign-select-all')?.addEventListener('click', () => {
+    document.querySelectorAll('.assign-student-cb').forEach(cb => { cb.checked = true })
+    updateAssignCount()
+  })
+  document.getElementById('btn-assign-deselect-all')?.addEventListener('click', () => {
+    document.querySelectorAll('.assign-student-cb').forEach(cb => { cb.checked = false })
+    updateAssignCount()
   })
 
   chapterSelect?.addEventListener('change', (e) => {
     updateLessonsDropdown(e.target.value)
+  })
+
+  classSelect?.addEventListener('change', () => {
+    updateChaptersDropdown()
+    loadAssignStudents(classSelect?.value)
   })
 
   // Trigger initial dropdown load
@@ -1815,6 +1958,11 @@ export function bindCreateHwEvents() {
   }
 
   initDropdowns()
+
+  // Nạp danh sách học sinh để giao riêng (edit: tick sẵn các em đã chọn)
+  const initAssignClassId = (isEdit && hw ? (hw.classId || hw.class_id) : null)
+    || (classSelect?.value || null)
+  loadAssignStudents(initAssignClassId, isEdit && hw ? (hw.assignedStudentIds || []) : null)
 
   // Handler for updating question counts config
   const updateConfig = () => {
@@ -2136,6 +2284,11 @@ export function bindCreateHwEvents() {
 
   bindMatrixEvents()
 
+  // Vẽ sơ đồ câu hỏi lần đầu + tự refresh khi sửa đáp án ở ma trận
+  renderHwQuestionMap()
+  document.getElementById('answer-matrix-container')?.addEventListener('input', () => window.refreshHwQuestionMap?.())
+  document.getElementById('answer-matrix-container')?.addEventListener('click', () => window.refreshHwQuestionMap?.())
+
   // Save Homework Event
   document.getElementById('save-homework-btn')?.addEventListener('click', async () => {
     let title = document.getElementById('hw-title')?.value.trim()
@@ -2350,7 +2503,8 @@ export function bindCreateHwEvents() {
           maxAttempts,
           type: typeVal,
           maxViolations,
-          showSolutions
+          showSolutions,
+          assignedStudentIds: collectAssignStudentIds()
         })
         showToast(`Đã cập nhật bài tập "${finalTitle}" thành công!`, 'success')
         window.location.hash = '#homework-mgmt'
@@ -2369,7 +2523,8 @@ export function bindCreateHwEvents() {
           maxAttempts,
           type: typeVal,
           maxViolations,
-          showSolutions
+          showSolutions,
+          assignedStudentIds: collectAssignStudentIds()
         })
         showToast(`Đã xuất bản bài tập "${finalTitle}" thành công!`, 'success')
         window.location.hash = '#homework-mgmt'

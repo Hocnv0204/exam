@@ -145,6 +145,7 @@ export const createHomeworkSchema = z.object({
   type: z.enum(['PRACTICE', 'EXAM']).optional().default('PRACTICE'),
   maxViolations: z.number().int().positive().nullable().optional(),
   showSolutions: z.boolean().optional().default(true),
+  assignedStudentIds: z.array(z.string().uuid()).optional().default([]),
 })
 
 export const updateHomeworkSchema = z.object({
@@ -162,6 +163,7 @@ export const updateHomeworkSchema = z.object({
   type: z.enum(['PRACTICE', 'EXAM']).optional(),
   maxViolations: z.number().int().positive().nullable().optional(),
   showSolutions: z.boolean().optional(),
+  assignedStudentIds: z.array(z.string().uuid()).optional(),
 })
 
 export const deleteHomeworkSchema = z.object({
