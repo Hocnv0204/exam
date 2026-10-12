@@ -369,6 +369,8 @@ async function router() {
         const mode = params.get('mode') || (params.get('classId') === 'TRIAL' ? 'trial' : '') || ''
         const classId = params.get('classId') || ''
         const homeworkId = params.get('homeworkId') || ''
+        const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1)
+        const search = params.get('search') || ''
 
         if (!state.classes || state.classes.length === 0) {
           try {
@@ -384,12 +386,12 @@ async function router() {
           } catch (e) {}
         }
 
-        // In class mode, default to the first class so the screen is never blank
+        // In class mode, no class selected => all classes (backend default)
         const targetClassId = (mode === 'trial' || classId === 'TRIAL')
           ? 'TRIAL'
-          : (classId || (state.classes && state.classes.length > 0 ? state.classes[0].id : ''))
+          : (classId || '')
 
-        await loadAdminHistoryData(targetClassId, homeworkId, mode)
+        await loadAdminHistoryData(targetClassId, homeworkId, mode, { page, search })
       }
     } catch (err) {
       console.warn('[Router] Failed to pre-fetch real data from backend:', err.message)

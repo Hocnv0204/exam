@@ -378,6 +378,7 @@ serve(async (req: Request) => {
     let classHomeworks: any[] = []
     let classHwIds: string[] = []
     let prefetchedEnrolledStudents: any[] | null = null
+    let pageInfo: { total: number; page: number; pageSize: number; totalPages: number } | null = null
 
     // Prepare Homeworks Query Promise
     const homeworksPromise = (async () => {
@@ -454,6 +455,37 @@ serve(async (req: Request) => {
             maxScore: h.max_score || 10,
             passScore: h.pass_score || 5,
             deadline: h.deadline,
+            lessonTitle: h.lessons?.title || '',
+            className: h.lessons?.chapters?.classes?.name || ''
+          }))
+        }
+      } else if (!classId && user?.role === 'ADMIN' && !isTrialQuery) {
+        // Admin xem tất cả lớp: trả toàn bộ bài tập đã xuất bản cho dropdown lọc
+        const { data: hws } = await serviceRoleClient
+          .from('homeworks')
+          .select(`
+            id,
+            title,
+            type,
+            lessons (
+              id,
+              title,
+              chapters (
+                id,
+                title,
+                class_id,
+                classes (id, name)
+              )
+            )
+          `)
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+          .limit(500)
+        if (hws) {
+          return hws.map((h: any) => ({
+            id: h.id,
+            title: h.title,
+            type: h.type,
             lessonTitle: h.lessons?.title || '',
             className: h.lessons?.chapters?.classes?.name || ''
           }))
@@ -566,11 +598,49 @@ serve(async (req: Request) => {
           classId,
           homeworkId: homeworkId || undefined,
           totalSubmissions: 0,
+          total: 0,
+          page: 1,
+          pageSize: 20,
+          totalPages: 1,
           history: [],
           classHomeworks: [],
           submissionStats: null,
           unsubmittedStudents: []
         })
+      }
+
+      // Phân trang + tìm kiếm ở server cho màn theo dõi nộp bài (bài nộp sớm nhất trước)
+      const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
+      const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get('pageSize') || '20', 10) || 20))
+      const search = (url.searchParams.get('search') || '').trim()
+
+      // Tìm kiếm theo tên/username học sinh hoặc tên bài tập:
+      // resolve id trước rồi lọc OR trên cột chính (tránh join-filter phức tạp)
+      let searchHwIds: string[] | null = null
+      let searchStudentIds: string[] | null = null
+      if (search) {
+        const pattern = `%${search.replace(/[%_(),]/g, '')}%`
+        const [hwMatch, stMatch] = await Promise.all([
+          serviceRoleClient.from('homeworks').select('id').ilike('title', pattern).limit(500),
+          serviceRoleClient.from('profiles').select('id').or(`full_name.ilike.${pattern},username.ilike.${pattern}`).eq('role', 'STUDENT').limit(500)
+        ])
+        searchHwIds = (hwMatch.data || []).map((h: any) => h.id)
+        searchStudentIds = (stMatch.data || []).map((s: any) => s.id)
+        if (searchHwIds.length === 0 && searchStudentIds.length === 0) {
+          return jsonResponse({
+            classId: classId || undefined,
+            homeworkId: homeworkId || undefined,
+            totalSubmissions: 0,
+            total: 0,
+            page,
+            pageSize,
+            totalPages: 1,
+            history: [],
+            classHomeworks,
+            submissionStats: null,
+            unsubmittedStudents: []
+          })
+        }
       }
 
       let q = serviceRoleClient
@@ -610,9 +680,9 @@ serve(async (req: Request) => {
               )
             )
           )
-        `)
+        `, { count: 'exact' })
         .eq('status', 'SUBMITTED')
-        .order('submitted_at', { ascending: false })
+        .order('submitted_at', { ascending: true })
         .not('student_id', 'is', null)
 
       if (user?.role === 'STUDENT') {
@@ -621,10 +691,23 @@ serve(async (req: Request) => {
       if (classHwIds.length > 0) {
         q = q.in('homework_id', classHwIds)
       }
+      if (search && searchHwIds !== null && searchStudentIds !== null) {
+        const orParts: string[] = []
+        if (searchHwIds.length > 0) orParts.push(`homework_id.in.(${searchHwIds.join(',')})`)
+        if (searchStudentIds.length > 0) orParts.push(`student_id.in.(${searchStudentIds.join(',')})`)
+        if (orParts.length > 0) {
+          q = q.or(orParts.join(','))
+        }
+      }
+      q = q.range((page - 1) * pageSize, page * pageSize - 1)
 
       const subResult = await q
       rawSubmissions = subResult.data || []
       fetchErr = subResult.error
+      const totalCount: number = (subResult as any).count ?? rawSubmissions.length
+      const totalPages: number = Math.max(1, Math.ceil(totalCount / pageSize))
+      const safePage: number = Math.min(page, totalPages)
+      pageInfo = { total: totalCount, page: safePage, pageSize, totalPages }
     }
 
     if (fetchErr) {
@@ -927,7 +1010,11 @@ serve(async (req: Request) => {
       studentId: studentId || (user?.role === 'STUDENT' ? user.id : undefined),
       classId: classId || (isTrialQuery ? 'TRIAL' : undefined),
       homeworkId: homeworkId || undefined,
-      totalSubmissions: history.length,
+      totalSubmissions: pageInfo ? pageInfo.total : history.length,
+      total: pageInfo ? pageInfo.total : history.length,
+      page: pageInfo ? pageInfo.page : 1,
+      pageSize: pageInfo ? pageInfo.pageSize : history.length,
+      totalPages: pageInfo ? pageInfo.totalPages : 1,
       history,
       wrongQuestionsSummary: (user?.role === 'ADMIN' || isTrialQuery) ? wrongQuestionsSummary : undefined,
       classHomeworks,
