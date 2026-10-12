@@ -40,9 +40,9 @@ async function getScopeTargetIds(
 }
 
 async function bumpQuestionUsage(
-  serviceRoleClient: any, 
-  ids: string[], 
-  classId: string | null = null, 
+  serviceRoleClient: any,
+  ids: string[],
+  classId: string | null = null,
   homeworkId: string | null = null
 ): Promise<void> {
   if (!ids || ids.length === 0) return
@@ -61,8 +61,8 @@ async function bumpQuestionUsage(
 }
 
 async function unbumpQuestionUsage(
-  serviceRoleClient: any, 
-  ids: string[], 
+  serviceRoleClient: any,
+  ids: string[],
   homeworkId: string | null = null
 ): Promise<void> {
   if (!ids || ids.length === 0) return
@@ -194,7 +194,7 @@ function normalizeBankPromptPayload(rawPrompt: any, fallbackData: any = {}): any
       if (parsed && typeof parsed === 'object') {
         payload = parsed
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   if (!payload) {
@@ -342,9 +342,9 @@ async function buildPoolQuery(
   let expandedClassIds = scope.classIds || []
   let expandedChapterIds = scope.chapterIds || []
   if ((!scope.lessonIds || scope.lessonIds.length === 0) &&
-      (!expandedChapterIds || expandedChapterIds.length === 0) &&
-      (!expandedClassIds || expandedClassIds.length === 0) &&
-      scope.gradeBlock) {
+    (!expandedChapterIds || expandedChapterIds.length === 0) &&
+    (!expandedClassIds || expandedClassIds.length === 0) &&
+    scope.gradeBlock) {
     const ids = await getScopeTargetIds(serviceRoleClient, scope.gradeBlock)
     expandedClassIds = ids.classIds
     expandedChapterIds = ids.chapterIds
@@ -389,14 +389,12 @@ async function buildPoolQuery(
     if (extraFilters?.chapterId) {
       query = query.eq('chapter_id', extraFilters.chapterId)
     }
-
     return query
   }
 
   return await fetchAllQueryRows(buildQueryInstance)
 }
 
-// Helper: Hoán vị mã đề (Phase 6.1)
 function shuffleVariantQuestions(
   orderedQuestions: any[]
 ): {
@@ -431,7 +429,7 @@ function shuffleVariantQuestions(
     const oldAnswer = qbQ.mc_answer ? String(qbQ.mc_answer).toUpperCase() : null
 
     // Chặn đảo nếu no_shuffle_options hoặc có phương án "Cả A và B", "Tất cả đều đúng"
-    const hasSpecialOption = Array.isArray(options) && options.some((opt: string) => 
+    const hasSpecialOption = Array.isArray(options) && options.some((opt: string) =>
       /cả\s+[a-d]\s+(và|đều)|tất cả|cả hai/i.test(opt)
     )
 
@@ -1194,7 +1192,7 @@ serve(async (req: Request) => {
                   const rawText = typeof norm?.text === 'string' ? norm.text : (typeof r.prompt === 'string' ? r.prompt : '')
                   const text = rawText.trim().toLowerCase().replace(/\s+/g, ' ')
                   if (text) existingPromptsSet.add(text)
-                } catch (_) {}
+                } catch (_) { }
               })
               if (existingRows.length < batchSize) {
                 hasMore = false
