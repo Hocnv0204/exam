@@ -1,13 +1,40 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createServiceRoleClient, createAnonClient } from '../../shared/supabase-client.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
+import { requireAuth } from '../../shared/auth-middleware.ts'
 import { loginSchema } from '../../shared/validators.ts'
+
+const TOUR_KEYS = ['student-dashboard', 'student-lesson', 'student-myhw']
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
   if (corsRes) return corsRes
 
   try {
+    // PATCH: học sinh đánh dấu đã xem tour hướng dẫn (lưu server, hiện 1 lần duy nhất)
+    if (req.method === 'PATCH') {
+      const { user, serviceRoleClient } = await requireAuth(req)
+      const body = await req.json().catch(() => ({}))
+      const tourKey = String(body?.tourKey || '')
+      if (!TOUR_KEYS.includes(tourKey)) {
+        return errorResponse('tourKey không hợp lệ', 400)
+      }
+      const { data: prof } = await serviceRoleClient
+        .from('profiles')
+        .select('seen_tours')
+        .eq('id', user.id)
+        .maybeSingle()
+      const seen: string[] = Array.isArray((prof as any)?.seen_tours) ? (prof as any).seen_tours : []
+      if (!seen.includes(tourKey)) {
+        seen.push(tourKey)
+        await serviceRoleClient
+          .from('profiles')
+          .update({ seen_tours: seen })
+          .eq('id', user.id)
+      }
+      return jsonResponse({ success: true, seenTours: seen })
+    }
+
     if (req.method !== 'POST') {
       return errorResponse('Method not allowed', 405)
     }
@@ -28,7 +55,7 @@ serve(async (req: Request) => {
     // 1. Parallel: Try signIn with synthetic email + fetch profile
     const profilePromise = serviceRoleClient
       .from('profiles')
-      .select('id, username, full_name, role, class_id, is_locked')
+      .select('id, username, full_name, role, class_id, is_locked, seen_tours')
       .eq('username', username)
       .maybeSingle()
 
@@ -102,6 +129,7 @@ serve(async (req: Request) => {
         role: profile.role,
         classId: profile.class_id || (classIds[0] || null),
         classIds,
+        seenTours: Array.isArray((profile as any).seen_tours) ? (profile as any).seen_tours : [],
       },
     })
   } catch (err: unknown) {

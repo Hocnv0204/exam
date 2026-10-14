@@ -48,11 +48,14 @@ export function renderMyHomeworksView() {
               <h1 class="page-title">Bài tập của tôi</h1>
               <p class="page-description">Tất cả bài tập và bài thi được giao theo lớp của bạn — gồm cả bài đã làm (điểm số, làm lại) và bài chưa làm.</p>
             </div>
+            <div style="display:flex; gap:12px;">
+              <button class="btn-secondary" id="btn-replay-myhw-tour"><i class="fa-solid fa-circle-question"></i> Hướng dẫn</button>
+            </div>
           </div>
 
           <div id="myhw-stats" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:16px;"></div>
 
-          <div class="card" style="margin:0 0 16px 0; padding:14px 16px;">
+          <div class="card" id="tour-myhw-filter" style="margin:0 0 16px 0; padding:14px 16px;">
             <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
               <div style="display:flex; background:#f1f5f9; border-radius:10px; padding:3px; gap:4px;">
                 <button type="button" class="myhw-status-btn" data-status="all" style="border:none; padding:6px 14px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">Tất cả</button>
@@ -217,6 +220,27 @@ function renderPager() {
   })
 }
 
+function myhwTourSteps() {
+  return [
+    { selector: '#tour-myhw-filter', title: 'Lọc bài tập', text: 'Lọc theo trạng thái (Tất cả / Chưa làm / Đã làm), theo lớp và tìm theo tên bài.' },
+    { selector: '#myhw-stats', title: 'Tổng quan', text: 'Xem nhanh tổng số bài được giao, số bài chưa làm, đã làm và điểm trung bình của bạn.' },
+    { selector: '#myhw-list', title: 'Danh sách bài', text: 'Bài chưa làm hiện hạn nộp \u2014 bấm "Làm bài" để bắt đầu ngay.' },
+    { selector: '#myhw-list .myhw-card', title: 'Bài đã làm', text: 'Bài đã làm hiện điểm số và kết quả ĐẠT/CHƯA ĐẠT: bấm "Xem kết quả" để coi chi tiết từng câu, "Làm lại" để cải thiện điểm.' },
+  ]
+}
+
+async function maybeStartMyhwTour() {
+  const { startTour } = await import('../utils/tour.js')
+  document.getElementById('btn-replay-myhw-tour')?.addEventListener('click', () => startTour(myhwTourSteps()))
+}
+
+async function autoStartMyhwTour() {
+  const { startTour, hasSeenTour } = await import('../utils/tour.js')
+  if (!(await hasSeenTour('student-myhw'))) {
+    startTour(myhwTourSteps(), { key: 'student-myhw' })
+  }
+}
+
 async function fetchMyHomeworks() {
   const listEl = document.getElementById('myhw-list')
   if (listEl) {
@@ -257,6 +281,7 @@ async function fetchMyHomeworks() {
 export async function bindMyHomeworksEvents() {
   bindSidebarEvents()
   paintStatusButtons()
+  maybeStartMyhwTour()
 
   // Lớp filter lấy từ lớp đã đăng ký của học sinh
   try {
@@ -271,6 +296,7 @@ export async function bindMyHomeworksEvents() {
   }
 
   await fetchMyHomeworks()
+  autoStartMyhwTour()
 
   document.querySelectorAll('.myhw-status-btn').forEach(b => {
     b.addEventListener('click', () => {

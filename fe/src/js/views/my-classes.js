@@ -139,13 +139,16 @@ export function renderMyClassesView() {
               const embedUrl = getEmbedUrl(activeLesson.videoUrl)
 
               return `
-                <div style="grid-column: span 3; margin-bottom: 12px;">
+                <div style="grid-column: span 3; margin-bottom: 12px; display:flex; gap:12px; align-items:center;">
                   <button class="btn-secondary" id="btn-back-to-lessons" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; width:auto; display:inline-flex; align-items:center; gap:6px;">
                     <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách bài học
                   </button>
+                  <button class="btn-secondary" id="btn-replay-lesson-tour" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; width:auto; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-circle-question"></i> Hướng dẫn
+                  </button>
                 </div>
                 <div class="grid-3" style="grid-column: span 3; gap: 20px;">
-                  <div style="grid-column: span 2;">
+                  <div style="grid-column: span 2;" id="tour-lesson-left">
                     <!-- Video Area -->
                     ${embedUrl ? `
                       <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:20px; background:#000; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
@@ -159,7 +162,7 @@ export function renderMyClassesView() {
                     `}
 
                     <!-- Lesson Information -->
-                    <div class="card" style="padding:20px; margin-bottom:0;">
+                    <div class="card" id="tour-lesson-info" style="padding:20px; margin-bottom:0;">
                       <h2 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a; margin-bottom:10px;">${activeLesson.title}</h2>
                       <div style="font-size:14px; color:#475569; line-height:1.6;">
                         ${activeLesson.content || 'Không có mô tả chi tiết cho bài học này.'}
@@ -168,8 +171,8 @@ export function renderMyClassesView() {
                   </div>
 
                   <!-- Right column beside video: Tài liệu + Bài tập -->
-                  <div style="display:flex; flex-direction:column; gap:20px;">
-                    <div class="card" style="padding:20px; margin:0;">
+                  <div style="display:flex; flex-direction:column; gap:20px;" id="tour-lesson-right">
+                    <div class="card" id="tour-lesson-files" style="padding:20px; margin:0;">
                       <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; color:#0f172a; margin:0 0 12px 0;">
                         <i class="fa-solid fa-paperclip" style="color:#0066cc;"></i> Tài liệu đính kèm
                       </h3>
@@ -199,7 +202,7 @@ export function renderMyClassesView() {
                   </div>
 
                   <!-- Homework of Lesson -->
-                  <div class="card" style="padding:20px; margin:0;">
+                  <div class="card" id="tour-lesson-homeworks" style="padding:20px; margin:0;">
                     <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin:0 0 16px 0; color:#0f172a; display:flex; align-items:center; gap:8px;">
                       <i class="fa-solid fa-list-check" style="color:#0066cc;"></i> Bài tập tự luyện
                     </h3>
@@ -357,12 +360,13 @@ export function renderMyClassesView() {
               <p class="page-description">Danh sách các lớp học đã đăng ký. Nhấn vào lớp để xem bài học và bài tập chi tiết.</p>
             </div>
             <div style="display:flex; gap:12px;">
+              <button class="btn-secondary" id="btn-replay-tour"><i class="fa-solid fa-circle-question"></i> Hướng dẫn</button>
               <button class="btn-secondary"><i class="fa-solid fa-sliders"></i> Bộ lọc</button>
             </div>
           </div>
 
           <!-- Latest homeworks: gọn ở đầu trang -->
-          <div class="card" style="padding:14px 18px; margin-bottom:20px; border:1px solid #bfdbfe; background:#f5faff;">
+          <div class="card" id="tour-latest-hw" style="padding:14px 18px; margin-bottom:20px; border:1px solid #bfdbfe; background:#f5faff;">
             <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
               <i class="fa-solid fa-bolt" style="color:#d97706;"></i> Bài tập mới giao
             </h3>
@@ -382,7 +386,7 @@ export function renderMyClassesView() {
           </div>
 
           <!-- Classes Cards Grid -->
-          <div class="grid-4" style="margin-bottom:28px;">
+          <div class="grid-4" id="tour-class-grid" style="margin-bottom:28px;">
             ${classes.map(c => `
               <div class="class-card select-class-card" data-id="${c.id}" style="cursor:pointer; padding: 20px;">
                 <div class="class-card-body" style="padding: 0;">
@@ -439,6 +443,7 @@ export function bindMyClassesEvents() {
     loadLatestHomeworksAll()
     loadWeakTopics()
     loadInprogressDrafts()
+    maybeStartDashboardTour()
   }
 
   // Theo dõi thời gian xem bài học của học sinh
@@ -534,6 +539,11 @@ export function bindMyClassesEvents() {
   document.getElementById('btn-back-to-lessons')?.addEventListener('click', () => {
     window.location.hash = `#my-classes?classId=${classId}`
   })
+
+  // Tour chi tiết bài học (chạy 1 lần đầu cho học sinh)
+  if (classId && lessonId && state.user?.role === 'STUDENT') {
+    maybeStartLessonTour()
+  }
 
   // Preview theory PDF
   document.querySelectorAll('.btn-preview-theory').forEach(btn => {
@@ -638,34 +648,52 @@ async function loadInprogressDrafts() {
   }
 }
 
+function lessonTourSteps() {
+  return [
+    { selector: '#tour-lesson-left', title: 'Video & nội dung bài học', text: 'Xem video bài giảng và đọc mô tả bài học ở cột trái. Học kỹ phần này trước khi làm bài tập nhé!' },
+    { selector: '#tour-lesson-files', title: 'Tài liệu đính kèm', text: 'Tài liệu lý thuyết PDF của bài: bấm "Xem" để đọc ngay tại chỗ, "Tải xuống" để lưu về máy.' },
+    { selector: '#tour-lesson-homeworks', title: 'Bài tập của bài học', text: 'Danh sách bài tập/bài thi của bài này: bấm "Làm bài" để bắt đầu (có tính giờ), "Tải PDF" để xem đề giấy. Bài thi thì vào phòng thi có giám sát.' },
+  ]
+}
+
+async function maybeStartLessonTour() {
+  const { startTour, hasSeenTour } = await import('../utils/tour.js')
+  document.getElementById('btn-replay-lesson-tour')?.addEventListener('click', () => startTour(lessonTourSteps()))
+  if (!(await hasSeenTour('student-lesson'))) {
+    setTimeout(() => startTour(lessonTourSteps(), { key: 'student-lesson' }), 800)
+  }
+}
+
+function dashboardTourSteps() {
+  return [
+    { selector: '[data-tour-nav="classes"]', title: 'Lớp học của tôi', text: 'Mọi lớp bạn đã đăng ký nằm ở đây. Bấm vào từng lớp để xem bài học, video và tài liệu.' },
+    { selector: '#tour-latest-hw', title: 'Bài tập mới giao', text: 'Bài tập chưa làm mới nhất hiện ở đây. Bấm "Làm bài" (hoặc "Vào thi" với bài thi) để bắt đầu ngay.' },
+    { selector: '#tour-class-grid', title: 'Thẻ lớp học', text: 'Mỗi thẻ cho biết tiến độ môn học. Bấm vào thẻ để vào xem chương và bài học chi tiết.' },
+    { selector: '[data-tour-nav="homeworks"]', title: 'Bài tập của tôi', text: 'Toàn bộ bài được giao: chưa làm thì làm bài, đã làm thì xem điểm và làm lại. Đừng quên mục này nhé!' },
+  ]
+}
+
+async function maybeStartDashboardTour() {
+  const { startTour, hasSeenTour } = await import('../utils/tour.js')
+  document.getElementById('btn-replay-tour')?.addEventListener('click', () => startTour(dashboardTourSteps()))
+  if (!(await hasSeenTour('student-dashboard'))) {
+    setTimeout(() => startTour(dashboardTourSteps(), { key: 'student-dashboard' }), 800)
+  }
+}
+
 async function loadLatestHomeworksAll() {
   const container = document.getElementById('latest-homeworks-container')
   if (!container) return
 
   try {
-    let classes = state.classes || []
-    if (state.user?.role === 'STUDENT' && Array.isArray(state.user?.classIds)) {
-      classes = classes.filter(c => state.user.classIds.includes(c.id))
-    }
-    if (classes.length === 0) {
-      container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Bạn chưa đăng ký lớp học nào.</p>`
-      return
-    }
-    const results = await Promise.allSettled(
-      classes.map(c => api.getHomeworks('', c.id, '', { silent: true }).then(res => ({ classObj: c, res })))
-    )
-    const merged = []
-    for (const r of results) {
-      if (r.status !== 'fulfilled') continue
-      const { classObj, res } = r.value
-      const list = Array.isArray(res) ? res : (res?.items || [])
-      list.forEach(hw => merged.push({ ...hw, _className: classObj.name }))
-    }
-    const sorted = merged
+    // Chỉ lấy bài CHƯA làm (server đã loại bài đã nộp)
+    const res = await api.getTodoHomeworks()
+    const list = Array.isArray(res) ? res : (res?.items || [])
+    const sorted = list
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
       .slice(0, 5)
     if (sorted.length === 0) {
-      container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Chưa có bài tập nào được giao.</p>`
+      container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Bạn chưa có bài tập mới.</p>`
       return
     }
     container.innerHTML = `
@@ -680,7 +708,7 @@ async function loadLatestHomeworksAll() {
             <div style="flex:1 1 auto; min-width:0;">
               <span style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" title="${hwTitle}">${hwTitle}</span>
               <span style="font-size:11px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">
-                <span style="color:#0066cc; font-weight:600;">${hw._className || ''}</span> • ${isExam ? 'Bài thi' : 'Luyện tập'}${hw.deadline ? ` • <span style="color:${isOverdue ? '#b91c1c' : '#64748b'};">Hạn: ${new Date(hw.deadline).toLocaleDateString('vi-VN')}</span>` : ''}
+                <span style="color:#0066cc; font-weight:600;">${hw.className || ''}</span> • ${isExam ? 'Bài thi' : 'Luyện tập'}${hw.deadline ? ` • <span style="color:${isOverdue ? '#b91c1c' : '#64748b'};">Hạn: ${new Date(hw.deadline).toLocaleDateString('vi-VN')}</span>` : ''}
               </span>
             </div>
             <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}', '${hw.type || 'PRACTICE'}')" style="width:auto; flex-shrink:0; padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; ${isExam ? 'background:#dc2626; border-color:#dc2626;' : ''}">
