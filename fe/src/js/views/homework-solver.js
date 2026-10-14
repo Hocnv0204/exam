@@ -1504,24 +1504,34 @@ export function bindHomeworkSolverEvents() {
     }
   }
 
-  // Timer Countdown Setup (deducting real elapsed time since last save)
+  // Timer Countdown Setup:
+  // - Bài THI có giám sát (EXAM chính thức): trừ thời gian thực đã trôi khi offline
+  //   (chống gian lận thoát ra tra cứu), hết giờ thì tự nộp.
+  // - Luyện tập / học thử: lưu nháp = tạm dừng, mở lại giữ nguyên thời gian còn lại lúc lưu.
   const savedDraft = mergedDraft || loadDraftFromStorage(hw.id)
+  const isSupervisedExam = hw.type === 'EXAM' && !isTrial
   let timeLeftSeconds = (hw.durationMinutes || 45) * 60
   if (savedDraft?.timeLeft && savedDraft.timeLeft > 0) {
-    let elapsed = 0
-    if (savedDraft.updatedAt) {
-      const lastSave = new Date(savedDraft.updatedAt).getTime()
-      if (!isNaN(lastSave)) {
-        elapsed = Math.max(0, Math.floor((Date.now() - lastSave) / 1000))
+    if (isSupervisedExam) {
+      let elapsed = 0
+      if (savedDraft.updatedAt) {
+        const lastSave = new Date(savedDraft.updatedAt).getTime()
+        if (!isNaN(lastSave)) {
+          elapsed = Math.max(0, Math.floor((Date.now() - lastSave) / 1000))
+        }
       }
+      const adjusted = savedDraft.timeLeft - elapsed
+      timeLeftSeconds = Math.min(timeLeftSeconds, Math.max(0, adjusted))
+    } else {
+      timeLeftSeconds = Math.min(timeLeftSeconds, savedDraft.timeLeft)
     }
-    const adjusted = savedDraft.timeLeft - elapsed
-    timeLeftSeconds = Math.min(timeLeftSeconds, Math.max(0, adjusted))
   }
   let timerInterval = null
 
   if (isDraftRestored) {
-    showToast('Đã tự động khôi phục bài làm từ bản lưu nháp gần nhất!', 'info')
+    showToast(isSupervisedExam
+      ? 'Đã tự động khôi phục bài làm từ bản lưu nháp gần nhất!'
+      : 'Đã khôi phục bài làm! Thời gian còn lại được giữ nguyên như lúc bạn lưu nháp.', 'info')
     updateAutosaveIndicator(true)
   }
   solverTimeLeft = timeLeftSeconds
