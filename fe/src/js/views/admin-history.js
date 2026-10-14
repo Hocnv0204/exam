@@ -3,7 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
-import { openModal } from '../components/modal.js'
+import { openModal, closeModal } from '../components/modal.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 
 let currentMode = 'class' // 'class' | 'trial'
@@ -1266,6 +1266,9 @@ export function bindAdminHistoryEvents() {
           <p style="font-size:14px; color:#334155; margin-bottom:12px;">
             Bạn đang cho phép học sinh <strong>${name}</strong> được làm lại bài tập này.
           </p>
+          <p style="font-size:12px; color:#64748b; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:8px 12px; margin:0 0 12px 0;">
+            <i class="fa-solid fa-circle-info"></i> Đối với <strong>bài thi</strong>: hệ thống tạo <strong>lần thi mới</strong>, bài thi cũ vẫn được giữ nguyên trong lịch sử.
+          </p>
           <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
             <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
               <input type="checkbox" id="reopen-reset-timer" checked>
@@ -1285,13 +1288,18 @@ export function bindAdminHistoryEvents() {
         </div>
       `)
 
-      document.getElementById('confirm-reopen-btn')?.addEventListener('click', async () => {
+      document.querySelector('#modal-container .close-modal-btn')?.addEventListener('click', () => closeModal())
+
+      document.getElementById('confirm-reopen-btn')?.addEventListener('click', async (e) => {
+        const confirmBtn = e.currentTarget
         const resetTimer = document.getElementById('reopen-reset-timer')?.checked || false
         const resetAnswers = document.getElementById('reopen-reset-answers')?.checked || false
+        confirmBtn.disabled = true
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xử lý...'
         try {
-          await api.reopenSubmission(hwId, stuId, resetTimer, resetAnswers)
-          showToast(`Đã cho phép ${name} làm lại bài tập thành công!`, 'success')
-          document.querySelector('.modal-overlay')?.remove()
+          const res = await api.reopenSubmission(hwId, stuId, resetTimer, resetAnswers)
+          showToast(res?.newAttempt ? `Đã tạo lần thi mới (lần ${res.attemptNo}) cho ${name}, giữ nguyên lịch sử cũ!` : `Đã cho phép ${name} làm lại bài tập thành công!`, 'success')
+          closeModal()
           await loadAdminHistoryData(selectedClassId, selectedHomeworkId, currentMode)
           const app = document.getElementById('app')
           if (app) {
@@ -1300,6 +1308,8 @@ export function bindAdminHistoryEvents() {
           }
         } catch (err) {
           showToast(`Khôi phục thất bại: ${err.message}`, 'error')
+          confirmBtn.disabled = false
+          confirmBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> Xác nhận khôi phục'
         }
       })
     })

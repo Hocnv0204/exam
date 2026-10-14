@@ -89,6 +89,7 @@ serve(async (req: Request) => {
 
     // Check session for EXAM (if student)
     let examSessionId = null
+    let examSessionAttemptNo = 1
     if (homework.type === 'EXAM' && user) {
       if (!sessionToken) {
         return errorResponse('sessionToken is required for EXAM', 400)
@@ -96,7 +97,7 @@ serve(async (req: Request) => {
 
       const { data: session } = await serviceRoleClient
         .from('exam_sessions')
-        .select('id, session_token, created_at, status')
+        .select('id, session_token, created_at, status, attempt_no')
         .eq('homework_id', homeworkId)
         .eq('student_id', user.id)
         .order('created_at', { ascending: false })
@@ -134,6 +135,7 @@ serve(async (req: Request) => {
       }
 
       examSessionId = session.id
+      examSessionAttemptNo = Number((session as any).attempt_no) || 1
     }
 
     // Check deadline (mark as late if past deadline instead of blocking)
@@ -146,7 +148,9 @@ serve(async (req: Request) => {
       }
     }
 
-    // Check max attempts limit for authenticated student
+    // Check max attempts limit for authenticated student.
+    // EXAM: each admin-granted reopen creates a new attempt (attempt_no),
+    // so allowance grows by (attempt_no - 1). Non-EXAM behavior unchanged.
     if (user && homework.max_attempts && homework.max_attempts > 0 && !isTrialHomework) {
       const { count, error: countError } = await serviceRoleClient
         .from('submissions')
@@ -159,7 +163,10 @@ serve(async (req: Request) => {
         return errorResponse('Failed to verify submission attempts limit', 500)
       }
 
-      if (count !== null && count >= homework.max_attempts) {
+      const allowance = homework.type === 'EXAM' && examSessionId
+        ? homework.max_attempts + (examSessionAttemptNo - 1)
+        : homework.max_attempts
+      if (count !== null && count >= allowance) {
         return errorResponse('Bạn đã đạt giới hạn tối đa số lần làm bài tập này', 400)
       }
     }
@@ -308,7 +315,8 @@ serve(async (req: Request) => {
         is_trial: isTrialSubmission,
         guest_name: saveGuestName,
         guest_phone: saveGuestPhone,
-        status: 'SUBMITTED'
+        status: 'SUBMITTED',
+        attempt_no: examSessionId ? examSessionAttemptNo : 1
       })
       .select('id, submitted_at')
       .single()
