@@ -401,13 +401,17 @@ function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
       </div>
 
       ${currentMode === 'INTERACTIVE' ? `
-        <div style="display:flex; gap:6px; align-items:center;">
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
           <button type="button" class="btn-secondary" id="btn-load-math-tpl" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Nạp nội dung đề mẫu môn Toán">
             <i class="fa-solid fa-square-root-variable" style="color:#0284c7;"></i> Mẫu Toán
           </button>
           <button type="button" class="btn-secondary" id="btn-load-chem-tpl" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Nạp nội dung đề mẫu môn Hóa học">
             <i class="fa-solid fa-flask" style="color:#10b981;"></i> Mẫu Hóa
           </button>
+          <button type="button" class="btn-secondary" id="btn-import-md-file" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Nhập 1 file .md soạn theo quy chuẩn (tự nhận câu hỏi, đáp án, hình ảnh)">
+            <i class="fa-solid fa-file-arrow-up" style="color:#7c3aed;"></i> Nhập file .md
+          </button>
+          <input type="file" id="hw-md-file-input" accept=".md,.markdown,.txt" style="display:none;">
           <button type="button" class="btn-primary" id="btn-parse-markdown" style="padding:5px 12px; font-size:12px; border-radius:6px; cursor:pointer; background:linear-gradient(135deg, #0284c7, #0066cc);">
             <i class="fa-solid fa-bolt"></i> Phân tích & Xem trước
           </button>
@@ -1617,6 +1621,51 @@ export function bindCreateHwEvents() {
     bindInteractivePdfEvents()
     syncCountsFromInteractive()
   }
+
+  // Nhập 1 file .md soạn theo quy chuẩn: tự đổ vào khung soạn + phân tích ra câu hỏi/đáp án/hình
+  document.getElementById('btn-import-md-file')?.addEventListener('click', () => {
+    document.getElementById('hw-md-file-input')?.click()
+  })
+  document.getElementById('hw-md-file-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      showToast(`Đang đọc file ${file.name}...`, 'info')
+      const text = await file.text()
+      if (!text.trim()) {
+        showToast('File .md trống!', 'error')
+        return
+      }
+      const textarea = document.getElementById('hw-markdown-input')
+      if (textarea) textarea.value = text
+      interactiveMarkdown = text
+      const parsed = parseExamMarkdown(text, {})
+      if (parsed.questions && parsed.questions.length > 0) {
+        parsed.questions.forEach((q, idx) => { q.questionNumber = idx + 1 })
+        // Giữ ảnh đã dán thủ công nếu parse trùng câu
+        parsed.questions.forEach((newQ, idx) => {
+          let oldQ = interactiveQuestions[idx]
+          if (!oldQ || oldQ.questionType !== newQ.questionType || oldQ.questionNumber !== newQ.questionNumber) {
+            oldQ = interactiveQuestions.find(x => x.questionType === newQ.questionType && x.questionNumber === newQ.questionNumber)
+          }
+          if (oldQ && oldQ.imageUrl && !newQ.imageUrl) {
+            newQ.imageUrl = oldQ.imageUrl
+            newQ.hasImagePlaceholder = true
+          }
+        })
+        interactiveQuestions = parsed.questions
+        refreshInteractiveCards()
+        syncCountsFromInteractive()
+        const withImg = parsed.questions.filter(q => q.imageUrl || q.hasImagePlaceholder).length
+        showToast(`Đã nhập ${parsed.questions.length} câu hỏi từ file (${withImg} câu có hình)!`, 'success')
+      } else {
+        showToast('Không tìm thấy câu hỏi hợp lệ trong file! Xem quy chuẩn soạn file .md.', 'error')
+      }
+    } catch (err) {
+      showToast(`Đọc file thất bại: ${err.message}`, 'error')
+    }
+  })
 
   const initPdfListeners = () => {
     if (isEditMode && hwData?.homework?.pdfUrl) {

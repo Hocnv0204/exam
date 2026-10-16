@@ -230,9 +230,26 @@ export function renderMath(container) {
 /**
  * Parses Markdown syntax into safe HTML while preserving KaTeX Math ($...$, $$...$$, \ce{...})
  */
+import { compileDiagramToSVG } from './diagram-renderer.js'
+
 export function renderMarkdown(text) {
   if (!text) return ''
   let str = String(text)
+
+  // 1A. Shield các khối vẽ hình (bbt, graph, geo3d, smiles) TRƯỚC khi shield math,
+  // để ký hiệu $...$ bên trong code hình không bị bóc nhầm.
+  const diagramTokens = []
+  str = str.replace(/```(bbt|graph|geo3d|smiles)\s*\n([\s\S]*?)```/gi, (match, type, code) => {
+    const placeholder = `@@DIAGRAMXTOKENX${diagramTokens.length}XTOKENXDIAGRAM@@`
+    diagramTokens.push({ type: type.toLowerCase(), code: (code || '').trim() })
+    return placeholder
+  })
+  // Thẻ inline [SMILES: ...]
+  str = str.replace(/\[SMILES:\s*([^\]]+)\]/gi, (match, smilesCode) => {
+    const placeholder = `@@DIAGRAMXTOKENX${diagramTokens.length}XTOKENXDIAGRAM@@`
+    diagramTokens.push({ type: 'smiles', code: (smilesCode || '').trim() })
+    return placeholder
+  })
 
   // 1. Shield math blocks and chemistry formulas
   const mathTokens = []
@@ -340,6 +357,12 @@ export function renderMarkdown(text) {
   str = str.replace(/<br>\s*(<(?:div|table|thead|tbody|tr|th|td|ul|ol|li|blockquote|h[1-6]))/gi, '$1')
   str = str.replace(/(<\/(?:div|table|thead|tbody|tr|th|td|ul|ol|li|blockquote|h[1-6])>)\s*<br>/gi, '$1')
 
+  // 4A. Unshield Diagram Blocks thành <svg> (nhãn $...$ bên trong để renderMath biên dịch sau)
+  str = str.replace(/@@DIAGRAMXTOKENX(\d+)XTOKENXDIAGRAM@@/g, (match, index) => {
+    const item = diagramTokens[Number(index)]
+    return item ? compileDiagramToSVG(item.type, item.code) : ''
+  })
+
   // 12. Restore Math blocks in reverse order
   for (let i = mathTokens.length - 1; i >= 0; i--) {
     str = str.replace(`@@MATHXTOKENX${i}XTOKENXMATH@@`, mathTokens[i])
@@ -405,17 +428,39 @@ export function compressImage(fileOrBlob, maxWidth = 900, quality = 0.82) {
 /**
  * Parse an entire Exam Markdown document into structured questions
  */
-export function parseExamMarkdown(rawText, defaultSectionType = 'MULTIPLE_CHOICE') {
+export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectionType = 'MULTIPLE_CHOICE') {
   if (!rawText || typeof rawText !== 'string') {
     return { questions: [], error: 'Nội dung đề thi trống!' }
   }
 
-  const lines = rawText.split(/\r?\n/)
+  // Tương thích ngược: tham số 2 cũ là defaultSectionType (string)
+  let imageMap = {}
+  if (typeof imageMapOrSection === 'string') {
+    defaultSectionType = imageMapOrSection
+  } else if (imageMapOrSection && typeof imageMapOrSection === 'object') {
+    imageMap = { ...imageMapOrSection }
+  }
+
+  // Bước 0: quét định nghĩa ảnh Reference ở cuối file: [id]: <url|data|blob>
+  // và loại các dòng này khỏi luồng parse chính.
+  const rawLines = rawText.replace(/\r\n/g, '\n').split('\n')
+  const lines = []
+  const IMAGE_REF_DEF_REGEX = /^\[([^\]]+)\]:\s*(data:image\/[^\s]+|https?:\/\/[^\s]+|blob:[^\s]+)\s*$/i
+  for (const rl of rawLines) {
+    const refMatch = rl.trim().match(IMAGE_REF_DEF_REGEX)
+    if (refMatch) {
+      imageMap[refMatch[1].trim()] = refMatch[2].trim()
+    } else {
+      lines.push(rl)
+    }
+  }
+
   const questions = []
 
   let currentSectionType = defaultSectionType
   let currentQ = null
   let currentMode = 'PROMPT' // 'PROMPT' | 'EXPLANATION'
+  let inDiagramBlock = false
 
   const flushCurrentQuestion = () => {
     if (!currentQ) return
@@ -464,6 +509,19 @@ export function parseExamMarkdown(rawText, defaultSectionType = 'MULTIPLE_CHOICE
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const trimmed = line.trim()
+
+    // Bảo vệ khối vẽ hình ```bbt | ```graph | ```geo3d | ```smiles:
+    // giữ nguyên từng dòng vào đề bài, không bóc tách thẻ bên trong.
+    if (/^```(bbt|graph|geo3d|smiles)\s*$/i.test(trimmed)) {
+      inDiagramBlock = true
+      if (currentQ) currentQ.promptLines.push(line)
+      continue
+    }
+    if (inDiagramBlock) {
+      if (/^```\s*$/.test(trimmed)) inDiagramBlock = false
+      if (currentQ) currentQ.promptLines.push(line)
+      continue
+    }
 
     // Check Section Headers
     if (/^===\s*PHẦN\s*I\b/i.test(trimmed) || /^#+\s*PHẦN\s*I\b/i.test(trimmed)) {
@@ -557,10 +615,30 @@ export function parseExamMarkdown(rawText, defaultSectionType = 'MULTIPLE_CHOICE
       continue
     }
 
-    // Check Image placeholder [Ảnh] or [Hình ảnh]
+    // Check Image placeholder: [Ảnh], [Ảnh: key], ![alt](src), ![[file]]
     if (/^\[(?:Ảnh|Hình ảnh|Hình vẽ|Sơ đồ)\]/i.test(trimmed) || trimmed === '[Ảnh]') {
       currentQ.hasImagePlaceholder = true
       continue
+    }
+    {
+      const imgTagMatch = trimmed.match(/^\[(?:Ảnh|Hình ảnh|Hình vẽ|Sơ đồ)\s*:\s*([^\]]+)\]$/i) ||
+        trimmed.match(/^!\[.*?\]\(([^)]+)\)$/) ||
+        trimmed.match(/^!\[\[([^\]]+)\]\]$/)
+      if (imgTagMatch) {
+        const rawKey = (imgTagMatch[1] || '').trim()
+        currentQ.hasImagePlaceholder = true
+        if (rawKey) {
+          const fileNameOnly = rawKey.split('/').pop()
+          if (imageMap[rawKey]) {
+            currentQ.imageUrl = imageMap[rawKey]
+          } else if (imageMap[fileNameOnly]) {
+            currentQ.imageUrl = imageMap[fileNameOnly]
+          } else if (/^(https?:\/\/|data:image\/|blob:)/i.test(rawKey)) {
+            currentQ.imageUrl = rawKey
+          }
+        }
+        continue
+      }
     }
 
     // If currently reading explanation lines

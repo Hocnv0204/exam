@@ -788,6 +788,15 @@ async function showUserActivityModal(studentId, studentName) {
   const render = async (filterAction = '') => {
     const body = document.getElementById('user-activity-body')
     if (!body) return
+    body.innerHTML = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:14px;">
+        ${[1, 2, 3, 4].map(() => `<div style="border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px;"><div class="skeleton-bar" style="width:60%; margin:0 auto 8px;"></div><div class="skeleton-bar" style="width:90%; margin:0 auto;"></div></div>`).join('')}
+      </div>
+      <div class="skeleton-bar" style="width:40%; margin-bottom:10px;"></div>
+      <div style="border:1px solid #e2e8f0; border-radius:10px; padding:12px;">
+        ${[1, 2, 3, 4, 5].map(() => `<div class="skeleton-bar" style="margin-bottom:10px;"></div>`).join('')}
+      </div>
+    `
     try {
       const res = await api.getUserActivity({ userId: studentId, filterAction, limit: 50 })
       const stats = res?.stats || {}

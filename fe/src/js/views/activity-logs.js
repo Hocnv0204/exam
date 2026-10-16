@@ -13,6 +13,7 @@ let filterAction = ''
 let filterFrom = ''
 let filterTo = ''
 let cachedTotal = 0
+let loadReqId = 0
 
 const ACTIVITY_LABELS = {
   LOGIN: 'Đăng nhập',
@@ -116,6 +117,16 @@ export function renderActivityLogsView() {
   `
 }
 
+function skeletonRows(cols = 5, n = 6) {
+  return Array.from({ length: n }).map(() => `
+    <tr class="activity-skeleton-row">
+      ${Array.from({ length: cols }).map((_, i) => `
+        <td><div class="skeleton-bar" style="${i === 1 ? 'width:70%;' : ''}"></div></td>
+      `).join('')}
+    </tr>
+  `).join('')
+}
+
 function renderRows(items) {
   const tbody = document.getElementById('activity-logs-tbody')
   if (!tbody) return
@@ -139,6 +150,16 @@ function renderRows(items) {
 
 async function loadLogs() {
   const tbody = document.getElementById('activity-logs-tbody')
+  const applyBtn = document.getElementById('activity-apply-btn')
+  const reqId = ++loadReqId
+
+  if (tbody) tbody.innerHTML = skeletonRows(5, 6)
+  if (applyBtn) {
+    applyBtn.disabled = true
+    applyBtn.dataset.origHtml = applyBtn.dataset.origHtml || applyBtn.innerHTML
+    applyBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải...'
+  }
+
   try {
     const params = { page: currentPage, limit: pageSize }
     if (filterSearch) params.search = filterSearch
@@ -147,6 +168,7 @@ async function loadLogs() {
     if (filterFrom) params.from = `${filterFrom}T00:00:00+07:00`
     if (filterTo) params.to = `${filterTo}T23:59:59+07:00`
     const res = await api.getUserActivity(params)
+    if (reqId !== loadReqId) return
     cachedTotal = res?.total || 0
     renderRows(res?.items || [])
 
@@ -166,11 +188,17 @@ async function loadLogs() {
       })
     }
   } catch (err) {
+    if (reqId !== loadReqId) return
     console.error('[activity-logs] load failed:', err)
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:32px; color:#ef4444;">Tải thất bại: ${err.message}</td></tr>`
     }
     showToast(`Tải nhật ký thất bại: ${err.message}`, 'error')
+  } finally {
+    if (reqId === loadReqId && applyBtn) {
+      applyBtn.disabled = false
+      if (applyBtn.dataset.origHtml) applyBtn.innerHTML = applyBtn.dataset.origHtml
+    }
   }
 }
 
