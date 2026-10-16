@@ -357,8 +357,12 @@ serve(async (req: Request) => {
         answers: formattedAnswers,
         submission: {
           id: sub.id,
+          homeworkId: sub.homework_id,
+          studentId: sub.student_id,
           homeworkTitle: hwObj?.title || 'Bài tập',
           score,
+          bonus_score: Number(sub.bonus_score || 0),
+          bonusScore: Number(sub.bonus_score || 0),
           maxScore: Number(sub.max_score || hwObj?.max_score || 10),
           passScore,
           isPassed,

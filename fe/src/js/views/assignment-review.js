@@ -51,7 +51,8 @@ export function renderAssignmentReviewView() {
     student: result.student || result.profiles,
     guest_name: result.guest_name || result.guestName,
     guest_phone: result.guest_phone || result.guestPhone,
-    durationSecondsTaken: result.durationSecondsTaken || result.duration_seconds_taken
+    durationSecondsTaken: result.durationSecondsTaken || result.duration_seconds_taken,
+    bonus_score: result.bonus_score !== undefined ? result.bonus_score : result.bonusScore
   }
 
   const studentInfo = result.student || sub.student || sub.profiles || result.profiles || {}
@@ -259,6 +260,9 @@ export function renderAssignmentReviewView() {
                 <button id="view-exam-logs-btn" class="btn-secondary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-weight:600; cursor:pointer; white-space:nowrap;">
                   <i class="fa-solid fa-shield-cat"></i> Xem nhật ký vi phạm
                 </button>
+                <button id="add-bonus-btn" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#10b981; color:#ffffff; font-weight:600; cursor:pointer; border:none; white-space:nowrap;">
+                  <i class="fa-solid fa-plus"></i> Cộng điểm
+                </button>
                 <button id="reopen-submission-btn" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#f59e0b; color:#ffffff; font-weight:600; cursor:pointer; border:none; white-space:nowrap;">
                   <i class="fa-solid fa-rotate-left"></i> Khôi phục bài thi
                 </button>
@@ -322,9 +326,14 @@ export function renderAssignmentReviewView() {
               </div>
               
               <!-- Total Score prominently displayed -->
-              <div style="display:flex; align-items:center; gap:12px; background:#f0f9ff; border:1px solid #bae6fd; padding:8px 18px; border-radius:10px;">
+              <div style="display:flex; align-items:center; gap:12px; background:#f0f9ff; border:1px solid #bae6fd; padding:8px 18px; border-radius:10px; flex-wrap:wrap;">
                 <span style="font-size:13px; color:#0369a1; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Tổng Điểm Số:</span>
                 <strong style="font-size:24px; color:#0284c7; font-family:var(--font-heading);">${formatScore(calculatedScore)} <span style="font-size:15px; color:#0284c7; font-weight:600;">/ ${formatScore(maxScore)}</span></strong>
+                ${(Number(sub.bonus_score) > 0) ? `
+                  <span id="bonus-score-badge" style="display:inline-flex; align-items:center; gap:5px; background:#d1fae5; border:1px solid #6ee7b7; color:#065f46; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px;">
+                    <i class="fa-solid fa-plus"></i> Điểm cộng: +${formatScore(Number(sub.bonus_score))}
+                  </span>
+                ` : `<span id="bonus-score-badge" style="display:none;"></span>`}
               </div>
             </div>
 
@@ -975,6 +984,95 @@ export function bindAssignmentReviewEvents() {
              }, 1000)
           } catch(e) {
              import('../components/toast.js').then(({ showToast }) => showToast(e.message || 'Lỗi khi khôi phục bài thi', 'error'))
+          }
+          return true
+        })
+      })
+    }
+  }
+
+  // Admin Add Bonus Score feature
+  const addBonusBtn = document.getElementById('add-bonus-btn')
+  if (addBonusBtn && state.user?.role === 'ADMIN' && state.lastSubmissionResult?.submission) {
+    addBonusBtn.onclick = () => {
+      import('../components/modal.js').then(({ openModal }) => {
+        const currentBonus = Number(state.lastSubmissionResult.submission?.bonus_score || 0)
+        const currentMax = Number(state.lastSubmissionResult.submission?.maxScore || sub.maxScore || 10)
+        const bodyHtml = `
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <p style="font-size:14px; color:#475569; margin:0; line-height:1.5;">
+              Nhập mức điểm cộng cho bài làm này. Điểm cộng sẽ <strong>ghi đè</strong> mức cũ (không dồn tích).
+              Điểm tổng sẽ không vượt quá điểm tối đa (<strong>${currentMax} điểm</strong>).
+            </p>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:13px; font-weight:700; color:#1e293b;">Điểm cộng mới:</label>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input
+                  type="number"
+                  id="bonus-score-input"
+                  min="0"
+                  max="${currentMax}"
+                  step="0.25"
+                  value="${currentBonus}"
+                  style="width:100px; padding:8px 12px; border:2px solid #10b981; border-radius:8px; font-size:16px; font-weight:700; color:#065f46; text-align:center; outline:none;"
+                />
+                <span style="font-size:14px; color:#475569;">điểm (hiện tại: <strong style="color:#10b981;">+${currentBonus}</strong>)</span>
+              </div>
+            </div>
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; font-size:12px; color:#166534; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-circle-info"></i>
+              Nhập <strong>0</strong> để xóa điểm cộng. Điểm tổng = Điểm gốc + Điểm cộng (tối đa ${currentMax} điểm).
+            </div>
+          </div>
+        `
+        openModal('Cộng điểm cho bài làm', bodyHtml, async () => {
+          const inputEl = document.getElementById('bonus-score-input')
+          const bonusVal = Number(inputEl?.value ?? 0)
+          if (Number.isNaN(bonusVal) || bonusVal < 0) {
+            import('../components/toast.js').then(({ showToast }) => showToast('Điểm cộng không hợp lệ.', 'error'))
+            return false
+          }
+
+          const hwId = state.lastSubmissionResult.submission.homeworkId
+            || state.lastSubmissionResult.homeworkId
+            || state.lastSubmissionResult.submission.homework_id
+          const sId = state.lastSubmissionResult.studentId
+            || state.lastSubmissionResult.submission.studentId
+            || state.lastSubmissionResult.submission.student_id
+
+          if (!hwId || !sId) {
+            import('../components/toast.js').then(({ showToast }) => showToast('Không tìm thấy thông tin bài làm.', 'error'))
+            return true
+          }
+
+          try {
+            const { api } = await import('../api.js')
+            const res = await api.setBonus({ homeworkId: hwId, studentId: sId, bonus: bonusVal })
+
+            // Update state so UI stays in sync without full reload
+            if (state.lastSubmissionResult.submission) {
+              const base = Number(state.lastSubmissionResult.submission.score || 0) - Number(state.lastSubmissionResult.submission.bonus_score || 0)
+              const newTotal = Math.min(currentMax, Math.round((base + bonusVal) * 100) / 100)
+              state.lastSubmissionResult.submission.bonus_score = bonusVal
+              state.lastSubmissionResult.submission.score = newTotal
+            }
+
+            // Update badge in DOM without re-render
+            const badge = document.getElementById('bonus-score-badge')
+            if (badge) {
+              if (bonusVal > 0) {
+                badge.style.display = 'inline-flex'
+                badge.innerHTML = `<i class="fa-solid fa-plus"></i> Điểm cộng: +${bonusVal}`
+              } else {
+                badge.style.display = 'none'
+              }
+            }
+
+            import('../components/toast.js').then(({ showToast }) =>
+              showToast(bonusVal > 0 ? `Đã cộng +${bonusVal} điểm thành công.` : 'Đã xóa điểm cộng.', 'success')
+            )
+          } catch (e) {
+            import('../components/toast.js').then(({ showToast }) => showToast(e.message || 'Lỗi khi cộng điểm.', 'error'))
           }
           return true
         })
