@@ -182,6 +182,16 @@ export function renderQuestionBankView() {
                 </select>
               </div>
 
+              <!-- Filter: Lớp học (cascading Khối -> Lớp -> Chương -> Bài) -->
+              <div>
+                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">
+                  <i class="fa-solid fa-graduation-cap"></i> Lớp học
+                </label>
+                <select id="qb-filter-class" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#f8fafc; color:#1e293b;">
+                  <option value="">-- Tất cả Lớp --</option>
+                </select>
+              </div>
+
               <!-- Filter: Chapter -->
               <div>
                 <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">
@@ -399,6 +409,10 @@ function populateGradeBlockDropdowns() {
       loadChaptersForGradeBlock(filterState.gradeBlock, chapterSelect)
     }
   }
+  const classSelect = document.getElementById('qb-filter-class')
+  if (classSelect) {
+    loadClassesForGradeBlock(filterState.gradeBlock, classSelect)
+  }
 }
 
 async function refreshStats() {
@@ -500,6 +514,9 @@ function setupFilterListeners() {
     filterState.page = 1
     selectedQuestionIds.clear()
 
+    const classSelect = document.getElementById('qb-filter-class')
+    loadClassesForGradeBlock(filterState.gradeBlock, classSelect)
+
     // Populate chapters from all classes in this gradeBlock
     if (filterState.gradeBlock) {
       await loadChaptersForGradeBlock(filterState.gradeBlock, chapterSelect)
@@ -508,6 +525,26 @@ function setupFilterListeners() {
     }
     await populateMainFilterLessons('')
 
+    await fetchAndRenderQuestions({ includeStats: true })
+  })
+
+  // Cascading: Lớp học changed (Khối -> Lớp -> Chương -> Bài)
+  document.getElementById('qb-filter-class')?.addEventListener('change', async (e) => {
+    filterState.classId = e.target.value
+    filterState.chapterId = ''
+    filterState.lessonId = ''
+    filterState.lessonIds = []
+    filterState.page = 1
+    selectedQuestionIds.clear()
+
+    if (filterState.classId) {
+      await loadChaptersForClass(filterState.classId, chapterSelect)
+    } else if (filterState.gradeBlock) {
+      await loadChaptersForGradeBlock(filterState.gradeBlock, chapterSelect)
+    } else {
+      chapterSelect.innerHTML = '<option value="">-- Tất cả Chương --</option>'
+    }
+    await populateMainFilterLessons('')
     await fetchAndRenderQuestions({ includeStats: true })
   })
 
@@ -577,6 +614,8 @@ function setupFilterListeners() {
     selectedQuestionIds.clear()
     mainFilterLessonsCache = []
     if (gradeBlockSelect) gradeBlockSelect.value = ''
+    const classSelectReset = document.getElementById('qb-filter-class')
+    if (classSelectReset) classSelectReset.innerHTML = '<option value="">-- Tất cả Lớp --</option>' + (allClasses || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('')
     if (chapterSelect) chapterSelect.innerHTML = '<option value="">-- Tất cả Chương --</option>'
     updateMainFilterLessonDisplay()
     const listContainer = document.getElementById('qb-filter-lesson-list')
@@ -675,6 +714,17 @@ function updateMainFilterLessonDisplay() {
       countBadge.textContent = `${total} bài`
     }
   }
+}
+
+function loadClassesForGradeBlock(gradeBlock, targetSelect) {
+  if (!targetSelect) return
+  const list = (allClasses || []).filter(c => !gradeBlock || (c.gradeBlock || c.grade_block) === gradeBlock)
+  let html = '<option value="">-- Tất cả Lớp --</option>'
+  list.forEach(c => {
+    const isSelected = filterState.classId === c.id ? 'selected' : ''
+    html += `<option value="${c.id}" ${isSelected}>${c.name}</option>`
+  })
+  targetSelect.innerHTML = html
 }
 
 async function loadChaptersForGradeBlock(gradeBlock, targetSelect) {
@@ -3052,13 +3102,17 @@ async function openMatrixGeneratorModal() {
           params += `lessonIds=${encodeURIComponent(generatorState.selectedLessonIds.join(','))}&`
         }
       } else {
+        // QUICK: chỉ gửi đúng 1 cấp theo scopeType (tránh id cha đi kèm làm sai pool)
         params += `scopeType=${generatorState.scopeType}&`
-        if (generatorState.scopeType === 'BLOCK') {
-          params += `gradeBlock=${encodeURIComponent(generatorState.gradeBlock || '')}&`
-        } else {
-          if (generatorState.classId) params += `classId=${generatorState.classId}&`
-          if (generatorState.chapterId) params += `chapterId=${generatorState.chapterId}&`
+        if (generatorState.gradeBlock) {
+          params += `gradeBlock=${encodeURIComponent(generatorState.gradeBlock)}&`
+        }
+        if (generatorState.scopeType === 'LESSON') {
           if (generatorState.lessonId) params += `lessonId=${generatorState.lessonId}&`
+        } else if (generatorState.scopeType === 'CHAPTER') {
+          if (generatorState.chapterId) params += `chapterId=${generatorState.chapterId}&`
+        } else if (generatorState.scopeType === 'CLASS') {
+          if (generatorState.classId) params += `classId=${generatorState.classId}&`
         }
       }
 
@@ -3131,22 +3185,38 @@ async function openMatrixGeneratorModal() {
     btnRollPreview.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang bốc câu...'
     generatorState.rejectedIds = []
 
-    // Construct structured scope object
+    // Construct structured scope object (QUICK: chỉ gửi đúng 1 cấp theo scopeType)
     let scopePayload
     if (generatorState.scopeMode === 'MULTI') {
       scopePayload = {
+        scopeType: 'MULTI',
         gradeBlock: generatorState.gradeBlock,
         classIds: generatorState.selectedClassIds,
         chapterIds: generatorState.selectedChapterIds,
         lessonIds: generatorState.selectedLessonIds
       }
+    } else if (generatorState.scopeType === 'LESSON') {
+      scopePayload = {
+        scopeType: 'LESSON',
+        gradeBlock: generatorState.gradeBlock,
+        lessonId: generatorState.lessonId
+      }
+    } else if (generatorState.scopeType === 'CHAPTER') {
+      scopePayload = {
+        scopeType: 'CHAPTER',
+        gradeBlock: generatorState.gradeBlock,
+        chapterId: generatorState.chapterId
+      }
+    } else if (generatorState.scopeType === 'CLASS') {
+      scopePayload = {
+        scopeType: 'CLASS',
+        gradeBlock: generatorState.gradeBlock,
+        classId: generatorState.classId
+      }
     } else {
       scopePayload = {
-        scopeType: generatorState.scopeType,
-        gradeBlock: generatorState.gradeBlock,
-        classId: generatorState.classId,
-        chapterId: generatorState.chapterId,
-        lessonId: generatorState.lessonId
+        scopeType: 'BLOCK',
+        gradeBlock: generatorState.gradeBlock
       }
     }
     generatorState.currentScope = scopePayload

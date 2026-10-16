@@ -247,6 +247,7 @@ function normalizeBankPromptPayload(rawPrompt: any, fallbackData: any = {}): any
 }
 
 interface ScopeTarget {
+  scopeType?: string | null // 'BLOCK' | 'CLASS' | 'CHAPTER' | 'LESSON' | 'MULTI'
   gradeBlock?: string | null
   classIds: string[]
   chapterIds: string[]
@@ -255,7 +256,7 @@ interface ScopeTarget {
 }
 
 function normalizeScopeInput(input: any): ScopeTarget {
-  if (!input) return { gradeBlock: null, classIds: [], chapterIds: [], lessonIds: [], tags: [] }
+  if (!input) return { scopeType: null, gradeBlock: null, classIds: [], chapterIds: [], lessonIds: [], tags: [] }
 
   const tags: string[] = []
   const rawTags = input.scope?.tags || input.tags
@@ -264,8 +265,11 @@ function normalizeScopeInput(input: any): ScopeTarget {
     tags.push(...rawTags.split(',').map((t: string) => t.trim()).filter(Boolean))
   }
 
+  const scopeType = input.scopeType || input.scope?.scopeType || null
+
   if (input.scope && typeof input.scope === 'object') {
     return {
+      scopeType,
       gradeBlock: input.scope.gradeBlock || input.gradeBlock || null,
       classIds: Array.isArray(input.scope.classIds) ? input.scope.classIds.filter(Boolean) : (input.scope.classId ? [input.scope.classId] : []),
       chapterIds: Array.isArray(input.scope.chapterIds) ? input.scope.chapterIds.filter(Boolean) : (input.scope.chapterId ? [input.scope.chapterId] : []),
@@ -297,6 +301,7 @@ function normalizeScopeInput(input: any): ScopeTarget {
   }
 
   return {
+    scopeType,
     gradeBlock: input.gradeBlock || null,
     classIds,
     chapterIds,
@@ -342,18 +347,52 @@ async function buildPoolQuery(
     chapterId?: string | null;
   }
 ): Promise<{ data: any[] | null; error: any }> {
-  let expandedClassIds = scope.classIds || []
-  let expandedChapterIds = scope.chapterIds || []
-  if ((!scope.lessonIds || scope.lessonIds.length === 0) &&
-    (!expandedChapterIds || expandedChapterIds.length === 0) &&
-    (!expandedClassIds || expandedClassIds.length === 0) &&
-    scope.gradeBlock) {
-    const ids = await getScopeTargetIds(serviceRoleClient, scope.gradeBlock)
-    expandedClassIds = ids.classIds
-    expandedChapterIds = ids.chapterIds
+  const lessonIds = [...new Set(scope.lessonIds || [])]
+  const chapterIds = [...new Set(scope.chapterIds || [])]
+  const classIds = [...new Set(scope.classIds || [])]
+  const scopeType = (scope.scopeType || '').toUpperCase()
+
+  // Mở rộng phân cấp để chống "nuốt" phạm vi con (MULTI / legacy gửi kèm id cha-con):
+  // resolve mọi chương/lớp đã chọn xuống danh sách bài học + chương trực thuộc.
+  const expandHierarchy = async (): Promise<{ allLessonIds: string[]; allChapterIds: string[] }> => {
+    let chaptersOfClasses: string[] = []
+    if (classIds.length > 0) {
+      const { data: chRows } = await serviceRoleClient
+        .from('chapters')
+        .select('id')
+        .in('class_id', classIds)
+      chaptersOfClasses = (chRows || []).map((r: any) => r.id)
+    }
+    const chaptersToExpand = [...new Set([...chapterIds, ...chaptersOfClasses])]
+    let lessonsOfChapters: string[] = []
+    if (chaptersToExpand.length > 0) {
+      const { data: lRows } = await serviceRoleClient
+        .from('lessons')
+        .select('id')
+        .in('chapter_id', chaptersToExpand)
+      lessonsOfChapters = (lRows || []).map((r: any) => r.id)
+    }
+    return {
+      allLessonIds: [...new Set([...lessonIds, ...lessonsOfChapters])],
+      allChapterIds: [...new Set([...chapterIds, ...chaptersOfClasses])]
+    }
   }
 
-  const buildQueryInstance = () => {
+  // Chế độ đơn cấp (QUICK): chỉ lọc đúng 1 cấp đã chọn, bỏ qua id cha đi kèm dropdown xếp tầng
+  const singleLevelClause = (): string | null => {
+    if (scopeType === 'LESSON') {
+      return lessonIds.length > 0 ? `lesson_id.in.(${lessonIds.join(',')})` : null
+    }
+    if (scopeType === 'CHAPTER') {
+      return chapterIds.length > 0 ? `chapter_id.in.(${chapterIds.join(',')})` : null
+    }
+    if (scopeType === 'CLASS') {
+      return classIds.length > 0 ? `class_id.in.(${classIds.join(',')})` : null
+    }
+    return null
+  }
+
+  const buildQueryInstance = (presetOr: string | null, presetOrBlock: string[] = []) => {
     let query = serviceRoleClient.from('question_bank').select(columns)
 
     // Lọc theo chuyên đề / Tags (Phase 6.2 - GIN Index)
@@ -361,26 +400,12 @@ async function buildPoolQuery(
       query = query.contains('tags', scope.tags)
     }
 
-    const orClauses: string[] = []
-    if (scope.lessonIds && scope.lessonIds.length > 0) {
-      orClauses.push(`lesson_id.in.(${scope.lessonIds.join(',')})`)
-    }
-    if (expandedChapterIds && expandedChapterIds.length > 0) {
-      orClauses.push(`chapter_id.in.(${expandedChapterIds.join(',')})`)
-    }
-    if (expandedClassIds && expandedClassIds.length > 0) {
-      orClauses.push(`class_id.in.(${expandedClassIds.join(',')})`)
-    }
-
-    if (orClauses.length > 0) {
-      // Nguyên tắc phân tầng độc lập: Mỗi cấp chỉ lọc theo đúng cột của chính nó
-      query = query.or(orClauses.join(','))
-    } else if (scope.gradeBlock) {
-      // Cấp Khối: lấy các câu thuộc grade_block hoặc các lớp/chương trong khối
-      const blockClauses = [`grade_block.eq.${scope.gradeBlock}`]
-      if (expandedClassIds.length > 0) blockClauses.push(`class_id.in.(${expandedClassIds.join(',')})`)
-      if (expandedChapterIds.length > 0) blockClauses.push(`chapter_id.in.(${expandedChapterIds.join(',')})`)
-      query = query.or(blockClauses.join(','))
+    if (presetOr) {
+      query = query.or(presetOr)
+    } else if (presetOrBlock.length > 0) {
+      // Cấp Khối: giữ hành vi cũ (grade_block khớp, hoặc class/chương thuộc khối
+      // cho các câu chưa gán grade_block)
+      query = query.or(presetOrBlock.join(','))
     }
 
     if (extraFilters?.questionType) {
@@ -395,7 +420,45 @@ async function buildPoolQuery(
     return query
   }
 
-  return await fetchAllQueryRows(buildQueryInstance)
+  // fetchAllQueryRows gọi factory nhiều lần (range paging) nên resolve preset 1 lần
+  // rồi dùng factory đồng bộ cho mọi batch.
+  const single = singleLevelClause()
+  if (single) {
+    return await fetchAllQueryRows(() => buildQueryInstance(single))
+  }
+
+  if (lessonIds.length === 0 && chapterIds.length === 0 && classIds.length === 0) {
+    // Không chọn gì cụ thể: chỉ lọc theo khối (hoặc không lọc gì nếu thiếu khối)
+    let presetOrBlock: string[] = []
+    if (scope.gradeBlock) {
+      const ids = await getScopeTargetIds(serviceRoleClient, scope.gradeBlock)
+      presetOrBlock = [`grade_block.eq.${scope.gradeBlock}`]
+      if (ids.classIds.length > 0) presetOrBlock.push(`class_id.in.(${ids.classIds.join(',')})`)
+      if (ids.chapterIds.length > 0) presetOrBlock.push(`chapter_id.in.(${ids.chapterIds.join(',')})`)
+    }
+    const preset = presetOrBlock.length > 0 ? presetOrBlock.join(',') : null
+    return await fetchAllQueryRows(() => buildQueryInstance(preset, presetOrBlock))
+  }
+
+  // MULTI / legacy gửi kèm id cha-con: hợp các nhánh độc lập, mỗi nhánh giới hạn
+  // đúng cấp của nó để id cha không "nuốt" phạm vi con.
+  const { allLessonIds, allChapterIds } = await expandHierarchy()
+  const orClauses: string[] = []
+  if (allLessonIds.length > 0) {
+    orClauses.push(`lesson_id.in.(${allLessonIds.join(',')})`)
+  }
+  const chIdsForNullLesson = chapterIds.length > 0 ? chapterIds : allChapterIds
+  if (chIdsForNullLesson.length > 0) {
+    orClauses.push(`and(chapter_id.in.(${chIdsForNullLesson.join(',')}),lesson_id.is.null)`)
+  }
+  if (classIds.length > 0) {
+    orClauses.push(`and(class_id.in.(${classIds.join(',')}),chapter_id.is.null,lesson_id.is.null)`)
+  }
+  if (orClauses.length === 0) {
+    return await fetchAllQueryRows(() => buildQueryInstance(null))
+  }
+  const preset = orClauses.join(',')
+  return await fetchAllQueryRows(() => buildQueryInstance(preset))
 }
 
 function shuffleVariantQuestions(
