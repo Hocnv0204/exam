@@ -350,8 +350,6 @@ async function request(endpoint, options = {}) {
           isRefreshing = false
         }
       }
-
-      // If we still get a 401, logout only for protected endpoints
       if (response.status === 401) {
         if (!isPublicEndpoint) {
           logout()
@@ -390,6 +388,8 @@ async function request(endpoint, options = {}) {
 
 export const api = {
   login: (username, password) => request('login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  completeOnboarding: (tourKey) => request('login', { method: 'PATCH', body: JSON.stringify({ tourKey }) }),
+  impersonateStudent: (studentId) => request('impersonate', { method: 'POST', body: JSON.stringify({ studentId }) }),
   createStudent: (data) => request('create-student', { method: 'POST', body: JSON.stringify(data) }),
   updateStudent: (data) => request('create-student', { method: 'PUT', body: JSON.stringify(data) }),
   addStudentBalance: (studentId, amount) => request('create-student?action=add-balance', { method: 'POST', body: JSON.stringify({ studentId, amount }) }),

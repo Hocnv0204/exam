@@ -62,13 +62,13 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'roadmap-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-11'">
           <i class="fa-solid fa-compass" style="color:#8b5cf6;"></i> Lộ trình Hóa 11 (Chuẩn KNTT)
         </div>
-        <div class="nav-item ${currentRoute === 'my-classes' ? 'active' : ''}" onclick="window.location.hash='#my-classes'">
+        <div class="nav-item ${currentRoute === 'my-classes' ? 'active' : ''}" data-tour-nav="classes" onclick="window.location.hash='#my-classes'">
           <i class="fa-solid fa-graduation-cap"></i> Lớp học của tôi
         </div>
-        <div class="nav-item ${currentRoute === 'my-homeworks' ? 'active' : ''}" onclick="window.location.hash='#my-homeworks'">
+        <div class="nav-item ${currentRoute === 'my-homeworks' ? 'active' : ''}" data-tour-nav="homeworks" onclick="window.location.hash='#my-homeworks'">
           <i class="fa-solid fa-list-check"></i> Bài tập của tôi
         </div>
-        <div class="nav-item ${currentRoute === 'history' ? 'active' : ''}" onclick="window.location.hash='#history'">
+        <div class="nav-item ${currentRoute === 'history' ? 'active' : ''}" data-tour-nav="history" onclick="window.location.hash='#history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài
         </div>
       `)}

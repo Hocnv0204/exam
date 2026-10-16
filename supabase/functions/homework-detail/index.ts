@@ -107,7 +107,7 @@ serve(async (req: Request) => {
       }
     }
 
-    // 3. Concurrently fetch: Attempts Count, Signed PDF URL, and Questions
+    // 3. Concurrently fetch: Attempts Count, Active Attempt, Signed PDF URL, and Questions
     const attemptsPromise = (user && user.role === 'STUDENT')
       ? serviceRoleClient
           .from('submissions')
@@ -116,6 +116,24 @@ serve(async (req: Request) => {
           .eq('student_id', user.id)
           .eq('status', 'SUBMITTED')
       : Promise.resolve({ count: 0, error: null })
+
+    // Lượt thi đang mở do admin cấp thêm (reopen tạo session ACTIVE mới, attempt_no tăng dần).
+    // FE dùng để cho vào phòng thi dù attemptsCount đã chạm maxAttempts.
+    const activeAttemptPromise = (user && user.role === 'STUDENT')
+      ? serviceRoleClient
+          .from('exam_sessions')
+          .select('attempt_no')
+          .eq('homework_id', homeworkId)
+          .eq('student_id', user.id)
+          .eq('status', 'ACTIVE')
+          .order('attempt_no', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+          .then(
+            (r: any) => ({ attemptNo: Number(r?.data?.attempt_no) || 0 }),
+            () => ({ attemptNo: 0 })
+          )
+      : Promise.resolve({ attemptNo: 0 })
 
     const pdfPromise = (homework.pdf_path && !homework.pdf_path.startsWith('http'))
       ? serviceRoleClient.storage
@@ -134,13 +152,15 @@ serve(async (req: Request) => {
       .eq('homework_id', homeworkId)
       .order('question_number', { ascending: true })
 
-    const [attemptsRes, pdfRes, questionsRes] = await Promise.all([
+    const [attemptsRes, activeAttemptRes, pdfRes, questionsRes] = await Promise.all([
       attemptsPromise,
+      activeAttemptPromise,
       pdfPromise,
       questionsPromise,
     ])
 
     let attemptsCount = attemptsRes.count ?? 0
+    const activeAttemptNo = (activeAttemptRes as any)?.attemptNo || 0
 
     let pdfUrl = homework.pdf_path || ''
     if (pdfRes.data?.signedUrl) {
@@ -188,6 +208,7 @@ serve(async (req: Request) => {
       },
       questions: questionsResult,
       attemptsCount,
+      activeAttemptNo,
     })
   } catch (err: unknown) {
     const error = err as Error

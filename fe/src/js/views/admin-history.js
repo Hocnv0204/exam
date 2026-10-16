@@ -3,7 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
-import { openModal } from '../components/modal.js'
+import { openModal, closeModal } from '../components/modal.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 
 let currentMode = 'class' // 'class' | 'trial'
@@ -17,6 +17,12 @@ let submissionStats = null
 let unsubmittedStudents = []
 let unsubmittedFilter = 'ALL' // 'ALL' | 'NOT_STARTED' | 'IN_PROGRESS'
 let unsubmittedSearch = ''
+let currentPage = 1
+let totalPages = 1
+let totalCount = 0
+let searchQuery = ''
+let restoreSearchFocus = false
+const PAGE_SIZE = 20
 const classHomeworksCache = new Map()
 
 function parseQuestionPrompt(rawPrompt, qType) {
@@ -156,6 +162,24 @@ function formatScore(val) {
   return Number.isInteger(num) ? num.toString() : Number(num.toFixed(2)).toString()
 }
 
+function escapeHtmlAttr(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function buildHistoryHash(opts = {}) {
+  const p = new URLSearchParams()
+  p.set('mode', opts.mode !== undefined ? opts.mode : currentMode)
+  const cid = opts.classId !== undefined ? opts.classId : selectedClassId
+  if (cid) p.set('classId', cid)
+  const hw = opts.homeworkId !== undefined ? opts.homeworkId : selectedHomeworkId
+  if (hw) p.set('homeworkId', hw)
+  const tab = opts.subTab !== undefined ? opts.subTab : currentSubTab
+  if (tab && tab !== 'submitted') p.set('subTab', tab)
+  if (opts.page && opts.page > 1) p.set('page', String(opts.page))
+  if (opts.search) p.set('search', opts.search)
+  return `#admin-history?${p.toString()}`
+}
+
 function parseUrlParams() {
   const hash = window.location.hash || ''
   const queryIndex = hash.indexOf('?')
@@ -165,15 +189,17 @@ function parseUrlParams() {
     const tabParam = params.get('tab') || params.get('subTab')
     const cId = params.get('classId')
     const hId = params.get('homeworkId')
+    const pageParam = parseInt(params.get('page') || '1', 10)
+    currentPage = !isNaN(pageParam) && pageParam > 0 ? pageParam : 1
+    searchQuery = params.get('search') || ''
 
     if (mode === 'trial' || tabParam === 'trial' || cId === 'TRIAL') {
       currentMode = 'trial'
       selectedClassId = 'TRIAL'
     } else {
       currentMode = 'class'
-      if (cId && cId !== 'TRIAL') {
-        selectedClassId = cId
-      }
+      // Không chọn lớp nào => mặc định lấy tất cả các lớp
+      selectedClassId = (cId && cId !== 'TRIAL') ? cId : ''
     }
     selectedHomeworkId = hId || ''
     if (tabParam && ['submitted', 'wrong-questions', 'unsubmitted'].includes(tabParam)) {
@@ -209,14 +235,9 @@ export function renderAdminHistoryView() {
   const classes = state.classes || []
   const isTrialMode = currentMode === 'trial'
 
-  // If in class mode and no classId is selected, default to the first class if available
-  if (!isTrialMode && !selectedClassId && classes.length > 0) {
-    selectedClassId = classes[0].id
-  }
-
-  // Find selected class and homework names
+  // Chế độ lớp: bỏ chọn lớp => xem tất cả các lớp, không ép lớp đầu tiên
   const selectedClass = classes.find(c => c.id === selectedClassId)
-  const classNameText = isTrialMode ? '🌟 Học sinh học thử (Khách trải nghiệm)' : (selectedClass ? selectedClass.name : 'Chưa chọn lớp')
+  const classNameText = isTrialMode ? '🌟 Học sinh học thử (Khách trải nghiệm)' : (selectedClass ? selectedClass.name : 'Tất cả các lớp')
 
   const selectedHw = classHomeworks.find(h => h.id === selectedHomeworkId)
   const hwNameText = selectedHw ? selectedHw.title : (submissionStats?.homeworkTitle || (isTrialMode ? 'Tất cả bài tập học thử' : 'Tất cả bài tập trong lớp'))
@@ -465,7 +486,7 @@ export function renderAdminHistoryView() {
                     <i class="fa-solid fa-graduation-cap"></i> Chọn Lớp Học <span style="color:#ef4444;">*</span>
                   </label>
                   <select id="admin-history-class-select" class="form-input" style="background:#ffffff; cursor:pointer; font-weight:600;">
-                    <option value="">-- Chọn lớp học --</option>
+                    <option value="">-- Tất cả các lớp --</option>
                     ${classes.map(c => `
                       <option value="${c.id}" ${c.id === selectedClassId ? 'selected' : ''}>${c.name}</option>
                     `).join('')}
@@ -477,8 +498,8 @@ export function renderAdminHistoryView() {
                   <label style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase;">
                     <i class="fa-solid fa-book-open-reader"></i> Lọc theo Bài học / Bài tập
                   </label>
-                  <select id="admin-history-hw-select" class="form-input" style="background:#ffffff; cursor:pointer;" ${!selectedClassId ? 'disabled' : ''}>
-                    <option value="">-- Tất cả bài tập trong lớp (${classHomeworks.length} bài) --</option>
+                  <select id="admin-history-hw-select" class="form-input" style="background:#ffffff; cursor:pointer;" ${classHomeworks.length === 0 ? 'disabled' : ''}>
+                    <option value="">-- Tất cả bài tập${selectedClassId ? ' trong lớp' : ''} (${classHomeworks.length} bài) --</option>
                     ${classHomeworks.map(h => `
                       <option value="${h.id}" ${h.id === selectedHomeworkId ? 'selected' : ''}>
                         ${h.title} ${h.type === 'EXAM' ? '[Bài thi]' : '[Luyện tập]'}
@@ -736,12 +757,12 @@ export function renderAdminHistoryView() {
               <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
                   <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; color:#0f172a; margin:0;">
-                    Danh sách bài đã nộp (${submissions.length})
+                    Danh sách bài đã nộp (${(!isTrialMode && !selectedHomeworkId) ? totalCount : submissions.length})
                   </h3>
                   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <div class="search-box" style="width:260px; margin:0;">
                       <i class="fa-solid fa-magnifying-glass"></i>
-                      <input type="text" id="admin-history-search" placeholder="Tìm tên học sinh, username, bài tập...">
+                      <input type="text" id="admin-history-search" placeholder="Tìm tên học sinh, username, bài tập..." value="${escapeHtmlAttr(searchQuery)}">
                     </div>
                     <button class="btn-secondary" id="btn-export-submissions-csv" style="padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; border-radius:8px; display:inline-flex; align-items:center; gap:6px;">
                       <i class="fa-solid fa-file-excel" style="color:#16a34a;"></i> Xuất Excel bài nộp
@@ -861,6 +882,7 @@ export function renderAdminHistoryView() {
                     </tbody>
                   </table>
                 </div>
+                <div id="admin-history-pager" style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; flex-wrap:wrap; gap:10px;"></div>
               </div>
             ` : ''}
 
@@ -977,7 +999,7 @@ function exportSubmissionsToCsv() {
   showToast('Đã xuất file CSV danh sách bài nộp thành công!', 'success')
 }
 
-export async function loadAdminHistoryData(classId = '', homeworkId = '', mode = '') {
+export async function loadAdminHistoryData(classId = '', homeworkId = '', mode = '', opts = {}) {
   // Update state from parameters
   if (mode === 'trial' || classId === 'TRIAL') {
     currentMode = 'trial'
@@ -987,17 +1009,17 @@ export async function loadAdminHistoryData(classId = '', homeworkId = '', mode =
     selectedClassId = (classId && classId !== 'TRIAL') ? classId : (selectedClassId || '')
   }
   selectedHomeworkId = homeworkId || ''
+  if (opts.page) currentPage = opts.page
+  if (opts.search !== undefined) searchQuery = opts.search
 
   submissions = []
   wrongQuestionsSummary = []
   submissionStats = null
   unsubmittedStudents = []
+  totalPages = 1
+  totalCount = 0
 
-  // If in class mode and no classId is specified, pick the first available class
-  if (currentMode === 'class' && !selectedClassId && state.classes && state.classes.length > 0) {
-    selectedClassId = state.classes[0].id
-  }
-
+  // If in class mode and no classId is specified, keep all classes (no forced default)
   try {
     let queryStr = ''
     if (currentMode === 'trial') {
@@ -1013,10 +1035,20 @@ export async function loadAdminHistoryData(classId = '', homeworkId = '', mode =
       if (selectedHomeworkId) {
         queryStr += `&homeworkId=${selectedHomeworkId}`
       }
+      // Phân trang + tìm kiếm ở server cho danh sách bài nộp (bài nộp mới nhất trước)
+      if (!selectedHomeworkId) {
+        queryStr += `&page=${currentPage}&pageSize=${PAGE_SIZE}`
+        if (searchQuery.trim()) {
+          queryStr += `&search=${encodeURIComponent(searchQuery.trim())}`
+        }
+      }
     }
 
     const result = await api.getStudentHistory(queryStr)
     submissions = result?.history || []
+    totalPages = result?.totalPages || 1
+    totalCount = result?.total ?? submissions.length
+    currentPage = result?.page || currentPage
     wrongQuestionsSummary = result?.wrongQuestionsSummary || []
     submissionStats = result?.submissionStats || null
     unsubmittedStudents = result?.unsubmittedStudents || []
@@ -1050,13 +1082,12 @@ export function bindAdminHistoryEvents() {
 
   btnModeClass?.addEventListener('click', () => {
     currentMode = 'class'
-    const firstClassId = (state.classes && state.classes.length > 0) ? state.classes[0].id : ''
-    window.location.hash = `#admin-history?mode=class${firstClassId ? `&classId=${firstClassId}` : ''}`
+    window.location.hash = buildHistoryHash({ mode: 'class', classId: '', homeworkId: '', subTab: 'submitted' })
   })
 
   btnModeTrial?.addEventListener('click', () => {
     currentMode = 'trial'
-    window.location.hash = `#admin-history?mode=trial`
+    window.location.hash = buildHistoryHash({ mode: 'trial', classId: 'TRIAL', homeworkId: '' })
   })
 
   // 2. Sub-tab switching: Submitted vs Wrong Analysis vs Unsubmitted
@@ -1066,28 +1097,24 @@ export function bindAdminHistoryEvents() {
 
   tabBtnSubmitted?.addEventListener('click', () => {
     currentSubTab = 'submitted'
-    window.location.hash = `#admin-history?mode=class&classId=${selectedClassId}&homeworkId=${selectedHomeworkId}&subTab=submitted`
+    window.location.hash = buildHistoryHash({ subTab: 'submitted' })
   })
 
   tabBtnWrong?.addEventListener('click', () => {
     currentSubTab = 'wrong-questions'
-    window.location.hash = `#admin-history?mode=class&classId=${selectedClassId}&homeworkId=${selectedHomeworkId}&subTab=wrong-questions`
+    window.location.hash = buildHistoryHash({ subTab: 'wrong-questions' })
   })
 
   tabBtnUnsubmitted?.addEventListener('click', () => {
     currentSubTab = 'unsubmitted'
-    window.location.hash = `#admin-history?mode=class&classId=${selectedClassId}&homeworkId=${selectedHomeworkId}&subTab=unsubmitted`
+    window.location.hash = buildHistoryHash({ subTab: 'unsubmitted' })
   })
 
-  // 3. Class Select Change
+  // 3. Class Select Change (trống = tất cả các lớp, reset trang + tìm kiếm)
   const classSelect = document.getElementById('admin-history-class-select')
   classSelect?.addEventListener('change', (e) => {
     const classId = e.target.value
-    if (classId) {
-      window.location.hash = `#admin-history?mode=class&classId=${classId}`
-    } else {
-      window.location.hash = `#admin-history?mode=class`
-    }
+    window.location.hash = buildHistoryHash({ mode: 'class', classId, homeworkId: '' })
   })
 
   // 4. Homework Select Change
@@ -1095,29 +1122,40 @@ export function bindAdminHistoryEvents() {
   hwSelect?.addEventListener('change', (e) => {
     const hwId = e.target.value
     if (currentMode === 'trial') {
-      if (hwId) {
-        window.location.hash = `#admin-history?mode=trial&homeworkId=${hwId}`
-      } else {
-        window.location.hash = `#admin-history?mode=trial`
-      }
+      window.location.hash = buildHistoryHash({ mode: 'trial', classId: 'TRIAL', homeworkId: hwId })
     } else {
-      if (hwId) {
-        window.location.hash = `#admin-history?mode=class&classId=${selectedClassId}&homeworkId=${hwId}`
-      } else {
-        window.location.hash = `#admin-history?mode=class&classId=${selectedClassId}`
-      }
+      window.location.hash = buildHistoryHash({ homeworkId: hwId })
     }
   })
 
-  // 5. Real-time Search for Formal Submissions
+  // 5. Search: tìm ở server (debounce, reset về trang 1); giữ focus sau khi render lại
   const searchInput = document.getElementById('admin-history-search')
-  searchInput?.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase().trim()
-    document.querySelectorAll('.history-row').forEach(row => {
-      const text = row.textContent.toLowerCase()
-      row.style.display = text.includes(query) ? '' : 'none'
-    })
-  })
+  if (searchInput) {
+    let searchTimer = null
+    if (restoreSearchFocus) {
+      restoreSearchFocus = false
+      searchInput.focus()
+      searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length)
+    }
+    if (selectedHomeworkId || currentMode === 'trial') {
+      // Danh sách đã tải đủ ở client: lọc tại chỗ như cũ
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim()
+        document.querySelectorAll('.history-row').forEach(row => {
+          const text = row.textContent.toLowerCase()
+          row.style.display = text.includes(query) ? '' : 'none'
+        })
+      })
+    } else {
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimer)
+        searchTimer = setTimeout(() => {
+          restoreSearchFocus = true
+          window.location.hash = buildHistoryHash({ search: e.target.value.trim() })
+        }, 500)
+      })
+    }
+  }
 
   // 6. Real-time Search for Trial Leads (Name or Phone)
   const leadSearchInput = document.getElementById('admin-history-lead-search')
@@ -1238,6 +1276,9 @@ export function bindAdminHistoryEvents() {
           <p style="font-size:14px; color:#334155; margin-bottom:12px;">
             Bạn đang cho phép học sinh <strong>${name}</strong> được làm lại bài tập này.
           </p>
+          <p style="font-size:12px; color:#64748b; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:8px 12px; margin:0 0 12px 0;">
+            <i class="fa-solid fa-circle-info"></i> Đối với <strong>bài thi</strong>: hệ thống tạo <strong>lần thi mới</strong>, bài thi cũ vẫn được giữ nguyên trong lịch sử.
+          </p>
           <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
             <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
               <input type="checkbox" id="reopen-reset-timer" checked>
@@ -1257,13 +1298,18 @@ export function bindAdminHistoryEvents() {
         </div>
       `)
 
-      document.getElementById('confirm-reopen-btn')?.addEventListener('click', async () => {
+      document.querySelector('#modal-container .close-modal-btn')?.addEventListener('click', () => closeModal())
+
+      document.getElementById('confirm-reopen-btn')?.addEventListener('click', async (e) => {
+        const confirmBtn = e.currentTarget
         const resetTimer = document.getElementById('reopen-reset-timer')?.checked || false
         const resetAnswers = document.getElementById('reopen-reset-answers')?.checked || false
+        confirmBtn.disabled = true
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xử lý...'
         try {
-          await api.reopenSubmission(hwId, stuId, resetTimer, resetAnswers)
-          showToast(`Đã cho phép ${name} làm lại bài tập thành công!`, 'success')
-          document.querySelector('.modal-overlay')?.remove()
+          const res = await api.reopenSubmission(hwId, stuId, resetTimer, resetAnswers)
+          showToast(res?.newAttempt ? `Đã tạo lần thi mới (lần ${res.attemptNo}) cho ${name}, giữ nguyên lịch sử cũ!` : `Đã cho phép ${name} làm lại bài tập thành công!`, 'success')
+          closeModal()
           await loadAdminHistoryData(selectedClassId, selectedHomeworkId, currentMode)
           const app = document.getElementById('app')
           if (app) {
@@ -1272,6 +1318,8 @@ export function bindAdminHistoryEvents() {
           }
         } catch (err) {
           showToast(`Khôi phục thất bại: ${err.message}`, 'error')
+          confirmBtn.disabled = false
+          confirmBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> Xác nhận khôi phục'
         }
       })
     })
@@ -1371,4 +1419,48 @@ export function bindAdminHistoryEvents() {
     const contentBody = document.querySelector('.content-body')
     if (contentBody) renderMath(contentBody)
   }, 50)
+
+  // 15. Pager cho danh sách bài nộp (phân trang backend)
+  renderHistoryPager()
+}
+
+function renderHistoryPager() {
+  const pager = document.getElementById('admin-history-pager')
+  if (!pager) return
+  // Chỉ phân trang ở chế độ lớp + xem tất cả bài (chi tiết từng bài tải đủ ở client)
+  if (currentMode !== 'class' || selectedHomeworkId) {
+    pager.innerHTML = ''
+    return
+  }
+  if (totalCount === 0) {
+    pager.innerHTML = ''
+    return
+  }
+  const from = (currentPage - 1) * PAGE_SIZE + 1
+  const to = Math.min(currentPage * PAGE_SIZE, totalCount)
+  let nums = ''
+  const startP = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
+  const endP = Math.min(totalPages, startP + 4)
+  for (let p = startP; p <= endP; p++) {
+    nums += `<button data-hist-page="${p}" style="min-width:32px; height:32px; border-radius:8px; border:1px solid ${p === currentPage ? '#0066cc' : '#cbd5e1'}; background:${p === currentPage ? '#0066cc' : '#ffffff'}; color:${p === currentPage ? '#ffffff' : '#334155'}; font-weight:700; font-size:13px; cursor:pointer;">${p}</button>`
+  }
+  pager.innerHTML = `
+    <div style="font-size:13px; color:#64748b;">Hiển thị ${from}–${to} / ${totalCount} bài nộp (mới nhất trước)</div>
+    ${totalPages <= 1 ? '' : `
+    <div style="display:flex; align-items:center; gap:6px;">
+      <button data-hist-page="prev" ${currentPage <= 1 ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${currentPage <= 1 ? '0.4' : '1'};">‹ Trước</button>
+      ${nums}
+      <button data-hist-page="next" ${currentPage >= totalPages ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${currentPage >= totalPages ? '0.4' : '1'};">Sau ›</button>
+    </div>`}
+  `
+  pager.querySelectorAll('[data-hist-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.getAttribute('data-hist-page')
+      let next = currentPage
+      if (v === 'prev') next = currentPage - 1
+      else if (v === 'next') next = currentPage + 1
+      else next = parseInt(v, 10) || 1
+      window.location.hash = buildHistoryHash({ page: next, search: searchQuery })
+    })
+  })
 }

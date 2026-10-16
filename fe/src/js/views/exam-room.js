@@ -147,7 +147,11 @@ export function renderExamRoomView() {
 
   const attemptsCount = hwData?.attemptsCount || 0
   const maxAttempts = hw.maxAttempts || hw.max_attempts || 1
-  const isExceeded = maxAttempts > 0 && attemptsCount >= maxAttempts
+  // Mỗi lần admin khôi phục bài thi sẽ cấp thêm 1 lượt (activeAttemptNo tăng dần).
+  // Cho phép vào thi khi số lần đã nộp < maxAttempts + (lượt được cấp thêm).
+  const grantedExtra = Math.max(0, (hwData?.activeAttemptNo || 0) - 1)
+  const attemptAllowance = maxAttempts + grantedExtra
+  const isExceeded = maxAttempts > 0 && attemptsCount >= attemptAllowance
 
   if (isExceeded) {
     return `

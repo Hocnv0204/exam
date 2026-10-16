@@ -37,5 +37,9 @@ export function setSession(user, token, refreshToken = null) {
 
 export function logout() {
   setSession(null, null)
+  try {
+    // Xóa cả backup mượn phiên (nếu có) để tab mới đăng nhập không bị banner cũ
+    sessionStorage.removeItem('edu_admin_backup')
+  } catch {}
   window.location.hash = '#login'
 }

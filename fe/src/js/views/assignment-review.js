@@ -940,8 +940,8 @@ export function bindAssignmentReviewEvents() {
         const bodyHtml = `
           <div style="display:flex; flex-direction:column; gap:16px;">
             <p style="font-size:14px; color:#475569; margin:0; line-height:1.5;">
-              Hành động này sẽ đưa bài thi về trạng thái "Đang làm" và học sinh có thể tiếp tục làm bài. 
-              Bài nộp cũ sẽ được lưu trữ lại.
+              Hành động này sẽ đưa bài thi về trạng thái "Đang làm" và học sinh có thể tiếp tục làm bài.
+              Đối với bài thi, hệ thống tạo lần thi mới và giữ nguyên bài nộp cũ trong lịch sử.
             </p>
             <div style="display:flex; flex-direction:column; gap:10px;">
               <label style="display:flex; align-items:center; gap:8px; font-size:14px; color:#1e293b; cursor:pointer;">
