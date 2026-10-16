@@ -494,6 +494,9 @@ export function renderAdminHistoryView() {
                     <button class="btn-secondary redirect-edit-hw-btn" data-hwid="${selectedHomeworkId}" style="margin-top:4px; padding:4px 10px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:6px; transition:all 0.2s;">
                       <i class="fa-solid fa-pen-to-square"></i> Chỉnh sửa bài tập này
                     </button>
+                    <button class="btn-secondary" id="btn-bonus-whole-class" style="margin-top:4px; padding:4px 10px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; transition:all 0.2s;" title="Cộng điểm cho tất cả bài đã nộp trong bài này">
+                      <i class="fa-solid fa-users"></i> Cộng điểm cả lớp
+                    </button>
                   ` : ''}
                 </div>
 
@@ -806,6 +809,10 @@ export function renderAdminHistoryView() {
                                 <span>${formatScore(sub.score)}</span>
                                 <span style="font-size:12px; font-weight:600; color:#64748b;">/ ${formatScore(sub.maxScore || 10)}</span>
                               </div>
+                              ${Number(sub.bonusScore) > 0 ? `
+                              <div style="font-size:11px; font-weight:700; color:#7c3aed; font-family:var(--font-sans); margin-top:2px; display:inline-flex; align-items:center; gap:4px; background:#f5f3ff; border:1px solid #ddd6fe; padding:1px 7px; border-radius:6px;">
+                                <i class="fa-solid fa-plus"></i> ${formatScore(sub.bonusScore)}đ cộng thêm
+                              </div>` : ''}
                               <div style="font-size:11px; font-weight:500; color:#64748b; font-family:var(--font-sans); margin-top:2px;">
                                 (${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)} câu đúng)
                               </div>
@@ -839,6 +846,9 @@ export function renderAdminHistoryView() {
                               <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
                                 <button class="btn-secondary view-detail-btn" data-id="${sub.submissionId}" title="Xem toàn bộ bài làm" style="padding:4px 10px; font-size:12px; cursor:pointer;">
                                   <i class="fa-solid fa-eye"></i> Chi tiết
+                                </button>
+                                <button class="btn-secondary bonus-btn" data-hwid="${sub.homeworkId}" data-stuid="${sub.studentId}" data-name="${sub.studentName}" data-bonus="${sub.bonusScore || 0}" title="Cộng điểm vào bài làm này" style="padding:4px 10px; font-size:12px; cursor:pointer; color:#7c3aed; border-color:#ddd6fe; background:#f5f3ff;">
+                                  <i class="fa-solid fa-plus"></i> Cộng điểm
                                 </button>
                                 <button class="btn-secondary reopen-sub-btn" data-hwid="${sub.homeworkId}" data-stuid="${sub.studentId}" data-name="${sub.studentName}" title="Cho phép học sinh làm lại" style="padding:4px 10px; font-size:12px; cursor:pointer; color:#b45309; border-color:#fde68a; background:#fffbeb;">
                                   <i class="fa-solid fa-rotate-left"></i> Khôi phục
@@ -1274,6 +1284,84 @@ export function bindAdminHistoryEvents() {
       const hwId = btn.getAttribute('data-hwid')
       if (hwId) {
         window.location.hash = `#create-homework?homeworkId=${hwId}`
+      }
+    })
+  })
+
+  // 14. Cộng điểm (cá nhân từng bài + cả lớp trong 1 bài)
+  const refreshHistoryView = async () => {
+    await loadAdminHistoryData(selectedClassId, selectedHomeworkId, currentMode)
+    const app = document.getElementById('app')
+    if (app) {
+      app.innerHTML = renderAdminHistoryView()
+      bindAdminHistoryEvents()
+    }
+  }
+
+  const openBonusModal = ({ title, desc, currentBonus, onConfirm }) => {
+    openModal(title, `
+      <div style="margin-bottom:16px;">
+        <p style="font-size:14px; color:#334155; margin-bottom:12px;">${desc}</p>
+        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">Điểm cộng (nhập 0 để xóa điểm cộng)</label>
+        <input type="number" id="bonus-score-input" class="form-input" min="0" max="10" step="0.25" value="${currentBonus || 0}" style="padding:8px 12px;">
+        <p style="font-size:12px; color:#64748b; margin:8px 0 0 0;">Điểm cộng ghi đè lần cộng trước (không dồn). Tổng điểm chốt không vượt quá thang điểm bài.</p>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn-secondary close-modal-btn" style="padding:8px 16px; cursor:pointer;">Hủy bỏ</button>
+        <button class="btn-primary" id="confirm-bonus-btn" style="padding:8px 16px; cursor:pointer; background:#7c3aed; width:auto;">
+          <i class="fa-solid fa-plus"></i> Xác nhận cộng điểm
+        </button>
+      </div>
+    `)
+    document.getElementById('confirm-bonus-btn')?.addEventListener('click', async () => {
+      const val = parseFloat(document.getElementById('bonus-score-input')?.value)
+      if (Number.isNaN(val) || val < 0) {
+        showToast('Điểm cộng phải là số >= 0!', 'error')
+        return
+      }
+      try {
+        await onConfirm(val)
+        document.querySelector('.modal-overlay')?.remove()
+        await refreshHistoryView()
+      } catch (err) {
+        showToast(`Cộng điểm thất bại: ${err.message}`, 'error')
+      }
+    })
+  }
+
+  document.querySelectorAll('.bonus-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const hwId = btn.getAttribute('data-hwid')
+      const stuId = btn.getAttribute('data-stuid')
+      const name = btn.getAttribute('data-name') || 'Học sinh'
+      const currentBonus = parseFloat(btn.getAttribute('data-bonus') || '0') || 0
+      openBonusModal({
+        title: 'Cộng điểm cá nhân',
+        desc: `Nhập điểm cộng thêm vào bài làm của học sinh <strong>${name}</strong>.`,
+        currentBonus,
+        onConfirm: async (val) => {
+          await api.setBonus({ homeworkId: hwId, studentId: stuId, bonus: val })
+          showToast(`Đã cập nhật điểm cộng (${val}đ) cho ${name}!`, 'success')
+        }
+      })
+    })
+  })
+
+  document.getElementById('btn-bonus-whole-class')?.addEventListener('click', () => {
+    if (!selectedHomeworkId) return
+    openBonusModal({
+      title: 'Cộng điểm cả lớp',
+      desc: `Nhập điểm cộng thêm áp dụng cho <strong>tất cả bài đã nộp</strong> trong bài tập này${selectedClassId && selectedClassId !== 'TRIAL' ? ' của lớp đang xem' : ''}.`,
+      currentBonus: 0,
+      onConfirm: async (val) => {
+        const res = await api.setBonus({
+          homeworkId: selectedHomeworkId,
+          allInHomework: true,
+          classId: selectedClassId && selectedClassId !== 'TRIAL' ? selectedClassId : undefined,
+          bonus: val
+        })
+        showToast(`Đã cộng ${val}đ cho ${res?.updated || 0} bài làm!`, 'success')
       }
     })
   })
