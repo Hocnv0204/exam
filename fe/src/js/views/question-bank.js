@@ -301,6 +301,9 @@ export function renderQuestionBankView() {
               <button id="qb-bulk-create-btn" style="height:34px; padding:0 16px; border-radius:8px; border:none; background:linear-gradient(135deg, #16a34a, #15803d); color:#ffffff; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fa-solid fa-file-circle-plus"></i> Tạo đề từ đã chọn
               </button>
+              <button id="qb-bulk-delete-btn" style="height:34px; padding:0 16px; border-radius:8px; border:none; background:linear-gradient(135deg, #ef4444, #dc2626); color:#ffffff; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-trash-can"></i> Xóa hàng loạt
+              </button>
               <button id="qb-bulk-deselect-btn" style="height:34px; padding:0 12px; border-radius:8px; border:1px solid #475569; background:#1e293b; color:#cbd5e1; font-size:13px; cursor:pointer;">
                 Bỏ chọn
               </button>
@@ -1315,6 +1318,39 @@ function setupHeaderActionListeners() {
     }
     openCreateFromSelectedModal(Array.from(selectedQuestionIds))
   })
+
+  document.getElementById('qb-bulk-delete-btn')?.addEventListener('click', async () => {
+    if (selectedQuestionIds.size === 0) {
+      return showToast('Vui lòng chọn ít nhất một câu hỏi để xóa!', 'warning')
+    }
+    const ids = Array.from(selectedQuestionIds)
+    const count = ids.length
+    if (!confirm(`Bạn có chắc chắn muốn xóa ${count} câu hỏi đã chọn khỏi Ngân hàng đề? Hành động này không thể hoàn tác!`)) {
+      return
+    }
+
+    const delBtn = document.getElementById('qb-bulk-delete-btn')
+    if (delBtn) {
+      delBtn.disabled = true
+      delBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xóa...'
+    }
+
+    try {
+      const res = await api.deleteQuestionsBulkFromBank(ids)
+      showToast(res.message || `Đã xóa thành công ${count} câu hỏi khỏi Ngân hàng!`, 'success')
+      selectedQuestionIds.clear()
+      updateBulkActionBar()
+      await refreshStats()
+      await fetchAndRenderQuestions()
+    } catch (err) {
+      showToast('Lỗi khi xóa câu hỏi hàng loạt: ' + err.message, 'error')
+    } finally {
+      if (delBtn) {
+        delBtn.disabled = false
+        delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Xóa hàng loạt'
+      }
+    }
+  })
 }
 
 function openCreateFromSelectedModal(questionBankIds) {
@@ -1825,7 +1861,8 @@ function openImportMarkdownModal() {
 
     try {
       const result = await api.importQuestionBank(payload)
-      showToast(result.message || 'Đã nhập câu hỏi thành công!', 'success')
+      const toastType = (result.importedCount === 0 && result.skippedCount > 0) ? 'warning' : 'success'
+      showToast(result.message || 'Đã nhập câu hỏi thành công!', toastType)
       closeModal()
       await fetchAndRenderQuestions({ includeStats: true })
     } catch (err) {
@@ -2238,32 +2275,40 @@ async function openMatrixGeneratorModal() {
                   <span id="mc-deficit-alert" style="font-size:11px; font-weight:600; color:#16a34a;">Khả dụng: 0</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <input type="number" id="gen-matrix-mc" min="0" value="12" style="width:80px; height:38px; border:1px solid #86efac; border-radius:8px; padding:0 10px; font-size:15px; font-weight:700; color:#14532d; background:#ffffff;" />
+                  <input type="number" id="gen-matrix-mc" min="0" value="0" style="width:80px; height:38px; border:1px solid #86efac; border-radius:8px; padding:0 10px; font-size:15px; font-weight:700; color:#14532d; background:#ffffff;" />
                   <span style="font-size:13px; color:#166534;">câu (0.25đ / câu)</span>
                 </div>
 
                 <!-- MC Difficulty Subpanel -->
                 <div class="matrix-difficulty-subpanel" id="mc-difficulty-subpanel" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed #bbf7d0;">
-                  <div style="font-size:11px; font-weight:700; color:#166534; margin-bottom:6px;">Chi tiết mức độ nhận thức:</div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:11px; font-weight:700; color:#166534;">Chi tiết mức độ nhận thức:</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span id="mc-match-status" style="font-size:11px; font-weight:700;"></span>
+                      <button type="button" class="btn-auto-distribute" data-part="mc" title="Tự động phân bổ số câu theo tỷ lệ chuẩn Bộ GD&ĐT (40% NB - 35% TH - 15% VD - 10% VDC)" style="background:#dcfce7; border:1px solid #86efac; color:#15803d; font-size:10.5px; font-weight:600; cursor:pointer; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:3px;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Tự động chia
+                      </button>
+                    </div>
+                  </div>
                   <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;">
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#1d4ed8; display:block;">NB</label>
-                      <input type="number" id="gen-mc-nb" min="0" value="5" class="matrix-sub-input" data-part="mc" data-diff="NHAN_BIET" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-mc-nb" min="0" value="0" class="matrix-sub-input" data-part="mc" data-diff="NHAN_BIET" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-mc-nb" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#15803d; display:block;">TH</label>
-                      <input type="number" id="gen-mc-th" min="0" value="4" class="matrix-sub-input" data-part="mc" data-diff="THONG_HIEU" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-mc-th" min="0" value="0" class="matrix-sub-input" data-part="mc" data-diff="THONG_HIEU" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-mc-th" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#c2410c; display:block;">VD</label>
-                      <input type="number" id="gen-mc-vd" min="0" value="2" class="matrix-sub-input" data-part="mc" data-diff="VAN_DUNG" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fed7aa; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-mc-vd" min="0" value="0" class="matrix-sub-input" data-part="mc" data-diff="VAN_DUNG" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fed7aa; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-mc-vd" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#be185d; display:block;">VDC</label>
-                      <input type="number" id="gen-mc-vdc" min="0" value="1" class="matrix-sub-input" data-part="mc" data-diff="VAN_DUNG_CAO" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fbcfe8; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-mc-vdc" min="0" value="0" class="matrix-sub-input" data-part="mc" data-diff="VAN_DUNG_CAO" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fbcfe8; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-mc-vdc" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                   </div>
@@ -2277,27 +2322,35 @@ async function openMatrixGeneratorModal() {
                   <span id="tf-deficit-alert" style="font-size:11px; font-weight:600; color:#d97706;">Khả dụng: 0</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <input type="number" id="gen-matrix-tf" min="0" value="4" style="width:80px; height:38px; border:1px solid #fcd34d; border-radius:8px; padding:0 10px; font-size:15px; font-weight:700; color:#78350f; background:#ffffff;" />
+                  <input type="number" id="gen-matrix-tf" min="0" value="0" style="width:80px; height:38px; border:1px solid #fcd34d; border-radius:8px; padding:0 10px; font-size:15px; font-weight:700; color:#78350f; background:#ffffff;" />
                   <span style="font-size:13px; color:#92400e;">câu (1.0đ / câu)</span>
                 </div>
 
                 <!-- TF Difficulty Subpanel -->
                 <div class="matrix-difficulty-subpanel" id="tf-difficulty-subpanel" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed #fde68a;">
-                  <div style="font-size:11px; font-weight:700; color:#92400e; margin-bottom:6px;">Chi tiết mức độ nhận thức:</div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:11px; font-weight:700; color:#92400e;">Chi tiết mức độ nhận thức:</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span id="tf-match-status" style="font-size:11px; font-weight:700;"></span>
+                      <button type="button" class="btn-auto-distribute" data-part="tf" title="Tự động phân bổ số câu theo tỷ lệ chuẩn Bộ GD&ĐT (25% NB - 50% TH - 25% VD)" style="background:#fef3c7; border:1px solid #fcd34d; color:#b45309; font-size:10.5px; font-weight:600; cursor:pointer; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:3px;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Tự động chia
+                      </button>
+                    </div>
+                  </div>
                   <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;">
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#1d4ed8; display:block;">NB</label>
-                      <input type="number" id="gen-tf-nb" min="0" value="1" class="matrix-sub-input" data-part="tf" data-diff="NHAN_BIET" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-tf-nb" min="0" value="0" class="matrix-sub-input" data-part="tf" data-diff="NHAN_BIET" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-tf-nb" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#15803d; display:block;">TH</label>
-                      <input type="number" id="gen-tf-th" min="0" value="2" class="matrix-sub-input" data-part="tf" data-diff="THONG_HIEU" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-tf-th" min="0" value="0" class="matrix-sub-input" data-part="tf" data-diff="THONG_HIEU" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-tf-th" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#c2410c; display:block;">VD</label>
-                      <input type="number" id="gen-tf-vd" min="0" value="1" class="matrix-sub-input" data-part="tf" data-diff="VAN_DUNG" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fed7aa; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-tf-vd" min="0" value="0" class="matrix-sub-input" data-part="tf" data-diff="VAN_DUNG" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fed7aa; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-tf-vd" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
@@ -2316,13 +2369,21 @@ async function openMatrixGeneratorModal() {
                   <span id="sa-deficit-alert" style="font-size:11px; font-weight:600; color:#9333ea;">Khả dụng: 0</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <input type="number" id="gen-matrix-sa" min="0" value="6" style="width:80px; height:38px; border:1px solid #d8b4fe; border-radius:8px; padding:0 10px; font-size:15px; font-weight:700; color:#581c87; background:#ffffff;" />
+                  <input type="number" id="gen-matrix-sa" min="0" value="0" style="width:80px; height:38px; border:1px solid #d8b4fe; border-radius:8px; padding:0 10px; font-size:15px; font-weight:700; color:#581c87; background:#ffffff;" />
                   <span style="font-size:13px; color:#6b21a8;">câu (0.5đ / câu)</span>
                 </div>
 
                 <!-- SA Difficulty Subpanel -->
                 <div class="matrix-difficulty-subpanel" id="sa-difficulty-subpanel" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed #e9d5ff;">
-                  <div style="font-size:11px; font-weight:700; color:#6b21a8; margin-bottom:6px;">Chi tiết mức độ nhận thức:</div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:11px; font-weight:700; color:#6b21a8;">Chi tiết mức độ nhận thức:</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span id="sa-match-status" style="font-size:11px; font-weight:700;"></span>
+                      <button type="button" class="btn-auto-distribute" data-part="sa" title="Tự động phân bổ số câu theo tỷ lệ chuẩn Bộ GD&ĐT (35% TH - 50% VD - 15% VDC)" style="background:#f3e8ff; border:1px solid #d8b4fe; color:#7e22ce; font-size:10.5px; font-weight:600; cursor:pointer; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:3px;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Tự động chia
+                      </button>
+                    </div>
+                  </div>
                   <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;">
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#1d4ed8; display:block;">NB</label>
@@ -2331,17 +2392,17 @@ async function openMatrixGeneratorModal() {
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#15803d; display:block;">TH</label>
-                      <input type="number" id="gen-sa-th" min="0" value="2" class="matrix-sub-input" data-part="sa" data-diff="THONG_HIEU" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-sa-th" min="0" value="0" class="matrix-sub-input" data-part="sa" data-diff="THONG_HIEU" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-sa-th" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#c2410c; display:block;">VD</label>
-                      <input type="number" id="gen-sa-vd" min="0" value="3" class="matrix-sub-input" data-part="sa" data-diff="VAN_DUNG" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fed7aa; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-sa-vd" min="0" value="0" class="matrix-sub-input" data-part="sa" data-diff="VAN_DUNG" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fed7aa; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-sa-vd" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                     <div>
                       <label style="font-size:10px; font-weight:700; color:#be185d; display:block;">VDC</label>
-                      <input type="number" id="gen-sa-vdc" min="0" value="1" class="matrix-sub-input" data-part="sa" data-diff="VAN_DUNG_CAO" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fbcfe8; border-radius:6px; padding:0 4px; text-align:center;" />
+                      <input type="number" id="gen-sa-vdc" min="0" value="0" class="matrix-sub-input" data-part="sa" data-diff="VAN_DUNG_CAO" style="width:100%; height:28px; font-size:12px; font-weight:700; border:1px solid #fbcfe8; border-radius:6px; padding:0 4px; text-align:center;" />
                       <span class="sub-avail-chip" id="avail-sa-vdc" style="font-size:9px; color:#64748b; display:block; text-align:center; margin-top:2px;">Có: 0</span>
                     </div>
                   </div>
@@ -2364,8 +2425,8 @@ async function openMatrixGeneratorModal() {
 
             <!-- Total Question Counter -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid #f1f5f9; font-size:13px;">
-              <span style="color:#64748b;">Tổng số câu yêu cầu: <strong id="gen-matrix-total-q" style="color:#0f172a; font-size:15px;">22</strong> câu</span>
-              <span style="color:#64748b;">Tổng thang điểm: <strong style="color:#0284c7; font-size:15px;">10.0</strong> điểm</span>
+              <span style="color:#64748b;">Tổng số câu yêu cầu: <strong id="gen-matrix-total-q" style="color:#0f172a; font-size:15px;">0</strong> câu</span>
+              <span style="color:#64748b;">Tổng thang điểm: <strong id="gen-matrix-total-points" style="color:#0284c7; font-size:15px;">0.0</strong> điểm</span>
             </div>
           </div>
 
@@ -2398,8 +2459,9 @@ async function openMatrixGeneratorModal() {
 
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:14px;">
               <div>
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Tiêu đề đề thi / bài tập *</label>
-                <input type="text" id="gen-exam-title" placeholder="Ví dụ: Đề kiểm tra 45 phút - Đại số & Giải tích" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff;" />
+                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Tên bài tập *</label>
+                <input type="text" id="gen-exam-title" placeholder="Ví dụ: TN - 1, Đề 15 phút, Đề kiểm tra..." style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff;" />
+                <div style="font-size:11px; color:#64748b; margin-top:3px;"><i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Tên bài học đích sẽ tự động được ghép phía trước khi tạo bài tập</div>
               </div>
               <div>
                 <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Hình thức làm bài</label>
@@ -2437,6 +2499,23 @@ async function openMatrixGeneratorModal() {
                 <select id="gen-dest-lesson" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#ffffff;">
                   <option value="">-- Chọn bài học đích --</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- Assign to specific students (Optional) -->
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 14px; margin-bottom:12px;">
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:#92400e;">
+                <i class="fa-solid fa-user-check"></i> Giao riêng cho học sinh (tùy chọn)
+              </label>
+              <div style="font-size:11px; color:#64748b; margin-bottom:8px;">Không chọn ai = cả lớp đích đều thấy bài này. Tick chọn để chỉ các em được chọn mới thấy và làm bài.</div>
+              <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+                <button type="button" id="btn-gen-assign-select-all" style="background:none; border:none; color:#0066cc; font-size:12px; font-weight:600; cursor:pointer; padding:0;">Chọn tất cả</button>
+                <span style="color:#cbd5e1;">|</span>
+                <button type="button" id="btn-gen-assign-deselect-all" style="background:none; border:none; color:#64748b; font-size:12px; font-weight:600; cursor:pointer; padding:0;">Bỏ chọn</button>
+                <span id="gen-assign-selected-count" style="margin-left:auto; font-size:12px; font-weight:700; color:#92400e;"></span>
+              </div>
+              <div id="gen-assign-students-list" style="max-height:160px; overflow-y:auto; border:1px solid #fde68a; border-radius:6px; padding:8px 10px; background:#ffffff; font-size:13px; color:#64748b;">
+                Chọn lớp đích ở trên để tải danh sách học sinh...
               </div>
             </div>
 
@@ -2858,19 +2937,72 @@ async function openMatrixGeneratorModal() {
     })
   }
 
-  // Cascading destination selects
+  // Cascading destination selects & Student assignment
   const destClassSel = document.getElementById('gen-dest-class')
   const destChapterSel = document.getElementById('gen-dest-chapter')
   const destLessonSel = document.getElementById('gen-dest-lesson')
 
+  const genAssignListEl = () => document.getElementById('gen-assign-students-list')
+  const updateGenAssignCount = () => {
+    const n = document.querySelectorAll('.gen-assign-student-cb:checked').length
+    const el = document.getElementById('gen-assign-selected-count')
+    if (el) el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : ''
+  }
+
+  async function loadGenAssignStudents(classId) {
+    const box = genAssignListEl()
+    if (!box) return
+    if (!classId) {
+      box.innerHTML = 'Chọn lớp đích ở trên để tải danh sách học sinh...'
+      updateGenAssignCount()
+      return
+    }
+    box.innerHTML = '<span style="color:#0284c7;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải học sinh...</span>'
+    try {
+      const res = await api.getStudents({ classId }, { silent: true })
+      const list = Array.isArray(res) ? res : (res?.items || [])
+      if (list.length === 0) {
+        box.innerHTML = 'Lớp này chưa có học sinh nào.'
+      } else {
+        box.innerHTML = list.map(s => `
+          <label style="display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; cursor:pointer; font-size:13px; color:#334155;">
+            <input type="checkbox" class="gen-assign-student-cb" value="${s.id}" style="width:15px; height:15px; accent-color:#0066cc; cursor:pointer;">
+            <span style="font-weight:600;">${s.fullName || s.username}</span>
+            <span style="font-size:11px; color:#94a3b8;">${s.username || ''}</span>
+          </label>
+        `).join('')
+        box.querySelectorAll('.gen-assign-student-cb').forEach(cb => {
+          cb.addEventListener('change', updateGenAssignCount)
+        })
+      }
+    } catch (err) {
+      box.innerHTML = 'Không tải được danh sách học sinh.'
+    }
+    updateGenAssignCount()
+  }
+
+  document.getElementById('btn-gen-assign-select-all')?.addEventListener('click', () => {
+    document.querySelectorAll('.gen-assign-student-cb').forEach(cb => { cb.checked = true })
+    updateGenAssignCount()
+  })
+  document.getElementById('btn-gen-assign-deselect-all')?.addEventListener('click', () => {
+    document.querySelectorAll('.gen-assign-student-cb').forEach(cb => { cb.checked = false })
+    updateGenAssignCount()
+  })
+
   destClassSel?.addEventListener('change', async (e) => {
     const clId = e.target.value
     if (clId) {
-      await loadChaptersForClass(clId, destChapterSel)
+      await Promise.all([
+        loadChaptersForClass(clId, destChapterSel),
+        loadGenAssignStudents(clId)
+      ])
     } else {
       destChapterSel.innerHTML = '<option value="">-- Chọn chương đích --</option>'
+      loadGenAssignStudents(null)
     }
     destLessonSel.innerHTML = '<option value="">-- Chọn bài học đích --</option>'
+    updateLiveExamTitle()
   })
 
   destChapterSel?.addEventListener('change', async (e) => {
@@ -2880,7 +3012,29 @@ async function openMatrixGeneratorModal() {
     } else {
       destLessonSel.innerHTML = '<option value="">-- Chọn bài học đích --</option>'
     }
+    updateLiveExamTitle()
   })
+
+  destLessonSel?.addEventListener('change', () => {
+    updateLiveExamTitle()
+  })
+
+  function updateLiveExamTitle() {
+    const raw = document.getElementById('gen-exam-title')?.value.trim() || ''
+    const lessonText = destLessonSel?.options[destLessonSel.selectedIndex]?.text || ''
+    let display = raw || 'Đề kiểm tra xem trước'
+    if (lessonText && !lessonText.startsWith('--')) {
+      if (raw) {
+        display = `${lessonText} - ${raw}`
+      } else {
+        display = `${lessonText} - Đề kiểm tra`
+      }
+    }
+    const titlePreviewEl = document.getElementById('preview-exam-title')
+    if (titlePreviewEl) titlePreviewEl.textContent = display
+  }
+
+  document.getElementById('gen-exam-title')?.addEventListener('input', updateLiveExamTitle)
 
   // Matrix count inputs listener
   const mcInput = document.getElementById('gen-matrix-mc')
@@ -2900,25 +3054,57 @@ async function openMatrixGeneratorModal() {
     }
   })
 
+  // Distribute part values according to standard proportions
+  function distributePartValues(part, val) {
+    if (val <= 0) {
+      setSubValues(part, 0, 0, 0, 0)
+      return
+    }
+    if (part === 'mc') {
+      const nb = Math.round(val * 0.4)
+      const th = Math.round(val * 0.35)
+      const vd = Math.round(val * 0.15)
+      const vdc = Math.max(0, val - nb - th - vd)
+      setSubValues('mc', nb, th, vd, vdc)
+    } else if (part === 'tf') {
+      const nb = Math.max(1, Math.round(val * 0.25))
+      const th = Math.round(val * 0.5)
+      const vd = Math.max(0, val - nb - th)
+      setSubValues('tf', nb, th, vd, 0)
+    } else if (part === 'sa') {
+      const nb = 0
+      const th = Math.round(val * 0.35)
+      const vd = Math.round(val * 0.5)
+      const vdc = Math.max(0, val - th - vd)
+      setSubValues('sa', nb, th, vd, vdc)
+    }
+  }
+
+  // Handle main part input change: if 0 reset sub-inputs, if >0 auto-fill if empty
+  function handleMainPartInput(part) {
+    const mainEl = document.getElementById(`gen-matrix-${part}`)
+    const val = Number(mainEl?.value) || 0
+    if (val === 0) {
+      setSubValues(part, 0, 0, 0, 0)
+    } else {
+      const curSum = getSubInputSum(part)
+      if (curSum === 0) {
+        distributePartValues(part, val)
+      }
+    }
+    updateMatrixSum()
+  }
+
   // Sync sub inputs from totals if opening advanced
   function syncSubInputsFromTotals() {
-    const mcVal = Number(mcInput?.value) || 0
-    const tfVal = Number(tfInput?.value) || 0
-    const saVal = Number(saInput?.value) || 0
-
-    // If sub-inputs currently sum to 0, distribute them nicely
-    const currentMcSum = getSubInputSum('mc')
-    if (currentMcSum === 0 && mcVal > 0) {
-      setSubValues('mc', Math.round(mcVal * 0.4), Math.round(mcVal * 0.35), Math.round(mcVal * 0.15), mcVal - Math.round(mcVal * 0.4) - Math.round(mcVal * 0.35) - Math.round(mcVal * 0.15))
-    }
-    const currentTfSum = getSubInputSum('tf')
-    if (currentTfSum === 0 && tfVal > 0) {
-      setSubValues('tf', Math.max(1, Math.round(tfVal * 0.25)), Math.round(tfVal * 0.5), Math.max(0, tfVal - 1 - Math.round(tfVal * 0.5)), 0)
-    }
-    const currentSaSum = getSubInputSum('sa')
-    if (currentSaSum === 0 && saVal > 0) {
-      setSubValues('sa', 0, Math.round(saVal * 0.35), Math.round(saVal * 0.5), Math.max(0, saVal - Math.round(saVal * 0.35) - Math.round(saVal * 0.5)))
-    }
+    ['mc', 'tf', 'sa'].forEach(part => {
+      const mainVal = Number(document.getElementById(`gen-matrix-${part}`)?.value) || 0
+      const curSum = getSubInputSum(part)
+      if (curSum === 0 && mainVal > 0) {
+        distributePartValues(part, mainVal)
+      }
+    })
+    updateMatrixSum()
   }
 
   function getSubInputSum(part) {
@@ -2938,7 +3124,7 @@ async function openMatrixGeneratorModal() {
     if (vdcEl) vdcEl.value = Math.max(0, vdc)
   }
 
-  // Handle Sub-input changes (updates parent count)
+  // Handle Sub-input changes (two-way sync updates parent count)
   document.querySelectorAll('.matrix-sub-input').forEach(subInput => {
     subInput.addEventListener('input', (e) => {
       const part = e.target.getAttribute('data-part')
@@ -2951,14 +3137,51 @@ async function openMatrixGeneratorModal() {
     })
   })
 
+  // Bind quick auto-distribute buttons
+  document.querySelectorAll('.btn-auto-distribute').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const part = btn.getAttribute('data-part')
+      if (part) {
+        const mainEl = document.getElementById(`gen-matrix-${part}`)
+        const val = Number(mainEl?.value) || 0
+        distributePartValues(part, val)
+        updateMatrixSum()
+      }
+    })
+  })
+
+  function updateSubMatchStatuses() {
+    ['mc', 'tf', 'sa'].forEach(part => {
+      const mainVal = Number(document.getElementById(`gen-matrix-${part}`)?.value) || 0
+      const subSum = getSubInputSum(part)
+      const statusEl = document.getElementById(`${part}-match-status`)
+      if (!statusEl) return
+      if (mainVal === 0 && subSum === 0) {
+        statusEl.innerHTML = ''
+      } else if (mainVal === subSum) {
+        statusEl.innerHTML = `<span style="color:#16a34a; font-size:10.5px; font-weight:700;"><i class="fa-solid fa-check"></i> Khớp (${subSum}/${mainVal})</span>`
+      } else {
+        statusEl.innerHTML = `<span style="color:#dc2626; font-size:10.5px; font-weight:700;"><i class="fa-solid fa-triangle-exclamation"></i> Lệch (${subSum}/${mainVal})</span>`
+      }
+    })
+  }
+
   const updateMatrixSum = () => {
-    const total = (Number(mcInput?.value) || 0) + (Number(tfInput?.value) || 0) + (Number(saInput?.value) || 0)
+    const mc = Number(mcInput?.value) || 0
+    const tf = Number(tfInput?.value) || 0
+    const sa = Number(saInput?.value) || 0
+    const total = mc + tf + sa
+    const points = (mc * 0.25 + tf * 1.0 + sa * 0.5).toFixed(2).replace(/\.00$/, '.0')
     if (totalCountEl) totalCountEl.textContent = total
+    const pointsEl = document.getElementById('gen-matrix-total-points')
+    if (pointsEl) pointsEl.textContent = points
+    updateSubMatchStatuses()
     updateAvailBadgesAndAlerts(generatorState.availableStats || { mc: 0, tf: 0, sa: 0, total: 0 })
   }
-  mcInput?.addEventListener('input', updateMatrixSum)
-  tfInput?.addEventListener('input', updateMatrixSum)
-  saInput?.addEventListener('input', updateMatrixSum)
+
+  mcInput?.addEventListener('input', () => handleMainPartInput('mc'))
+  tfInput?.addEventListener('input', () => handleMainPartInput('tf'))
+  saInput?.addEventListener('input', () => handleMainPartInput('sa'))
 
   // Update Availability Badges & Deficit Warnings
   function updateAvailBadgesAndAlerts(res) {
@@ -3278,15 +3501,11 @@ async function openMatrixGeneratorModal() {
 
       const titleInput = document.getElementById('gen-exam-title')
       if (titleInput && !titleInput.value.trim()) {
-        const defaultName = generatorState.gradeBlock
-          ? `Đề kiểm tra Khối ${generatorState.gradeBlock} (${generatorState.previewQuestions.length} câu)`
-          : `Đề kiểm tra trắc nghiệm (${generatorState.previewQuestions.length} câu)`
-        titleInput.value = defaultName
+        titleInput.value = `Đề kiểm tra (${generatorState.previewQuestions.length} câu)`
       }
+      updateLiveExamTitle()
 
-      const activeTitle = titleInput?.value || 'Đề kiểm tra xem trước'
       const activeDuration = document.getElementById('mx-duration')?.value || 90
-      document.getElementById('preview-exam-title').textContent = activeTitle
       document.getElementById('preview-meta-desc').textContent = `${generatorState.previewQuestions.length} câu hỏi • ${activeDuration} phút`
 
       // Auto-preselect destination class if available from Step 1
@@ -3371,9 +3590,12 @@ async function openMatrixGeneratorModal() {
               <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:${typeBg}; color:${typeColor};">
                 ${typeBadge}
               </span>
-              <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:${diffBadgeInfo.bg}; color:${diffBadgeInfo.color}; border:1px solid ${diffBadgeInfo.border};">
-                ${diffBadgeInfo.text}
-              </span>
+              <select class="preview-q-diff-select" data-index="${idx}" data-id="${q.id}" title="Đổi mức độ nhận thức cho câu hỏi này" style="font-size:11px; font-weight:700; padding:2px 6px; border-radius:6px; background:${diffBadgeInfo.bg}; color:${diffBadgeInfo.color}; border:1px solid ${diffBadgeInfo.border}; cursor:pointer; outline:none; transition:all 0.2s;">
+                <option value="NHAN_BIET" ${q.difficulty === 'NHAN_BIET' ? 'selected' : ''}>Nhận biết</option>
+                <option value="THONG_HIEU" ${q.difficulty === 'THONG_HIEU' ? 'selected' : ''}>Thông hiểu</option>
+                <option value="VAN_DUNG" ${q.difficulty === 'VAN_DUNG' ? 'selected' : ''}>Vận dụng</option>
+                <option value="VAN_DUNG_CAO" ${q.difficulty === 'VAN_DUNG_CAO' ? 'selected' : ''}>Vận dụng cao</option>
+              </select>
               <span style="font-size:11px; color:#64748b;">
                 ${q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))} điểm
               </span>
@@ -3404,6 +3626,31 @@ async function openMatrixGeneratorModal() {
 
     container.innerHTML = html
     renderMath(container)
+
+    // Bind Difficulty Change directly on preview cards
+    container.querySelectorAll('.preview-q-diff-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const qIdx = parseInt(sel.getAttribute('data-index'), 10)
+        const qId = sel.getAttribute('data-id')
+        const newDiff = sel.value
+        if (generatorState.previewQuestions[qIdx]) {
+          generatorState.previewQuestions[qIdx].difficulty = newDiff
+          if (generatorState.previewQuestions[qIdx].prompt && typeof generatorState.previewQuestions[qIdx].prompt === 'object') {
+            generatorState.previewQuestions[qIdx].prompt.difficulty = newDiff
+          }
+        }
+        const newStyle = diffMap[newDiff] || diffMap['THONG_HIEU']
+        sel.style.background = newStyle.bg
+        sel.style.color = newStyle.color
+        sel.style.borderColor = newStyle.border
+        try {
+          await api.updateQuestionInBank({ id: qId, difficulty: newDiff })
+          showToast(`Đã chuyển Câu ${qIdx + 1} sang mức độ "${newStyle.text}"!`, 'info')
+        } catch (err) {
+          console.warn('[updateQuestionInBank error]', err)
+        }
+      })
+    })
 
     // Bind Quick Swap Questions (sameDifficulty by default)
     container.querySelectorAll('.btn-swap-question').forEach(btn => {
@@ -3586,16 +3833,29 @@ async function openMatrixGeneratorModal() {
   }
 
   // Finalize Create Exam
+  // Finalize Create Exam
   btnFinalize?.addEventListener('click', async () => {
-    const title = document.getElementById('gen-exam-title')?.value?.trim()
-    if (!title) {
-      return showToast('Vui lòng nhập tiêu đề cho bài kiểm tra / bài tập!', 'warning')
+    const rawTitle = document.getElementById('gen-exam-title')?.value?.trim()
+    if (!rawTitle) {
+      return showToast('Vui lòng nhập tên bài tập!', 'warning')
     }
 
     const destLessonId = destLessonSel?.value
     if (!destLessonId) {
       return showToast('Vui lòng chọn Bài học đích để lưu trữ bài tập!', 'warning')
     }
+
+    const destLessonTitle = destLessonSel?.options[destLessonSel.selectedIndex]?.text || ''
+    let title = rawTitle
+    if (destLessonTitle && !destLessonTitle.startsWith('--')) {
+      const prefix = `${destLessonTitle} - `
+      if (!rawTitle.startsWith(prefix) && !rawTitle.startsWith(destLessonTitle)) {
+        title = `${prefix}${rawTitle}`
+      }
+    }
+
+    const assignedStudentIds = Array.from(document.querySelectorAll('.gen-assign-student-cb:checked')).map(cb => cb.value)
+
     const type = document.getElementById('gen-exam-type')?.value || 'PRACTICE'
     const cfg = collectHomeworkConfig('mx')
     const showSolutions = cfg.showSolutions
@@ -3620,7 +3880,8 @@ async function openMatrixGeneratorModal() {
         maxScore: 10.0,
         showSolutions,
         questionBankIds,
-        variantCodes
+        variantCodes,
+        assignedStudentIds
       })
 
       showToast(res.message || 'Đã tạo bài tập thành công!', 'success')

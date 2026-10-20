@@ -50,14 +50,38 @@ function renderBBT(code, uid) {
   const ypTokens = (rows[ypLabel] || '').split(',').map((s) => s.trim()).filter(Boolean)
   const yRaw = rows[yLabel] || ''
 
-  // Mỗi token y' (kể cả ||) chiếm 1 cột; bảng rộng theo phía dài hơn
-  const colWidth = 72
-  const labelColWidth = 60
-  const maxCols = Math.max(xCells.length, ypTokens.length, 1)
-  const width = labelColWidth + maxCols * colWidth + 16
   const hasYRow = Boolean(yRaw)
+  const longestLabel = [xLabel, ypLabel, ...(hasYRow ? [yLabel] : [])]
+    .reduce((m, l) => Math.max(m, String(l).length), 1)
+  const labelColWidth = Math.max(58, longestLabel * 10 + 18)
+
+  // Lưới cột lấy từ dòng y' (khoảng / điểm tới hạn xen kẽ).
+  // Mọi hàng (x, y', y) đều bám trên CÙNG lưới này để các mốc thẳng hàng nhau.
+  const grid = ypTokens.length ? ypTokens : xCells
+  const N = Math.max(1, grid.length)
+  const colWidth = 74
+  const contentW = Math.max(xCells.length, N, 1) * colWidth
+  const cellW = contentW / N
+  const cellL = (i) => labelColWidth + i * cellW
+  const cellC = (i) => labelColWidth + (i + 0.5) * cellW
+
+  const width = labelColWidth + contentW + 14
   const height = hasYRow ? 196 : 80
   const arrowId = `bbt-arrow-${uid}`
+
+  // Các ô "điểm" (y' = 0 hoặc ||) — nơi đặt mốc x và các giá trị cực trị
+  const pointCells = []
+  grid.forEach((tk, i) => { if (tk === '0' || tk === '||') pointCells.push(i) })
+
+  // Vị trí neo: giá trị đầu sát mép trái ô đầu, giá trị cuối sát mép phải ô cuối,
+  // các giá trị ở giữa rơi vào ô điểm tương ứng (nếu không khớp thì chia đều).
+  const anchorFor = (count, i) => {
+    if (count <= 1) return cellC(0)
+    if (i === 0) return cellL(0) + cellW * 0.2
+    if (i === count - 1) return cellL(N - 1) + cellW * 0.8
+    if (pointCells.length >= count - 2) return cellC(pointCells[i - 1])
+    return cellL(0) + (contentW * i) / (count - 1)
+  }
 
   let svg = `<div class="diagram-wrap" style="margin:12px 0;display:flex;justify-content:center;overflow-x:auto;user-select:none;">` +
     `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="background:#fff;border:1px solid #0f172a;border-radius:6px;">` +
@@ -71,12 +95,12 @@ function renderBBT(code, uid) {
     (hasYRow ? `<foreignObject x="0" y="120" width="${labelColWidth}" height="34"><div style="display:flex;align-items:center;justify-content:center;height:100%;">$${yLabel}$</div></foreignObject>` : '')
 
   xCells.forEach((val, idx) => {
-    const cx = labelColWidth + (idx + 0.5) * colWidth
+    const cx = anchorFor(xCells.length, idx)
     svg += `<foreignObject x="${cx - 34}" y="4" width="68" height="30"><div style="display:flex;align-items:center;justify-content:center;height:100%;">$${val}$</div></foreignObject>`
   })
 
   ypTokens.forEach((val, idx) => {
-    const cx = labelColWidth + (idx + 0.5) * colWidth
+    const cx = cellC(idx)
     if (val === '||') {
       svg += `<line x1="${cx - 2.5}" y1="38" x2="${cx - 2.5}" y2="${height}" stroke="#0f172a" stroke-width="1.1"/>`
       svg += `<line x1="${cx + 2.5}" y1="38" x2="${cx + 2.5}" y2="${height}" stroke="#0f172a" stroke-width="1.1"/>`
@@ -88,26 +112,29 @@ function renderBBT(code, uid) {
   if (hasYRow) {
     const tokens = yRaw.split(/\s+/).filter(Boolean)
     const valTokens = tokens.filter((tk) => tk !== '->' && tk !== '\\nearrow' && tk !== '~>' && tk !== '\\searrow' && tk !== '||')
-    const segW = (maxCols * colWidth) / Math.max(1, valTokens.length)
-    const items = []
-    let valIdx = 0
+    const vals = []
+    const arrows = []
+    let pendingDir = null
 
     for (let i = 0; i < tokens.length; i++) {
       const tk = tokens[i]
       if (tk === '->' || tk === '\\nearrow') {
-        items.push({ type: 'arrow', dir: 'up' })
+        pendingDir = 'up'
       } else if (tk === '~>' || tk === '\\searrow') {
-        items.push({ type: 'arrow', dir: 'down' })
+        pendingDir = 'down'
       } else if (tk === '||') {
-        items.push({ type: 'asymptote' })
+        continue
       } else {
         const prev = tokens[i - 1]
         const next = tokens[i + 1]
-        const cx = labelColWidth + (valIdx + 0.5) * segW
-        valIdx++
+        const vIdx = vals.length
 
-        const prevUp = prev === '->' || prev === '\\nearrow'
-        const prevDown = prev === '~>' || prev === '\\searrow'
+        // Giá trị neo trên lưới cột; lệch nhẹ khi sát tiệm cận đứng || để khỏi chồng nét đôi
+        let cx = anchorFor(valTokens.length, vIdx)
+        if (next === '||') cx -= 18
+        else if (prev === '||') cx += 18
+
+        const prevUp = pendingDir === 'up'
         const nextUp = next === '->' || next === '\\nearrow'
         const nextDown = next === '~>' || next === '\\searrow'
 
@@ -115,32 +142,33 @@ function renderBBT(code, uid) {
         // Mũi tên kề quyết định đỉnh/đáy; vô cực chỉ dùng khi không có mũi tên kề.
         let cy = 136
         if (prevUp || nextDown) cy = 96
-        else if (prevDown || nextUp) cy = 174
+        else if (pendingDir === 'down' || nextUp) cy = 174
         else if (tk.includes('-\\infty')) cy = 174
         else if (tk.includes('+\\infty')) cy = 96
 
-        items.push({ type: 'val', text: tk, x: cx, y: cy })
+        if (vIdx > 0) arrows.push({ from: vIdx - 1, to: vIdx })
+        vals.push({ text: tk, x: cx, y: cy })
+        pendingDir = null
       }
     }
 
-    items.forEach((item, idx) => {
-      if (item.type === 'val') {
-        svg += `<foreignObject x="${item.x - 32}" y="${item.y - 15}" width="64" height="30"><div style="display:flex;align-items:center;justify-content:center;height:100%;">$${item.text}$</div></foreignObject>`
-      } else if (item.type === 'arrow') {
-        const leftVal = items[idx - 1]
-        const rightVal = items[idx + 1]
-        if (leftVal && rightVal && leftVal.type === 'val' && rightVal.type === 'val') {
-          const dx = rightVal.x - leftVal.x
-          const dy = rightVal.y - leftVal.y
-          const dist = Math.hypot(dx, dy) || 1
-          const pad = 24
-          const x1 = leftVal.x + (dx / dist) * pad
-          const y1 = leftVal.y + (dy / dist) * pad
-          const x2 = rightVal.x - (dx / dist) * pad
-          const y2 = rightVal.y - (dy / dist) * pad
-          svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#0f172a" stroke-width="1.3" marker-end="url(#${arrowId})" />`
-        }
-      }
+    vals.forEach((v) => {
+      svg += `<foreignObject x="${(v.x - 34).toFixed(1)}" y="${v.y - 15}" width="68" height="30"><div style="display:flex;align-items:center;justify-content:center;height:100%;">$${v.text}$</div></foreignObject>`
+    })
+
+    arrows.forEach(({ from, to }) => {
+      const a = vals[from]
+      const b = vals[to]
+      if (!a || !b) return
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const dist = Math.hypot(dx, dy) || 1
+      const pad = Math.min(26, dist * 0.3)
+      const x1 = a.x + (dx / dist) * pad
+      const y1 = a.y + (dy / dist) * pad
+      const x2 = b.x - (dx / dist) * pad
+      const y2 = b.y - (dy / dist) * pad
+      svg += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#0f172a" stroke-width="1.3" marker-end="url(#${arrowId})" />`
     })
   }
 

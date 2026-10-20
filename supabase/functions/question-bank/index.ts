@@ -97,6 +97,7 @@ async function createSingleHomeworkFromBank(
     showSolutions?: boolean
     orderedQuestions: any[]
     targetClassId?: string | null
+    assignedStudentIds?: string[]
   }
 ): Promise<{ homeworkId: string; totalQuestions: number }> {
   const { targetLessonId, title, orderedQuestions } = opts
@@ -179,6 +180,19 @@ async function createSingleHomeworkFromBank(
     throw new Error(aInsertErr.message)
   }
 
+  // Giao riêng cho học sinh nếu được chọn (homework_targets)
+  if (Array.isArray(opts.assignedStudentIds) && opts.assignedStudentIds.length > 0) {
+    const validStudentIds = opts.assignedStudentIds.filter(Boolean)
+    if (validStudentIds.length > 0) {
+      const { error: targetErr } = await serviceRoleClient
+        .from('homework_targets')
+        .insert(validStudentIds.map((sid: string) => ({ homework_id: homeworkId, student_id: sid })))
+      if (targetErr) {
+        console.warn('[createSingleHomeworkFromBank] homework_targets insert error:', targetErr.message)
+      }
+    }
+  }
+
   // Tăng usage_count bằng RPC nguyên tử kèm log lịch sử sử dụng theo lớp và đề thi (Phase 4.1 & 5.1)
   const pickedIds = orderedQuestions.map((q: any) => q.id)
   await bumpQuestionUsage(serviceRoleClient, pickedIds, opts.targetClassId || null, homeworkId)
@@ -244,6 +258,29 @@ function normalizeBankPromptPayload(rawPrompt: any, fallbackData: any = {}): any
   }
 
   return payload
+}
+
+async function computeQbContentHash(questionType: string, prompt: any): Promise<string> {
+  const normText = (prompt?.text || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  let optionsStr = ''
+  if (Array.isArray(prompt?.options) && prompt.options.length > 0) {
+    for (const item of prompt.options) {
+      const id = item?.id || item?.key || ''
+      const text = (item?.text || '').trim().toLowerCase().replace(/\s+/g, ' ')
+      optionsStr += `|${id}:${text}`
+    }
+  } else if (Array.isArray(prompt?.statements) && prompt.statements.length > 0) {
+    for (const item of prompt.statements) {
+      const id = item?.id || item?.key || ''
+      const text = (item?.text || '').trim().toLowerCase().replace(/\s+/g, ' ')
+      optionsStr += `|${id}:${text}`
+    }
+  }
+  const combined = `${questionType}:::${normText}:::${optionsStr}`
+  const msgUint8 = new TextEncoder().encode(combined)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 interface ScopeTarget {
@@ -899,6 +936,35 @@ serve(async (req: Request) => {
       const body = await req.json()
 
       // ----------------------------------------------------
+      // Action 0: Xóa hàng loạt câu hỏi khỏi Ngân hàng
+      // ----------------------------------------------------
+      if (action === 'bulk-delete') {
+        const { ids } = body
+        if (!Array.isArray(ids) || ids.length === 0) {
+          return errorResponse('Thiếu danh sách ID câu hỏi cần xóa', 400)
+        }
+        const validIds = ids.filter(Boolean)
+        if (validIds.length === 0) {
+          return errorResponse('Không tìm thấy ID hợp lệ cần xóa', 400)
+        }
+        const CHUNK = 500
+        for (let i = 0; i < validIds.length; i += CHUNK) {
+          const chunk = validIds.slice(i, i + CHUNK)
+          const { error: delErr } = await serviceRoleClient
+            .from('question_bank')
+            .delete()
+            .in('id', chunk)
+
+          if (delErr) return errorResponse(delErr.message, 500)
+        }
+        return jsonResponse({
+          success: true,
+          deletedCount: validIds.length,
+          message: `Đã xóa thành công ${validIds.length} câu hỏi khỏi Ngân hàng!`
+        })
+      }
+
+      // ----------------------------------------------------
       // Action 1: Nhập hàng loạt câu hỏi từ Markdown
       // ----------------------------------------------------
       if (action === 'import') {
@@ -989,17 +1055,99 @@ serve(async (req: Request) => {
           }
         })
 
+        // 1. Tính toán hash cho toàn bộ câu hỏi và phát hiện trùng lặp ngay trong batch tải lên
+        const candidateRows: any[] = []
+        let skippedInFile = 0
+        const seenInBatch = new Set<string>()
+
+        for (const row of rowsToInsert) {
+          const hash = await computeQbContentHash(row.question_type, row.prompt)
+          row.content_hash = hash
+
+          if (seenInBatch.has(hash)) {
+            skippedInFile++
+            continue
+          }
+          seenInBatch.add(hash)
+          candidateRows.push(row)
+        }
+
+        // 2. Tra cứu cơ sở dữ liệu để lọc bỏ những câu đã tồn tại trong cùng Khối (grade_block)
+        const existingHashes = new Set<string>()
+        const hashList = Array.from(seenInBatch)
+        const CHUNK_SIZE = 500
+        for (let i = 0; i < hashList.length; i += CHUNK_SIZE) {
+          const chunk = hashList.slice(i, i + CHUNK_SIZE)
+          const { data: matchedRows } = await serviceRoleClient
+            .from('question_bank')
+            .select('content_hash')
+            .eq('grade_block', effectiveGradeBlock)
+            .in('content_hash', chunk)
+
+          if (matchedRows) {
+            matchedRows.forEach((r: any) => {
+              if (r.content_hash) existingHashes.add(r.content_hash)
+            })
+          }
+        }
+
+        const filteredRows = candidateRows.filter(r => !existingHashes.has(r.content_hash))
+        const skippedInDb = candidateRows.length - filteredRows.length
+        const totalSkipped = skippedInFile + skippedInDb
+
+        if (filteredRows.length === 0) {
+          return jsonResponse({
+            success: true,
+            importedCount: 0,
+            skippedCount: totalSkipped,
+            totalCount: rowsToInsert.length,
+            message: `Tất cả ${rowsToInsert.length} câu hỏi đều đã tồn tại trong Ngân hàng đề (${effectiveGradeBlock}) hoặc bị trùng lặp trong file. Không có câu mới nào được thêm.`
+          })
+        }
+
+        // 3. Thực hiện insert danh sách câu hỏi mới
+        let insertedCount = 0
         const { data: inserted, error: insertError } = await serviceRoleClient
           .from('question_bank')
-          .insert(rowsToInsert)
+          .insert(filteredRows)
           .select('id')
 
-        if (insertError) return errorResponse(insertError.message, 500)
+        if (insertError) {
+          // Phòng trường hợp xung đột unique constraint do race condition: fallback insert từng câu bỏ qua lỗi trùng
+          if (insertError.message?.includes('uq_qb_block_hash') || insertError.code === '23505') {
+            console.warn('[import question-bank] Batch duplicate collision, fallback to row-by-row insert')
+            let fallbackSkipped = 0
+            for (const singleRow of filteredRows) {
+              const { error: singleErr } = await serviceRoleClient
+                .from('question_bank')
+                .insert(singleRow)
+              if (!singleErr) {
+                insertedCount++
+              } else {
+                fallbackSkipped++
+              }
+            }
+            const finalSkipped = totalSkipped + fallbackSkipped
+            return jsonResponse({
+              success: true,
+              importedCount,
+              skippedCount: finalSkipped,
+              totalCount: rowsToInsert.length,
+              message: `Đã nhập thành công ${insertedCount} câu hỏi mới vào Ngân hàng đề${finalSkipped > 0 ? ` (đã tự động bỏ qua ${finalSkipped} câu trùng lặp)` : ''}!`
+            })
+          }
+          return errorResponse(insertError.message, 500)
+        }
 
+        insertedCount = (inserted || []).length
         return jsonResponse({
           success: true,
-          importedCount: (inserted || []).length,
-          message: `Đã nhập thành công ${(inserted || []).length} câu hỏi vào Ngân hàng đề!`
+          importedCount,
+          skippedCount: totalSkipped,
+          totalCount: rowsToInsert.length,
+          message: totalSkipped > 0
+            ? `Đã nhập thành công ${insertedCount} câu hỏi mới vào Ngân hàng đề (đã tự động bỏ qua ${totalSkipped} câu trùng lặp)!`
+            : `Đã nhập thành công ${insertedCount} câu hỏi vào Ngân hàng đề!`
         })
       }
 
@@ -1354,7 +1502,24 @@ serve(async (req: Request) => {
           .insert(rowsToInsert)
           .select('id')
 
-        if (insertError) return errorResponse(insertError.message, 500)
+        if (insertError) {
+          if (insertError.message?.includes('uq_qb_block_hash') || insertError.code === '23505') {
+            let rowInserted = 0
+            let rowSkipped = 0
+            for (const r of rowsToInsert) {
+              const { error: sErr } = await serviceRoleClient.from('question_bank').insert(r)
+              if (!sErr) rowInserted++
+              else rowSkipped++
+            }
+            return jsonResponse({
+              success: true,
+              importedCount: rowInserted,
+              skippedCount: skippedCount + rowSkipped,
+              message: `Đã trích xuất và lưu thành công ${rowInserted} câu hỏi vào Ngân hàng đề (bỏ qua ${skippedCount + rowSkipped} câu trùng lặp)!`
+            })
+          }
+          return errorResponse(insertError.message, 500)
+        }
 
         return jsonResponse({
           success: true,
@@ -1904,7 +2069,8 @@ serve(async (req: Request) => {
           maxViolations = 3,
           showSolutions = true,
           questionBankIds = [],
-          variantCodes = []
+          variantCodes = [],
+          assignedStudentIds = []
         } = body
 
         if (!targetLessonId || !title || !Array.isArray(questionBankIds) || questionBankIds.length === 0) {
@@ -2016,6 +2182,19 @@ serve(async (req: Request) => {
             await serviceRoleClient.from('questions').insert(vQuestionsToInsert)
             await serviceRoleClient.from('question_answers').insert(vAnswersToInsert)
 
+            // Giao riêng cho học sinh cho từng mã đề hoán vị
+            if (Array.isArray(assignedStudentIds) && assignedStudentIds.length > 0) {
+              const validStudentIds = assignedStudentIds.filter(Boolean)
+              if (validStudentIds.length > 0) {
+                const { error: targetErr } = await serviceRoleClient
+                  .from('homework_targets')
+                  .insert(validStudentIds.map((sid: string) => ({ homework_id: vHwId, student_id: sid })))
+                if (targetErr) {
+                  console.warn('[create-from-selected variant] homework_targets insert error:', targetErr.message)
+                }
+              }
+            }
+
             createdVariants.push({ code: vCode, homeworkId: vHwId, optionMaps })
           }
 
@@ -2049,6 +2228,7 @@ serve(async (req: Request) => {
             showSolutions,
             orderedQuestions,
             targetClassId,
+            assignedStudentIds: Array.isArray(assignedStudentIds) ? assignedStudentIds : []
           })
           return jsonResponse({
             success: true,
@@ -2114,15 +2294,43 @@ serve(async (req: Request) => {
     // ========================================================
     if (req.method === 'DELETE') {
       const qId = url.searchParams.get('id')
-      if (!qId) return errorResponse('Thiếu ID câu hỏi cần xóa', 400)
+      const qIdsParam = url.searchParams.get('ids')
+      let idsToDelete: string[] = []
+      if (qId) {
+        idsToDelete = [qId]
+      } else if (qIdsParam) {
+        idsToDelete = qIdsParam.split(',').map(s => s.trim()).filter(Boolean)
+      } else {
+        try {
+          const body = await req.json()
+          if (Array.isArray(body?.ids)) {
+            idsToDelete = body.ids.filter(Boolean)
+          } else if (body?.id) {
+            idsToDelete = [body.id]
+          }
+        } catch (_) {}
+      }
 
-      const { error: delErr } = await serviceRoleClient
-        .from('question_bank')
-        .delete()
-        .eq('id', qId)
+      if (idsToDelete.length === 0) return errorResponse('Thiếu ID câu hỏi cần xóa', 400)
 
-      if (delErr) return errorResponse(delErr.message, 500)
-      return jsonResponse({ success: true, message: 'Đã xóa câu hỏi thành công!' })
+      const CHUNK = 500
+      for (let i = 0; i < idsToDelete.length; i += CHUNK) {
+        const chunk = idsToDelete.slice(i, i + CHUNK)
+        const { error: delErr } = await serviceRoleClient
+          .from('question_bank')
+          .delete()
+          .in('id', chunk)
+
+        if (delErr) return errorResponse(delErr.message, 500)
+      }
+
+      return jsonResponse({
+        success: true,
+        deletedCount: idsToDelete.length,
+        message: idsToDelete.length > 1
+          ? `Đã xóa thành công ${idsToDelete.length} câu hỏi khỏi Ngân hàng!`
+          : 'Đã xóa câu hỏi thành công!'
+      })
     }
 
     // ========================================================

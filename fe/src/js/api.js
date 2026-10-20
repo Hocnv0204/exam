@@ -533,6 +533,7 @@ export const api = {
   swapQuestionInExam: (data) => request('question-bank?action=swap-question', { method: 'POST', body: JSON.stringify(data) }),
   createHomeworkFromBankQuestions: (data) => request('question-bank?action=create-from-selected', { method: 'POST', body: JSON.stringify(data) }),
   deleteQuestionFromBank: (id) => request(`question-bank?id=${id}`, { method: 'DELETE' }),
+  deleteQuestionsBulkFromBank: (ids) => request('question-bank?action=bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   updateQuestionInBank: (data) => request('question-bank', { method: 'PUT', body: JSON.stringify(data) }),
   uploadFile: async (file) => {
     const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
