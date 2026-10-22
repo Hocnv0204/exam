@@ -4,7 +4,7 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
-import { parseExamMarkdown, renderMath, renderMarkdown, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
+import { parseExamMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 // ========================================================
@@ -1562,6 +1562,7 @@ function openImportMarkdownModal() {
               <span id="md-cnt-mc" style="font-weight:600; color:#16a34a; background:#f0fdf4; padding:2px 8px; border-radius:6px; border:1px solid #bbf7d0;">0 Trắc nghiệm ABCD</span>
               <span id="md-cnt-tf" style="font-weight:600; color:#d97706; background:#fffbeb; padding:2px 8px; border-radius:6px; border:1px solid #fde68a;">0 Đúng/Sai</span>
               <span id="md-cnt-sa" style="font-weight:600; color:#9333ea; background:#faf5ff; padding:2px 8px; border-radius:6px; border:1px solid #e9d5ff;">0 Trả lời ngắn</span>
+              <span id="md-diag-summary" style="display:none; font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px;"></span>
               <span style="margin-left:auto; font-size:13px; font-weight:700; color:#0284c7;" id="md-cnt-total">Tổng: 0 câu</span>
             </div>
 
@@ -1727,8 +1728,23 @@ function openImportMarkdownModal() {
     }
   })
 
-  function updateParsedCounters(text) {
-    const res = parseExamMarkdown(text || '')
+  /** Gom lỗi/cảnh báo khối hình theo từng câu hỏi (dùng cho preview + chặn lưu). */
+  function collectDiagramIssuesFor(questions) {
+    const list = []
+    ;(questions || []).forEach((q, idx) => {
+      const res = validateQuestionDiagrams(q)
+      if (!res.errors.length && !res.warnings.length) return
+      list.push({
+        questionNumber: q.questionNumber || (idx + 1),
+        index: idx,
+        errors: res.errors,
+        warnings: res.warnings
+      })
+    })
+    return list
+  }
+
+  function updateParsedCounters(text) {    const res = parseExamMarkdown(text || '')
     parsedQuestions = res?.questions || []
     const defaultDiff = document.getElementById('md-target-difficulty')?.value || 'THONG_HIEU'
 
@@ -1755,6 +1771,30 @@ function openImportMarkdownModal() {
     document.getElementById('md-cnt-sa').textContent = `${sa} Trả lời ngắn`
     document.getElementById('md-cnt-total').textContent = `Tổng: ${parsedQuestions.length} câu`
 
+    // Chẩn đoán khối hình (bbt/graph/geo3d) — lỗi thì chặn lưu, cảnh báo thì vẫn lưu
+    const diagramIssues = collectDiagramIssuesFor(parsedQuestions)
+    const diagErr = diagramIssues.reduce((s, it) => s + it.errors.length, 0)
+    const diagWarn = diagramIssues.reduce((s, it) => s + it.warnings.length, 0)
+    const diagBadge = document.getElementById('md-diag-summary')
+    if (diagBadge) {
+      if (diagErr > 0) {
+        diagBadge.style.display = 'inline-flex'
+        diagBadge.style.background = '#fef2f2'
+        diagBadge.style.color = '#b91c1c'
+        diagBadge.style.border = '1px solid #fecaca'
+        diagBadge.textContent = `⚠ ${diagErr} lỗi khối hình (không cho lưu)`
+      } else if (diagWarn > 0) {
+        diagBadge.style.display = 'inline-flex'
+        diagBadge.style.background = '#fffbeb'
+        diagBadge.style.color = '#b45309'
+        diagBadge.style.border = '1px solid #fde68a'
+        diagBadge.textContent = `⚠ ${diagWarn} cảnh báo khối hình`
+      } else {
+        diagBadge.style.display = 'none'
+        diagBadge.textContent = ''
+      }
+    }
+
     document.getElementById('md-diff-nb').textContent = `${nb} Nhận biết`
     document.getElementById('md-diff-th').textContent = `${th} Thông hiểu`
     document.getElementById('md-diff-vd').textContent = `${vd} Vận dụng`
@@ -1780,6 +1820,12 @@ function openImportMarkdownModal() {
     let html = ''
     parsedQuestions.forEach((q, idx) => {
       const promptSnippet = (q.promptText || '').slice(0, 100) + ((q.promptText || '').length > 100 ? '...' : '')
+      const diag = validateQuestionDiagrams(q)
+      const diagBadge = diag.errors.length
+        ? `<span title="${escapeHtmlAttr(diag.errors.map(e => `[${e.code}] ${e.message}`).join(' | '))}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; white-space:nowrap;">⚠ ${diag.errors.length} lỗi hình</span>`
+        : (diag.warnings.length
+          ? `<span title="${escapeHtmlAttr(diag.warnings.map(e => `[${e.code}] ${e.message}`).join(' | '))}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; white-space:nowrap;">⚠ ${diag.warnings.length} cảnh báo hình</span>`
+          : '')
       html += `
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; font-size:13px;">
           <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
@@ -1787,6 +1833,7 @@ function openImportMarkdownModal() {
             <span style="font-size:11px; font-weight:700; padding:2px 6px; border-radius:4px; background:#eff6ff; color:#0284c7; flex-shrink:0;">
               ${q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : 'Trắc nghiệm')}
             </span>
+            ${diagBadge}
             <span style="color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px;">
               ${promptSnippet}
             </span>
@@ -1837,6 +1884,15 @@ function openImportMarkdownModal() {
 
     if (parsedQuestions.length === 0) {
       return showToast('Không tìm thấy câu hỏi hợp lệ nào trong văn bản Markdown!', 'error')
+    }
+
+    // Chặn lưu khi còn lỗi khối hình (bbt/graph/geo3d)
+    const diagramIssues = collectDiagramIssuesFor(parsedQuestions)
+    const diagramErrors = diagramIssues.filter(it => it.errors.length > 0)
+    if (diagramErrors.length > 0) {
+      const first = diagramErrors[0]
+      const detail = first.errors.map(e => `[${e.code}] ${e.message}`).join(' | ')
+      return showToast(`Câu ${first.questionNumber} có lỗi khối hình: ${detail}. Vui lòng sửa trước khi lưu!`, 'error')
     }
 
     const defaultDifficulty = document.getElementById('md-target-difficulty')?.value || 'THONG_HIEU'

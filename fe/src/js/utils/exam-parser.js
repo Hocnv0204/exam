@@ -210,7 +210,8 @@ export function renderMath(container) {
           ],
           throwOnError: false,
           errorColor: '#dc2626',
-          strict: false
+          strict: false,
+          trust: false
         })
       } catch (err) {
         console.warn('[renderMath] Error rendering KaTeX:', err)
@@ -230,24 +231,56 @@ export function renderMath(container) {
 /**
  * Parses Markdown syntax into safe HTML while preserving KaTeX Math ($...$, $$...$$, \ce{...})
  */
-import { compileDiagramToSVG } from './diagram-renderer.js'
+import { compileDiagramToSVG, validateDiagramsInText } from './diagram-renderer.js'
+import { scanDiagramFences } from './diagrams/fence.js'
+
+/**
+ * Che khu vực các khối hình (```bbt / ```graph / ```geo3d / ```smiles) trước khi
+ * xử lý toán $...$ để ký hiệu trong khối không bị bóc nhầm.
+ * Khối chưa đóng fence vẫn được che lại (kèm cảnh báo) để không "nuốt" câu hỏi.
+ */
+function shieldDiagramBlocks(str) {
+  const { blocks } = scanDiagramFences(str)
+  if (!blocks.length) return { text: str, tokens: [] }
+  const tokens = []
+  const lines = str.split('\n')
+  const out = []
+  let i = 0
+  let bi = 0
+  while (i < lines.length) {
+    const block = blocks[bi]
+    if (block && block.startLine - 1 === i) {
+      const placeholder = `@@DIAGRAMXTOKENX${tokens.length}XTOKENXDIAGRAM@@`
+      tokens.push({
+        type: block.type,
+        code: block.code,
+        closed: block.closed,
+        startLine: block.startLine
+      })
+      out.push(placeholder)
+      i = block.endLine
+      bi++
+      continue
+    }
+    out.push(lines[i])
+    i++
+  }
+  return { text: out.join('\n'), tokens }
+}
 
 export function renderMarkdown(text) {
   if (!text) return ''
-  let str = String(text)
+  let str = String(text).replace(/\r\n/g, '\n')
 
   // 1A. Shield các khối vẽ hình (bbt, graph, geo3d, smiles) TRƯỚC khi shield math,
   // để ký hiệu $...$ bên trong code hình không bị bóc nhầm.
-  const diagramTokens = []
-  str = str.replace(/```(bbt|graph|geo3d|smiles)\s*\n([\s\S]*?)```/gi, (match, type, code) => {
-    const placeholder = `@@DIAGRAMXTOKENX${diagramTokens.length}XTOKENXDIAGRAM@@`
-    diagramTokens.push({ type: type.toLowerCase(), code: (code || '').trim() })
-    return placeholder
-  })
+  const shielded = shieldDiagramBlocks(str)
+  str = shielded.text
+  const diagramTokens = shielded.tokens
   // Thẻ inline [SMILES: ...]
   str = str.replace(/\[SMILES:\s*([^\]]+)\]/gi, (match, smilesCode) => {
     const placeholder = `@@DIAGRAMXTOKENX${diagramTokens.length}XTOKENXDIAGRAM@@`
-    diagramTokens.push({ type: 'smiles', code: (smilesCode || '').trim() })
+    diagramTokens.push({ type: 'smiles', code: (smilesCode || '').trim(), closed: true })
     return placeholder
   })
 
@@ -360,7 +393,15 @@ export function renderMarkdown(text) {
   // 4A. Unshield Diagram Blocks thành <svg> (nhãn $...$ bên trong để renderMath biên dịch sau)
   str = str.replace(/@@DIAGRAMXTOKENX(\d+)XTOKENXDIAGRAM@@/g, (match, index) => {
     const item = diagramTokens[Number(index)]
-    return item ? compileDiagramToSVG(item.type, item.code) : ''
+    if (!item) return ''
+    if (item.type === 'smiles') {
+      return compileDiagramToSVG('smiles', item.code)
+    }
+    if (!item.closed) {
+      return `<div style="padding:8px 10px;font-size:12px;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;">` +
+        `<strong>Lỗi khối hình "${item.type}"</strong> — khối mở ở dòng ${item.startLine} nhưng thiếu dấu \`\`\` đóng.</div>`
+    }
+    return compileDiagramToSVG(item.type, item.code)
   })
 
   // 12. Restore Math blocks in reverse order
@@ -456,11 +497,31 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
   }
 
   const questions = []
+  const diagnostics = []
 
   let currentSectionType = defaultSectionType
   let currentQ = null
   let currentMode = 'PROMPT' // 'PROMPT' | 'EXPLANATION'
-  let inDiagramBlock = false
+  let currentOption = null   // phương án/ý đang mở (hỗ trợ phương án nhiều dòng)
+  let fence = null           // { type, lines:[], startLine }
+
+  /** Ghi nội dung vào đúng nơi đang nhận (đề / phương án / lời giải). */
+  const appendText = (text) => {
+    if (!currentQ) return
+    if (currentMode === 'EXPLANATION') {
+      currentQ.explanationLines.push(text)
+    } else if (currentOption) {
+      currentOption.text = currentOption.text ? `${currentOption.text}\n${text}` : text
+    } else {
+      currentQ.promptLines.push(text)
+    }
+  }
+
+  /** Ghi một khối hình (nhiều dòng) vào đúng nơi đang nhận. */
+  const appendBlock = (lines) => {
+    if (!currentQ) return
+    appendText(lines.join('\n'))
+  }
 
   const flushCurrentQuestion = () => {
     if (!currentQ) return
@@ -468,6 +529,8 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
     // Clean up prompt text: trim leading/trailing newlines
     currentQ.promptText = currentQ.promptLines.join('\n').trim()
     currentQ.explanation = currentQ.explanationLines.join('\n').trim()
+    // Dọn phương án (bỏ khoảng trắng thừa ở đầu/cuối, giữ nguyên dòng bên trong)
+    currentQ.options.forEach(o => { o.text = String(o.text || '').trim() })
 
     // Clean up options
     if (currentQ.questionType === 'MULTIPLE_CHOICE') {
@@ -504,23 +567,51 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
 
     questions.push(currentQ)
     currentQ = null
+    currentOption = null
   }
+
+  const FENCE_OPEN = /^```\s*(bbt|graph|geo3d|smiles)\s*$/i
+  const FENCE_CLOSE = /^```\s*$/
+  const isQuestionHeader = (text) => /^\[(?:Câu|Bài)\s*\d+\]/i.test(text) || /^(?:Câu|Bài)\s*\d+/.test(text)
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const trimmed = line.trim()
 
-    // Bảo vệ khối vẽ hình ```bbt | ```graph | ```geo3d | ```smiles:
-    // giữ nguyên từng dòng vào đề bài, không bóc tách thẻ bên trong.
-    if (/^```(bbt|graph|geo3d|smiles)\s*$/i.test(trimmed)) {
-      inDiagramBlock = true
-      if (currentQ) currentQ.promptLines.push(line)
+    /* ---------------------------------------------------------------
+     * Khối hình: giữ nguyên từng dòng, đúng nơi đang nhận
+     * (đề / phương án / lời giải) — không đưa hình lời giải sang đề.
+     * --------------------------------------------------------------- */
+    if (!fence && FENCE_OPEN.test(trimmed)) {
+      fence = { type: trimmed.match(FENCE_OPEN)[1].toLowerCase(), lines: [line], startLine: i + 1 }
       continue
     }
-    if (inDiagramBlock) {
-      if (/^```\s*$/.test(trimmed)) inDiagramBlock = false
-      if (currentQ) currentQ.promptLines.push(line)
-      continue
+    if (fence) {
+      if (FENCE_CLOSE.test(trimmed)) {
+        fence.lines.push(line)
+        appendBlock(fence.lines)
+        fence = null
+        continue
+      }
+      if (isQuestionHeader(trimmed)) {
+        // Fence chưa đóng: KHÔNG nuốt câu hỏi tiếp theo — báo lỗi và chuyển context
+        const diag = {
+          severity: 'error',
+          code: 'FENCE_NOT_CLOSED',
+          field: null,
+          line: fence.startLine,
+          question: currentQ ? currentQ.questionNumber : null,
+          message: `Khối hình "${fence.type}" mở ở dòng ${fence.startLine} nhưng thiếu dấu \`\`\` đóng (đóng ngay trước câu hỏi kế tiếp).`
+        }
+        diagnostics.push(diag)
+        if (currentQ) currentQ.diagnostics = (currentQ.diagnostics || []).concat([diag])
+        appendBlock(fence.lines)
+        fence = null
+        // rơi xuống để xử lý dòng hiện tại như một câu hỏi mới
+      } else {
+        fence.lines.push(line)
+        continue
+      }
     }
 
     // Check Section Headers
@@ -601,6 +692,7 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
         explanationLines: [],
         hasImagePlaceholder: false,
         imageUrl: '',
+        diagnostics: [],
         points: qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)
       }
       currentMode = 'PROMPT'
@@ -612,6 +704,7 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
     // Check Explanation tag [Lời giải] or [Hướng dẫn giải]
     if (/^\[(?:Lời giải|Hướng dẫn giải|Giải chi tiết)\]/i.test(trimmed) || /^(?:Lời giải|Hướng dẫn giải):/i.test(trimmed)) {
       currentMode = 'EXPLANATION'
+      currentOption = null
       continue
     }
 
@@ -669,7 +762,9 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
         const optId = mcOptMatch[2].toUpperCase()
         const optText = mcOptMatch[3].trim()
 
-        currentQ.options.push({ id: optId, text: optText })
+        const option = { id: optId, text: optText }
+        currentQ.options.push(option)
+        currentOption = option
         if (isCorrect) {
           currentQ.mcAnswer = optId
         }
@@ -685,13 +780,19 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
         const subId = tfOptMatch[2].toLowerCase()
         const optText = tfOptMatch[3].trim()
 
-        currentQ.options.push({ id: subId, text: optText })
+        const option = { id: subId, text: optText }
+        currentQ.options.push(option)
+        currentOption = option
         currentQ.tfAnswers[subId] = isTrue
         continue
       }
     }
 
-    // Default: append to prompt lines
+    // Dòng tiếp theo: thuộc phương án đang mở (phương án nhiều dòng) hoặc phần đề
+    if (currentOption) {
+      currentOption.text = currentOption.text ? `${currentOption.text}\n${line}` : line
+      continue
+    }
     currentQ.promptLines.push(line)
   }
 
@@ -717,7 +818,28 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
     })
   }
 
-  return { questions }
+  return { questions, diagnostics }
+}
+
+/**
+ * Kiểm tra lỗi khối hình trong một đoạn văn bản Markdown (đề / phương án / lời giải).
+ * Dùng để chặn lưu đề có hình lỗi và hiển thị cảnh báo trong xem trước.
+ */
+export function validateQuestionDiagrams(question) {
+  const errors = []
+  const warnings = []
+  const infos = []
+  const add = (text, where) => {
+    if (!text) return
+    const res = validateDiagramsInText(text)
+    res.errors.forEach(d => errors.push({ ...d, where }))
+    res.warnings.forEach(d => warnings.push({ ...d, where }))
+    res.infos.forEach(d => infos.push({ ...d, where }))
+  }
+  add(question.promptText, 'đề bài')
+  ;(question.options || []).forEach(o => add(o.text, `phương án ${String(o.id).toUpperCase()}`))
+  add(question.explanation, 'lời giải')
+  return { errors, warnings, infos, hasError: errors.length > 0 }
 }
 
 /**

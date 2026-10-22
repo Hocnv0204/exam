@@ -23,6 +23,67 @@ let filterState = {
   pageSize: 10
 }
 
+/**
+ * Escape giá trị trước khi nhúng vào thuộc tính HTML (title / aria-label).
+ */
+function escapeAttr(value) {
+  if (value === undefined || value === null) return ''
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+/**
+ * Base URL tuyệt đối của SPA (origin + thư mục đang phục vụ index.html).
+ * Ứng dụng dùng hash routing nên pathname luôn trỏ về file entry hiện tại.
+ */
+function getAppBaseUrl() {
+  const { origin, pathname } = window.location
+  const path = (pathname || '/').replace(/\/index\.html?$/i, '/')
+  return `${origin}${path || '/'}`
+}
+
+/**
+ * Tạo link bài tập dành cho học sinh (không phải link sửa/chi tiết của giáo viên):
+ * - Luyện tập (có PDF đính kèm hoặc bài tương tác): #homework-attempt?homeworkId=...
+ * - Bài thi: #exam-room?homeworkId=...
+ * @param {string} homeworkId
+ * @param {string} type 'PRACTICE' | 'EXAM'
+ * @returns {string} URL tuyệt đối
+ */
+function buildStudentHomeworkUrl(homeworkId, type) {
+  if (!homeworkId) return ''
+  const route = type === 'EXAM' ? 'exam-room' : 'homework-attempt'
+  return `${getAppBaseUrl()}#${route}?homeworkId=${encodeURIComponent(homeworkId)}`
+}
+
+/**
+ * Copy text với fallback cho trình duyệt cũ / iframe không có quyền clipboard.
+ */
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch (e) {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      return ok
+    } catch (e2) {
+      return false
+    }
+  }
+}
+
 export function renderHomeworkMgmtView() {
   return `
     <div class="app-layout">
@@ -583,6 +644,9 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
         </td>
         <td style="padding:12px 16px; text-align:center;">
           <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+            <button type="button" class="btn-secondary btn-copy-link-hw" data-id="${escapeAttr(hw.id)}" data-type="${escapeAttr(hw.type || 'PRACTICE')}" title="Sao chép link bài tập để gửi học sinh" aria-label="Sao chép link làm bài: ${escapeAttr(hw.title || 'Bài tập')}" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f5f3ff; border:1px solid #ddd6fe; color:#7c3aed;">
+              <i class="fa-solid fa-link"></i>
+            </button>
             ${isExam ? `
               <button class="btn-secondary btn-proctor-hw" data-id="${hw.id}" title="Giám sát phòng thi trực tuyến" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626;">
                 <i class="fa-solid fa-desktop"></i>
@@ -614,6 +678,27 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
 }
 
 function attachRowActions(tableBody) {
+  // Attach Copy link buttons -> copy absolute student-facing URL to clipboard
+  tableBody.querySelectorAll('.btn-copy-link-hw').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const hwId = btn.getAttribute('data-id')
+      const url = buildStudentHomeworkUrl(hwId, btn.getAttribute('data-type'))
+      if (!url) {
+        showToast('Không tạo được link bài tập!', 'error')
+        return
+      }
+      const ok = await copyTextToClipboard(url)
+      if (ok) {
+        showToast('Đã sao chép link bài tập. Gửi cho học sinh để làm bài.', 'success')
+        const original = btn.innerHTML
+        btn.innerHTML = '<i class="fa-solid fa-check"></i>'
+        setTimeout(() => { btn.innerHTML = original }, 2000)
+      } else {
+        showToast('Không sao chép được link. Hãy bôi đen link để copy thủ công.', 'error')
+      }
+    })
+  })
+
   // Attach PDF buttons -> open homework PDF in new tab
   tableBody.querySelectorAll('.btn-pdf-hw').forEach(btn => {
     btn.addEventListener('click', () => {

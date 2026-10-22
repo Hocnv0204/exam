@@ -42,6 +42,8 @@ Ví dụ: `[Câu 4] [TF] [VD]`
 - **Công thức Hóa**: dùng `\ce{...}`, ví dụ `$\ce{CH3COOH + C2H5OH -> CH3COOC2H5 + H2O}$`.
 - **Xuống dòng** trong đề: xuống dòng thật (Enter).
 - **Không** dùng dòng bắt đầu bằng `A.`, `*A.`, `[Lời giải]`, `[Ảnh...]` cho nội dung đề thường (hệ thống sẽ hiểu nhầm thành đáp án).
+- **Phần đề phải nằm TRƯỚC phương án đầu tiên.** Sau khi phương án đầu tiên bắt đầu, mọi dòng thuộc
+  phương án đó cho tới phương án kế tiếp / `[Lời giải]` / câu hỏi mới.
 
 ## 4. Đáp án
 
@@ -51,6 +53,13 @@ A. Nội dung phương án A
 *B. Nội dung phương án đúng (dấu * ở đầu)
 C. Nội dung phương án C
 D. Nội dung phương án D
+```
+
+**Phương án nhiều dòng (được phép):**
+```md
+A. Nội dung dòng 1 của phương án A
+   Nội dung dòng 2 của phương án A
+B. Nội dung phương án B
 ```
 
 **Đúng/Sai (4 ý a–d, `*` = ý ĐÚNG):**
@@ -74,6 +83,14 @@ c) Nội dung ý c sai (không có *)
 [Lời giải]
 Nội dung lời giải, có thể nhiều dòng, dùng $...$ và \ce{...} bình thường.
 ```
+
+## 5b. Vị trí khối hình (quan trọng)
+
+- **Trong đề**: đặt khối hình **trước phương án đầu tiên**.
+- **Trong phương án**: đặt ngay **sau dòng `A.`** tương ứng (trước `B.`) — hình sẽ nằm đúng trong phương án đó.
+- **Trong lời giải**: đặt **sau dòng `[Lời giải]`**; hình lời giải **không** bị chuyển lên đề.
+- Khối hình phải **đóng bằng dấu ` ``` `**; thiếu dấu đóng sẽ báo lỗi theo số dòng
+  (và không làm nuốt câu hỏi kế tiếp).
 
 ## 6. Hình ảnh (3 cách, ưu tiên từ trên xuống)
 
@@ -113,7 +130,9 @@ Cho đồ thị như hình dưới đây, hàm số nghịch biến trên khoả
 
 ## 7. File mẫu hoàn chỉnh
 
-```md
+> Lớp ngoài dùng **4 backtick** để lồng khối hình (3 backtick) bên trong.
+
+````md
 # ĐỀ LUYỆN TẬP CHƯƠNG 1
 
 === PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D) ===
@@ -149,27 +168,30 @@ Tính $1 + 2 + 3$.
 [Đáp án: 6]
 [Lời giải]
 Tổng bằng $6$.
-```
+````
 
 ## 8. Cú pháp vẽ hình chi tiết
 
+> Toàn bộ chi tiết + giới hạn + mã chẩn đoán: `MD_QUY_CHUAN_VE_HINH.md` (định dạng cũ) và
+> `MD_RULES_VE_HINH_TOAN_V2.md` (định dạng JSON `version: 2`, khuyên dùng cho hình không gian).
+
 ### 8.1. Bảng biến thiên `bbt` (3 dòng `x` / `y'` / `y`)
 
-```md
+````md
 ```bbt
-x  | -\infty, -1, 0, 1, +\infty
-y' | +, 0, -, ||, -, 0, +
-y  | -\infty -> 2 ~> -\infty || +\infty ~> 1 -> +\infty
+x  | -\infty, 0, 2, +\infty
+y' | +, 0, -, 0, +
+y  | -\infty -> 3 ~> 1 -> +\infty
 ```
-```
+````
 
 - Ô cách nhau bằng dấu phẩy `,`.
-- `||` = tiệm cận đứng / điểm không xác định (vẽ nét đôi).
-- Dòng `y`: `->` (hoặc `\nearrow`) mũi tên lên, `~>` (hoặc `\searrow`) mũi tên xuống.
+- Dòng `y'`: xen kẽ **dấu khoảng** và **giá trị tại mốc** (`0` = đạo hàm bằng 0, `||` = hàm không xác định tại mốc).
+- Dòng `y`: `->` (hoặc `\nearrow`) mũi tên lên, `~>` (hoặc `\searrow`) mũi tên xuống, `||` = gián đoạn.
 
 ### 8.2. Đồ thị hàm số `graph`
 
-```md
+````md
 ```graph
 fn: x^3 - 3*x + 1
 domain: [-2.2, 2.2]
@@ -177,16 +199,16 @@ range: [-2.5, 3.8]
 points: (-1, 3), (1, -1), (0, 1)
 asymptotes:
 ```
-```
+````
 
 - `fn`: biểu thức theo `x` (`^` là mũ, `sin/cos/tan/sqrt/abs/log/exp` có sẵn, nhiều hàm cách nhau `;`).
 - `domain`/`range`: `[xMin, xMax]` / `[yMin, yMax]`.
 - `points`: chấm điểm đặc biệt + gióng nét đứt xuống 2 trục.
 - `asymptotes`: ví dụ `x = 1, y = 2` (để trống nếu không có).
 
-### 8.3. Hình không gian `geo3d` (preset + điểm phụ)
+### 8.3. Hình không gian `geo3d` (preset + điểm phụ) — hình sơ đồ 2D
 
-```md
+````md
 ```geo3d
 preset: chop_tu_giac_sa_vuong
 points: M = mid(S, C), H = proj(A, S, B)
@@ -194,13 +216,16 @@ solid: SB, SC, SD, BC, CD, BM
 dashed: SA, AB, AD, AC, BD, AH, AM
 right_angle: (S,A,D), (S,A,B), (A,H,B)
 ```
-```
+````
 
 - Preset có sẵn: `chop_tam_giac`, `chop_tam_giac_sa_vuong`, `chop_tu_giac`,
   `chop_tu_giac_sa_vuong`, `chop_tu_giac_deu`, `lang_tru_tam_giac`, `hinh_hop`.
 - Điểm phụ: `mid(A,B)` trung điểm · `centroid(A,B,C)` trọng tâm ·
   `ratio(A,B,0.35)` chia đoạn · `proj(A,S,B)` hình chiếu.
 - `solid` nét liền, `dashed` nét đứt, `right_angle` ký hiệu góc vuông `(Đỉnh, Góc, Điểm)`.
+- ⚠️ Đây là **hình sơ đồ 2D**, không kiểm chứng được vuông góc trong không gian.
+  Cần hình 3D đúng (toạ độ toán học + chiếu trực giao) → dùng JSON `version: 2`.
+
 
 ### 8.4. Cấu tạo phân tử `smiles`
 
@@ -220,4 +245,7 @@ hoặc inline: `[SMILES: c1cccccO]`
 - [ ] Câu điền số có `[Đáp án: ...]`.
 - [ ] Khối ` ```bbt/graph/geo3d/smiles ` mở và đóng đủ dấu \`\`\`.
 - [ ] Dòng `[Ảnh: ...]` đứng riêng 1 dòng; định nghĩa `[id]: ...` nằm cuối file.
-- [ ] Sau khi nhập: kiểm tra thẻ xem trước (số câu, đáp án tô sáng, hình vẽ) rồi mới bấm Lưu.
+- [ ] Phần đề nằm trước phương án đầu tiên; hình trong lời giải nằm sau `[Lời giải]`.
+- [ ] Sau khi nhập: kiểm tra thẻ xem trước (số câu, đáp án tô sáng, hình vẽ) và mục
+      **"Chẩn đoán khối hình"** (lỗi / cảnh báo) rồi mới bấm Lưu.
+      Đề có **lỗi** khối hình sẽ **không cho lưu**.

@@ -5,7 +5,7 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { renderMath, renderMarkdown, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
+import { renderMath, renderMarkdown, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
 import { calculateExamRawMax, applyExamPreset, EXAM_PRESETS } from '../utils/scoring-engine.js'
 
 // In-memory state for building the answer matrix
@@ -74,6 +74,69 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+/* ==========================================================================
+ * KIỂM TRA LỖI KHỐI HÌNH (bbt / graph / geo3d)
+ * - Lỗi  ⇒ không cho lưu đề (hình sai/không vẽ được).
+ * - Cảnh báo ⇒ hiển thị để giáo viên tự kiểm tra.
+ * ========================================================================== */
+
+/**
+ * Gom lỗi/cảnh báo của khối hình theo từng câu hỏi.
+ * @returns {Array<{questionNumber:number, index:number, errors:Array, warnings:Array, infos:Array}>}
+ */
+function collectDiagramIssues(questions) {
+  const list = []
+  ;(questions || []).forEach((q, idx) => {
+    const res = validateQuestionDiagrams(q)
+    if (!res.errors.length && !res.warnings.length && !res.infos.length) return
+    list.push({
+      questionNumber: q.questionNumber || (idx + 1),
+      index: idx,
+      errors: res.errors,
+      warnings: res.warnings,
+      infos: res.infos
+    })
+  })
+  return list
+}
+
+/** Kiểm tra toàn bộ đề trước khi lưu: trả về danh sách lỗi (nếu có). */
+function getBlockingDiagramErrors(questions) {
+  return collectDiagramIssues(questions).filter(item => item.errors.length > 0)
+}
+
+/** HTML hiển thị chẩn đoán khối hình cho một câu hỏi. */
+function renderDiagramIssuesHtml(q, idx) {
+  const res = validateQuestionDiagrams(q)
+  if (!res.errors.length && !res.warnings.length && !res.infos.length) return ''
+  const item = (d, sev) => `
+    <li style="margin:2px 0;">
+      <span style="font-weight:700;">${escapeHtml(d.code || '')}</span>
+      ${d.where ? `<span style="color:#64748b;">(${escapeHtml(d.where)})</span> ` : ''}
+      ${escapeHtml(d.message || '')}
+      ${d.line ? `<span style="color:#64748b;">— dòng ${d.line}</span>` : ''}
+    </li>`
+  const box = (title, items, color, bg, border) => `
+    <div style="margin:6px 0;padding:6px 9px;border-radius:6px;background:${bg};border:1px solid ${border};">
+      <div style="font-weight:700;font-size:11.5px;color:${color};margin-bottom:2px;">${title}</div>
+      <ul style="margin:0;padding-left:16px;font-size:11.5px;color:#334155;">${items.join('')}</ul>
+    </div>`
+  let html = ''
+  if (res.errors.length) {
+    html += box(`Lỗi khối hình (${res.errors.length}) — không thể lưu đề khi còn lỗi`,
+      res.errors.map(d => item(d, 'error')), '#b91c1c', '#fef2f2', '#fecaca')
+  }
+  if (res.warnings.length) {
+    html += box(`Cảnh báo khối hình (${res.warnings.length}) — nên kiểm tra lại`,
+      res.warnings.map(d => item(d, 'warning')), '#b45309', '#fffbeb', '#fde68a')
+  }
+  if (res.infos.length) {
+    html += box(`Thông tin khối hình (${res.infos.length})`,
+      res.infos.map(d => item(d, 'info')), '#0369a1', '#f0f9ff', '#bae6fd')
+  }
+  return `<div class="interactive-q-diagram-issues" data-qindex="${idx}">${html}</div>`
 }
 
 function renderInteractiveCardsHtml() {
@@ -158,6 +221,9 @@ function renderInteractiveCardsHtml() {
 
           <!-- Prompt Text with KaTeX & Markdown -->
           <div class="interactive-q-prompt">${renderMarkdown(q.promptText || '')}</div>
+
+          <!-- Chẩn đoán khối hình (lỗi / cảnh báo / thông tin) -->
+          ${renderDiagramIssuesHtml(q, qIndex)}
 
           <!-- Image Area (Dropzone or Attached Image) -->
           <div style="margin:10px 0 14px 0;">
@@ -1197,7 +1263,14 @@ export function bindCreateHwEvents() {
       // Re-render cards and sync counts
       refreshInteractiveCards()
       syncCountsFromInteractive()
-      showToast(`Đã cập nhật nội dung Câu ${newQ.questionNumber || qNum} thành công!`, 'success')
+      const qIssues = validateQuestionDiagrams(newQ)
+      if (qIssues.errors.length) {
+        showToast(`Câu ${newQ.questionNumber || qNum} còn ${qIssues.errors.length} lỗi khối hình — xem "Chẩn đoán khối hình" bên dưới phần đề.`, 'error')
+      } else if (qIssues.warnings.length) {
+        showToast(`Đã cập nhật Câu ${newQ.questionNumber || qNum} (${qIssues.warnings.length} cảnh báo khối hình cần kiểm tra).`, 'warning')
+      } else {
+        showToast(`Đã cập nhật nội dung Câu ${newQ.questionNumber || qNum} thành công!`, 'success')
+      }
       return true
     })
 
@@ -1607,7 +1680,16 @@ export function bindCreateHwEvents() {
         interactiveQuestions = parsed.questions
         refreshInteractiveCards()
         syncCountsFromInteractive()
-        showToast(`Đã phân tích thành công ${parsed.questions.length} câu hỏi!`, 'success')
+        const issues = collectDiagramIssues(interactiveQuestions)
+        const errCount = issues.reduce((s, it) => s + it.errors.length, 0)
+        const warnCount = issues.reduce((s, it) => s + it.warnings.length, 0)
+        if (errCount > 0) {
+          showToast(`Đã phân tích ${parsed.questions.length} câu hỏi, nhưng có ${errCount} LỖI khối hình — xem mục "Chẩn đoán khối hình" và sửa trước khi lưu.`, 'error')
+        } else if (warnCount > 0) {
+          showToast(`Đã phân tích thành công ${parsed.questions.length} câu hỏi (${warnCount} cảnh báo khối hình cần kiểm tra).`, 'warning')
+        } else {
+          showToast(`Đã phân tích thành công ${parsed.questions.length} câu hỏi!`, 'success')
+        }
       } else {
         showToast('Không tìm thấy câu hỏi hợp lệ trong văn bản!', 'error')
       }
@@ -1658,7 +1740,16 @@ export function bindCreateHwEvents() {
         refreshInteractiveCards()
         syncCountsFromInteractive()
         const withImg = parsed.questions.filter(q => q.imageUrl || q.hasImagePlaceholder).length
-        showToast(`Đã nhập ${parsed.questions.length} câu hỏi từ file (${withImg} câu có hình)!`, 'success')
+        const issues = collectDiagramIssues(interactiveQuestions)
+        const errCount = issues.reduce((s, it) => s + it.errors.length, 0)
+        const warnCount = issues.reduce((s, it) => s + it.warnings.length, 0)
+        if (errCount > 0) {
+          showToast(`Đã nhập ${parsed.questions.length} câu hỏi từ file (${withImg} câu có hình), nhưng có ${errCount} LỖI khối hình — xem mục "Chẩn đoán khối hình" và sửa trước khi lưu.`, 'error')
+        } else if (warnCount > 0) {
+          showToast(`Đã nhập ${parsed.questions.length} câu hỏi từ file (${withImg} câu có hình, ${warnCount} cảnh báo khối hình).`, 'warning')
+        } else {
+          showToast(`Đã nhập ${parsed.questions.length} câu hỏi từ file (${withImg} câu có hình)!`, 'success')
+        }
       } else {
         showToast('Không tìm thấy câu hỏi hợp lệ trong file! Xem quy chuẩn soạn file .md.', 'error')
       }
@@ -2397,6 +2488,18 @@ export function bindCreateHwEvents() {
           showToast(`Vui lòng nhập đáp án cho Câu ${q.questionNumber} (Phần III)!`, 'error')
           return
         }
+      }
+
+      // Chặn lưu đề có khối hình lỗi (hình vẽ sai/không vẽ được)
+      const blockingDiagramErrors = getBlockingDiagramErrors(interactiveQuestions)
+      if (blockingDiagramErrors.length > 0) {
+        const first = blockingDiagramErrors[0]
+        const detail = first.errors.map(e => `[${e.code}] ${e.message}`).join(' | ')
+        showToast(
+          `Có lỗi khối hình ở Câu ${first.questionNumber}: ${detail}. Vui lòng sửa trước khi lưu!`,
+          'error'
+        )
+        return
       }
 
       questions = interactiveQuestions.map((q, idx) => {

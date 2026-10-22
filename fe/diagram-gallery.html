@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gallery khối hình Toán (dev)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <style>
+    body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; margin: 0; padding: 16px; background: #f8fafc; color: #0f172a; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 15px; margin: 18px 0 6px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .meta { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+    .diag { font-size: 11.5px; }
+    .err { color: #b91c1c; }
+    .warn { color: #b45309; }
+    .info { color: #0369a1; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 8px; border-radius: 6px; font-size: 11px; overflow-x: auto; max-height: 220px; }
+  </style>
+</head>
+<body>
+  <h1>Gallery khối hình Toán (trang kiểm thử phát triển)</h1>
+  <div id="gallery"></div>
+
+  <script type="module">
+    import { compileDiagram } from '/src/js/utils/diagrams/compiler.js'
+    import * as FIX from '/scripts/diagram-fixtures.mjs'
+
+    const cases = [
+      ['BBT — bảng biến thiên (x=-∞,0,2,+∞)', 'bbt', FIX.TN1_Q14_DERIVATIVE_SIGNS.json],
+      ['BBT — bảng dấu minh họa câu 9 TN-1', 'bbt', FIX.TN1_Q9_SIGN_TABLE.json],
+      ['BBT — bảng đầy đủ (ví dụ trong rules V2)', 'bbt', {
+        version: 2,
+        labels: { x: 'x', derivative: "f'(x)", value: 'f(x)' },
+        knots: ['-inf', 0, 2, '+inf'],
+        signs: ['-', '+', '-'],
+        derivativeAt: [null, 'zero', 'zero', null],
+        values: ['+inf', 1, 4, '-inf']
+      }],
+      ['BBT — gián đoạn (1/(x-1))', 'bbt', {
+        version: 2,
+        knots: ['-inf', 1, '+inf'],
+        signs: ['-', '-'],
+        derivativeAt: [null, 'undefined', null],
+        values: [0, { left: '-inf', right: '+inf', at: null }, 0]
+      }],
+      ['Graph — TN-1 câu 22: x^3-3x+2', 'graph', FIX.TN1_Q22_GRAPH.json],
+      ['Graph — TN-1 câu 24: (x^2+3)/(x+1)', 'graph', FIX.TN1_Q24_GRAPH.json],
+      ['Graph — TN-1 câu 58: sqrt(4-x^2) (scale equal)', 'graph', FIX.TN1_Q58_GRAPH.json],
+      ['Graph — TN-1 câu 66: sin x + cos 2x', 'graph', FIX.TN1_Q66_GRAPH.json],
+      ['Graph — lỗ thủng (x^2-1)/(x-1)', 'graph', FIX.GRAPH_HOLE.json],
+      ['Graph — cực 1/(x-1)', 'graph', {
+        version: 2, viewport: { x: [-3, 3], y: [-5, 5] }, scale: 'free',
+        curves: [{ id: 'f', expr: '1/(x-1)', domain: [{ from: -3, to: 3, closed: [true, true] }], breaks: [1] }],
+        points: [], asymptotes: []
+      }],
+      ['Graph — ln(x) và tan(x)', 'graph', {
+        version: 2, viewport: { x: [-5, 6], y: [-4, 4] }, scale: 'free',
+        curves: [
+          { id: 'f', expr: 'ln(x)', domain: [{ from: 0, to: 6, closed: [false, true] }], breaks: [] }
+        ],
+        points: [], asymptotes: []
+      }],
+      ['Geo3d — chóp S.ABCD (SA vuông đáy)', 'geo3d', FIX.GEO3D_PYRAMID.json],
+      ['Geo3d — hộp chữ nhật 3×2×4', 'geo3d', FIX.GEO3D_BOX.json],
+      ['Legacy BBT — định dạng cũ', 'bbt', null, `x  | -\\infty, -1, 2, +\\infty\ny' | +, 0, -, 0, +\ny  | -\\infty -> 3 ~> +\\infty`],
+      ['Legacy BBT — có gián đoạn', 'bbt', null, `x  | -\\infty, 0, 2, +\\infty\ny' | -, ||, -, 0, +\ny  | +\\infty ~> -\\infty || -\\infty ~> 0 -> +\\infty`],
+      ['Legacy Graph — định dạng cũ', 'graph', null, `fn: x^3 - 3*x + 1\ndomain: [-2.2, 2.2]\nrange: [-2.5, 3.8]\npoints: (-1, 3), (1, -1)\nasymptotes: x = 1, y = 2`],
+      ['Legacy Geo3d — preset cũ', 'geo3d', null, `preset: chop_tu_giac_sa_vuong\npoints: M = mid(S, C), H = proj(A, S, B)\nsolid: SB, SC, BC, CD\ndashed: SA, AB, AD, AH\nright_angle: (S,A,D), (A,H,B)`]
+    ]
+
+    const gallery = document.getElementById('gallery')
+    let uid = 0
+    cases.forEach(([title, type, json, legacy]) => {
+      const code = legacy !== undefined ? legacy : JSON.stringify(json, null, 2)
+      const res = compileDiagram(type, code, { uid: ++uid })
+      const card = document.createElement('div')
+      card.className = 'card'
+      const diags = res.diagnostics.map(d =>
+        `<div class="diag ${d.severity === 'error' ? 'err' : d.severity === 'warning' ? 'warn' : 'info'}">[${d.code}] ${d.message}</div>`
+      ).join('')
+      card.innerHTML = `<h2>${title}</h2>
+        <div class="meta">${res.ok ? 'OK' : 'LỖI — không vẽ được'} · ${res.diagnostics.length} chẩn đoán</div>
+        ${diags}
+        <div class="preview"></div>
+        <details><summary>Mã nguồn khối</summary><pre>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre></details>`
+      card.querySelector('.preview').innerHTML = res.svg
+      gallery.appendChild(card)
+    })
+
+    function renderMathInElementSafe() {
+      if (window.renderMathInElement) {
+        window.renderMathInElement(document.body, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false, trust: false
+        })
+      }
+    }
+    setTimeout(renderMathInElementSafe, 300)
+    setTimeout(renderMathInElementSafe, 900)
+
+    // ---- Kiểm tra tích hợp Markdown đầy đủ (parser + renderer + KaTeX) ----
+    const { parseExamMarkdown, formatQuestionToMarkdown, renderMarkdown, validateQuestionDiagrams } = await import('/src/js/utils/exam-parser.js')
+    const md = [
+      '[Câu 1]',
+      'Cho hàm số $y = x^3 - 3x + 2$ có đồ thị như hình:',
+      '```graph',
+      JSON.stringify(FIX.TN1_Q22_GRAPH.json, null, 2),
+      '```',
+      'A. Phương án A',
+      'B. Phương án B có bảng:',
+      '```bbt',
+      'x  | -\\infty, 0, 2, +\\infty',
+      "y' | -, 0, +, 0, -",
+      'y  | +\\infty ~> -1 -> 3 ~> -\\infty',
+      '```',
+      'C. Phương án C',
+      'D. Phương án D',
+      '[Lời giải]',
+      'Lời giải kèm hình:',
+      '```geo3d',
+      JSON.stringify(FIX.GEO3D_PYRAMID.json, null, 2),
+      '```'
+    ].join('\n')
+
+    const parsed = parseExamMarkdown(md)
+    const q = parsed.questions[0]
+    const round = formatQuestionToMarkdown(q)
+    const parsed2 = parseExamMarkdown(round)
+    const issues = validateQuestionDiagrams(q)
+
+    const mdCard = document.createElement('div')
+    mdCard.className = 'card'
+    mdCard.innerHTML = `<h2>Tích hợp Markdown đầy đủ (parser → render → format → parse)</h2>
+      <div class="meta">Số câu: ${parsed.questions.length} · lỗi fence: ${parsed.diagnostics.length} · chẩn đoán hình: ${issues.errors.length} lỗi / ${issues.warnings.length} cảnh báo</div>
+      <div class="meta">Round-trip giữ nguyên đề: ${parsed2.questions[0].promptText === q.promptText} · phương án: ${JSON.stringify(parsed2.questions[0].options) === JSON.stringify(q.options)} · lời giải: ${parsed2.questions[0].explanation === q.explanation}</div>
+      <div class="preview"></div>
+      <details><summary>Markdown đã serialize</summary><pre>${round.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre></details>`
+    mdCard.querySelector('.preview').innerHTML = renderMarkdown(q.promptText + '\n\n' + q.options.map(o => o.id + '. ' + o.text).join('\n') + '\n\n' + q.explanation)
+    gallery.appendChild(mdCard)
+    setTimeout(renderMathInElementSafe, 1200)
+  </script>
+</body>
+</html>
