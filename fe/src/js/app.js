@@ -62,6 +62,12 @@ async function router() {
 
   // Guest & Unauthenticated Access Guard
   if (!state.token) {
+    // Regular shared homework links require login; explicit trial links stay public.
+    if ((hash === 'homework-attempt' && params.get('trial') !== 'true') || hash === 'exam-room') {
+      const next = `#${hash}${queryString ? `?${queryString}` : ''}`
+      window.location.hash = `#login?next=${encodeURIComponent(next)}`
+      return
+    }
     const isTrialMode = params.get('trial') === 'true' || hash === 'trial' || hash.startsWith('roadmap')
     const guestRoutes = ['login', 'trial', 'roadmap', 'roadmap-12', 'roadmap-11', 'homework-attempt', 'assignment-review']
     if (!guestRoutes.includes(hash)) {
@@ -446,4 +452,3 @@ document.addEventListener('click', (e) => {
     }
   }
 })
-
