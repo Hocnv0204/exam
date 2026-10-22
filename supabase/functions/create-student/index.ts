@@ -7,6 +7,10 @@ import {
   deleteStudentSchema,
   removeStudentFromClassSchema,
 } from '../../shared/validators.ts'
+import {
+  handleZeroBalanceAction,
+  resolveStudentIdsInClass,
+} from '../../shared/zero-balance-action.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -22,32 +26,19 @@ serve(async (req: Request) => {
       const classId = url.searchParams.get('classId') || url.searchParams.get('class_id')
       const search = (url.searchParams.get('search') || url.searchParams.get('q') || '').trim()
 
+      // Thống kê học sinh có số dư bằng 0 (role = 'STUDENT' AND balance = 0)
+      if (action === 'zero-balance-count' || action === 'zero-balance-list') {
+        return await handleZeroBalanceAction(serviceRoleClient, url, action)
+      }
+
       let studentIdsInClass: string[] | null = null
       if (classId) {
-        // 2 truy vấn độc lập -> chạy SONG SONG để tiết kiệm 1 round-trip
-        // (mỗi round-trip tới Data API tốn ~160ms trên hạ tầng hiện tại).
-        const [joinsRes, legacyRes] = await Promise.all([
-          serviceRoleClient
-            .from('student_classes')
-            .select('student_id')
-            .eq('class_id', classId),
-          serviceRoleClient
-            .from('profiles')
-            .select('id')
-            .eq('class_id', classId)
-            .eq('role', 'STUDENT'),
-        ])
-
-        if (joinsRes.error) return errorResponse(joinsRes.error.message, 500)
-        if (legacyRes.error) return errorResponse(legacyRes.error.message, 500)
-
-        const idSet = new Set<string>()
-        for (const j of joinsRes.data || []) idSet.add(j.student_id)
-        for (const p of legacyRes.data || []) idSet.add(p.id)
-        studentIdsInClass = Array.from(idSet)
+        const { ids, error } = await resolveStudentIdsInClass(serviceRoleClient, classId)
+        if (error) return errorResponse(error, 500)
+        studentIdsInClass = ids
 
         // If no students belong to this class, return empty list immediately
-        if (studentIdsInClass.length === 0) {
+        if (studentIdsInClass && studentIdsInClass.length === 0) {
           return jsonResponse([])
         }
       }

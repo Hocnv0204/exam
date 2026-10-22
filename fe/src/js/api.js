@@ -504,6 +504,24 @@ export const api = {
     }
     return request(`create-student${qs}`, { method: 'GET', ...options })
   },
+  // Thống kê học sinh có số dư BẰNG 0 (role = 'STUDENT' AND balance = 0).
+  // - getZeroBalanceCount  -> { count }
+  // - getZeroBalanceStudents -> { items, total, page, pageSize }
+  // Chỉ ADMIN gọi được (Edge Function kiểm tra requireAdmin).
+  getZeroBalanceCount: (filters = {}, options = {}) => {
+    const sp = new URLSearchParams({ action: 'zero-balance-count' })
+    if (filters.classId) sp.set('classId', filters.classId)
+    if (filters.search) sp.set('search', filters.search)
+    return request(`create-student?${sp.toString()}`, { method: 'GET', silent: true, ...options })
+  },
+  getZeroBalanceStudents: (params = {}, options = {}) => {
+    const sp = new URLSearchParams({ action: 'zero-balance-list' })
+    if (params.classId) sp.set('classId', params.classId)
+    if (params.search) sp.set('search', params.search)
+    if (params.page) sp.set('page', String(params.page))
+    if (params.pageSize) sp.set('pageSize', String(params.pageSize))
+    return request(`create-student?${sp.toString()}`, { method: 'GET', silent: true, ...options })
+  },
   // 2 hàm dưới đây vẫn đang được gọi ở app.js / exam-proctoring.js / student-mgmt.js
   // nên giữ lại để tránh lỗi runtime "api.xxx is not a function".
   getHomeworkDetail: (homeworkId, options = {}) => request(`homework-detail?homeworkId=${homeworkId}`, { method: 'GET', ...options }),

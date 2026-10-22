@@ -1,4 +1,20 @@
-export function openModal(title, bodyHTML, onConfirm = null) {
+/**
+ * Mở modal dùng chung (chỉ 1 modal tại 1 thời điểm).
+ *
+ * options (tùy chọn):
+ * - cancelLabel: nhãn nút hủy (mặc định 'Hủy')
+ * - confirmLabel: nhãn nút xác nhận (mặc định 'Xác nhận')
+ * - showCancel: ẩn/hiện nút hủy (mặc định true)
+ * - contentStyle: style inline cho hộp `.modal-content` (ví dụ 'max-width:960px;')
+ */
+export function openModal(title, bodyHTML, onConfirm = null, options = {}) {
+  const {
+    cancelLabel = 'Hủy',
+    confirmLabel = 'Xác nhận',
+    showCancel = true,
+    contentStyle = ''
+  } = options
+
   let container = document.getElementById('modal-container')
   if (!container) {
     container = document.createElement('div')
@@ -10,7 +26,7 @@ export function openModal(title, bodyHTML, onConfirm = null) {
 
   container.innerHTML = `
     <div class="modal-backdrop" id="active-modal-backdrop">
-      <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-content" onclick="event.stopPropagation()" style="${contentStyle}">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid #e2e8f0;">
           <h3 style="font-family:var(--font-heading); font-size:20px; font-weight:700; color:#0f172a;">${title}</h3>
           <button id="modal-close-btn" style="background:none; border:none; font-size:20px; color:#94a3b8; cursor:pointer; padding:4px;"><i class="fa-solid fa-xmark"></i></button>
@@ -19,8 +35,8 @@ export function openModal(title, bodyHTML, onConfirm = null) {
           ${bodyHTML}
         </div>
         <div style="display:flex; justify-content:flex-end; gap:12px; padding-top:14px; border-top:1px solid #f1f5f9;">
-          <button id="modal-cancel-btn" class="btn-secondary" style="padding:10px 20px;">Hủy</button>
-          ${onConfirm ? `<button id="modal-confirm-btn" class="btn-primary" style="width:auto; padding:10px 24px; background:#0066cc;">Xác nhận</button>` : ''}
+          ${showCancel ? `<button id="modal-cancel-btn" class="btn-secondary" style="padding:10px 20px;">${cancelLabel}</button>` : ''}
+          ${onConfirm ? `<button id="modal-confirm-btn" class="btn-primary" style="width:auto; padding:10px 24px; background:#0066cc;">${confirmLabel}</button>` : ''}
         </div>
       </div>
     </div>

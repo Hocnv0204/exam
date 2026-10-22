@@ -1,6 +1,18 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
+import { openModal, closeModal } from '../components/modal.js'
+import { api } from '../api.js'
 import { state } from '../state.js'
+import {
+  ZERO_BALANCE_PAGE_SIZE,
+  parseZeroBalanceCount,
+  computeZeroBalancePagination,
+  renderZeroBalanceSkeleton,
+  renderZeroBalanceTable,
+  renderZeroBalanceEmpty,
+  renderZeroBalanceError,
+  renderZeroBalancePaginationBar
+} from '../utils/zero-balance.js'
 
 function getAvatarColor(name) {
   const colors = ['#0284c7', '#4338ca', '#7e22ce', '#059669', '#d97706', '#0891b2', '#2563eb']
@@ -27,6 +39,231 @@ let studentFilterState = {
   currentPage: 1,
   pageSize: 10
 }
+
+// ---------------------------------------------------------------------------
+// Ô thống kê "Học sinh có số dư 0 đ" (role = 'STUDENT' AND balance = 0)
+//
+// KHÔNG dùng state của bảng điểm danh/học phí: số dư 0 là trạng thái hiện tại
+// của ví học sinh, đếm toàn hệ thống và không bị ảnh hưởng bởi bộ lọc
+// tháng/lớp/trạng thái/từ khoá của bảng bên dưới.
+// ---------------------------------------------------------------------------
+const zeroBalanceState = {
+  count: null,       // null = chưa có số liệu
+  status: 'loading', // 'loading' | 'ready' | 'error'
+  reqId: 0
+}
+
+let zeroBalanceListReqId = 0
+let zeroBalanceListAbortController = null
+let zeroBalanceListPage = 1
+
+/** Đồng bộ số đếm hiển thị trên ô thống kê (loading / số / lỗi + thử lại). */
+function renderZeroBalanceCard() {
+  const valueEl = document.getElementById('dash-zero-balance-value')
+  const subtextEl = document.getElementById('dash-zero-balance-subtext')
+  if (!valueEl || !subtextEl) return
+
+  if (zeroBalanceState.status === 'loading') {
+    valueEl.innerHTML = '<span style="opacity:0.45;">…</span>'
+    subtextEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải số liệu...'
+    return
+  }
+
+  if (zeroBalanceState.status === 'error') {
+    valueEl.innerHTML = '<span style="font-size:18px; color:#dc2626;">Không tải được</span>'
+    subtextEl.innerHTML = `
+      <button type="button" id="dash-zero-balance-retry" style="background:none; border:none; padding:0; color:#0284c7; font-size:12px; font-weight:700; text-decoration:underline; cursor:pointer;">
+        Thử lại
+      </button>
+    `
+    document.getElementById('dash-zero-balance-retry')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      refreshZeroBalanceCount()
+    })
+    return
+  }
+
+  valueEl.textContent = String(zeroBalanceState.count ?? 0)
+  subtextEl.innerHTML = '<i class="fa-solid fa-coins"></i> Số dư hiện tại · Tất cả học sinh'
+}
+
+/**
+ * Tải số học sinh có số dư 0 đ (toàn hệ thống, không theo bộ lọc dashboard).
+ * Dùng request id để response cũ không ghi đè request mới.
+ */
+async function refreshZeroBalanceCount() {
+  const reqId = ++zeroBalanceState.reqId
+  zeroBalanceState.status = 'loading'
+  zeroBalanceState.count = null
+  renderZeroBalanceCard()
+
+  try {
+    const payload = await api.getZeroBalanceCount({}, { silent: true })
+    if (reqId !== zeroBalanceState.reqId) return
+    if (!document.getElementById('dash-zero-balance-card')) return
+
+    const count = parseZeroBalanceCount(payload)
+    if (count === null) throw new Error('Dữ liệu số lượng không hợp lệ')
+
+    zeroBalanceState.count = count
+    zeroBalanceState.status = 'ready'
+  } catch (err) {
+    if (reqId !== zeroBalanceState.reqId) return
+    if (!document.getElementById('dash-zero-balance-card')) return
+    console.warn('[admin-dashboard] Không tải được số học sinh số dư 0 đ:', err?.message || err)
+    // KHÔNG hiện số 0 giả khi lỗi
+    zeroBalanceState.count = null
+    zeroBalanceState.status = 'error'
+  }
+
+  renderZeroBalanceCard()
+}
+
+/** Cập nhật tiêu đề modal khi tổng số thay đổi giữa 2 request. */
+function updateZeroBalanceModalTitle(count) {
+  const titleEl = document.querySelector('#modal-container .modal-content h3')
+  if (titleEl && String(titleEl.textContent || '').startsWith('Học sinh có số dư 0 đ')) {
+    titleEl.textContent = `Học sinh có số dư 0 đ (${count})`
+  }
+}
+
+/** Đóng popup số dư 0 đ + huỷ request đang chạy (tránh response đến muộn ghi đè). */
+function closeZeroBalanceModal() {
+  zeroBalanceListReqId++ // vô hiệu hoá response đang bay
+  if (zeroBalanceListAbortController) {
+    try { zeroBalanceListAbortController.abort() } catch (e) { /* ignore */ }
+    zeroBalanceListAbortController = null
+  }
+  if (document.getElementById('zero-balance-modal-content')) {
+    closeModal()
+  }
+}
+
+/**
+ * Tải 1 trang danh sách học sinh số dư 0 đ cho popup.
+ * - Mỗi lần mở popup đều tải lại từ đầu (không dùng cache cũ).
+ * - Request id + AbortController chống response cũ ghi đè.
+ */
+async function loadZeroBalancePage(page = 1) {
+  const root = document.getElementById('zero-balance-modal-content')
+  if (!root) return // popup đã đóng
+
+  const reqId = ++zeroBalanceListReqId
+  if (zeroBalanceListAbortController) {
+    try { zeroBalanceListAbortController.abort() } catch (e) { /* ignore */ }
+  }
+  const controller = new AbortController()
+  zeroBalanceListAbortController = controller
+
+  zeroBalanceListPage = Math.max(1, Number(page) || 1)
+  const listEl = document.getElementById('zero-balance-modal-list')
+  const paginationEl = document.getElementById('zero-balance-modal-pagination')
+  if (listEl) listEl.innerHTML = renderZeroBalanceSkeleton()
+  if (paginationEl) paginationEl.innerHTML = ''
+
+  try {
+    const payload = await api.getZeroBalanceStudents(
+      { page: zeroBalanceListPage, pageSize: ZERO_BALANCE_PAGE_SIZE },
+      { silent: true, signal: controller.signal }
+    )
+
+    if (reqId !== zeroBalanceListReqId) return
+    if (!document.getElementById('zero-balance-modal-content')) return
+
+    const items = Array.isArray(payload?.items) ? payload.items : []
+    const total = Number.isFinite(Number(payload?.total)) && Number(payload?.total) >= 0
+      ? Number(payload.total)
+      : items.length
+    const pagination = computeZeroBalancePagination({
+      page: Number(payload?.page) || zeroBalanceListPage,
+      pageSize: Number(payload?.pageSize) || ZERO_BALANCE_PAGE_SIZE,
+      total
+    })
+
+    // Đồng bộ lại ô đếm nếu số liệu thay đổi giữa 2 request
+    if (zeroBalanceState.status === 'ready' && zeroBalanceState.count !== pagination.total) {
+      zeroBalanceState.count = pagination.total
+      renderZeroBalanceCard()
+    }
+    updateZeroBalanceModalTitle(pagination.total)
+
+    const currentListEl = document.getElementById('zero-balance-modal-list')
+    const currentPaginationEl = document.getElementById('zero-balance-modal-pagination')
+    if (!currentListEl) return
+
+    currentListEl.innerHTML = items.length > 0
+      ? renderZeroBalanceTable(items, { page: pagination.currentPage, pageSize: pagination.pageSize })
+      : renderZeroBalanceEmpty()
+
+    if (currentPaginationEl) {
+      currentPaginationEl.innerHTML = renderZeroBalancePaginationBar(pagination)
+    }
+  } catch (err) {
+    if (reqId !== zeroBalanceListReqId) return
+    if (err?.name === 'AbortError') return
+    if (!document.getElementById('zero-balance-modal-content')) return
+
+    const currentListEl = document.getElementById('zero-balance-modal-list')
+    const currentPaginationEl = document.getElementById('zero-balance-modal-pagination')
+    if (!currentListEl) return
+
+    currentListEl.innerHTML = renderZeroBalanceError(err?.message || '')
+    if (currentPaginationEl) currentPaginationEl.innerHTML = ''
+  }
+}
+
+/** Mở popup danh sách học sinh có số dư 0 đ. */
+function openZeroBalanceModal() {
+  const countLabel = zeroBalanceState.status === 'ready' ? ` (${zeroBalanceState.count ?? 0})` : ''
+
+  openModal(
+    `Học sinh có số dư 0 đ${countLabel}`,
+    `
+      <div id="zero-balance-modal-content">
+        <div id="zero-balance-modal-list">${renderZeroBalanceSkeleton()}</div>
+        <div id="zero-balance-modal-pagination"></div>
+      </div>
+    `,
+    null,
+    { cancelLabel: 'Đóng', contentStyle: 'max-width: 960px;' }
+  )
+
+  // 1 lần gắn listener (event delegation) => không nhân đôi khi đổi trang
+  document.getElementById('zero-balance-modal-content')?.addEventListener('click', (e) => {
+    const pageBtn = e.target.closest('[data-zb-page]')
+    if (pageBtn) {
+      if (pageBtn.hasAttribute('disabled')) return
+      const targetPage = parseInt(pageBtn.getAttribute('data-zb-page'), 10)
+      if (!Number.isNaN(targetPage)) loadZeroBalancePage(targetPage)
+      return
+    }
+
+    if (e.target.closest('[data-zb-retry]')) {
+      loadZeroBalancePage(zeroBalanceListPage || 1)
+    }
+  })
+
+  // Luôn tải lại danh sách mỗi lần mở popup
+  loadZeroBalancePage(1)
+}
+
+// Hook để các màn khác (nạp tiền / sửa số dư / tạo / xoá học sinh) làm mới
+// ô thống kê nếu dashboard đang được mount.
+if (typeof window !== 'undefined') {
+  window._invalidateZeroBalanceStats = () => {
+    if (document.getElementById('dash-zero-balance-card')) {
+      refreshZeroBalanceCount()
+    }
+  }
+
+  // Đóng popup khi đổi route (tránh response đến muộn ghi đè modal khác)
+  window.addEventListener('hashchange', () => {
+    if (document.getElementById('zero-balance-modal-content')) {
+      closeZeroBalanceModal()
+    }
+  })
+}
+
 
 export function renderAdminDashboardView() {
   const overview = state.dashboard?.overview || {
@@ -294,6 +531,32 @@ export function renderAdminDashboardView() {
                   </div>
                   <div class="dash-kpi-subtext">
                     <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Cần nhắc phụ huynh & học sinh
+                  </div>
+                </div>
+              </div>
+
+              <!-- Students with zero balance (role = 'STUDENT' AND balance = 0) -->
+              <div
+                id="dash-zero-balance-card"
+                class="dash-kpi-card"
+                role="button"
+                tabindex="0"
+                aria-label="Xem danh sách học sinh có số dư 0 đ"
+                style="cursor:pointer; text-align:left;"
+              >
+                <div class="dash-kpi-top">
+                  <div class="dash-kpi-icon icon-amber">
+                    <i class="fa-solid fa-wallet"></i>
+                  </div>
+                  <span class="dash-kpi-pill pill-warning">
+                    <i class="fa-solid fa-arrow-right" style="font-size:9px;"></i> Xem danh sách
+                  </span>
+                </div>
+                <div>
+                  <div class="dash-kpi-label">Học sinh có số dư 0 đ</div>
+                  <div class="dash-kpi-value" id="dash-zero-balance-value">…</div>
+                  <div class="dash-kpi-subtext" id="dash-zero-balance-subtext">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Đang tải số liệu...
                   </div>
                 </div>
               </div>
@@ -878,6 +1141,26 @@ export function bindAdminDashboardEvents() {
 
   // Initial render of Student Attendance & Tuition Table
   renderStudentAttendanceTable()
+
+  // Ô thống kê "Học sinh có số dư 0 đ"
+  // - Đếm toàn hệ thống, không phụ thuộc bộ lọc của bảng điểm danh/học phí.
+  // - Mỗi lần vào lại dashboard đều lấy số liệu mới.
+  const zeroBalanceCard = document.getElementById('dash-zero-balance-card')
+  if (zeroBalanceCard) {
+    zeroBalanceCard.addEventListener('click', (e) => {
+      // Bấm nút "Thử lại" bên trong thẻ không được mở popup
+      if (e.target.closest('#dash-zero-balance-retry')) return
+      openZeroBalanceModal()
+    })
+    zeroBalanceCard.addEventListener('keydown', (e) => {
+      if (e.target !== zeroBalanceCard) return
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault()
+        openZeroBalanceModal()
+      }
+    })
+  }
+  refreshZeroBalanceCount()
 
   // Bind Student Attendance Table Filter Events
   const searchInput = document.getElementById('dash-stu-search')

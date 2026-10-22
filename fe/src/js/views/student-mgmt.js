@@ -240,6 +240,8 @@ export function showCreateStudentModal() {
       state.students.unshift(newStudent)
       updateTable(newStudent)
       showToast(`Tạo thành công học sinh "${fullName}" cho lớp ${classNames}!`, 'success')
+      // Số dư 0 đ của học sinh mới có thể ảnh hưởng ô thống kê dashboard
+      window._invalidateZeroBalanceStats?.()
     } catch (err) {
       const newStudent = {
         id: 's_' + Date.now(),
@@ -385,6 +387,8 @@ export function showEditStudentModal(studentId) {
       }
 
       showToast(`Đã cập nhật thành công thông tin học sinh "${fullName}"!`, 'success')
+      // Số dư vừa được sửa => làm mới ô "học sinh có số dư 0 đ" nếu dashboard đang mở
+      window._invalidateZeroBalanceStats?.()
     } catch (err) {
       // Offline/Demo fallback
       student.fullName = fullName
@@ -506,6 +510,8 @@ export function showAddBalanceModal(studentId) {
       }
       if (window.closeModal) window.closeModal()
       showToast(msg, 'success')
+      // Nạp tiền làm thay đổi số học sinh có số dư 0 đ
+      window._invalidateZeroBalanceStats?.()
       return true
     } catch (err) {
       // Demo mode
@@ -587,6 +593,8 @@ export function showEditBalanceModal(studentId) {
 
       if (window.closeModal) window.closeModal()
       showToast('Cập nhật số dư thành công', 'success')
+      // Sửa số dư làm thay đổi số học sinh có số dư 0 đ
+      window._invalidateZeroBalanceStats?.()
     } catch (err) {
       // Demo mode fallback
       student.balance = amount
@@ -949,6 +957,8 @@ function bindTableActionEvents() {
             document.getElementById(`row-student-${id}`)?.remove()
           }
           showToast(`Đã xóa học sinh ${name}`, 'success')
+          // Xoá học sinh làm thay đổi số học sinh có số dư 0 đ
+          window._invalidateZeroBalanceStats?.()
         } catch (err) {
           showToast(`Xóa học sinh thất bại: ${err.message}`, 'error')
         }
