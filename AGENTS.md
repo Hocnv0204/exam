@@ -6,18 +6,25 @@
 - Được chủ động dùng subagent để implement các yêu cầu code tiếp theo trong repository này, không cần hỏi lại mỗi lần. Yêu cầu cụ thể mới của người dùng được ưu tiên.
 - Worker nhận task phải tự hoàn thành phạm vi được giao; **không spawn thêm subagent**. Quy tắc điều phối này chỉ dành cho primary, không tạo chuỗi delegation đệ quy.
 - Với câu hỏi/plan chỉ cần đọc vài file hoặc sửa tài liệu nhỏ, primary làm trực tiếp để tránh overhead. Với tác vụ code, mặc định một worker; chỉ tăng worker khi có các phần thực sự độc lập.
+- Với task nhiều phase/subtask, primary được dùng đồng thời Gemini qua CLI `agy` và các model Free OpenCode. Chỉ chạy song song khi task không sửa trùng file; shared API/schema/renderer phải chạy tuần tự.
+- Primary là orchestrator/reviewer cuối: chia phase, hợp nhất thay đổi, review diff, chạy full test/build và verify acceptance criteria. Không coi báo cáo worker là bằng chứng hoàn thành.
 
 ## Chọn model Free
 
-- Trước khi giao việc, tra catalog model hiện có qua công cụ models, filter provider `opencode`. Chỉ dùng model có thông tin giá input/output bằng 0; không suy giá chỉ từ tên. Dùng ID chính xác được công cụ trả về.
-- Người dùng đã cho phép tự chọn model Free. Không tự chuyển sang worker trả phí khi hết quota/không khả dụng; thử model Free khác, rồi báo blocker nếu không có lựa chọn.
+- Trước khi giao việc qua OpenCode, tra catalog model hiện có qua công cụ models và dùng ID chính xác. Với model OpenCode/OpenAI, ưu tiên model phù hợp để tối ưu token/chi phí; không chọn model lớn hơn cần thiết.
+- Người dùng cho phép dùng **thoải mái Gemini qua `agy` CLI**, kể cả model có phí; với `agy`, ưu tiên năng lực và độ phù hợp subtask thay vì giá. Không đưa API key vào project; dùng phiên đăng nhập CLI.
+- Model Free của OpenCode vẫn được dùng linh hoạt cho task phụ, review, test, tra cứu hoặc fallback. Không coi Free là ràng buộc duy nhất nữa.
 - Các lựa chọn dưới đây là **ưu tiên vận hành của dự án**, không phải khẳng định benchmark hoặc năng lực chính thức. Luôn điều chỉnh theo kết quả thực tế:
   - UI Vanilla JS, CRUD, modal, nối API nhỏ: ưu tiên MiniMax M3.1 Flash Free đã dùng thành công tại repo.
   - Logic toán/parser, truy vấn dữ liệu, lỗi nhiều bước: cân nhắc DeepSeek V4.1 Flash Free, với test có oracle độc lập và review kỹ của primary.
   - Tra cứu code hoặc sửa cơ học phạm vi nhỏ: cân nhắc MiMo V2.6 Flash Free; không cần worker nếu primary làm nhanh hơn.
   - Review độc lập task lớn/rủi ro cao: cân nhắc GLM 5.3 Flash Free hoặc model Free khác với worker implement; chỉ review, không sửa cùng file khi worker đang viết.
-  - Các tên/ID trên có thể thay đổi; khi không còn trong catalog chọn model Free khả dụng khác, không gọi ID đoán.
+- Các tên/ID trên có thể thay đổi; khi không còn trong catalog chọn model Free khả dụng khác, không gọi ID đoán.
+- Khi người dùng không chỉ định model cụ thể: task code lớn/kiến trúc/rủi ro cao → ưu tiên Gemini mạnh qua `agy`; task nhỏ/review/test → dùng model OpenCode phù hợp hoặc Free để tiết kiệm token. Catalog `active` không phản ánh quota còn lại; nếu model lỗi/quota thì chuyển lựa chọn kế tiếp.
+- Tham khảo Free theo năng lực: `opencode/flint-40b-free`, `opencode/nemotron-3.5-super-vl-free`, `google/gemma-4-31b-it`, `opencode/deepseek-v4.1-flash-free`, `opencode/beam-free`, `opencode/glm-5.3-flash-free`, `opencode/mimo-v2.6-flash-free`, `opencode/big-pickle`, `groq/allam-2-7b`.
 - Chọn mức reasoning vừa đủ nếu tool hỗ trợ; nâng mức hoặc đổi model khi có lỗi cụ thể. Không chạy nhiều model cùng làm một việc chỉ để so sánh.
+- Gemini CLI hiện dùng lệnh `agy`; kiểm tra bằng `command -v agy` và `agy models`. Ưu tiên `gemini-3.8-flash-high` → `medium` → `low` qua `agy`, không cần ghi API key vào project. Dùng `--project` đúng workspace và `--mode accept-edits`; chỉ dùng `--dangerously-skip-permissions` khi task đã được giới hạn rõ và người dùng yêu cầu/cho phép.
+- Khi một phase chạy qua `agy`, không giao cùng file cho OpenCode worker đồng thời. Sau mỗi phase phải review diff; sau khi hợp nhất các phase phải chạy lại full test/build.
 
 ## Hợp đồng giao việc
 

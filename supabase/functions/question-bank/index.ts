@@ -465,6 +465,9 @@ async function buildPoolQuery(
   }
 
   if (lessonIds.length === 0 && chapterIds.length === 0 && classIds.length === 0) {
+    if (scopeType === 'MULTI') {
+      return { data: [], error: null }
+    }
     // Không chọn gì cụ thể: chỉ lọc theo khối (hoặc không lọc gì nếu thiếu khối)
     let presetOrBlock: string[] = []
     if (scope.gradeBlock) {

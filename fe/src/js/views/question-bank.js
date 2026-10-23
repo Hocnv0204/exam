@@ -13,6 +13,14 @@ import { renderPaginationBar, bindPaginationEvents } from '../components/paginat
 function escapeHtmlAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 function escapeTextarea(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -48,8 +56,8 @@ let statsState = {
 
 // Matrix Generator Preview Cache
 let generatorState = {
-  scopeMode: 'QUICK', // 'QUICK' | 'MULTI'
-  scopeType: 'BLOCK', // 'BLOCK' | 'CLASS' | 'CHAPTER' | 'LESSON'
+  scopeMode: 'MULTI', // Unified scope panel: always MULTI
+  scopeType: 'MULTI',
   gradeBlock: '',
   classId: '',
   chapterId: '',
@@ -2150,24 +2158,48 @@ async function openMatrixGeneratorModal() {
   const modalContainer = document.getElementById('qb-modal-container')
   if (!modalContainer) return
 
+  // Preload classes if not ready
+  if (!allClasses || allClasses.length === 0) {
+    try {
+      const rawClasses = await api.getClasses()
+      allClasses = (rawClasses || []).map(c => ({
+        id: c.id,
+        name: c.name,
+        gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+        studentsCount: c.studentsCount || 0,
+        tuitionFee: c.tuitionFee || 0,
+        progress: 0
+      }))
+      state.classes = allClasses
+      populateGradeBlockDropdowns()
+    } catch (err) {
+      console.warn('[QuestionBank] Could not preload classes for matrix modal:', err)
+    }
+  }
+
   generatorState.previewQuestions = []
   generatorState.rejectedIds = []
   generatorState.selectedClassIds = []
   generatorState.selectedChapterIds = []
   generatorState.selectedLessonIds = []
-  generatorState.scopeMode = 'QUICK'
-  generatorState.scopeType = 'BLOCK'
+  generatorState.scopeMode = 'MULTI'
+  generatorState.scopeType = 'MULTI'
+  generatorState.classId = ''
+  generatorState.chapterId = ''
+  generatorState.lessonId = ''
 
   const customBlocks = (allClasses || []).map(c => c.gradeBlock || c.grade_block).filter(Boolean)
-  const uniqueBlocks = Array.from(new Set([...(cachedGradeBlocksList || []), ...customBlocks]))
-  if (!generatorState.gradeBlock && uniqueBlocks.length > 0) {
-    generatorState.gradeBlock = uniqueBlocks[0]
+  const uniqueBlocks = Array.from(new Set([...(cachedGradeBlocksList || []), ...customBlocks])).filter(Boolean)
+  if (!generatorState.gradeBlock) {
+    generatorState.gradeBlock = filterState.gradeBlock || uniqueBlocks[0] || ''
   }
 
   // Cache for dynamically loaded tree nodes (chapters & lessons)
   const treeDataCache = {
     chapters: {}, // classId -> chapters[]
-    lessons: {}   // chapterId -> lessons[]
+    lessons: {},  // chapterId -> lessons[]
+    expandedClasses: new Set(),
+    expandedChapters: new Set()
   }
 
   modalContainer.innerHTML = `
@@ -2199,104 +2231,65 @@ async function openMatrixGeneratorModal() {
           
           <!-- Scope Selection Box -->
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:18px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
-              <div style="font-size:13px; font-weight:700; color:#334155; display:flex; align-items:center; gap:6px;">
-                <i class="fa-solid fa-bullseye" style="color:#0284c7;"></i> 1. Phạm vi bốc câu hỏi từ Ngân hàng
-              </div>
-
-              <!-- Scope Mode Selector Tabs -->
-              <div style="display:flex; background:#e2e8f0; border-radius:8px; padding:3px; gap:4px;">
-                <button type="button" id="scope-mode-quick-btn" style="border:none; padding:5px 12px; font-size:12px; font-weight:600; border-radius:6px; background:#ffffff; color:#0284c7; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:all 0.15s ease;">
-                  <i class="fa-solid fa-bolt"></i> Phạm vi đơn (Nhanh)
-                </button>
-                <button type="button" id="scope-mode-multi-btn" style="border:none; padding:5px 12px; font-size:12px; font-weight:600; border-radius:6px; background:transparent; color:#64748b; cursor:pointer; transition:all 0.15s ease;">
-                  <i class="fa-solid fa-folder-tree"></i> Cây phân cấp (Nhiều Lớp / Chương / Bài)
-                </button>
-              </div>
-            </div>
-
-            <!-- Panel A: Quick Single-Scope Selector -->
-            <div id="scope-quick-container">
-              <div style="display:flex; gap:16px; margin-bottom:14px; flex-wrap:wrap;">
-                <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:#334155; cursor:pointer;">
-                  <input type="radio" name="gen-scope-type" value="BLOCK" checked style="width:16px; height:16px; cursor:pointer;" />
-                  Bốc từ 1 Khối học (Toàn bộ các lớp trong Khối)
-                </label>
-                <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:#334155; cursor:pointer;">
-                  <input type="radio" name="gen-scope-type" value="CLASS" style="width:16px; height:16px; cursor:pointer;" />
-                  Bốc từ 1 Lớp học
-                </label>
-                <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:#334155; cursor:pointer;">
-                  <input type="radio" name="gen-scope-type" value="CHAPTER" style="width:16px; height:16px; cursor:pointer;" />
-                  Bốc từ 1 Chương học
-                </label>
-                <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:#334155; cursor:pointer;">
-                  <input type="radio" name="gen-scope-type" value="LESSON" style="width:16px; height:16px; cursor:pointer;" />
-                  Bốc từ 1 Bài học cụ thể
-                </label>
-              </div>
-
-              <!-- Cascading Scope Selects -->
-              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
-                <div id="gen-scope-block-wrap">
-                  <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Chọn Khối nguồn *</label>
-                  <select id="gen-scope-block" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#ffffff;">
-                    ${uniqueBlocks.map(b => `<option value="${b}" ${b === generatorState.gradeBlock ? 'selected' : ''}>${b}</option>`).join('')}
-                  </select>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+              <div>
+                <div style="font-size:14px; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-bullseye" style="color:#0284c7;"></i> 1. Phạm vi nguồn bốc câu hỏi từ Ngân hàng
                 </div>
-                <div id="gen-scope-class-wrap" style="display:none;">
-                  <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Chọn Lớp nguồn *</label>
-                  <select id="gen-scope-class" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#ffffff;">
-                    <option value="">-- Chọn lớp học --</option>
-                    ${allClasses.map(c => `<option value="${c.id}">${c.name} (${c.gradeBlock || ''})</option>`).join('')}
-                  </select>
-                </div>
-                <div id="gen-scope-chapter-wrap" style="display:none;">
-                  <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Chọn Chương nguồn *</label>
-                  <select id="gen-scope-chapter" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#ffffff;">
-                    <option value="">-- Chọn chương học --</option>
-                  </select>
-                </div>
-                <div id="gen-scope-lesson-wrap" style="display:none;">
-                  <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Chọn Bài học nguồn *</label>
-                  <select id="gen-scope-lesson" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#ffffff;">
-                    <option value="">-- Chọn bài học --</option>
-                  </select>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                  Chọn Khối và đánh dấu các Lớp, Chương hoặc Bài học làm kho câu hỏi nguồn (chọn 1 mục bất kỳ để bốc nhanh hoặc chọn nhiều mục linh hoạt)
                 </div>
               </div>
             </div>
 
-            <!-- Panel B: Tree-Checkbox Multi-Scope Selector -->
-            <div id="scope-multi-container" style="display:none;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <label style="font-size:12px; font-weight:600; color:#475569;">Khối học:</label>
-                  <select id="multi-scope-grade-block" style="height:32px; border:1px solid #cbd5e1; border-radius:6px; padding:0 8px; font-size:12px; background:#ffffff; font-weight:600; color:#0f172a;">
-                    ${uniqueBlocks.map(b => `<option value="${b}" ${b === generatorState.gradeBlock ? 'selected' : ''}>${b}</option>`).join('')}
+            <!-- Unified Scope Panel -->
+            <div id="unified-scope-container">
+              <!-- Toolbar: Lọc Khối + Badge tóm tắt + Các nút thao tác -->
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px; background:#ffffff; padding:10px 14px; border:1px solid #e2e8f0; border-radius:8px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <label for="gen-scope-grade-block" style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-layer-group" style="color:#0284c7;"></i> Khối học nguồn:
+                  </label>
+                  <select id="gen-scope-grade-block" style="height:32px; border:1px solid #cbd5e1; border-radius:6px; padding:0 8px; font-size:12px; background:#ffffff; font-weight:600; color:#0f172a; cursor:pointer;">
+                    <option value="ALL">-- Tất cả Khối học --</option>
+                    ${uniqueBlocks.map(b => `<option value="${b}" ${b === generatorState.gradeBlock ? 'selected' : ''}>Khối: ${b}</option>`).join('')}
                   </select>
-                  <span id="multi-selection-badge" style="background:#e0f2fe; color:#0369a1; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600;">
-                    Đã chọn: 0 lớp, 0 chương, 0 bài
+                  <span id="scope-selection-badge" style="background:#f1f5f9; color:#475569; padding:4px 12px; border-radius:999px; font-size:11.5px; font-weight:700; border:1px solid #e2e8f0; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-list-check" style="color:#64748b;"></i>
+                    <span id="scope-selection-badge-text">Đã chọn: 0 lớp, 0 chương, 0 bài</span>
                   </span>
                 </div>
-                <div style="display:flex; gap:6px;">
-                  <button type="button" id="multi-select-all-classes-btn" style="border:1px solid #cbd5e1; background:#ffffff; color:#334155; padding:4px 10px; font-size:11px; font-weight:600; border-radius:6px; cursor:pointer;">
-                    <i class="fa-solid fa-check-double" style="color:#0284c7;"></i> Chọn tất cả Lớp
+                <div style="display:flex; gap:6px; flex-wrap:wrap;" role="toolbar" aria-label="Thao tác chọn phạm vi">
+                  <button type="button" id="btn-scope-select-block" title="Chọn tất cả lớp trong khối đang lọc" style="border:1px solid #bae6fd; background:#f0f9ff; color:#0284c7; padding:5px 10px; font-size:11.5px; font-weight:600; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.15s ease;">
+                    <i class="fa-solid fa-check-double"></i> Chọn cả khối
                   </button>
-                  <button type="button" id="multi-clear-selection-btn" style="border:1px solid #cbd5e1; background:#ffffff; color:#dc2626; padding:4px 10px; font-size:11px; font-weight:600; border-radius:6px; cursor:pointer;">
-                    <i class="fa-solid fa-xmark"></i> Bỏ chọn hết
+                  <button type="button" id="btn-scope-expand-all" title="Mở rộng tất cả các lớp và chương" style="border:1px solid #cbd5e1; background:#ffffff; color:#334155; padding:5px 10px; font-size:11.5px; font-weight:600; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.15s ease;">
+                    <i class="fa-solid fa-up-right-and-down-left-from-center" style="color:#0284c7; font-size:11px;"></i> Mở tất cả
+                  </button>
+                  <button type="button" id="btn-scope-collapse-all" title="Thu gọn tất cả" style="border:1px solid #cbd5e1; background:#ffffff; color:#334155; padding:5px 10px; font-size:11.5px; font-weight:600; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.15s ease;">
+                    <i class="fa-solid fa-down-left-and-up-right-to-center" style="color:#64748b; font-size:11px;"></i> Thu gọn
+                  </button>
+                  <button type="button" id="btn-scope-clear-selection" title="Bỏ chọn toàn bộ" style="border:1px solid #fecaca; background:#fff1f2; color:#dc2626; padding:5px 10px; font-size:11.5px; font-weight:600; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.15s ease;">
+                    <i class="fa-solid fa-xmark"></i> Bỏ chọn
                   </button>
                 </div>
+              </div>
+
+              <!-- Tip hướng dẫn -->
+              <div style="font-size:11.5px; color:#64748b; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-circle-info" style="color:#0284c7;"></i>
+                <span>Tick chọn <strong>Lớp / Chương</strong> để lấy toàn bộ câu hỏi bên trong, hoặc bấm nút mũi tên <strong style="color:#0284c7;">▶</strong> để mở chi tiết và tick từng <strong>Bài học</strong> mong muốn (chọn 1 mục bất kỳ cũng là bốc nhanh hợp lệ).</span>
               </div>
 
               <!-- Tree View Container -->
-              <div id="multi-scope-tree-container" style="max-height:260px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; padding:10px;">
+              <div id="gen-scope-tree-container" tabindex="0" role="region" aria-label="Cây phân cấp Lớp Chương Bài" style="max-height:300px; min-height:120px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; padding:10px;">
                 <!-- Dynamically rendered tree -->
               </div>
             </div>
 
             <!-- Live Availability Checker Banner with Deficit Alerts -->
             <div id="gen-avail-banner" style="margin-top:14px; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; font-size:13px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <span style="font-weight:700; color:#1e40af;"><i class="fa-solid fa-circle-info"></i> Khả dụng:</span>
+              <span style="font-weight:700; color:#1e40af;"><i class="fa-solid fa-circle-info"></i> Khả dụng nguồn:</span>
               <span id="avail-mc-badge" style="padding:3px 10px; border-radius:6px; font-weight:600; background:#dcfce7; color:#15803d; border:1px solid #86efac; display:inline-flex; align-items:center; gap:5px;">
                 <i class="fa-solid fa-check"></i> <span id="avail-mc">0</span> Trắc nghiệm
               </span>
@@ -2306,7 +2299,7 @@ async function openMatrixGeneratorModal() {
               <span id="avail-sa-badge" style="padding:3px 10px; border-radius:6px; font-weight:600; background:#f3e8ff; color:#7e22ce; border:1px solid #d8b4fe; display:inline-flex; align-items:center; gap:5px;">
                 <i class="fa-solid fa-check"></i> <span id="avail-sa">0</span> Trả lời ngắn
               </span>
-              <span id="avail-total" style="margin-left:auto; font-weight:700; color:#0369a1;">Tổng có: 0 câu</span>
+              <span id="avail-total" style="margin-left:auto; font-weight:700; color:#0369a1;">Tổng có: 0 câu (Chưa chọn mục trong cây phân cấp)</span>
             </div>
           </div>
 
@@ -2509,8 +2502,13 @@ async function openMatrixGeneratorModal() {
 
           <!-- Assignment Metadata & Target Destination (Moved to Preview Step) -->
           <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:16px; margin-bottom:16px;">
-            <div style="font-size:13px; font-weight:700; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
-              <i class="fa-solid fa-file-pen" style="color:#0284c7;"></i> Thông tin bài tập & Bài học đích
+            <div style="margin-bottom:12px;">
+              <div style="font-size:13px; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-file-pen" style="color:#0284c7;"></i> Thông tin bài tập & Lớp / Bài học đích nhận đề
+              </div>
+              <div style="font-size:11.5px; color:#64748b; margin-top:3px;">
+                <i class="fa-solid fa-circle-info" style="color:#0066cc;"></i> Chọn vị trí lưu trữ bài tập và giao cho học sinh làm bài (tách biệt với phạm vi nguồn bốc câu hỏi ở Bước 1)
+              </div>
             </div>
 
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:14px;">
@@ -2620,185 +2618,395 @@ async function openMatrixGeneratorModal() {
   document.getElementById('matrix-gen-cancel-btn')?.addEventListener('click', closeModal)
   document.getElementById('matrix-gen-backdrop')?.addEventListener('click', closeModal)
 
-  // Scope Mode Switcher (Quick vs Multi Tree)
-  const quickBtn = document.getElementById('scope-mode-quick-btn')
-  const multiBtn = document.getElementById('scope-mode-multi-btn')
-  const quickContainer = document.getElementById('scope-quick-container')
-  const multiContainer = document.getElementById('scope-multi-container')
+  // Unified Scope Panel Elements & Handlers
+  const scopeGradeBlockSel = document.getElementById('gen-scope-grade-block')
+  const scopeTreeContainer = document.getElementById('gen-scope-tree-container')
+  const scopeSelectBlockBtn = document.getElementById('btn-scope-select-block')
+  const scopeClearBtn = document.getElementById('btn-scope-clear-selection')
+  const scopeExpandAllBtn = document.getElementById('btn-scope-expand-all')
+  const scopeCollapseAllBtn = document.getElementById('btn-scope-collapse-all')
 
-  quickBtn?.addEventListener('click', () => {
-    generatorState.scopeMode = 'QUICK'
-    quickBtn.style.background = '#ffffff'
-    quickBtn.style.color = '#0284c7'
-    quickBtn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
-    multiBtn.style.background = 'transparent'
-    multiBtn.style.color = '#64748b'
-    multiBtn.style.boxShadow = 'none'
-
-    if (quickContainer) quickContainer.style.display = 'block'
-    if (multiContainer) multiContainer.style.display = 'none'
-    checkLiveAvailability()
-  })
-
-  multiBtn?.addEventListener('click', () => {
-    generatorState.scopeMode = 'MULTI'
-    multiBtn.style.background = '#ffffff'
-    multiBtn.style.color = '#0284c7'
-    multiBtn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
-    quickBtn.style.background = 'transparent'
-    quickBtn.style.color = '#64748b'
-    quickBtn.style.boxShadow = 'none'
-
-    if (quickContainer) quickContainer.style.display = 'none'
-    if (multiContainer) multiContainer.style.display = 'block'
-    renderTreeForGradeBlock(generatorState.gradeBlock)
-    checkLiveAvailability()
-  })
-
-  // Quick Scope Radios
-  const scopeRadios = document.querySelectorAll('input[name="gen-scope-type"]')
-  const blockWrap = document.getElementById('gen-scope-block-wrap')
-  const classWrap = document.getElementById('gen-scope-class-wrap')
-  const chapterWrap = document.getElementById('gen-scope-chapter-wrap')
-  const lessonWrap = document.getElementById('gen-scope-lesson-wrap')
-  const scopeBlockSel = document.getElementById('gen-scope-block')
-  const scopeClassSel = document.getElementById('gen-scope-class')
-  const scopeChapterSel = document.getElementById('gen-scope-chapter')
-  const scopeLessonSel = document.getElementById('gen-scope-lesson')
-
-  scopeRadios.forEach(r => {
-    r.addEventListener('change', (e) => {
-      generatorState.scopeType = e.target.value
-      if (generatorState.scopeType === 'BLOCK') {
-        if (blockWrap) blockWrap.style.display = 'block'
-        if (classWrap) classWrap.style.display = 'none'
-        if (chapterWrap) chapterWrap.style.display = 'none'
-        if (lessonWrap) lessonWrap.style.display = 'none'
-      } else if (generatorState.scopeType === 'CLASS') {
-        if (blockWrap) blockWrap.style.display = 'none'
-        if (classWrap) classWrap.style.display = 'block'
-        if (chapterWrap) chapterWrap.style.display = 'none'
-        if (lessonWrap) lessonWrap.style.display = 'none'
-      } else if (generatorState.scopeType === 'CHAPTER') {
-        if (blockWrap) blockWrap.style.display = 'none'
-        if (classWrap) classWrap.style.display = 'block'
-        if (chapterWrap) chapterWrap.style.display = 'block'
-        if (lessonWrap) lessonWrap.style.display = 'none'
-      } else if (generatorState.scopeType === 'LESSON') {
-        if (blockWrap) blockWrap.style.display = 'none'
-        if (classWrap) classWrap.style.display = 'block'
-        if (chapterWrap) chapterWrap.style.display = 'block'
-        if (lessonWrap) lessonWrap.style.display = 'block'
-      }
-      checkLiveAvailability()
-    })
-  })
-
-  // Scope Block changed (Quick mode)
-  scopeBlockSel?.addEventListener('change', (e) => {
+  scopeGradeBlockSel?.addEventListener('change', (e) => {
     generatorState.gradeBlock = e.target.value
-    const multiBlockSel = document.getElementById('multi-scope-grade-block')
-    if (multiBlockSel) multiBlockSel.value = e.target.value
-    checkLiveAvailability()
-  })
-
-  // Cascading scope selects (Quick mode)
-  scopeClassSel?.addEventListener('change', async (e) => {
-    generatorState.classId = e.target.value
-    generatorState.chapterId = ''
-    generatorState.lessonId = ''
-
-    if (generatorState.classId) {
-      await loadChaptersForClass(generatorState.classId, scopeChapterSel)
-    } else {
-      scopeChapterSel.innerHTML = '<option value="">-- Chọn chương học --</option>'
-    }
-    scopeLessonSel.innerHTML = '<option value="">-- Chọn bài học --</option>'
-
-    const destClass = document.getElementById('gen-dest-class')
-    if (destClass && !destClass.value) {
-      destClass.value = generatorState.classId
-      destClass.dispatchEvent(new Event('change'))
-    }
-
-    checkLiveAvailability()
-  })
-
-  scopeChapterSel?.addEventListener('change', async (e) => {
-    generatorState.chapterId = e.target.value
-    generatorState.lessonId = ''
-
-    if (generatorState.chapterId) {
-      await loadLessonsForChapter(generatorState.chapterId, scopeLessonSel)
-    } else {
-      scopeLessonSel.innerHTML = '<option value="">-- Chọn bài học --</option>'
-    }
-    checkLiveAvailability()
-  })
-
-  scopeLessonSel?.addEventListener('change', (e) => {
-    generatorState.lessonId = e.target.value
-    checkLiveAvailability()
-  })
-
-  // Multi Scope Tree Elements
-  const multiGradeBlockSel = document.getElementById('multi-scope-grade-block')
-  const multiTreeContainer = document.getElementById('multi-scope-tree-container')
-  const multiSelectAllBtn = document.getElementById('multi-select-all-classes-btn')
-  const multiClearBtn = document.getElementById('multi-clear-selection-btn')
-
-  multiGradeBlockSel?.addEventListener('change', (e) => {
-    generatorState.gradeBlock = e.target.value
-    if (scopeBlockSel) scopeBlockSel.value = e.target.value
     generatorState.selectedClassIds = []
     generatorState.selectedChapterIds = []
     generatorState.selectedLessonIds = []
+    treeDataCache.expandedClasses.clear()
+    treeDataCache.expandedChapters.clear()
     renderTreeForGradeBlock(generatorState.gradeBlock)
-    updateTreeSelectionBadge()
-    checkLiveAvailability()
-  })
-
-  multiSelectAllBtn?.addEventListener('click', () => {
-    const blockClasses = (allClasses || []).filter(c => (c.gradeBlock || c.grade_block) === generatorState.gradeBlock)
-    blockClasses.forEach(c => {
-      if (!generatorState.selectedClassIds.includes(c.id)) {
-        generatorState.selectedClassIds.push(c.id)
-      }
-    })
-    document.querySelectorAll('.chk-tree-class').forEach(chk => { chk.checked = true })
-    updateTreeSelectionBadge()
-    checkLiveAvailability()
-  })
-
-  multiClearBtn?.addEventListener('click', () => {
-    generatorState.selectedClassIds = []
-    generatorState.selectedChapterIds = []
-    generatorState.selectedLessonIds = []
-    document.querySelectorAll('.chk-tree-class, .chk-tree-chapter, .chk-tree-lesson').forEach(chk => { chk.checked = false })
     updateTreeSelectionBadge()
     checkLiveAvailability()
   })
 
   function updateTreeSelectionBadge() {
-    const badge = document.getElementById('multi-selection-badge')
-    if (badge) {
-      const cCount = generatorState.selectedClassIds.length
-      const chCount = generatorState.selectedChapterIds.length
-      const lCount = generatorState.selectedLessonIds.length
-      badge.textContent = `Đã chọn: ${cCount} lớp, ${chCount} chương, ${lCount} bài`
+    const badge = document.getElementById('scope-selection-badge')
+    const badgeTextEl = document.getElementById('scope-selection-badge-text')
+    const cCount = (generatorState.selectedClassIds || []).length
+    const chCount = (generatorState.selectedChapterIds || []).length
+    const lCount = (generatorState.selectedLessonIds || []).length
+    const totalSelected = cCount + chCount + lCount
+
+    const text = `Đã chọn: ${cCount} lớp, ${chCount} chương, ${lCount} bài`
+    if (badgeTextEl) {
+      badgeTextEl.textContent = text
+    } else if (badge) {
+      badge.textContent = text
     }
+
+    if (badge) {
+      if (totalSelected > 0) {
+        badge.style.background = '#e0f2fe'
+        badge.style.color = '#0369a1'
+        badge.style.borderColor = '#bae6fd'
+        const icon = badge.querySelector('i')
+        if (icon) icon.style.color = '#0284c7'
+      } else {
+        badge.style.background = '#f1f5f9'
+        badge.style.color = '#475569'
+        badge.style.borderColor = '#e2e8f0'
+        const icon = badge.querySelector('i')
+        if (icon) icon.style.color = '#64748b'
+      }
+    }
+  }
+
+  // Checkbox cascading helpers
+  function handleClassCheckbox(clId, isChecked) {
+    if (isChecked) {
+      if (!generatorState.selectedClassIds.includes(clId)) {
+        generatorState.selectedClassIds.push(clId)
+      }
+      // Check all rendered chapter & lesson checkboxes under this class
+      const classBox = document.querySelector(`.tree-class-node[data-class-id="${clId}"]`)
+      if (classBox) {
+        classBox.querySelectorAll('.chk-tree-chapter').forEach(chChk => {
+          chChk.checked = true
+          const chId = chChk.getAttribute('data-chapter-id')
+          if (chId && !generatorState.selectedChapterIds.includes(chId)) {
+            generatorState.selectedChapterIds.push(chId)
+          }
+        })
+        classBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
+          lChk.checked = true
+          const lId = lChk.getAttribute('data-lesson-id')
+          if (lId && !generatorState.selectedLessonIds.includes(lId)) {
+            generatorState.selectedLessonIds.push(lId)
+          }
+        })
+      }
+      // Also sync cached chapters & lessons if already loaded
+      const cachedChs = treeDataCache.chapters[clId] || []
+      cachedChs.forEach(ch => {
+        if (!generatorState.selectedChapterIds.includes(ch.id)) {
+          generatorState.selectedChapterIds.push(ch.id)
+        }
+        const cachedLs = treeDataCache.lessons[ch.id] || []
+        cachedLs.forEach(l => {
+          if (!generatorState.selectedLessonIds.includes(l.id)) {
+            generatorState.selectedLessonIds.push(l.id)
+          }
+        })
+      })
+    } else {
+      generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== clId)
+      const classBox = document.querySelector(`.tree-class-node[data-class-id="${clId}"]`)
+      if (classBox) {
+        classBox.querySelectorAll('.chk-tree-chapter').forEach(chChk => {
+          chChk.checked = false
+          const chId = chChk.getAttribute('data-chapter-id')
+          generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== chId)
+        })
+        classBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
+          lChk.checked = false
+          const lId = lChk.getAttribute('data-lesson-id')
+          generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lId)
+        })
+      }
+      // Also uncheck from cache
+      const cachedChs = treeDataCache.chapters[clId] || []
+      cachedChs.forEach(ch => {
+        generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== ch.id)
+        const cachedLs = treeDataCache.lessons[ch.id] || []
+        cachedLs.forEach(l => {
+          generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== l.id)
+        })
+      })
+    }
+    updateTreeSelectionBadge()
+    checkLiveAvailability()
+  }
+
+  function handleChapterCheckbox(chId, clId, isChecked) {
+    if (isChecked) {
+      if (!generatorState.selectedChapterIds.includes(chId)) {
+        generatorState.selectedChapterIds.push(chId)
+      }
+      // Check all rendered lesson checkboxes under this chapter
+      const chBox = document.querySelector(`.tree-chapter-node[data-chapter-id="${chId}"]`)
+      if (chBox) {
+        chBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
+          lChk.checked = true
+          const lId = lChk.getAttribute('data-lesson-id')
+          if (lId && !generatorState.selectedLessonIds.includes(lId)) {
+            generatorState.selectedLessonIds.push(lId)
+          }
+        })
+      }
+      // Sync cached lessons
+      const cachedLs = treeDataCache.lessons[chId] || []
+      cachedLs.forEach(l => {
+        if (!generatorState.selectedLessonIds.includes(l.id)) {
+          generatorState.selectedLessonIds.push(l.id)
+        }
+      })
+      // If all chapters of class are checked, check class
+      const cachedChs = treeDataCache.chapters[clId] || []
+      if (cachedChs.length > 0 && cachedChs.every(ch => generatorState.selectedChapterIds.includes(ch.id))) {
+        if (!generatorState.selectedClassIds.includes(clId)) {
+          generatorState.selectedClassIds.push(clId)
+        }
+        const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
+        if (cChk) cChk.checked = true
+      }
+    } else {
+      generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== chId)
+      const chBox = document.querySelector(`.tree-chapter-node[data-chapter-id="${chId}"]`)
+      if (chBox) {
+        chBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
+          lChk.checked = false
+          const lId = lChk.getAttribute('data-lesson-id')
+          generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lId)
+        })
+      }
+      const cachedLs = treeDataCache.lessons[chId] || []
+      cachedLs.forEach(l => {
+        generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== l.id)
+      })
+      // Uncheck parent class
+      generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== clId)
+      const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
+      if (cChk) cChk.checked = false
+    }
+    updateTreeSelectionBadge()
+    checkLiveAvailability()
+  }
+
+  function handleLessonCheckbox(lId, chId, clId, isChecked) {
+    if (isChecked) {
+      if (!generatorState.selectedLessonIds.includes(lId)) {
+        generatorState.selectedLessonIds.push(lId)
+      }
+      // Check if all lessons of chapter are checked -> check chapter
+      const cachedLs = treeDataCache.lessons[chId] || []
+      if (cachedLs.length > 0 && cachedLs.every(l => generatorState.selectedLessonIds.includes(l.id))) {
+        if (!generatorState.selectedChapterIds.includes(chId)) {
+          generatorState.selectedChapterIds.push(chId)
+        }
+        const chChk = document.querySelector(`.chk-tree-chapter[data-chapter-id="${chId}"]`)
+        if (chChk) chChk.checked = true
+
+        // Check if all chapters of class are checked -> check class
+        const cachedChs = treeDataCache.chapters[clId] || []
+        if (cachedChs.length > 0 && cachedChs.every(ch => generatorState.selectedChapterIds.includes(ch.id))) {
+          if (!generatorState.selectedClassIds.includes(clId)) {
+            generatorState.selectedClassIds.push(clId)
+          }
+          const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
+          if (cChk) cChk.checked = true
+        }
+      }
+    } else {
+      generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lId)
+      // Uncheck parent chapter & class
+      generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== chId)
+      const chChk = document.querySelector(`.chk-tree-chapter[data-chapter-id="${chId}"]`)
+      if (chChk) chChk.checked = false
+
+      generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== clId)
+      const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
+      if (cChk) cChk.checked = false
+    }
+    updateTreeSelectionBadge()
+    checkLiveAvailability()
+  }
+
+  // Load and render Lessons under a Chapter
+  async function loadAndRenderLessons(chId, lBox, clId) {
+    if (!lBox) return
+    if (!treeDataCache.lessons[chId]) {
+      lBox.innerHTML = '<div style="color:#0284c7; font-size:11px; padding:4px 0;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải bài học...</div>'
+      try {
+        const ls = await api.getLessons(chId)
+        treeDataCache.lessons[chId] = ls || []
+      } catch (e) {
+        treeDataCache.lessons[chId] = []
+      }
+    }
+    renderLessons(chId, lBox, clId)
+  }
+
+  function renderLessons(chId, lBox, clId) {
+    const lessons = treeDataCache.lessons[chId] || []
+    if (lessons.length === 0) {
+      lBox.innerHTML = '<div style="font-size:11.5px; color:#94a3b8; padding:3px 0;"><i class="fa-solid fa-circle-exclamation"></i> Không có bài học nào trong chương này</div>'
+      return
+    }
+
+    const isParentChecked = generatorState.selectedChapterIds.includes(chId) || generatorState.selectedClassIds.includes(clId)
+
+    let lHtml = ''
+    lessons.forEach(l => {
+      if (isParentChecked && !generatorState.selectedLessonIds.includes(l.id)) {
+        generatorState.selectedLessonIds.push(l.id)
+      }
+      const isLChecked = generatorState.selectedLessonIds.includes(l.id)
+      lHtml += `
+        <div style="padding:4px 0; display:flex; align-items:center; gap:6px;">
+          <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:#475569; margin:0;">
+            <input type="checkbox" class="chk-tree-lesson" data-lesson-id="${l.id}" data-chapter-id="${chId}" data-class-id="${clId}" ${isLChecked ? 'checked' : ''} style="width:14px; height:14px; cursor:pointer; accent-color:#0284c7;" />
+            <i class="fa-solid fa-file-lines" style="color:#0284c7; font-size:11px;"></i>
+            <span>${escapeHtml(l.title)}</span>
+          </label>
+        </div>
+      `
+    })
+
+    lBox.innerHTML = lHtml
+
+    // Bind Lesson Checkboxes
+    lBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
+      lChk.addEventListener('change', (e) => {
+        const lId = lChk.getAttribute('data-lesson-id')
+        handleLessonCheckbox(lId, chId, clId, e.target.checked)
+      })
+    })
+  }
+
+  // Load and render Chapters under a Class
+  async function loadAndRenderChapters(clId, childrenBox) {
+    if (!childrenBox) return
+    if (!treeDataCache.chapters[clId]) {
+      childrenBox.innerHTML = '<div style="color:#0284c7; font-size:12px; padding:6px 0;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải chương...</div>'
+      try {
+        const chs = await api.getChapters(clId, true)
+        treeDataCache.chapters[clId] = chs || []
+        // Populate preloaded lessons if any
+        chs?.forEach(ch => {
+          if (Array.isArray(ch.lessons)) {
+            treeDataCache.lessons[ch.id] = ch.lessons
+          }
+        })
+      } catch (e) {
+        treeDataCache.chapters[clId] = []
+      }
+    }
+    renderChapters(clId, childrenBox)
+  }
+
+  function renderChapters(clId, childrenBox) {
+    const chapters = treeDataCache.chapters[clId] || []
+    if (chapters.length === 0) {
+      childrenBox.innerHTML = '<div style="font-size:12px; color:#94a3b8; padding:4px 0;"><i class="fa-solid fa-circle-exclamation"></i> Không có chương nào trong lớp này</div>'
+      return
+    }
+
+    const isClassChecked = generatorState.selectedClassIds.includes(clId)
+
+    let chHtml = ''
+    chapters.forEach(ch => {
+      if (isClassChecked && !generatorState.selectedChapterIds.includes(ch.id)) {
+        generatorState.selectedChapterIds.push(ch.id)
+      }
+      const isChChecked = generatorState.selectedChapterIds.includes(ch.id)
+      const isChExpanded = treeDataCache.expandedChapters.has(ch.id)
+
+      chHtml += `
+        <div class="tree-chapter-node" data-chapter-id="${ch.id}" data-class-id="${clId}" style="margin-bottom:6px; border:1px solid #f1f5f9; border-radius:6px; background:#ffffff; overflow:hidden;">
+          <div style="padding:6px 10px; display:flex; align-items:center; gap:8px; background:#f8fafc;">
+            <button type="button" class="btn-tree-expand-chapter" data-chapter-id="${ch.id}" title="${isChExpanded ? 'Thu gọn' : 'Mở rộng bài học'}" style="border:1px solid #e2e8f0; background:#ffffff; cursor:pointer; color:#64748b; font-size:10px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px; transition:all 0.15s ease;">
+              <i class="fa-solid ${isChExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} tree-chevron-chapter-${ch.id}"></i>
+            </button>
+            <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; font-size:12.5px; color:#334155; margin:0; flex:1;">
+              <input type="checkbox" class="chk-tree-chapter" data-chapter-id="${ch.id}" data-class-id="${clId}" ${isChChecked ? 'checked' : ''} style="width:15px; height:15px; cursor:pointer; accent-color:#0284c7;" />
+              <i class="fa-solid fa-book-bookmark" style="color:#d97706;"></i>
+              <span>${escapeHtml(ch.title)}</span>
+            </label>
+          </div>
+          <div class="tree-chapter-children" id="tree-chapter-children-${ch.id}" style="display:${isChExpanded ? 'block' : 'none'}; padding:6px 10px 6px 32px; border-top:1px dashed #f1f5f9; background:#ffffff;">
+            <!-- lessons rendered here -->
+          </div>
+        </div>
+      `
+    })
+
+    childrenBox.innerHTML = chHtml
+
+    // Restore expanded chapters if any
+    chapters.forEach(ch => {
+      if (treeDataCache.expandedChapters.has(ch.id)) {
+        const lBox = document.getElementById(`tree-chapter-children-${ch.id}`)
+        if (lBox) {
+          loadAndRenderLessons(ch.id, lBox, clId)
+        }
+      }
+    })
+
+    // Bind Chapter Expand buttons
+    childrenBox.querySelectorAll('.btn-tree-expand-chapter').forEach(chBtn => {
+      chBtn.addEventListener('click', async () => {
+        const chId = chBtn.getAttribute('data-chapter-id')
+        const lBox = document.getElementById(`tree-chapter-children-${chId}`)
+        const chChevron = chBtn.querySelector(`.tree-chevron-chapter-${chId}`)
+        if (!lBox) return
+
+        if (lBox.style.display === 'block') {
+          lBox.style.display = 'none'
+          treeDataCache.expandedChapters.delete(chId)
+          if (chChevron) {
+            chChevron.classList.remove('fa-chevron-down')
+            chChevron.classList.add('fa-chevron-right')
+          }
+          chBtn.title = 'Mở rộng bài học'
+          return
+        }
+
+        lBox.style.display = 'block'
+        treeDataCache.expandedChapters.add(chId)
+        if (chChevron) {
+          chChevron.classList.remove('fa-chevron-right')
+          chChevron.classList.add('fa-chevron-down')
+        }
+        chBtn.title = 'Thu gọn'
+
+        if (!lBox.children.length || lBox.innerHTML.includes('fa-spinner')) {
+          await loadAndRenderLessons(chId, lBox, clId)
+        }
+      })
+    })
+
+    // Bind Chapter Checkboxes
+    childrenBox.querySelectorAll('.chk-tree-chapter').forEach(chChk => {
+      chChk.addEventListener('change', (e) => {
+        const chId = chChk.getAttribute('data-chapter-id')
+        handleChapterCheckbox(chId, clId, e.target.checked)
+      })
+    })
   }
 
   // Render Tree View for a Grade Block
   function renderTreeForGradeBlock(block) {
-    if (!multiTreeContainer) return
-    const blockClasses = (allClasses || []).filter(c => (c.gradeBlock || c.grade_block) === block)
+    const treeContainer = document.getElementById('gen-scope-tree-container')
+    if (!treeContainer) return
+    const blockClasses = (!block || block === 'ALL')
+      ? (allClasses || [])
+      : (allClasses || []).filter(c => (c.gradeBlock || c.grade_block || '').trim() === block.trim())
 
     if (blockClasses.length === 0) {
-      multiTreeContainer.innerHTML = `
-        <div style="text-align:center; padding:24px; color:#94a3b8; font-size:13px;">
-          <i class="fa-solid fa-folder-open" style="font-size:24px; margin-bottom:6px; display:block;"></i>
-          Không tìm thấy lớp học nào thuộc khối ${block || ''}
+      treeContainer.innerHTML = `
+        <div class="tree-empty-state" style="text-align:center; padding:28px 16px; color:#64748b; font-size:13px;">
+          <i class="fa-solid fa-folder-open" style="font-size:32px; color:#cbd5e1; margin-bottom:8px; display:block;"></i>
+          <div style="font-weight:600; color:#334155; margin-bottom:4px;">Không tìm thấy lớp học nào${block && block !== 'ALL' ? ` thuộc khối ${escapeHtml(block)}` : ''}</div>
+          <div style="font-size:12px; color:#94a3b8;">Vui lòng chọn khối khác hoặc chọn "Tất cả Khối học" ở trên.</div>
         </div>
       `
       return
@@ -2807,30 +3015,41 @@ async function openMatrixGeneratorModal() {
     let treeHtml = ''
     blockClasses.forEach(c => {
       const isClassChecked = generatorState.selectedClassIds.includes(c.id)
+      const isExpanded = treeDataCache.expandedClasses.has(c.id)
       treeHtml += `
         <div class="tree-class-node" data-class-id="${c.id}" style="border:1px solid #e2e8f0; border-radius:8px; margin-bottom:8px; background:#ffffff; overflow:hidden;">
-          <div style="padding:8px 12px; display:flex; align-items:center; gap:8px; background:#f8fafc; border-bottom:1px solid transparent;">
-            <button type="button" class="btn-tree-expand-class" data-class-id="${c.id}" style="border:none; background:transparent; cursor:pointer; color:#64748b; font-size:11px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px;">
-              <i class="fa-solid fa-chevron-right tree-chevron-class-${c.id}"></i>
+          <div style="padding:8px 12px; display:flex; align-items:center; gap:8px; background:#f8fafc; border-bottom:1px solid ${isExpanded ? '#e2e8f0' : 'transparent'};">
+            <button type="button" class="btn-tree-expand-class" data-class-id="${c.id}" aria-expanded="${isExpanded ? 'true' : 'false'}" title="${isExpanded ? 'Thu gọn' : 'Mở rộng chương & bài'}" style="border:1px solid #cbd5e1; background:#ffffff; cursor:pointer; color:#475569; font-size:11px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; border-radius:4px; transition:all 0.15s ease;">
+              <i class="fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} tree-chevron-class-${c.id}"></i>
             </button>
             <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; font-size:13px; color:#1e293b; margin:0; flex:1;">
-              <input type="checkbox" class="chk-tree-class" data-class-id="${c.id}" ${isClassChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;" />
+              <input type="checkbox" class="chk-tree-class" data-class-id="${c.id}" ${isClassChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer; accent-color:#0284c7;" />
               <i class="fa-solid fa-chalkboard-user" style="color:#0284c7;"></i>
-              ${c.name}
+              <span>${escapeHtml(c.name)}</span>
+              <span style="font-size:11px; color:#94a3b8; font-weight:normal;">(${escapeHtml(c.gradeBlock || c.grade_block || 'Chưa gán khối')})</span>
             </label>
-            <span style="font-size:11px; color:#94a3b8;">(Bấm ▶ để mở Chương & Bài)</span>
           </div>
-          <div class="tree-class-children" id="tree-class-children-${c.id}" style="display:none; padding:8px 12px 8px 34px; border-top:1px dashed #e2e8f0; background:#fdfdfd;">
-            <div style="color:#94a3b8; font-size:12px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải chương...</div>
+          <div class="tree-class-children" id="tree-class-children-${c.id}" style="display:${isExpanded ? 'block' : 'none'}; padding:8px 12px 8px 34px; border-top:1px dashed #e2e8f0; background:#fbfcfe;">
+            <!-- chapters rendered here -->
           </div>
         </div>
       `
     })
 
-    multiTreeContainer.innerHTML = treeHtml
+    treeContainer.innerHTML = treeHtml
+
+    // Restore expanded classes if any
+    blockClasses.forEach(c => {
+      if (treeDataCache.expandedClasses.has(c.id)) {
+        const childrenBox = document.getElementById(`tree-class-children-${c.id}`)
+        if (childrenBox) {
+          loadAndRenderChapters(c.id, childrenBox)
+        }
+      }
+    })
 
     // Bind Class Expand buttons
-    multiTreeContainer.querySelectorAll('.btn-tree-expand-class').forEach(btn => {
+    treeContainer.querySelectorAll('.btn-tree-expand-class').forEach(btn => {
       btn.addEventListener('click', async () => {
         const clId = btn.getAttribute('data-class-id')
         const childrenBox = document.getElementById(`tree-class-children-${clId}`)
@@ -2839,159 +3058,150 @@ async function openMatrixGeneratorModal() {
 
         if (childrenBox.style.display === 'block') {
           childrenBox.style.display = 'none'
+          treeDataCache.expandedClasses.delete(clId)
           if (chevron) {
             chevron.classList.remove('fa-chevron-down')
             chevron.classList.add('fa-chevron-right')
           }
+          btn.title = 'Mở rộng chương & bài'
+          btn.setAttribute('aria-expanded', 'false')
           return
         }
 
+        childrenBox.style.display = 'block'
+        treeDataCache.expandedClasses.add(clId)
+        if (chevron) {
+          chevron.classList.remove('fa-chevron-right')
+          chevron.classList.add('fa-chevron-down')
+        }
+        btn.title = 'Thu gọn'
+        btn.setAttribute('aria-expanded', 'true')
+
+        if (!childrenBox.children.length || childrenBox.innerHTML.includes('fa-spinner')) {
+          await loadAndRenderChapters(clId, childrenBox)
+        }
+      })
+    })
+
+    // Bind Class Checkboxes
+    treeContainer.querySelectorAll('.chk-tree-class').forEach(cChk => {
+      cChk.addEventListener('change', (e) => {
+        const clId = cChk.getAttribute('data-class-id')
+        handleClassCheckbox(clId, e.target.checked)
+      })
+    })
+  }
+
+  // Unified Scope Toolbar Actions
+  scopeSelectBlockBtn?.addEventListener('click', () => {
+    const curBlock = generatorState.gradeBlock
+    const blockClasses = (!curBlock || curBlock === 'ALL')
+      ? (allClasses || [])
+      : (allClasses || []).filter(c => (c.gradeBlock || c.grade_block || '').trim() === curBlock.trim())
+
+    blockClasses.forEach(c => {
+      if (!generatorState.selectedClassIds.includes(c.id)) {
+        generatorState.selectedClassIds.push(c.id)
+      }
+      const cachedChs = treeDataCache.chapters[c.id] || []
+      cachedChs.forEach(ch => {
+        if (!generatorState.selectedChapterIds.includes(ch.id)) {
+          generatorState.selectedChapterIds.push(ch.id)
+        }
+        const cachedLs = treeDataCache.lessons[ch.id] || []
+        cachedLs.forEach(l => {
+          if (!generatorState.selectedLessonIds.includes(l.id)) {
+            generatorState.selectedLessonIds.push(l.id)
+          }
+        })
+      })
+    })
+
+    document.querySelectorAll('.chk-tree-class, .chk-tree-chapter, .chk-tree-lesson').forEach(chk => {
+      chk.checked = true
+    })
+    updateTreeSelectionBadge()
+    checkLiveAvailability()
+  })
+
+  scopeClearBtn?.addEventListener('click', () => {
+    generatorState.selectedClassIds = []
+    generatorState.selectedChapterIds = []
+    generatorState.selectedLessonIds = []
+    document.querySelectorAll('.chk-tree-class, .chk-tree-chapter, .chk-tree-lesson').forEach(chk => {
+      chk.checked = false
+    })
+    updateTreeSelectionBadge()
+    checkLiveAvailability()
+  })
+
+  scopeExpandAllBtn?.addEventListener('click', async () => {
+    const curBlock = generatorState.gradeBlock
+    const blockClasses = (!curBlock || curBlock === 'ALL')
+      ? (allClasses || [])
+      : (allClasses || []).filter(c => (c.gradeBlock || c.grade_block || '').trim() === curBlock.trim())
+
+    for (const c of blockClasses) {
+      treeDataCache.expandedClasses.add(c.id)
+      const childrenBox = document.getElementById(`tree-class-children-${c.id}`)
+      const chevron = document.querySelector(`.tree-chevron-class-${c.id}`)
+      const expandBtn = document.querySelector(`.btn-tree-expand-class[data-class-id="${c.id}"]`)
+      if (childrenBox) {
         childrenBox.style.display = 'block'
         if (chevron) {
           chevron.classList.remove('fa-chevron-right')
           chevron.classList.add('fa-chevron-down')
         }
-
-        // Load chapters if not cached
-        if (!treeDataCache.chapters[clId]) {
-          try {
-            const chs = await api.getChapters(clId, true)
-            treeDataCache.chapters[clId] = chs || []
-          } catch (e) {
-            treeDataCache.chapters[clId] = []
-          }
+        if (expandBtn) {
+          expandBtn.title = 'Thu gọn'
+          expandBtn.setAttribute('aria-expanded', 'true')
         }
-
-        const chapters = treeDataCache.chapters[clId] || []
-        if (chapters.length === 0) {
-          childrenBox.innerHTML = '<div style="font-size:12px; color:#94a3b8; padding:4px 0;">Không có chương nào trong lớp này</div>'
-          return
-        }
-
-        let chHtml = ''
-        chapters.forEach(ch => {
-          const isChChecked = generatorState.selectedChapterIds.includes(ch.id)
-          chHtml += `
-            <div class="tree-chapter-node" data-chapter-id="${ch.id}" style="margin-bottom:6px; border:1px solid #f1f5f9; border-radius:6px; background:#ffffff;">
-              <div style="padding:6px 10px; display:flex; align-items:center; gap:8px; background:#f8fafc;">
-                <button type="button" class="btn-tree-expand-chapter" data-chapter-id="${ch.id}" style="border:none; background:transparent; cursor:pointer; color:#64748b; font-size:10px; width:18px; height:18px; display:flex; align-items:center; justify-content:center;">
-                  <i class="fa-solid fa-chevron-right tree-chevron-chapter-${ch.id}"></i>
-                </button>
-                <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; font-size:12px; color:#334155; margin:0; flex:1;">
-                  <input type="checkbox" class="chk-tree-chapter" data-chapter-id="${ch.id}" ${isChChecked ? 'checked' : ''} style="width:15px; height:15px; cursor:pointer;" />
-                  <i class="fa-solid fa-book-bookmark" style="color:#d97706;"></i>
-                  ${ch.title}
-                </label>
-              </div>
-              <div class="tree-chapter-children" id="tree-chapter-children-${ch.id}" style="display:none; padding:6px 10px 6px 32px; border-top:1px dashed #f1f5f9; background:#ffffff;">
-                <div style="color:#94a3b8; font-size:11px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải bài học...</div>
-              </div>
-            </div>
-          `
-        })
-
-        childrenBox.innerHTML = chHtml
-
-        // Bind Chapter Expand buttons
-        childrenBox.querySelectorAll('.btn-tree-expand-chapter').forEach(chBtn => {
-          chBtn.addEventListener('click', async () => {
-            const chId = chBtn.getAttribute('data-chapter-id')
-            const lBox = document.getElementById(`tree-chapter-children-${chId}`)
-            const chChevron = chBtn.querySelector(`.tree-chevron-chapter-${chId}`)
-            if (!lBox) return
-
-            if (lBox.style.display === 'block') {
-              lBox.style.display = 'none'
-              if (chChevron) {
-                chChevron.classList.remove('fa-chevron-down')
-                chChevron.classList.add('fa-chevron-right')
-              }
-              return
-            }
-
+        await loadAndRenderChapters(c.id, childrenBox)
+        const chapters = treeDataCache.chapters[c.id] || []
+        for (const ch of chapters) {
+          treeDataCache.expandedChapters.add(ch.id)
+          const lBox = document.getElementById(`tree-chapter-children-${ch.id}`)
+          const chChevron = document.querySelector(`.tree-chevron-chapter-${ch.id}`)
+          const chExpandBtn = document.querySelector(`.btn-tree-expand-chapter[data-chapter-id="${ch.id}"]`)
+          if (lBox) {
             lBox.style.display = 'block'
             if (chChevron) {
               chChevron.classList.remove('fa-chevron-right')
               chChevron.classList.add('fa-chevron-down')
             }
-
-            if (!treeDataCache.lessons[chId]) {
-              try {
-                const ls = await api.getLessons(chId)
-                treeDataCache.lessons[chId] = ls || []
-              } catch (e) {
-                treeDataCache.lessons[chId] = []
-              }
+            if (chExpandBtn) {
+              chExpandBtn.title = 'Thu gọn'
+              chExpandBtn.setAttribute('aria-expanded', 'true')
             }
-
-            const lessons = treeDataCache.lessons[chId] || []
-            if (lessons.length === 0) {
-              lBox.innerHTML = '<div style="font-size:11px; color:#94a3b8; padding:3px 0;">Không có bài học nào</div>'
-              return
-            }
-
-            let lHtml = ''
-            lessons.forEach(l => {
-              const isLChecked = generatorState.selectedLessonIds.includes(l.id)
-              lHtml += `
-                <div style="padding:4px 0; display:flex; align-items:center; gap:6px;">
-                  <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:#475569; margin:0;">
-                    <input type="checkbox" class="chk-tree-lesson" data-lesson-id="${l.id}" ${isLChecked ? 'checked' : ''} style="width:14px; height:14px; cursor:pointer;" />
-                    <i class="fa-solid fa-file-lines" style="color:#0284c7; font-size:11px;"></i>
-                    ${l.title}
-                  </label>
-                </div>
-              `
-            })
-
-            lBox.innerHTML = lHtml
-
-            // Bind Lesson Checkboxes
-            lBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
-              lChk.addEventListener('change', (e) => {
-                const lId = lChk.getAttribute('data-lesson-id')
-                if (e.target.checked) {
-                  if (!generatorState.selectedLessonIds.includes(lId)) generatorState.selectedLessonIds.push(lId)
-                } else {
-                  generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lId)
-                }
-                updateTreeSelectionBadge()
-                checkLiveAvailability()
-              })
-            })
-          })
-        })
-
-        // Bind Chapter Checkboxes
-        childrenBox.querySelectorAll('.chk-tree-chapter').forEach(chChk => {
-          chChk.addEventListener('change', (e) => {
-            const chId = chChk.getAttribute('data-chapter-id')
-            if (e.target.checked) {
-              if (!generatorState.selectedChapterIds.includes(chId)) generatorState.selectedChapterIds.push(chId)
-            } else {
-              generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== chId)
-            }
-            updateTreeSelectionBadge()
-            checkLiveAvailability()
-          })
-        })
-      })
-    })
-
-    // Bind Class Checkboxes
-    multiTreeContainer.querySelectorAll('.chk-tree-class').forEach(cChk => {
-      cChk.addEventListener('change', (e) => {
-        const clId = cChk.getAttribute('data-class-id')
-        if (e.target.checked) {
-          if (!generatorState.selectedClassIds.includes(clId)) generatorState.selectedClassIds.push(clId)
-        } else {
-          generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== clId)
+            await loadAndRenderLessons(ch.id, lBox, c.id)
+          }
         }
-        updateTreeSelectionBadge()
-        checkLiveAvailability()
-      })
+      }
+    }
+  })
+
+  scopeCollapseAllBtn?.addEventListener('click', () => {
+    treeDataCache.expandedClasses.clear()
+    treeDataCache.expandedChapters.clear()
+    document.querySelectorAll('.tree-class-children').forEach(box => { box.style.display = 'none' })
+    document.querySelectorAll('.tree-chapter-children').forEach(box => { box.style.display = 'none' })
+    document.querySelectorAll('[class*="tree-chevron-class-"]').forEach(icon => {
+      icon.classList.remove('fa-chevron-down')
+      icon.classList.add('fa-chevron-right')
     })
-  }
+    document.querySelectorAll('[class*="tree-chevron-chapter-"]').forEach(icon => {
+      icon.classList.remove('fa-chevron-down')
+      icon.classList.add('fa-chevron-right')
+    })
+    document.querySelectorAll('.btn-tree-expand-class').forEach(btn => {
+      btn.title = 'Mở rộng chương & bài'
+      btn.setAttribute('aria-expanded', 'false')
+    })
+    document.querySelectorAll('.btn-tree-expand-chapter').forEach(btn => {
+      btn.title = 'Mở rộng bài học'
+      btn.setAttribute('aria-expanded', 'false')
+    })
+  })
 
   // Cascading destination selects & Student assignment
   const destClassSel = document.getElementById('gen-dest-class')
@@ -3362,50 +3572,58 @@ async function openMatrixGeneratorModal() {
     if (totalEl) totalEl.textContent = `Tổng có: ${res.total} câu`
   }
 
+  // Discard responses for earlier selections so a slow request cannot overwrite
+  // the counts shown for the currently selected scope.
+  let availabilityRequestId = 0
   // Live availability function (supports both QUICK and MULTI mode)
   async function checkLiveAvailability() {
+    const requestId = ++availabilityRequestId
     try {
-      let params = ''
-      if (generatorState.scopeMode === 'MULTI') {
-        params += `scopeType=MULTI&`
-        if (generatorState.gradeBlock) {
-          params += `gradeBlock=${encodeURIComponent(generatorState.gradeBlock)}&`
-        }
-        if (generatorState.selectedClassIds.length > 0) {
-          params += `classIds=${encodeURIComponent(generatorState.selectedClassIds.join(','))}&`
-        }
-        if (generatorState.selectedChapterIds.length > 0) {
-          params += `chapterIds=${encodeURIComponent(generatorState.selectedChapterIds.join(','))}&`
-        }
-        if (generatorState.selectedLessonIds.length > 0) {
-          params += `lessonIds=${encodeURIComponent(generatorState.selectedLessonIds.join(','))}&`
-        }
-      } else {
-        // QUICK: chỉ gửi đúng 1 cấp theo scopeType (tránh id cha đi kèm làm sai pool)
-        params += `scopeType=${generatorState.scopeType}&`
-        if (generatorState.gradeBlock) {
-          params += `gradeBlock=${encodeURIComponent(generatorState.gradeBlock)}&`
-        }
-        if (generatorState.scopeType === 'LESSON') {
-          if (generatorState.lessonId) params += `lessonId=${generatorState.lessonId}&`
-        } else if (generatorState.scopeType === 'CHAPTER') {
-          if (generatorState.chapterId) params += `chapterId=${generatorState.chapterId}&`
-        } else if (generatorState.scopeType === 'CLASS') {
-          if (generatorState.classId) params += `classId=${generatorState.classId}&`
-        }
+      const hasSelection = (generatorState.selectedClassIds && generatorState.selectedClassIds.length > 0) ||
+        (generatorState.selectedChapterIds && generatorState.selectedChapterIds.length > 0) ||
+        (generatorState.selectedLessonIds && generatorState.selectedLessonIds.length > 0)
+
+      if (!hasSelection) {
+        generatorState.availableStats = { mc: 0, tf: 0, sa: 0, total: 0, byTypeAndDifficulty: {} }
+        updateAvailBadgesAndAlerts(generatorState.availableStats)
+        const totalEl = document.getElementById('avail-total')
+        if (totalEl) totalEl.textContent = 'Tổng có: 0 câu (Chưa chọn mục trong cây phân cấp)'
+        return
+      }
+
+      let params = 'scopeType=MULTI&'
+      if (generatorState.gradeBlock && generatorState.gradeBlock !== 'ALL') {
+        params += `gradeBlock=${encodeURIComponent(generatorState.gradeBlock)}&`
+      }
+      if (generatorState.selectedClassIds.length > 0) {
+        params += `classIds=${encodeURIComponent(generatorState.selectedClassIds.join(','))}&`
+      }
+      if (generatorState.selectedChapterIds.length > 0) {
+        params += `chapterIds=${encodeURIComponent(generatorState.selectedChapterIds.join(','))}&`
+      }
+      if (generatorState.selectedLessonIds.length > 0) {
+        params += `lessonIds=${encodeURIComponent(generatorState.selectedLessonIds.join(','))}&`
       }
 
       const res = await api.checkQuestionBankAvailability(params)
-      if (res) {
+      if (requestId === availabilityRequestId && document.getElementById('matrix-gen-backdrop') && res) {
         generatorState.availableStats = res
         updateAvailBadgesAndAlerts(res)
       }
     } catch (e) {
-      console.warn('[QuestionBank] Availability check failed:', e)
+      if (requestId === availabilityRequestId && document.getElementById('matrix-gen-backdrop')) {
+        generatorState.availableStats = { mc: 0, tf: 0, sa: 0, total: 0, byTypeAndDifficulty: {} }
+        updateAvailBadgesAndAlerts(generatorState.availableStats)
+        const totalEl = document.getElementById('avail-total')
+        if (totalEl) totalEl.textContent = 'Không tải được số câu khả dụng — vui lòng thử chọn lại phạm vi'
+        console.warn('[QuestionBank] Availability check failed:', e)
+      }
     }
   }
 
-  // Trigger initial availability check
+  // Trigger initial tree render & availability check
+  renderTreeForGradeBlock(generatorState.gradeBlock)
+  updateTreeSelectionBadge()
   checkLiveAvailability()
 
   // Cụm cấu hình bài tập dùng chung form tạo bài tập
@@ -3419,21 +3637,11 @@ async function openMatrixGeneratorModal() {
   const step2 = document.getElementById('matrix-gen-step2')
 
   btnRollPreview?.addEventListener('click', async () => {
-    if (generatorState.scopeMode === 'MULTI') {
-      const hasAnySelection = generatorState.selectedClassIds.length > 0 ||
-        generatorState.selectedChapterIds.length > 0 ||
-        generatorState.selectedLessonIds.length > 0 ||
-        generatorState.gradeBlock
-      if (!hasAnySelection) {
-        return showToast('Vui lòng chọn ít nhất một Lớp, Chương hoặc Bài học trong cây phân cấp!', 'warning')
-      }
-    } else {
-      if (generatorState.scopeType === 'BLOCK' && !generatorState.gradeBlock) {
-        return showToast('Vui lòng chọn Khối nguồn để bốc câu hỏi!', 'warning')
-      }
-      if (generatorState.scopeType !== 'BLOCK' && !generatorState.classId) {
-        return showToast('Vui lòng chọn Lớp nguồn để bốc câu hỏi!', 'warning')
-      }
+    const hasAnySelection = (generatorState.selectedClassIds && generatorState.selectedClassIds.length > 0) ||
+      (generatorState.selectedChapterIds && generatorState.selectedChapterIds.length > 0) ||
+      (generatorState.selectedLessonIds && generatorState.selectedLessonIds.length > 0)
+    if (!hasAnySelection) {
+      return showToast('Vui lòng chọn ít nhất một Lớp học, Chương học hoặc Bài học trong cây phân cấp!', 'warning')
     }
 
     const mcCount = Number(mcInput?.value) || 0
@@ -3464,39 +3672,13 @@ async function openMatrixGeneratorModal() {
     btnRollPreview.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang bốc câu...'
     generatorState.rejectedIds = []
 
-    // Construct structured scope object (QUICK: chỉ gửi đúng 1 cấp theo scopeType)
-    let scopePayload
-    if (generatorState.scopeMode === 'MULTI') {
-      scopePayload = {
-        scopeType: 'MULTI',
-        gradeBlock: generatorState.gradeBlock,
-        classIds: generatorState.selectedClassIds,
-        chapterIds: generatorState.selectedChapterIds,
-        lessonIds: generatorState.selectedLessonIds
-      }
-    } else if (generatorState.scopeType === 'LESSON') {
-      scopePayload = {
-        scopeType: 'LESSON',
-        gradeBlock: generatorState.gradeBlock,
-        lessonId: generatorState.lessonId
-      }
-    } else if (generatorState.scopeType === 'CHAPTER') {
-      scopePayload = {
-        scopeType: 'CHAPTER',
-        gradeBlock: generatorState.gradeBlock,
-        chapterId: generatorState.chapterId
-      }
-    } else if (generatorState.scopeType === 'CLASS') {
-      scopePayload = {
-        scopeType: 'CLASS',
-        gradeBlock: generatorState.gradeBlock,
-        classId: generatorState.classId
-      }
-    } else {
-      scopePayload = {
-        scopeType: 'BLOCK',
-        gradeBlock: generatorState.gradeBlock
-      }
+    // Construct structured scope object with MULTI scopeType
+    const scopePayload = {
+      scopeType: 'MULTI',
+      gradeBlock: generatorState.gradeBlock && generatorState.gradeBlock !== 'ALL' ? generatorState.gradeBlock : null,
+      classIds: [...new Set(generatorState.selectedClassIds || [])],
+      chapterIds: [...new Set(generatorState.selectedChapterIds || [])],
+      lessonIds: [...new Set(generatorState.selectedLessonIds || [])]
     }
     generatorState.currentScope = scopePayload
 
@@ -3564,13 +3746,15 @@ async function openMatrixGeneratorModal() {
       const activeDuration = document.getElementById('mx-duration')?.value || 90
       document.getElementById('preview-meta-desc').textContent = `${generatorState.previewQuestions.length} câu hỏi • ${activeDuration} phút`
 
-      // Auto-preselect destination class if available from Step 1
+      // Auto-preselect destination class if available from Step 1 selections
       if (destClassSel && !destClassSel.value) {
-        if (generatorState.classId) {
-          destClassSel.value = generatorState.classId
-          destClassSel.dispatchEvent(new Event('change'))
-        } else if (generatorState.selectedClassIds && generatorState.selectedClassIds.length > 0) {
-          destClassSel.value = generatorState.selectedClassIds[0]
+        let firstClassId = (generatorState.selectedClassIds && generatorState.selectedClassIds[0]) || null
+        if (!firstClassId) {
+          const checkedEl = document.querySelector('.chk-tree-chapter:checked, .chk-tree-lesson:checked')
+          firstClassId = checkedEl?.getAttribute('data-class-id') || null
+        }
+        if (firstClassId) {
+          destClassSel.value = firstClassId
           destClassSel.dispatchEvent(new Event('change'))
         }
       }

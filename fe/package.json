@@ -10,7 +10,8 @@
     "test:zero-balance": "node scripts/test-zero-balance.mjs",
     "test:topup": "node scripts/test-topup.mjs",
     "test:diagrams": "node scripts/test-diagrams.mjs",
-    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs"
+    "test:matrix-scope": "node scripts/test-matrix-scope.mjs",
+    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.0"
