@@ -6,13 +6,34 @@
  * - confirmLabel: nhãn nút xác nhận (mặc định 'Xác nhận')
  * - showCancel: ẩn/hiện nút hủy (mặc định true)
  * - contentStyle: style inline cho hộp `.modal-content` (ví dụ 'max-width:960px;')
+ * - contentClass: class bổ sung cho `.modal-content` (CSS riêng cho từng loại modal)
+ * - bodyStyle: style inline cho hộp `.modal-body` (dùng cho modal có vùng nội dung cuộn riêng)
+ * - beforeClose: (reason) => boolean|void — trả `false` để CHẶN đóng modal.
+ *   Chỉ áp dụng cho đóng bằng thao tác người dùng (reason = 'cancel');
+ *   đóng bằng code (closeModal()) không bị chặn.
+ * - onCancel: callback khi người dùng huỷ (nút Hủy / nút X / bấm nền ngoài)
+ * - onClose: callback khi modal đã đóng, nhận lý do 'cancel' | 'confirm' | 'close'
+ *
+ * Lưu ý:
+ * - Chỉ 1 modal active: mở modal mới sẽ thay thế modal cũ. Callback của modal cũ
+ *   không được xoá modal mới (tránh "nested modal corruption").
+ * - Nút xác nhận bị khoá trong lúc handler xác nhận đang chạy => chống double-click.
  */
+let activeModalToken = 0
+let activeModalHooks = null
+
 export function openModal(title, bodyHTML, onConfirm = null, options = {}) {
   const {
     cancelLabel = 'Hủy',
     confirmLabel = 'Xác nhận',
     showCancel = true,
-    contentStyle = ''
+    contentStyle = '',
+    contentClass = '',
+    bodyStyle = '',
+    shellFlex = false,
+    beforeClose = null,
+    onCancel = null,
+    onClose = null
   } = options
 
   let container = document.getElementById('modal-container')
@@ -22,19 +43,22 @@ export function openModal(title, bodyHTML, onConfirm = null, options = {}) {
     document.body.appendChild(container)
   }
 
+  const token = ++activeModalToken
+  activeModalHooks = { token, onCancel, onClose }
+
   document.body.classList.add('modal-open')
 
   container.innerHTML = `
     <div class="modal-backdrop" id="active-modal-backdrop">
-      <div class="modal-content" onclick="event.stopPropagation()" style="${contentStyle}">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid #e2e8f0;">
+      <div class="modal-content ${contentClass}" onclick="event.stopPropagation()" style="${contentStyle}">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid #e2e8f0;${shellFlex ? 'flex:0 0 auto;' : ''}">
           <h3 style="font-family:var(--font-heading); font-size:20px; font-weight:700; color:#0f172a;">${title}</h3>
           <button id="modal-close-btn" style="background:none; border:none; font-size:20px; color:#94a3b8; cursor:pointer; padding:4px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="modal-body" style="margin-bottom:24px;">
+        <div class="modal-body" style="margin-bottom:24px;${bodyStyle}">
           ${bodyHTML}
         </div>
-        <div style="display:flex; justify-content:flex-end; gap:12px; padding-top:14px; border-top:1px solid #f1f5f9;">
+        <div style="display:flex; justify-content:flex-end; gap:12px; padding-top:14px; border-top:1px solid #f1f5f9;${shellFlex ? 'flex:0 0 auto;' : ''}">
           ${showCancel ? `<button id="modal-cancel-btn" class="btn-secondary" style="padding:10px 20px;">${cancelLabel}</button>` : ''}
           ${onConfirm ? `<button id="modal-confirm-btn" class="btn-primary" style="width:auto; padding:10px 24px; background:#0066cc;">${confirmLabel}</button>` : ''}
         </div>
@@ -42,20 +66,42 @@ export function openModal(title, bodyHTML, onConfirm = null, options = {}) {
     </div>
   `
 
-  const closeModal = () => {
+  const close = (reason = 'close') => {
+    // Chỉ đóng nếu đây vẫn là modal đang active (tránh xoá modal khác vừa mở).
+    if (activeModalHooks?.token !== token) return
+    // Hook chặn đóng (vd: đang ghi tiền thì không cho huỷ bằng tay).
+    if (typeof beforeClose === 'function' && beforeClose(reason) === false) return
+    activeModalHooks = null
     container.innerHTML = ''
     document.body.classList.remove('modal-open')
+    if (reason === 'cancel') onCancel?.()
+    onClose?.(reason)
   }
 
-  document.getElementById('modal-close-btn')?.addEventListener('click', closeModal)
-  document.getElementById('modal-cancel-btn')?.addEventListener('click', closeModal)
-  document.getElementById('active-modal-backdrop')?.addEventListener('click', closeModal)
+  document.getElementById('modal-close-btn')?.addEventListener('click', () => close('cancel'))
+  document.getElementById('modal-cancel-btn')?.addEventListener('click', () => close('cancel'))
+  document.getElementById('active-modal-backdrop')?.addEventListener('click', () => close('cancel'))
 
   if (onConfirm) {
-    document.getElementById('modal-confirm-btn')?.addEventListener('click', async () => {
-      const result = await onConfirm()
-      if (result !== false) {
-        closeModal()
+    const confirmBtn = document.getElementById('modal-confirm-btn')
+    confirmBtn?.addEventListener('click', async () => {
+      // Chống double-click: bỏ qua khi nút đang bị khoá (request trước chưa xong).
+      if (confirmBtn.disabled) return
+      const originalHtml = confirmBtn.innerHTML
+      confirmBtn.disabled = true
+      try {
+        const result = await onConfirm()
+        if (result === false) {
+          // Handler báo lỗi -> mở lại nút để người dùng thử lại.
+          confirmBtn.disabled = false
+          confirmBtn.innerHTML = originalHtml
+        } else {
+          close('confirm')
+        }
+      } catch (err) {
+        console.error('[modal] Lỗi trong handler xác nhận:', err)
+        confirmBtn.disabled = false
+        confirmBtn.innerHTML = originalHtml
       }
     })
   }
@@ -67,6 +113,9 @@ export function closeModal() {
     container.innerHTML = ''
   }
   document.body.classList.remove('modal-open')
+  const hooks = activeModalHooks
+  activeModalHooks = null
+  hooks?.onClose?.('close')
 }
 
 // Make openModal and closeModal globally accessible on window for direct inline invocation

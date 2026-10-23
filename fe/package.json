@@ -8,8 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:zero-balance": "node scripts/test-zero-balance.mjs",
+    "test:topup": "node scripts/test-topup.mjs",
     "test:diagrams": "node scripts/test-diagrams.mjs",
-    "test": "node scripts/test-zero-balance.mjs && node scripts/test-diagrams.mjs"
+    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.0"

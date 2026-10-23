@@ -23,9 +23,10 @@ import {
 import { renderBBT } from './bbt.js'
 import { renderGraph } from './graph.js'
 import { renderGeo3D, renderLegacyGeo3D } from './geometry3d.js'
-import { errorBox } from './svg.js'
+import { diagramWrap, errorBox } from './svg.js'
+import { validateSpatial, renderSpatial } from './spatial.js'
 
-export const DIAGRAM_TYPES = ['bbt', 'graph', 'geo3d']
+export const DIAGRAM_TYPES = ['bbt', 'graph', 'geo3d', 'axes3d', 'sphere3d']
 
 /**
  * Biên dịch một khối hình.
@@ -38,7 +39,7 @@ export function compileDiagram(type, code, ctx = {}) {
   const diagnostics = []
 
   if (!DIAGRAM_TYPES.includes(kind)) {
-    diagnostics.push(makeDiagnostic('error', 'UNKNOWN_DIAGRAM_TYPE', `Loại khối hình "${type}" không được hỗ trợ (bbt, graph, geo3d).`, null, ctx.line ?? null))
+    diagnostics.push(makeDiagnostic('error', 'UNKNOWN_DIAGRAM_TYPE', `Loại khối hình "${type}" không được hỗ trợ (bbt, graph, geo3d, axes3d, sphere3d).`, null, ctx.line ?? null))
     return { ok: false, model: null, svg: '', diagnostics }
   }
 
@@ -76,7 +77,7 @@ export function compileDiagram(type, code, ctx = {}) {
       return { ok: false, model: null, svg: '', diagnostics }
     }
     const res = kind === 'bbt' ? validateBbtV2(raw)
-      : (kind === 'graph' ? validateGraphV2(raw) : validateGeo3dV2(raw))
+      : (kind === 'graph' ? validateGraphV2(raw) : (kind === 'geo3d' ? validateGeo3dV2(raw) : validateSpatial(raw, kind)))
     diagnostics.push(...res.diagnostics)
     model = res.model
   } else {
@@ -96,6 +97,7 @@ export function compileDiagram(type, code, ctx = {}) {
     if (kind === 'bbt') svg = renderBBT(model, ctx.uid ?? 0, renderDiagnostics)
     else if (kind === 'graph') svg = renderGraph(model, ctx.uid ?? 0, renderDiagnostics)
     else if (model.kind === 'geo3d-legacy') svg = renderLegacyGeo3D(model, ctx.uid ?? 0, renderDiagnostics)
+    else if (kind === 'axes3d' || kind === 'sphere3d') svg = renderSpatial(model)
     else svg = renderGeo3D(model, ctx.uid ?? 0, renderDiagnostics)
   } catch (err) {
     diagnostics.push(makeDiagnostic(

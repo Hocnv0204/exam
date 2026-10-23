@@ -686,10 +686,11 @@ function readBound(value, field, diagnostics, fallback) {
  * GEO3D — version 2
  * ================================================================== */
 
-const GEO_KEYS = ['version', 'points', 'constructions', 'edges', 'rightAngles', 'camera', 'visibility', 'labels']
+const GEO_KEYS = ['version', 'points', 'constructions', 'edges', 'rightAngles', 'camera', 'visibility', 'faces', 'labels']
 const GEO_CAMERA_KEYS = ['projection', 'eye', 'target', 'up']
 const GEO_CONSTRUCTION_KEYS = ['id', 'op', 'args']
-const GEO_EDGE_KEYS = ['ends', 'style']
+const GEO_EDGE_KEYS = ['ends', 'style', 'kind']
+const GEO_FACE_KEYS = ['id', 'vertices']
 
 export const CONSTRUCTION_SPECS = Object.freeze({
   mid: { arity: 2, label: 'trung điểm' },
@@ -708,6 +709,7 @@ export function validateGeo3dV2(raw) {
     version: 2,
     points: {},
     pointOrder: [],
+    faces: [],
     edges: [],
     rightAngles: [],
     camera: null,
@@ -810,6 +812,109 @@ export function validateGeo3dV2(raw) {
   model.points = resolved.points
   model.pointOrder = Object.keys(resolved.points)
 
+  // ---- visibility (đọc sớm vì chẩn đoán cạnh phụ thuộc chế độ) ----
+  if (raw.visibility !== undefined) {
+    if (raw.visibility !== 'manual' && raw.visibility !== 'auto') {
+      diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_VISIBILITY', '"visibility" chỉ nhận "manual" hoặc "auto".', 'visibility'))
+    } else {
+      model.visibility = raw.visibility
+    }
+  }
+
+  // ---- faces ----
+  const faces = []
+  if (raw.faces !== undefined) {
+    if (!Array.isArray(raw.faces)) {
+      diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_FACE', '"faces" phải là mảng.', 'faces'))
+    } else {
+      const seenFaceIds = new Set()
+      raw.faces.forEach((f, fi) => {
+        const field = `faces[${fi}]`
+        if (!isPlainObject(f)) {
+          diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_FACE', 'Mỗi mặt phải là object.', field))
+          return
+        }
+        checkUnknownKeys(f, GEO_FACE_KEYS, 'GEO3D_V2_UNKNOWN_KEY', diagnostics, `${field}.`)
+        if (typeof f.id !== 'string' || !f.id.trim()) {
+          diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_FACE', 'Mặt cần "id" (tên định danh duy nhất).', `${field}.id`))
+          return
+        }
+        const fid = f.id.trim()
+        if (seenFaceIds.has(fid)) {
+          diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_DUPLICATE_ID', `ID mặt "${fid}" bị trùng.`, `${field}.id`))
+          return
+        }
+        seenFaceIds.add(fid)
+        if (!Array.isArray(f.vertices)) {
+          diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_FACE', 'Mặt cần "vertices" là mảng các ID đỉnh theo thứ tự.', `${field}.vertices`))
+          return
+        }
+        const ids = f.vertices.map(v => (typeof v === 'string' ? v.trim() : String(v)))
+        const missing = ids.filter(id => !model.points[id])
+        if (missing.length) {
+          diagnostics.push(makeDiagnostic(
+            'error', 'GEO3D_V2_BAD_FACE',
+            `Mặt "${fid}" tham chiếu đỉnh không tồn tại: ${missing.join(', ')}.`,
+            `${field}.vertices`
+          ))
+          return
+        }
+        if (ids.length < 3) {
+          diagnostics.push(makeDiagnostic(
+            'error', 'GEO3D_V2_BAD_FACE',
+            `Mặt "${fid}" cần ít nhất 3 đỉnh (hiện có ${ids.length}).`,
+            `${field}.vertices`
+          ))
+          return
+        }
+        if (new Set(ids).size !== ids.length) {
+          diagnostics.push(makeDiagnostic(
+            'error', 'GEO3D_V2_BAD_FACE',
+            `Mặt "${fid}" có đỉnh trùng nhau trong danh sách vertices.`,
+            `${field}.vertices`
+          ))
+          return
+        }
+        const geo = analyzeFaceGeometry(ids.map(id => model.points[id]))
+        if (geo.kind === 'degenerate') {
+          diagnostics.push(makeDiagnostic(
+            'error', 'GEO3D_V2_BAD_FACE',
+            `Mặt "${fid}" suy biến (các đỉnh thẳng hàng hoặc trùng nhau).`,
+            `${field}.vertices`
+          ))
+          return
+        }
+        if (geo.kind === 'non-planar') {
+          diagnostics.push(makeDiagnostic(
+            'error', 'GEO3D_V2_NON_PLANAR_FACE',
+            `Mặt "${fid}" không phẳng (sai lệch ${geo.deviation.toPrecision(3)} > dung sai 1e-6). Cách sửa: chỉnh tọa độ về cùng một mặt phẳng hoặc tách thành nhiều mặt.`,
+            `${field}.vertices`
+          ))
+          return
+        }
+        if (geo.kind === 'non-convex') {
+          diagnostics.push(makeDiagnostic(
+            'error', 'GEO3D_V2_NON_CONVEX_FACE',
+            `Mặt "${fid}" phải là mặt lồi. Mặt lõm cần tách thành nhiều mặt lồi.`,
+            `${field}.vertices`
+          ))
+          return
+        }
+        faces.push({ id: fid, vertices: ids })
+      })
+    }
+  }
+  model.faces = faces
+
+  if (model.visibility === 'auto' && faces.length === 0) {
+    diagnostics.push(makeDiagnostic(
+      'error', 'GEO3D_V2_AUTO_NEEDS_FACES',
+      'Chế độ "visibility":"auto" bắt buộc khai báo "faces" (mỗi mặt gồm id và vertices là mảng đỉnh theo thứ tự).',
+      'faces'
+    ))
+    return { model: null, diagnostics }
+  }
+
   // ---- edges ----
   if (raw.edges !== undefined) {
     if (!Array.isArray(raw.edges)) {
@@ -835,12 +940,31 @@ export function validateGeo3dV2(raw) {
           diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_EDGE', `Cạnh [${u}, ${v}] có hai đầu trùng nhau.`, `${field}.ends`))
           return
         }
+        const kind = e.kind === undefined ? 'edge' : e.kind
+        if (kind !== 'edge' && kind !== 'auxiliary') {
+          diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_EDGE', '"kind" chỉ nhận "edge" hoặc "auxiliary".', `${field}.kind`))
+          return
+        }
         const style = e.style === undefined ? 'solid' : e.style
         if (style !== 'solid' && style !== 'dashed') {
           diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_EDGE', '"style" chỉ nhận "solid" hoặc "dashed".', `${field}.style`))
           return
         }
-        model.edges.push({ ends: [u, v], style })
+        if (model.visibility === 'manual' && e.style === undefined) {
+          diagnostics.push(makeDiagnostic(
+            'warning', 'GEO3D_V2_EDGE_STYLE_REQUIRED',
+            `Cạnh [${u}, ${v}] thiếu "style" trong chế độ manual: mặc định vẽ solid. Hãy khai báo "style": "solid" hoặc "dashed" rõ ràng.`,
+            `${field}.style`
+          ))
+        }
+        if (model.visibility === 'auto' && e.style !== undefined) {
+          diagnostics.push(makeDiagnostic(
+            'info', 'GEO3D_V2_EDGE_OVERRIDE',
+            `Cạnh [${u}, ${v}] khai báo "style"${kind === 'auxiliary' ? ' (kind "auxiliary")' : ''} trong chế độ auto: giá trị này được giữ như ghi đè thủ công khi renderer P1 chạy.`,
+            `${field}.style`
+          ))
+        }
+        model.edges.push({ ends: [u, v], style, kind, styleExplicit: e.style !== undefined })
       })
     }
   }
@@ -909,11 +1033,6 @@ export function validateGeo3dV2(raw) {
     } else {
       diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_CAMERA', cam.reason, 'camera'))
     }
-  }
-
-  // ---- visibility ----
-  if (raw.visibility !== undefined && raw.visibility !== 'manual') {
-    diagnostics.push(makeDiagnostic('error', 'GEO3D_V2_BAD_VISIBILITY', 'Giai đoạn này chỉ hỗ trợ "visibility": "manual".', 'visibility'))
   }
 
   // ---- labels ----
@@ -1042,6 +1161,92 @@ export function checkPerpendicular(a, v, b) {
     return { ok: false, reason: `cos góc = ${cos.toFixed(4)} ≠ 0 (góc không vuông).` }
   }
   return { ok: true }
+}
+
+/* ------------------------------------------------------------------ *
+ * Phân tích hình học một mặt (faces) — dùng cho schema geo3d P0
+ * ------------------------------------------------------------------ */
+
+/**
+ * Phân tích đa giác 3D gồm các đỉnh theo thứ tự:
+ *  - { kind:'degenerate' }: có đỉnh trùng nhau hoặc các đỉnh thẳng hàng (không có diện tích).
+ *  - { kind:'non-planar', deviation }: có đỉnh lệch khỏi mặt phẳng của các đỉnh đầu.
+ *  - { kind:'non-convex' }: đa giác phẳng nhưng lõm (cần tách thành nhiều mặt lồi).
+ *  - { kind:'ok' }: đa giác phẳng lồi.
+ *
+ * Dung sai: tuyệt đối 1e-6, nới theo độ lớn tọa độ (1e-9 * extent) để tránh nhiễu số.
+ */
+export function analyzeFaceGeometry(P) {
+  const n = P.length
+  if (n < 3) return { kind: 'degenerate' }
+  let extent = 1
+  for (const p of P) for (const c of p) extent = Math.max(extent, Math.abs(c))
+  const tol = Math.max(1e-6, 1e-9 * extent)
+
+  // 1) đỉnh trùng nhau
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (vLen(vSub(P[i], P[j])) <= tol) return { kind: 'degenerate' }
+    }
+  }
+
+  // 2) pháp tuyến từ bộ ba đầu không thẳng hàng
+  let normal = null
+  let nLen = 0
+  for (let i = 1; i < n - 1; i++) {
+    const nr = vCross(vSub(P[i], P[0]), vSub(P[i + 1], P[0]))
+    const len = vLen(nr)
+    const ref = vLen(vSub(P[i + 1], P[0])) * vLen(vSub(P[i], P[0]))
+    if (len > 1e-9 * Math.max(1, ref)) {
+      normal = nr
+      nLen = len
+      break
+    }
+  }
+  if (!normal) return { kind: 'degenerate' }
+  const nUnit = [normal[0] / nLen, normal[1] / nLen, normal[2] / nLen]
+
+  // 3) độ phẳng: mọi đỉnh phải nằm trên mặt phẳng qua P[0] có pháp tuyến nUnit
+  let deviation = 0
+  for (let i = 0; i < n; i++) {
+    deviation = Math.max(deviation, Math.abs(vDot(vSub(P[i], P[0]), nUnit)))
+  }
+  if (deviation > tol) return { kind: 'non-planar', deviation }
+
+  // 4) tính lồi: chiếu lên hệ trục 2D của mặt phẳng rồi xét dấu tích có hướng
+  // uHướng từ cạnh đầu tiên tìm được pháp tuyến (P[0], P[i], P[i+1])
+  let axis = null
+  for (let i = 1; i < n - 1; i++) {
+    const u = vSub(P[i], P[0])
+    if (vLen(u) > tol) {
+      axis = { i, u: [u[0] / vLen(u), u[1] / vLen(u), u[2] / vLen(u)] }
+      break
+    }
+  }
+  if (!axis) return { kind: 'degenerate' }
+  const vDir = vCross(nUnit, axis.u)
+  const coords = P.map(p => {
+    const d = vSub(p, P[0])
+    return [vDot(d, axis.u), vDot(d, vDir)]
+  })
+
+  let minCross = Infinity
+  let maxCross = -Infinity
+  for (let i = 0; i < n; i++) {
+    const a = coords[i]
+    const b = coords[(i + 1) % n]
+    const c = coords[(i + 2) % n]
+    const e1x = b[0] - a[0]
+    const e1y = b[1] - a[1]
+    const e2x = c[0] - b[0]
+    const e2y = c[1] - b[1]
+    const cr = e1x * e2y - e1y * e2x
+    minCross = Math.min(minCross, cr)
+    maxCross = Math.max(maxCross, cr)
+  }
+  // Dấu lẫn lộn (vượt quá dung sai) ⇒ đa giác lõm; góc 180° (cr≈0) được chấp nhận.
+  if (minCross < -tol && maxCross > tol) return { kind: 'non-convex' }
+  return { kind: 'ok', normal: nUnit }
 }
 
 /* ------------------------------------------------------------------ *

@@ -1,12 +1,15 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { openModal, closeModal } from '../components/modal.js'
+import { openTopupModal, isTopupModalOpen } from '../components/topup-modal.js'
+import { showToast } from '../components/toast.js'
 import { api } from '../api.js'
 import { state } from '../state.js'
 import {
   ZERO_BALANCE_PAGE_SIZE,
   parseZeroBalanceCount,
   computeZeroBalancePagination,
+  needsZeroBalancePageReload,
   renderZeroBalanceSkeleton,
   renderZeroBalanceTable,
   renderZeroBalanceEmpty,
@@ -56,6 +59,15 @@ const zeroBalanceState = {
 let zeroBalanceListReqId = 0
 let zeroBalanceListAbortController = null
 let zeroBalanceListPage = 1
+let zeroBalanceListItems = []      // items của trang đang hiển thị (dùng cho modal nạp nhanh)
+let zeroBalanceTopupOpen = false   // modal nạp nhanh đang mở -> chặn mở chồng
+let zeroBalanceViewActive = false   // dashboard đang được mount (chống mở modal sau khi đổi route)
+
+/** Route hiện tại có còn là dashboard quản trị không? */
+function isAdminDashboardRoute() {
+  const hash = (window.location.hash || '').replace(/^#/, '')
+  return hash.split('?')[0] === 'admin-dashboard'
+}
 
 /** Đồng bộ số đếm hiển thị trên ô thống kê (loading / số / lỗi + thử lại). */
 function renderZeroBalanceCard() {
@@ -122,18 +134,23 @@ async function refreshZeroBalanceCount() {
 /** Cập nhật tiêu đề modal khi tổng số thay đổi giữa 2 request. */
 function updateZeroBalanceModalTitle(count) {
   const titleEl = document.querySelector('#modal-container .modal-content h3')
-  if (titleEl && String(titleEl.textContent || '').startsWith('Học sinh có số dư 0 đ')) {
-    titleEl.textContent = `Học sinh có số dư 0 đ (${count})`
+  if (titleEl && String(titleEl.textContent || '').startsWith('Học sinh cần đóng tiền')) {
+    titleEl.textContent = `Học sinh cần đóng tiền (${count})`
   }
 }
 
-/** Đóng popup số dư 0 đ + huỷ request đang chạy (tránh response đến muộn ghi đè). */
-function closeZeroBalanceModal() {
+/** Huỷ request danh sách đang bay (tránh response đến muộn ghi đè). */
+function abortZeroBalanceListRequest() {
   zeroBalanceListReqId++ // vô hiệu hoá response đang bay
   if (zeroBalanceListAbortController) {
     try { zeroBalanceListAbortController.abort() } catch (e) { /* ignore */ }
     zeroBalanceListAbortController = null
   }
+}
+
+/** Đóng popup số dư 0 đ + huỷ request đang chạy (tránh response đến muộn ghi đè). */
+function closeZeroBalanceModal() {
+  abortZeroBalanceListRequest()
   if (document.getElementById('zero-balance-modal-content')) {
     closeModal()
   }
@@ -174,11 +191,22 @@ async function loadZeroBalancePage(page = 1) {
     const total = Number.isFinite(Number(payload?.total)) && Number(payload?.total) >= 0
       ? Number(payload.total)
       : items.length
+    const requestedPage = Number(payload?.page) || zeroBalanceListPage
     const pagination = computeZeroBalancePagination({
-      page: Number(payload?.page) || zeroBalanceListPage,
+      page: requestedPage,
       pageSize: Number(payload?.pageSize) || ZERO_BALANCE_PAGE_SIZE,
       total
     })
+
+    // Trang đang xem nằm ngoài trang cuối (vd: học sinh vừa nạp tiền => rời khỏi danh sách)
+    // -> tải lại trang hợp lệ gần nhất (kẹp trang cuối rỗng).
+    if (needsZeroBalancePageReload({
+      requestedPage,
+      total: pagination.total,
+      itemCount: items.length
+    })) {
+      return loadZeroBalancePage(pagination.currentPage)
+    }
 
     // Đồng bộ lại ô đếm nếu số liệu thay đổi giữa 2 request
     if (zeroBalanceState.status === 'ready' && zeroBalanceState.count !== pagination.total) {
@@ -191,6 +219,7 @@ async function loadZeroBalancePage(page = 1) {
     const currentPaginationEl = document.getElementById('zero-balance-modal-pagination')
     if (!currentListEl) return
 
+    zeroBalanceListItems = items
     currentListEl.innerHTML = items.length > 0
       ? renderZeroBalanceTable(items, { page: pagination.currentPage, pageSize: pagination.pageSize })
       : renderZeroBalanceEmpty()
@@ -213,19 +242,30 @@ async function loadZeroBalancePage(page = 1) {
 }
 
 /** Mở popup danh sách học sinh có số dư 0 đ. */
-function openZeroBalanceModal() {
+function openZeroBalanceModal({ page = 1 } = {}) {
   const countLabel = zeroBalanceState.status === 'ready' ? ` (${zeroBalanceState.count ?? 0})` : ''
 
   openModal(
-    `Học sinh có số dư 0 đ${countLabel}`,
+    `Học sinh cần đóng tiền${countLabel}`,
     `
-      <div id="zero-balance-modal-content">
-        <div id="zero-balance-modal-list">${renderZeroBalanceSkeleton()}</div>
-        <div id="zero-balance-modal-pagination"></div>
+      <div id="zero-balance-modal-content" style="flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden;">
+        <div id="zero-balance-modal-list" tabindex="0" role="region" aria-label="Danh sách học sinh cần đóng tiền" style="flex:1 1 auto; min-height:0; max-height:min(60vh, 520px); overflow-y:auto; overflow-x:hidden; padding-right:6px; scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent; -webkit-overflow-scrolling:touch;">${renderZeroBalanceSkeleton()}</div>
+        <div id="zero-balance-modal-pagination" style="flex:0 0 auto;"></div>
       </div>
     `,
     null,
-    { cancelLabel: 'Đóng', contentStyle: 'max-width: 960px;' }
+    {
+      cancelLabel: 'Đóng',
+      // Bố cục đặt bằng INLINE STYLE để không phụ thuộc file CSS ngoài:
+      // vỏ modal không cuộn (overflow:hidden) => thanh cuộn nằm trong vùng padding
+      // nên không cắt bo góc; chỉ danh sách cuộn, header/footer/phân trang cố định.
+      contentStyle: 'max-width: 720px; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 40px);',
+      bodyStyle: 'flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden;',
+      // Vỏ modal là flex column => header/footer giữ nguyên kích thước, không bị bóp méo
+      shellFlex: true,
+      // Class riêng (nếu CSS đã cập nhật thì dùng thêm các quy tắc mở rộng)
+      contentClass: 'zb-popup'
+    }
   )
 
   // 1 lần gắn listener (event delegation) => không nhân đôi khi đổi trang
@@ -238,13 +278,80 @@ function openZeroBalanceModal() {
       return
     }
 
+    // Nút "Nạp nhanh" cho từng học sinh trong danh sách
+    const topupBtn = e.target.closest('[data-zb-topup]')
+    if (topupBtn) {
+      const studentId = topupBtn.getAttribute('data-zb-topup')
+      const student = zeroBalanceListItems.find(s => s.id === studentId)
+      if (student) {
+        openZeroBalanceTopup(student)
+      } else {
+        showToast('Không tìm thấy thông tin học sinh trong danh sách!', 'error')
+      }
+      return
+    }
+
     if (e.target.closest('[data-zb-retry]')) {
       loadZeroBalancePage(zeroBalanceListPage || 1)
     }
   })
 
   // Luôn tải lại danh sách mỗi lần mở popup
-  loadZeroBalancePage(1)
+  loadZeroBalancePage(page)
+}
+
+/**
+ * Quay lại popup danh sách sau khi đóng modal nạp tiền (huỷ hoặc thành công).
+ * - Giữ nguyên trang đang xem.
+ * - Không mở lại nếu đã đổi route (dashboard không còn được mount).
+ */
+function restoreZeroBalanceList() {
+  if (!zeroBalanceViewActive) return
+  if (!isAdminDashboardRoute()) return
+  if (!document.getElementById('dash-zero-balance-card')) return
+
+  openZeroBalanceModal({ page: zeroBalanceListPage || 1 })
+}
+
+/**
+ * Mở modal nạp nhanh cho 1 học sinh trong popup "học sinh có số dư 0 đ".
+ *
+ * - Dùng chung modal nạp tiền của hệ thống (components/topup-modal.js) để không
+ *   lặp lại nghiệp vụ nạp / gạch nợ học phí (BE tự gạch nợ qua fn_add_student_balance).
+ * - Chỉ 1 modal tại 1 thời điểm: mở modal nạp sẽ thay thế nội dung popup danh sách,
+ *   sau đó (huỷ hoặc nạp xong) quay lại danh sách ở đúng trang đang xem.
+ */
+function openZeroBalanceTopup(student) {
+  if (!student?.id) return
+  if (zeroBalanceTopupOpen) return // modal nạp đang mở -> bỏ qua click lần 2
+
+  // Huỷ request danh sách đang bay (tránh response ghi đè sau khi mở modal nạp)
+  abortZeroBalanceListRequest()
+
+  zeroBalanceTopupOpen = true
+
+  const topupHandle = openTopupModal({
+    student,
+    studentId: student.id,
+    title: `Nạp nhanh cho ${student.fullName || student.username || 'học sinh'}`,
+    confirmLabel: 'Nạp tiền',
+    cancelLabel: 'Huỷ',
+    amountLabel: 'Số tiền cần nạp (VND)',
+    // Dashboard không hiển thị state.students => không cần tải lại danh sách học sinh
+    syncStudentList: false,
+    onClose: () => {
+      zeroBalanceTopupOpen = false
+      // Quay lại danh sách (giữ nguyên trang) sau khi modal nạp đã đóng.
+      // Danh sách + ô đếm được tải lại => tự động bỏ học sinh vừa nạp và cập nhật số liệu.
+      restoreZeroBalanceList()
+    }
+  })
+
+  // Bị chặn (vd học sinh này đang có request nạp chưa xong) => modal không mở,
+  // phải nhả cờ "đang mở" để lần bấm sau vẫn dùng được.
+  if (!topupHandle) {
+    zeroBalanceTopupOpen = false
+  }
 }
 
 // Hook để các màn khác (nạp tiền / sửa số dư / tạo / xoá học sinh) làm mới
@@ -258,8 +365,17 @@ if (typeof window !== 'undefined') {
 
   // Đóng popup khi đổi route (tránh response đến muộn ghi đè modal khác)
   window.addEventListener('hashchange', () => {
+    zeroBalanceViewActive = false
+    zeroBalanceTopupOpen = false
+
     if (document.getElementById('zero-balance-modal-content')) {
       closeZeroBalanceModal()
+      return
+    }
+
+    // Modal nạp nhanh đang mở khi đổi route -> đóng lại (không quay về danh sách)
+    if (isTopupModalOpen()) {
+      closeModal()
     }
   })
 }
@@ -541,7 +657,7 @@ export function renderAdminDashboardView() {
                 class="dash-kpi-card"
                 role="button"
                 tabindex="0"
-                aria-label="Xem danh sách học sinh có số dư 0 đ"
+                aria-label="Xem danh sách học sinh cần đóng tiền"
                 style="cursor:pointer; text-align:left;"
               >
                 <div class="dash-kpi-top">
@@ -553,7 +669,7 @@ export function renderAdminDashboardView() {
                   </span>
                 </div>
                 <div>
-                  <div class="dash-kpi-label">Học sinh có số dư 0 đ</div>
+                  <div class="dash-kpi-label">Học sinh cần đóng tiền</div>
                   <div class="dash-kpi-value" id="dash-zero-balance-value">…</div>
                   <div class="dash-kpi-subtext" id="dash-zero-balance-subtext">
                     <i class="fa-solid fa-spinner fa-spin"></i> Đang tải số liệu...
@@ -1138,6 +1254,9 @@ function renderStudentAttendanceTable() {
 
 export function bindAdminDashboardEvents() {
   bindSidebarEvents()
+
+  // Dashboard đang được mount => cho phép mở lại popup danh sách sau khi đóng modal nạp
+  zeroBalanceViewActive = true
 
   // Initial render of Student Attendance & Tuition Table
   renderStudentAttendanceTable()

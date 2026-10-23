@@ -1,6 +1,7 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { openModal } from '../components/modal.js'
+import { openTopupModal } from '../components/topup-modal.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
@@ -434,109 +435,50 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
-export function showAddBalanceModal(studentId) {
+/**
+ * Cập nhật số dư học sinh trong state cục bộ của màn "Quản lý học sinh".
+ * Dùng chung cho mọi luồng nạp tiền (kể cả khi modal nạp được mở từ màn khác).
+ */
+export function applyStudentBalanceLocally(studentId, newBalance) {
   const student = state.students.find(s => s.id === studentId)
+  if (student) student.balance = newBalance
+
+  if (filteredStudents !== null) {
+    const item = filteredStudents.find(s => s.id === studentId)
+    if (item) item.balance = newBalance
+  }
+}
+
+/**
+ * Mở modal nạp học phí (thêm số dư).
+ *
+ * Dùng chung modal nạp tiền của hệ thống (components/topup-modal.js) để không
+ * lặp lại nghiệp vụ nạp/gạch nợ học phí.
+ *
+ * options (tuỳ chọn, backwards compatible):
+ * - student: object học sinh dùng khi học sinh không có trong state.students
+ * - onSuccess / onCancel / onClose: callback vòng đời
+ */
+export function showAddBalanceModal(studentId, options = {}) {
+  const student = options.student || state.students.find(s => s.id === studentId)
   if (!student) {
     showToast('Không tìm thấy thông tin học sinh!', 'error')
     return
   }
 
-  const modalHTML = `
-    <form id="add-balance-modal-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:16px;">
-      <div style="font-size:14px; color:#334155; margin-bottom:8px;">
-        Học sinh: <strong style="color:#0f172a;">${escapeHtml(student.fullName)}</strong><br/>
-        Số dư hiện tại: <strong style="color:#10b981; font-size:16px;">${(student.balance || 0).toLocaleString('vi-VN')} đ</strong>
-      </div>
-      <div>
-        <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
-          Số tiền cần nạp (VND) <span style="color:#ef4444;">*</span>
-        </label>
-        <input type="text" id="modal-add-balance-amount" class="form-input" placeholder="Ví dụ: 500,000" required oninput="let v = this.value.replace(/[^0-9]/g, ''); this.value = v ? new Intl.NumberFormat('en-US').format(v) : ''">
-      </div>
-    </form>
-  `
-
-  openModal('Nạp Học Phí (Thêm Số Dư)', modalHTML, async () => {
-    const amountVal = document.getElementById('modal-add-balance-amount')?.value.trim() || ''
-    const amount = parseInt(amountVal.replace(/,/g, ''), 10)
-
-    if (!amount || isNaN(amount) || amount <= 0) {
-      showToast('Vui lòng nhập số tiền hợp lệ lớn hơn 0!', 'error')
-      return false
-    }
-
-    try {
-      showToast('Đang nạp tiền...', 'info')
-      const result = await api.addStudentBalance(studentId, amount)
-
-      // Fe call lại API để cập nhật danh sách học sinh mới nhất từ BE
-      try {
-        const updatedStudents = await api.getStudents({}, { silent: true })
-        if (updatedStudents && Array.isArray(updatedStudents)) {
-          state.students = updatedStudents
-        }
-      } catch (err) {
-        console.warn('Lỗi khi cập nhật lại danh sách học sinh:', err)
-      }
-
-      // Cập nhật lại thông tin student trong state cục bộ
-      const freshStudent = state.students.find(s => s.id === studentId) || student
-      const newBalance = (result && result.balance !== undefined)
-        ? result.balance
-        : (freshStudent ? freshStudent.balance : ((student.balance || 0) + amount))
-
-      student.balance = newBalance
-      if (freshStudent) freshStudent.balance = newBalance
-
-      if (filteredStudents !== null) {
-        const item = filteredStudents.find(s => s.id === studentId)
-        if (item) item.balance = newBalance
-      }
-
-      if (window._refreshStudentMgmtTable) {
-        window._refreshStudentMgmtTable(false)
-      } else {
-        const searchInput = document.getElementById('student-search-input')
-        searchInput?.dispatchEvent(new Event('input'))
-      }
-
-      if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab(studentId, newBalance)
-      }
-
-      let msg = `Nạp ${amount.toLocaleString('vi-VN')}đ thành công! Số dư mới: ${newBalance.toLocaleString('vi-VN')}đ`
-      if (result && result.paid_sessions_count > 0) {
-        msg += `\nĐã tự động trừ ${(result.total_deducted || 0).toLocaleString('vi-VN')}đ để thanh toán cho ${result.paid_sessions_count} buổi học.`
-      }
-      if (window.closeModal) window.closeModal()
-      showToast(msg, 'success')
-      // Nạp tiền làm thay đổi số học sinh có số dư 0 đ
-      window._invalidateZeroBalanceStats?.()
-      return true
-    } catch (err) {
-      // Demo mode
-      const newBalance = (student.balance || 0) + amount
-      student.balance = newBalance
-
-      if (filteredStudents !== null) {
-        const item = filteredStudents.find(s => s.id === studentId)
-        if (item) item.balance = newBalance
-      }
-
-      if (window._refreshStudentMgmtTable) {
-        window._refreshStudentMgmtTable(false)
-      } else {
-        const searchInput = document.getElementById('student-search-input')
-        searchInput?.dispatchEvent(new Event('input'))
-      }
-
-      if (window._refreshClassDetailsTab) {
-        window._refreshClassDetailsTab(studentId, newBalance)
-      }
-      if (window.closeModal) window.closeModal()
-      showToast(`Nạp ${amount.toLocaleString('vi-VN')}đ thành công! (Chế độ Demo)`, 'success')
-      return true
-    }
+  openTopupModal({
+    student,
+    studentId,
+    title: 'Nạp Học Phí (Thêm Số Dư)',
+    confirmLabel: 'Xác nhận',
+    cancelLabel: 'Hủy',
+    // Luồng cũ: khi API lỗi thì fallback chế độ demo (cập nhật số dư cục bộ).
+    demoFallback: true,
+    syncStudentList: true,
+    onBalanceApplied: applyStudentBalanceLocally,
+    onSuccess: options.onSuccess || null,
+    onCancel: options.onCancel || null,
+    onClose: options.onClose || null
   })
 }
 window.showAddBalanceModal = showAddBalanceModal

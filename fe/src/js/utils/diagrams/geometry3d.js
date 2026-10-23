@@ -3,8 +3,8 @@
  *
  * V2 (JSON version 2): dựng hình bằng TỌA ĐỘ TOÁN HỌC 3D, tính các điểm dựng
  * (trung điểm, trọng tâm, ratio, hình chiếu lên đường thẳng / mặt phẳng) trong
- * không gian rồi CHIẾU TRỰC GIAO (orthographic) ra 2D. Camera cố định, nét khuất
- * do người soạn chỉ định thủ công (visibility: manual).
+ * không gian rồi CHIẾU TRỰC GIAO (orthographic) ra 2D. Camera cố định; manual
+ * dùng style người soạn, auto dùng faces + depth test cho đa diện lồi.
  *
  * Legacy (key:value cũ): hình sơ đồ 2D với toạ độ pixel — KHÔNG phải dựng hình 3D
  * đúng, nên adapter phát cảnh báo rõ ràng.
@@ -16,6 +16,90 @@ import { vSub, vLen, vDot } from './schema.js'
 const WIDTH = 320
 const HEIGHT = 280
 const MARGIN = 26
+const VIS_TOL = 1e-7
+const vCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+const vAdd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+const vScale = (a, k) => [a[0] * k, a[1] * k, a[2] * k]
+const edgeKey = (a, b) => [a, b].sort().join('\u0000')
+
+function pointInPolygon(point, polygon) {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0]; const yi = polygon[i][1]
+    const xj = polygon[j][0]; const yj = polygon[j][1]
+    if (((yi > point[1]) !== (yj > point[1])) && point[0] < (xj - xi) * (point[1] - yi) / ((yj - yi) || 1e-15) + xi) inside = !inside
+  }
+  return inside
+}
+
+function prepareFaceInfos(model, camera, projection) {
+  const points = Object.values(model.points)
+  const center = points.reduce((sum, p) => vAdd(sum, p), [0, 0, 0]).map(v => v / Math.max(1, points.length))
+  return (model.faces || []).map(face => {
+    const vertices = face.vertices.map(id => model.points[id])
+    const p0 = vertices[0]
+    let normal = vCross(vSub(vertices[1], p0), vSub(vertices[2], p0))
+    const len = vLen(normal)
+    if (!(len > VIS_TOL)) return null
+    normal = vScale(normal, 1 / len)
+    if (vDot(normal, vSub(center, p0)) > 0) normal = vScale(normal, -1)
+    return {
+      id: face.id,
+      p0,
+      normal,
+      front: vDot(normal, vSub(camera.eye, p0)) > VIS_TOL,
+      polygon: vertices.map(p => projection.toPx(projectToPlane(camera, p)))
+    }
+  }).filter(Boolean)
+}
+
+function isOccluded(point, info, camera, projection) {
+  if (Math.abs(vDot(info.normal, vSub(point, info.p0))) <= 1e-6) return false
+  const denom = vDot(info.normal, camera.forward)
+  if (Math.abs(denom) <= VIS_TOL) return false
+  const t = vDot(info.normal, vSub(info.p0, camera.eye)) / denom
+  const depth = vDot(vSub(point, camera.eye), camera.forward)
+  if (!(t > VIS_TOL && t < depth - VIS_TOL)) return false
+  return pointInPolygon(projection.toPx(projectToPlane(camera, point)), info.polygon)
+}
+
+function makeFaceEdgeMap(model) {
+  const map = new Map()
+  for (const face of model.faces || []) {
+    for (let i = 0; i < face.vertices.length; i++) {
+      const key = edgeKey(face.vertices[i], face.vertices[(i + 1) % face.vertices.length])
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(face.id)
+    }
+  }
+  return map
+}
+
+function autoEdgeRuns(model, edge, infos, faceMap, camera, projection) {
+  const [u, v] = edge.ends
+  const a = model.points[u]; const b = model.points[v]
+  const adjacent = faceMap.get(edgeKey(u, v)) || []
+  const infoById = new Map(infos.map(info => [info.id, info]))
+  const stateAt = (t) => {
+    const p = vAdd(a, vScale(vSub(b, a), t))
+    if (adjacent.length) return adjacent.some(id => infoById.get(id)?.front)
+    return !infos.some(info => isOccluded(p, info, camera, projection))
+  }
+  const n = 32
+  const states = Array.from({ length: n + 1 }, (_, i) => stateAt(i / n))
+  const cuts = [0]
+  for (let i = 1; i <= n; i++) {
+    if (states[i] === states[i - 1]) continue
+    let lo = (i - 1) / n; let hi = i / n; const before = states[i - 1]
+    for (let k = 0; k < 14; k++) {
+      const mid = (lo + hi) / 2
+      if (stateAt(mid) === before) lo = mid; else hi = mid
+    }
+    cuts.push((lo + hi) / 2)
+  }
+  cuts.push(1)
+  return cuts.slice(0, -1).map((from, i) => ({ from, to: cuts[i + 1], visible: stateAt((from + cuts[i + 1]) / 2) }))
+}
 
 /* ------------------------------------------------------------------ *
  * Chiếu trực giao
@@ -71,7 +155,8 @@ export function renderGeo3D(model, uid, diagnostics = []) {
     return diagramWrap(`<svg width="${WIDTH}" height="${HEIGHT}"></svg>`)
   }
 
-  const { proj, toPx, scale } = buildProjection(camera, points)
+  const projection = buildProjection(camera, points)
+  const { proj, toPx, scale } = projection
   const px = (id) => {
     const q = proj[id]
     return q ? toPx(q) : [WIDTH / 2, HEIGHT / 2]
@@ -79,13 +164,26 @@ export function renderGeo3D(model, uid, diagnostics = []) {
 
   let svg = `<svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" style="background:#fff;border:1px solid #cbd5e1;border-radius:6px;max-width:100%;">`
 
-  // --- cạnh ---
+  // --- cạnh: manual giữ nguyên; auto dùng mặt + depth test và tách run ---
+  const faceInfos = model.visibility === 'auto' ? prepareFaceInfos(model, camera, projection) : []
+  const faceMap = model.visibility === 'auto' ? makeFaceEdgeMap(model) : new Map()
   model.edges.forEach(edge => {
     const [u, v] = edge.ends
-    const a = px(u)
-    const b = px(v)
-    const dash = edge.style === 'dashed' ? ' stroke-dasharray="5,4"' : ''
-    svg += `<line x1="${r2(a[0])}" y1="${r2(a[1])}" x2="${r2(b[0])}" y2="${r2(b[1])}" stroke="#0f172a" stroke-width="1.5"${dash}/>`
+    const a3 = points[u]; const b3 = points[v]
+    const drawRun = (from, to, visible) => {
+      const p1 = vAdd(a3, vScale(vSub(b3, a3), from))
+      const p2 = vAdd(a3, vScale(vSub(b3, a3), to))
+      const a = px(u); const b = px(v)
+      const q1 = from === 0 ? a : toPx(projectToPlane(camera, p1))
+      const q2 = to === 1 ? b : toPx(projectToPlane(camera, p2))
+      const dash = visible ? '' : ' stroke-dasharray="5,4"'
+      svg += `<line x1="${r2(q1[0])}" y1="${r2(q1[1])}" x2="${r2(q2[0])}" y2="${r2(q2[1])}" stroke="#0f172a" stroke-width="1.5"${dash}/>`
+    }
+    if (model.visibility !== 'auto' || edge.styleExplicit) {
+      drawRun(0, 1, edge.style !== 'dashed')
+    } else {
+      autoEdgeRuns(model, edge, faceInfos, faceMap, camera, projection).forEach(run => drawRun(run.from, run.to, run.visible))
+    }
   })
 
   // --- ký hiệu góc vuông ---

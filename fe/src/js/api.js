@@ -1,7 +1,9 @@
 import { state, logout, setSession } from './state.js'
 
 // Supabase URL from Vite environment variables (falls back to local dev URL)
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
+// Dùng `?.` để module này import được trong môi trường Node (unit test) khi
+// không có `import.meta.env` (Vite luôn cung cấp nên hành vi prod không đổi).
+export const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
 
 const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 
@@ -16,7 +18,7 @@ const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 // Override bằng VITE_SUPABASE_FUNCTION_REGION nếu project đổi region.
 // Ghi chú: khi chỉ định region, request sẽ KHÔNG được tự động chuyển vùng khi
 // region đó gặp sự cố (theo tài liệu Supabase).
-const FUNCTION_REGION = import.meta.env.VITE_SUPABASE_FUNCTION_REGION || 'ap-southeast-2'
+const FUNCTION_REGION = import.meta.env?.VITE_SUPABASE_FUNCTION_REGION || 'ap-southeast-2'
 
 let activeRequests = 0
 let loadingOverlay = null

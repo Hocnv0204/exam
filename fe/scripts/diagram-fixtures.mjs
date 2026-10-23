@@ -170,21 +170,61 @@ export const GEO3D_BOX = {
     edges: [
       { ends: ['A', 'B'], style: 'solid' },
       { ends: ['B', 'C'], style: 'solid' },
-      { ends: ['C', 'D'], style: 'solid' },
-      { ends: ['D', 'A'], style: 'solid' },
+      // Audit (GEO3D_VISIBILITY_SOLUTION.md §1): camera eye [8,-9,7] — mặt nhìn thấy
+      // là mặt trên, mặt trước ABB'A', mặt phải BCC'B'; CD và DA nằm sau ⇒ dashed.
+      { ends: ['C', 'D'], style: 'dashed' },
+      { ends: ['D', 'A'], style: 'dashed' },
       { ends: ["A'", "B'"], style: 'solid' },
       { ends: ["B'", "C'"], style: 'solid' },
       { ends: ["C'", "D'"], style: 'solid' },
-      { ends: ["D'", "A'"], style: 'dashed' },
+      // D'A' kề mặt trên (nhìn thấy) ⇒ solid; CC' kề mặt phải (nhìn thấy) ⇒ solid.
+      { ends: ["D'", "A'"], style: 'solid' },
       { ends: ['A', "A'"], style: 'solid' },
       { ends: ['B', "B'"], style: 'solid' },
-      { ends: ['C', "C'"], style: 'dashed' },
+      { ends: ['C', "C'"], style: 'solid' },
       { ends: ['D', "D'"], style: 'dashed' }
     ],
     rightAngles: [['A', 'B', 'C']],
     camera: { projection: 'orthographic', eye: [8, -9, 7], target: [1.5, 1, 2], up: [0, 0, 1] },
     visibility: 'manual',
     labels: { G: { offset: [6, 6] }, N: { offset: [4, -18] } }
+  }
+}
+
+/**
+ * Chóp S.ABCD khai báo faces và đường phụ, dùng visibility:"auto".
+ * P1: schema + renderer tự phân loại cạnh theo faces/camera; đường phụ có depth test.
+ * Đáy ABCD theo thứ tự A→B→C→D (khi nhìn từ dưới lên là ngược chiều kim, hợp lệ lồi).
+ */
+export const GEO3D_PYRAMID_AUTO = {
+  source: 'Fixture dựng riêng (GEO3D_VISIBILITY_SOLUTION.md §2)',
+  purpose: 'schema P0: faces + visibility auto + kind auxiliary — validate, chưa render',
+  oracle: 'faces gồm 4 mặt bên + đáy; đường phụ AH, AC có kind:"auxiliary"',
+  json: {
+    version: 2,
+    points: {
+      A: [0, 0, 0], B: [3, 0, 0], C: [3, 3, 0], D: [0, 3, 0], S: [0, 0, 4]
+    },
+    constructions: [
+      { id: 'O', op: 'mid', args: ['A', 'C'] },
+      { id: 'H', op: 'projectLine', args: ['A', 'S', 'B'] }
+    ],
+    faces: [
+      { id: 'SAB', vertices: ['S', 'A', 'B'] },
+      { id: 'SBC', vertices: ['S', 'B', 'C'] },
+      { id: 'SCD', vertices: ['S', 'C', 'D'] },
+      { id: 'SDA', vertices: ['S', 'D', 'A'] },
+      { id: 'ABCD', vertices: ['A', 'B', 'C', 'D'] }
+    ],
+    edges: [
+      { ends: ['S', 'A'] }, { ends: ['S', 'B'] }, { ends: ['S', 'C'] },
+      { ends: ['S', 'D'] }, { ends: ['A', 'B'] }, { ends: ['B', 'C'] },
+      { ends: ['C', 'D'] }, { ends: ['D', 'A'] },
+      { ends: ['A', 'H'], kind: 'auxiliary' },
+      { ends: ['A', 'C'], kind: 'auxiliary', style: 'dashed' }
+    ],
+    camera: { projection: 'orthographic', eye: [7, -10, 7], target: [1.5, 1.5, 2], up: [0, 0, 1] },
+    visibility: 'auto'
   }
 }
 

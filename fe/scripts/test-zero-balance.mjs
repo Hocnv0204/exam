@@ -10,6 +10,7 @@ import {
   escapeHtml,
   parseZeroBalanceCount,
   computeZeroBalancePagination,
+  needsZeroBalancePageReload,
   renderZeroBalanceSkeleton,
   renderZeroBalanceTable,
   renderZeroBalanceEmpty,
@@ -90,14 +91,25 @@ console.log('\n== FE: render bảng ==')
 {
   const html = renderZeroBalanceTable(items, { page: 1, pageSize: 20 })
   check('STT bắt đầu từ 1', html.includes('>1</td>'))
-  check('số dư hiển thị 0 đ', html.includes('0 đ'))
   check('tên chứa HTML được escape', html.includes('&lt;b&gt;Bold&lt;/b&gt;'))
   check('tên chứa nháy đơn được escape', html.includes('O&#039;Brien'))
   check('lớp chứa nháy kép được escape', html.includes('Lớp &quot;2&quot;'))
   check('không còn thẻ HTML thô từ dữ liệu', !html.includes('<b>Bold</b>'))
-  check('cột STT / Họ tên / Mã đăng nhập / Lớp học / Số dư / Trạng thái', html.includes('STT') && html.includes('Mã đăng nhập') && html.includes('Lớp học') && html.includes('Số dư') && html.includes('Trạng thái'))
-  check('trạng thái tạm khóa hiển thị', html.includes('Tạm khóa'))
-  check('trạng thái hoạt động hiển thị', html.includes('Hoạt động'))
+  check('chỉ 4 cột: STT / Họ tên / Lớp học / Nạp nhanh',
+    html.includes('STT') && html.includes('Họ tên') && html.includes('Lớp học') && html.includes('Nạp nhanh'))
+  check('không còn cột Mã đăng nhập', !html.includes('Mã đăng nhập'))
+  check('không còn cột Số dư', !html.includes('>Số dư<'))
+  check('không còn cột Trạng thái', !html.includes('>Trạng thái<'))
+  check('không hiện mã đăng nhập của học sinh', !html.includes('>an</td>'))
+  check('không hiện trạng thái tạm khóa', !html.includes('Tạm khóa'))
+  check('không hiện trạng thái hoạt động', !html.includes('Hoạt động'))
+
+  // Nút nạp nhanh: đúng 1 nút / học sinh, đúng id, tên được escape
+  const topupButtons = html.match(/data-zb-topup=/g) || []
+  eq('mỗi học sinh có đúng 1 nút nạp nhanh', topupButtons.length, items.length)
+  check('nút nạp nhanh mang id học sinh', html.includes('data-zb-topup="u1"') && html.includes('data-zb-topup="u2"'))
+  check('nút nạp nhanh mang tên đã escape', html.includes('data-zb-name="O&#039;Brien &lt;b&gt;Bold&lt;/b&gt;"'))
+  check('nút nạp nhanh không rò rỉ id vào attribute khác', !html.includes('data-zb-topup="u1" data-zb-name="<'))
 
   const page2 = renderZeroBalanceTable(items, { page: 2, pageSize: 20 })
   check('STT tiếp tục ở trang 2 (21)', page2.includes('>21</td>'))
@@ -113,6 +125,25 @@ console.log('\n== FE: trạng thái rỗng / lỗi / skeleton ==')
   check('error state hiện message (escaped)', renderZeroBalanceError('<b>lỗi</b>').includes('&lt;b&gt;lỗi&lt;/b&gt;'))
   check('skeleton có bảng', renderZeroBalanceSkeleton().includes('<table'))
   check('skeleton có ô đang tải', renderZeroBalanceSkeleton().includes('Đang tải danh sách học sinh'))
+  // Skeleton phải khớp số cột với bảng (4 cột) để không nhảy layout khi tải xong
+  const skeleton = renderZeroBalanceSkeleton()
+  eq('skeleton có đúng 4 cột', (skeleton.match(/<th /g) || []).length, 4)
+  eq('skeleton: mỗi dòng có đúng 4 ô', (skeleton.match(/<td/g) || []).length, 20)
+}
+
+console.log('\n== FE: kẹp trang khi trang cuối bị trống (sau khi nạp tiền) ==')
+{
+  check('trang cuối còn dữ liệu -> không cần tải lại',
+    needsZeroBalancePageReload({ requestedPage: 3, total: 45, itemCount: 5 }) === false)
+  check('trang vượt quá trang cuối và rỗng -> cần tải lại trang hợp lệ',
+    needsZeroBalancePageReload({ requestedPage: 3, total: 25, itemCount: 0 }) === true)
+  check('trang 1 rỗng nhưng còn học sinh -> hiện trạng thái rỗng, không tải lại',
+    needsZeroBalancePageReload({ requestedPage: 1, total: 25, itemCount: 0 }) === false)
+  check('không còn học sinh nào -> không tải lại',
+    needsZeroBalancePageReload({ requestedPage: 1, total: 0, itemCount: 0 }) === false)
+  // Trang cuối bị rút ngắn: học sinh cuối cùng vừa nạp tiền => rời khỏi danh sách
+  const p = computeZeroBalancePagination({ page: 3, total: 25 })
+  eq('trang hợp lệ sau khi kẹp = trang cuối', p.currentPage, 2)
 }
 
 console.log('\n== FE: thanh phân trang trong popup ==')

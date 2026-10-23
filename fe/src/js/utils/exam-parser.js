@@ -570,7 +570,7 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
     currentOption = null
   }
 
-  const FENCE_OPEN = /^```\s*(bbt|graph|geo3d|smiles)\s*$/i
+  const FENCE_OPEN = /^```\s*(bbt|graph|geo3d|axes3d|sphere3d|smiles)\s*$/i
   const FENCE_CLOSE = /^```\s*$/
   const isQuestionHeader = (text) => /^\[(?:Câu|Bài)\s*\d+\]/i.test(text) || /^(?:Câu|Bài)\s*\d+/.test(text)
 

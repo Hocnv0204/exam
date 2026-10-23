@@ -55,30 +55,41 @@ export function computeZeroBalancePagination({ page = 1, pageSize = ZERO_BALANCE
   }
 }
 
+/**
+ * Trang yêu cầu có nằm ngoài trang cuối không (dữ liệu bị rút ngắn sau khi nạp tiền)?
+ *
+ * Ví dụ: đang xem trang 3 (trang cuối) với 1 học sinh, nạp tiền xong học sinh đó
+ * rời khỏi danh sách => trang 3 trả về rỗng => phải lùi về trang hợp lệ.
+ *
+ * @returns {boolean} true nếu cần tải lại trang khác
+ */
+export function needsZeroBalancePageReload({ requestedPage = 1, total = 0, itemCount = 0 } = {}) {
+  if (Number(itemCount) > 0) return false
+  const pagination = computeZeroBalancePagination({ page: requestedPage, total })
+  if (pagination.total <= 0) return false
+  return pagination.currentPage < (Number(requestedPage) || 1)
+}
+
 /** Skeleton khi đang tải danh sách. */
 export function renderZeroBalanceSkeleton() {
   const rows = Array.from({ length: 5 }, () => `
     <tr>
       <td><span style="display:inline-block; width:24px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
-      <td><span style="display:inline-block; width:140px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
-      <td><span style="display:inline-block; width:90px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
-      <td><span style="display:inline-block; width:120px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
-      <td style="text-align:right;"><span style="display:inline-block; width:48px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
-      <td style="text-align:center;"><span style="display:inline-block; width:64px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
+      <td><span style="display:inline-block; width:150px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
+      <td><span style="display:inline-block; width:110px; height:12px; border-radius:4px; background:#e2e8f0;"></span></td>
+      <td style="text-align:center;"><span style="display:inline-block; width:84px; height:20px; border-radius:8px; background:#e2e8f0;"></span></td>
     </tr>
   `).join('')
 
   return `
     <div class="table-responsive">
-      <table class="data-table" style="font-size:13px; min-width:640px;">
+      <table class="data-table" style="font-size:13px; min-width:480px;">
         <thead>
           <tr>
             <th style="width:56px;">STT</th>
-            <th>Họ tên</th>
-            <th>Mã đăng nhập</th>
-            <th>Lớp học</th>
-            <th style="text-align:right;">Số dư</th>
-            <th style="text-align:center;">Trạng thái</th>
+            <th style="min-width:170px;">Họ tên</th>
+            <th style="min-width:140px;">Lớp học</th>
+            <th style="text-align:center; width:120px;">Nạp nhanh</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -90,42 +101,50 @@ export function renderZeroBalanceSkeleton() {
   `
 }
 
-/** Bảng danh sách học sinh (mỗi học sinh 1 dòng, số dư luôn 0 đ). */
+/** Nút "Nạp nhanh" cho 1 học sinh trong danh sách số dư 0 đ. */
+export function renderZeroBalanceTopupButton(item = {}) {
+  const studentId = escapeHtml(item?.id || '')
+  const fullName = escapeHtml(item?.fullName || item?.username || '')
+  return `
+    <button
+      type="button"
+      class="btn-secondary"
+      data-zb-topup="${studentId}"
+      data-zb-name="${fullName}"
+      title="Nạp nhanh cho ${fullName}"
+      style="width:auto; padding:5px 10px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:5px; color:#b45309; border-color:#fcd34d; background:#fffbeb; white-space:nowrap;"
+    >
+      <i class="fa-solid fa-bolt" style="font-size:10px;"></i> Nạp nhanh
+    </button>
+  `
+}
+
+/**
+ * Bảng danh sách học sinh số dư 0 đ.
+ * Chỉ 4 cột: STT · Họ tên · Lớp học · Nạp nhanh (mọi học sinh trong danh sách
+ * đều có số dư 0 đ nên không cần hiện cột số dư / mã đăng nhập / trạng thái).
+ */
 export function renderZeroBalanceTable(items = [], { page = 1, pageSize = ZERO_BALANCE_PAGE_SIZE } = {}) {
   const startIndex = (Math.max(1, Number(page) || 1) - 1) * pageSize
 
-  const rows = items.map((item, idx) => {
-    const isLocked = Boolean(item?.isLocked)
-    const balance = Number(item?.balance ?? 0)
-    const balanceText = `${Number.isFinite(balance) ? balance.toLocaleString('vi-VN') : '0'} đ`
-
-    const statusBadge = isLocked
-      ? `<span style="background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-lock" style="font-size:8px;"></i> Tạm khóa</span>`
-      : `<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle" style="font-size:6px;"></i> Hoạt động</span>`
-
-    return `
-      <tr>
-        <td style="color:#64748b; font-weight:600;">${startIndex + idx + 1}</td>
-        <td style="font-weight:700; color:#0f172a;">${escapeHtml(item?.fullName || '')}</td>
-        <td style="font-family:monospace; color:#334155;">${escapeHtml(item?.username || '')}</td>
-        <td style="color:#475569;">${escapeHtml(item?.className || 'Chưa phân lớp')}</td>
-        <td style="text-align:right; font-weight:700; color:#b45309;">${balanceText}</td>
-        <td style="text-align:center;">${statusBadge}</td>
-      </tr>
-    `
-  }).join('')
+  const rows = items.map((item, idx) => `
+    <tr>
+      <td style="color:#64748b; font-weight:600; vertical-align:middle;">${startIndex + idx + 1}</td>
+      <td style="font-weight:700; color:#0f172a; vertical-align:middle; word-break:break-word; min-width:170px;">${escapeHtml(item?.fullName || '')}</td>
+      <td style="color:#475569; vertical-align:middle; word-break:break-word; min-width:140px;">${escapeHtml(item?.className || 'Chưa phân lớp')}</td>
+      <td style="text-align:center; vertical-align:middle;">${renderZeroBalanceTopupButton(item)}</td>
+    </tr>
+  `).join('')
 
   return `
     <div class="table-responsive">
-      <table class="data-table" style="font-size:13px; min-width:640px;">
+      <table class="data-table" style="font-size:13px; min-width:480px;">
         <thead>
           <tr>
             <th style="width:56px;">STT</th>
-            <th>Họ tên</th>
-            <th>Mã đăng nhập</th>
-            <th>Lớp học</th>
-            <th style="text-align:right;">Số dư</th>
-            <th style="text-align:center;">Trạng thái</th>
+            <th style="min-width:170px;">Họ tên</th>
+            <th style="min-width:140px;">Lớp học</th>
+            <th style="text-align:center; width:120px;">Nạp nhanh</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>

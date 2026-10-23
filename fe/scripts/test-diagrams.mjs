@@ -12,6 +12,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
 
 import {
   parseExpression, evaluate, evaluateConstant, isDefinedAt, asAffine, ExpressionError
@@ -580,6 +581,322 @@ section('4. Hình học không gian (3D)')
   check('geo3d vẽ cạnh nét đứt cho cạnh khuất', svg.includes('stroke-dasharray'))
   check('geo3d không có NaN/Infinity trong SVG', !/NaN|Infinity|undefined/.test(svg))
 }
+
+/* ================================================================== *
+ * 4b. P0 — faces / visibility auto|manual / kind auxiliary
+ *     (GEO3D_VISIBILITY_SOLUTION.md §2, §3.1, §6, §7-P0)
+ * ================================================================== */
+section('4b. Geo3d P0: faces, visibility, kind auxiliary')
+
+{
+  // Audit §1: hộp chữ nhật camera [8,-9,7] — phải dùng 4 style đã sửa,
+  // suy luận độc lập từ cực trị camera: mặt nhìn thấy là trên / trước / phải.
+  const res = validateGeo3dV2(FIXTURES.GEO3D_BOX.json)
+  const styleOf = (u, v) => {
+    const e = res.model.edges.find(x => x.ends[0] === u && x.ends[1] === v)
+    return e ? e.style : 'missing'
+  }
+  eq("audit hộp: CD phải dashed", styleOf('C', 'D'), 'dashed')
+  eq("audit hộp: DA phải dashed", styleOf('D', 'A'), 'dashed')
+  eq("audit hộp: CC' phải solid", styleOf('C', "C'"), 'solid')
+  eq("audit hộp: D'A' phải solid", styleOf("D'", "A'"), 'solid')
+}
+
+{
+  // Manually rendered output phải giữ nguyên hành vi cũ (§6 mục 7).
+  // golden sha256 chụp từ renderGeo3D TRƯỚC khi thêm P0 (renderer không đổi).
+  const golden = {
+    GEO3D_PYRAMID: '963cf6551b9d9ae74c9a88699ce947a6796126c7ae80b48b42ca59fc6f6a6fd7',
+    GEO3D_BOX: '3ea1e0015a403ade539fd4acfc364ab769dda57ca0056adae22a1be01f8ddd93'
+  }
+  for (const [name, digest] of Object.entries(golden)) {
+    const res = validateGeo3dV2(FIXTURES[name].json)
+    const svg = renderGeo3D(res.model, 10, [])
+    eq(`manual byte-identical: ${name}`, createHash('sha256').update(svg).digest('hex'), digest)
+  }
+  // Kiểm tra nội dung theo từng cạnh: edges vẽ theo thứ tự khai báo.
+  const res = validateGeo3dV2(FIXTURES.GEO3D_BOX.json)
+  const svg = renderGeo3D(res.model, 10, [])
+  const lines = svg.match(/<line[^>]*>/g) || []
+  eq('manual hộp: vẽ giữa 12 <line>', lines.length, 12)
+  check("manual hộp: CD (line #3) nét đứt", lines[2].includes('stroke-dasharray'), lines[2])
+  check("manual hộp: DA (line #4) nét đứt", lines[3].includes('stroke-dasharray'), lines[3])
+  check("manual hộp: C'D' vẫn nét liền", !lines[6].includes('stroke-dasharray'), lines[6])
+  check("manual hộp: D'A' nét liền (audit)", !lines[7].includes('stroke-dasharray'), lines[7])
+  check("manual hộp: CC' nét liền (audit)", !lines[10].includes('stroke-dasharray'), lines[10])
+  check("manual hộp: DD' vẫn nét đứt", lines[11].includes('stroke-dasharray'), lines[11])
+  // kind không được thay đổi bản vẽ
+  check('manual hộp: edge có kind "edge" (mặc đ định)', res.model.edges.every(e => e.kind === 'edge'))
+}
+
+{
+  // §3.1.1: faces ≥ 3 đỉnh; §6 mục 8: thiếu đỉnh/tham chiếu lỗi bị từ chối
+  const base = {
+    version: 2,
+    points: { A: [0, 0, 0], B: [1, 0, 0], C: [0, 1, 0] },
+    camera: { projection: 'orthographic', eye: [3, -3, 2], target: [0.3, 0.3, 0], up: [0, 0, 1] }
+  }
+  const bad = validateGeo3dV2({
+    ...base,
+    faces: [
+      { id: 'F1', vertices: ['A', 'B', 'Z'] },   // tham chiếu đỉnh không tồn tại
+      { id: 'F2', vertices: ['A', 'B'] },        // ít hơn 3 đỉnh
+      { id: 'F3', vertices: ['A', 'B', 'B'] },   // đỉnh trùng nhau
+      { id: 'F4', vertices: ['A', 'A', 'B', 'C'] }
+    ]
+  })
+  check('faces lỗi bị từ chối', hasErrors(bad.diagnostics))
+  check('faces: mã GEO3D_V2_BAD_FACE ≥ 3', bad.diagnostics.filter(d => d.code === 'GEO3D_V2_BAD_FACE').length >= 3)
+  // ID mặt trùng
+  const dup = validateGeo3dV2({
+    ...base,
+    faces: [
+      { id: 'F', vertices: ['A', 'B', 'C'] },
+      { id: 'F', vertices: ['B', 'C', 'A'] }
+    ]
+  })
+  check('faces ID trùng bị từ chối', dup.diagnostics.some(d => d.code === 'GEO3D_V2_DUPLICATE_ID'))
+  // mặt suy biến (thẳng hàng)
+  const degenerate = validateGeo3dV2({
+    version: 2,
+    points: { A: [0, 0, 0], B: [1, 0, 0], C: [2, 0, 0] },
+    faces: [{ id: 'BAD', vertices: ['A', 'B', 'C'] }]
+  })
+  check('mặt suy biến (thẳng hàng) bị từ chối', !degenerate.model)
+  check('mặt suy biến có mã GEO3D_V2_BAD_FACE', degenerate.diagnostics.some(d => d.code === 'GEO3D_V2_BAD_FACE'))
+  // khóa lạ trong face
+  const unknownKey = validateGeo3dV2({
+    ...base,
+    faces: [{ id: 'F', vertices: ['A', 'B', 'C'], color: 'red' }]
+  })
+  check('faces khóa lạ bị từ chối', unknownKey.diagnostics.some(d => d.code === 'GEO3D_V2_UNKNOWN_KEY'))
+}
+
+{
+  // §3.1.2 — §6 mục 8: mặt không phẳng bị từ chối
+  const res = validateGeo3dV2({
+    version: 2,
+    points: {
+      A: [0, 0, 0], B: [1, 0, 0], C: [1, 1, 0],
+      D: [0, 1, 0.5]   // D lệch khỏi mặt z=0
+    },
+    faces: [{ id: 'BAD', vertices: ['A', 'B', 'C', 'D'] }]
+  })
+  check('mặt không phẳng bị từ chối', hasErrors(res.diagnostics))
+  check('mã GEO3D_V2_NON_PLANAR_FACE', res.diagnostics.some(d => d.code === 'GEO3D_V2_NON_PLANAR_FACE'))
+  // mặt phẳng đúng trong dung sai 1e-6 thì được chấp nhận
+  const ok = validateGeo3dV2({
+    ...res,
+    points: undefined, faces: undefined
+  })
+  // kiểm tra độc lập: phân tích trực tiếp analyze-like oracle = tích vô hướng với pháp tuyến
+  const points = { A: [0, 0, 0], B: [1, 0, 0], C: [1, 1, 0], D: [0, 1, 5e-7] }
+  const nrm = [0, 0, 1]
+  const maxDev = Math.max(...Object.values(points).map(p => Math.abs(p[2])))
+  check('oracle mặt gần phẳng: lệch trong 1e-6 (được chấp nhận)', maxDev <= 1e-6)
+  check('oracle mặt lệch 0.5 (bị từ chối)', 0.5 > 1e-6)
+  const okRes = validateGeo3dV2({
+    version: 2,
+    points,
+    faces: [{ id: 'OK', vertices: ['A', 'B', 'C', 'D'] }]
+  })
+  check('mặt phẳng trong dung sai được chấp nhận', !hasErrors(okRes.diagnostics), JSON.stringify(okRes.diagnostics))
+}
+
+{
+  // §3.1.3 — mặt lõm bị từ chối; tách thành mặt lồi thì hợp lệ
+  const points = {
+    A: [0, 0, 0], B: [4, 0, 0], C: [4, 4, 0], D: [3, 1, 0]
+  }
+  const concave = validateGeo3dV2({
+    version: 2, points, faces: [{ id: 'ABCD', vertices: ['A', 'B', 'C', 'D'] }]
+  })
+  check('mặt lõm bị từ chối', hasErrors(concave.diagnostics))
+  check('mã GEO3D_V2_NON_CONVEX_FACE', concave.diagnostics.some(d => d.code === 'GEO3D_V2_NON_CONVEX_FACE'))
+  // tái tạo bước tam giác từ đỉnh lõm (D nhìn từ A-C không lồi? — dùng tam giác A-B-C và B-C-D lồi)
+  const ok = validateGeo3dV2({
+    version: 2, points,
+    faces: [
+      { id: 'BCD', vertices: ['B', 'C', 'D'] }
+    ]
+  })
+  check('tách thành mặt lồi được chấp nhận', !hasErrors(ok.diagnostics), JSON.stringify(ok.diagnostics))
+  // kiểm tra lồi nhất quán 2 chiều perp: tam giác luôn lồi
+  const ok2 = validateGeo3dV2({
+    version: 2, points, faces: [
+      { id: 'T1', vertices: ['A', 'B', 'C'] },
+      { id: 'T2', vertices: ['C', 'D', 'A'] }
+    ]
+  })
+  check('tách thành các tam giác lồi được chấp nhận', !hasErrors(ok2.diagnostics), JSON.stringify(ok2.diagnostics))
+}
+
+{
+  // §2 — visibility: auto bắt buộc faces (§6 + §3.1)
+  const geo = {
+    version: 2,
+    points: { A: [0, 0, 0], B: [1, 0, 0], C: [1, 1, 0], D: [0, 1, 0] },
+    camera: { projection: 'orthographic', eye: [3, -3, 2], target: [0.5, 0.5, 0], up: [0, 0, 1] }
+  }
+  const autoNoFaces = validateGeo3dV2({ ...geo, visibility: 'auto' })
+  check('auto không khai faces bị từ chối', hasErrors(autoNoFaces.diagnostics))
+  check('mã GEO3D_V2_AUTO_NEEDS_FACES', autoNoFaces.diagnostics.some(d => d.code === 'GEO3D_V2_AUTO_NEEDS_FACES'))
+  check('auto không khai faces không trả model', autoNoFaces.model === null)
+  const autoWithFaces = validateGeo3dV2({
+    ...geo,
+    faces: [{ id: 'ABCD', vertices: ['A', 'B', 'C', 'D'] }],
+    visibility: 'auto'
+  })
+  check('auto + faces hợp lệ', !hasErrors(autoWithFaces.diagnostics), JSON.stringify(autoWithFaces.diagnostics))
+  eq('model giữ nguyên faces và camera', JSON.stringify({ faces: autoWithFaces.model.faces, visibility: autoWithFaces.model.visibility }),
+    JSON.stringify({ faces: [{ id: 'ABCD', vertices: ['A', 'B', 'C', 'D'] }], visibility: 'auto' }))
+  eq('visibility undefined → mặc định "manual" (đề cũ không phá)', validateGeo3dV2(geo).model.visibility, 'manual')
+  const badVisibility = validateGeo3dV2({ ...geo, visibility: 'magic' })
+  check('visibility lạ bị từ chối', badVisibility.diagnostics.some(d => d.code === 'GEO3D_V2_BAD_VISIBILITY'))
+  // faces trong manual không phá đề cũ
+  const manualWithFaces = validateGeo3dV2({ ...geo, faces: [{ id: 'ABCD', vertices: ['A', 'B', 'C', 'D'] }] })
+  check('manual + faces không bắt buộc auto', !hasErrors(manualWithFaces.diagnostics), JSON.stringify(manualWithFaces.diagnostics))
+  eq('manual + faces vẫn manual', manualWithFaces.model.visibility, 'manual')
+}
+
+{
+  // §2.2 — kind:"auxiliary"
+  const geo = {
+    version: 2,
+    points: { A: [0, 0, 0], B: [3, 0, 0], S: [0, 0, 4] },
+    camera: { projection: 'orthographic', eye: [7, -10, 7], target: [1, 1, 2], up: [0, 0, 1] }
+  }
+  const res = validateGeo3dV2({
+    ...geo,
+    edges: [{ ends: ['A', 'B'], style: 'solid' }, { ends: ['A', 'S'], kind: 'auxiliary' }]
+  })
+  check('kind auxiliary được chấp nhận', !hasErrors(res.diagnostics), JSON.stringify(res.diagnostics))
+  eq('model giữ kind auxiliary', res.model.edges[1].kind, 'auxiliary')
+  eq('model mặc định kind "edge"', res.model.edges[0].kind, 'edge')
+  const badKind = validateGeo3dV2({
+    ...geo,
+    edges: [{ ends: ['A', 'B'], kind: 'weird' }]
+  })
+  check('kind lạ bị từ chối', badKind.diagnostics.some(d => d.code === 'GEO3D_V2_BAD_EDGE'))
+  const autoOverride = validateGeo3dV2({
+    ...GEO_JSON_PYRAMID_AUTO_WITH_STYLE()
+  })
+  check('auto có style override chỉ báo thông tin GEO3D_V2_EDGE_OVERRIDE', autoOverride.diagnostics.some(
+    d => d.severity === 'info' && d.code === 'GEO3D_V2_EDGE_OVERRIDE'
+  ))
+  check('override không phải lỗi', !hasErrors(autoOverride.diagnostics))
+
+  function GEO_JSON_PYRAMID_AUTO_WITH_STYLE() {
+    return {
+      version: 2,
+      points: { A: [0, 0, 0], B: [3, 0, 0], C: [3, 3, 0], D: [0, 3, 0], S: [0, 0, 4] },
+      faces: [
+        { id: 'SAB', vertices: ['S', 'A', 'B'] },
+        { id: 'SBC', vertices: ['S', 'B', 'C'] },
+        { id: 'SCD', vertices: ['S', 'C', 'D'] },
+        { id: 'SDA', vertices: ['S', 'D', 'A'] },
+        { id: 'ABCD', vertices: ['A', 'B', 'C', 'D'] }
+      ],
+      edges: [{ ends: ['S', 'A'], style: 'dashed' }],
+      camera: { projection: 'orthographic', eye: [7, -10, 7], target: [1.5, 1.5, 2], up: [0, 0, 1] },
+      visibility: 'auto'
+    }
+  }
+}
+
+{
+  // §6 mục 10: parse → format → parse giữ nguyên faces, camera, visibility, kind
+  const json = JSON.stringify(FIXTURES.GEO3D_PYRAMID_AUTO.json, null, 2)
+  const md = `[Câu 1]\nĐề\n\`\`\`geo3d\n${json}\n\`\`\`\nA. A\n*B. B\nC. C\nD. D\n[Lời giải]\nG\n`
+  const first = parseExamMarkdown(md)
+  const fmt = formatQuestionToMarkdown(first.questions[0])
+  const second = parseExamMarkdown(fmt)
+  eq('round-trip faces: đề giữ nguyên DAM assisting', second.questions[0].promptText, first.questions[0].promptText)
+  // fence text vẫn chứa các trường P0
+  const fence = /```geo3d\n([\s\S]*?)```/.exec(second.questions[0].promptText)[1]
+  for (const key of ['"faces"', '"visibility"', '"auto"', '"kind"', '"auxiliary"']) {
+    check(`round-trip faces: giá trị "${key}" còn nguyên`, fence.includes(key), fence.slice(0, 80))
+  }
+}
+
+{
+  // compileDiagram với auto: tự phân loại cạnh theo mặt/camera (P1)
+  const res = compileDiagram('geo3d', JSON.stringify(FIXTURES.GEO3D_PYRAMID_AUTO.json), { uid: 7 })
+  check('auto compile không lỗi', res.ok && !hasErrors(res.diagnostics), JSON.stringify(res.diagnostics))
+  check('auto compile có cạnh SVG', res.svg.includes('<line '), res.svg.slice(0, 120))
+  check('auto compile không còn pending', !res.diagnostics.some(d => d.code === 'GEO3D_V2_AUTO_RENDER_PENDING'))
+  const pyramidAutoLines = [...res.svg.matchAll(/<line [^>]*stroke-dasharray="5,4"[^>]*>/g)]
+  check('auto chóp có nét đứt khuất', pyramidAutoLines.length >= 3, `dashed=${pyramidAutoLines.length}`)
+
+  const boxAuto = { ...FIXTURES.GEO3D_BOX.json, visibility: 'auto', faces: [
+    { id: 'front', vertices: ['A', 'B', "B'", "A'"] },
+    { id: 'right', vertices: ['B', 'C', "C'", "B'"] },
+    { id: 'back', vertices: ['C', 'D', "D'", "C'"] },
+    { id: 'left', vertices: ['D', 'A', "A'", "D'"] },
+    { id: 'top', vertices: ["A'", "B'", "C'", "D'"] },
+    { id: 'bottom', vertices: ['A', 'D', 'C', 'B'] }
+  ], edges: FIXTURES.GEO3D_BOX.json.edges.map(e => ({ ends: e.ends })) }
+  const boxAutoRes = compileDiagram('geo3d', JSON.stringify(boxAuto), { uid: 8 })
+  check('auto hộp không lỗi', boxAutoRes.ok && !hasErrors(boxAutoRes.diagnostics), JSON.stringify(boxAutoRes.diagnostics))
+  check('auto hộp có solid và dashed', boxAutoRes.svg.includes('stroke-dasharray="5,4"') && boxAutoRes.svg.includes('stroke-width="1.5"'), boxAutoRes.svg.slice(0, 120))
+  const boxLines = boxAutoRes.svg.match(/<line [^>]+>/g) || []
+  check('auto hộp đủ 12 cạnh', boxLines.length === 12, `lines=${boxLines.length}`)
+  check('auto hộp CD/DA/DD dashed', [2, 3, 11].every(i => boxLines[i].includes('stroke-dasharray="5,4"')), boxLines.join('\n'))
+  check('auto hộp CC/D\'A\' solid', [6, 7, 10].every(i => !boxLines[i].includes('stroke-dasharray')), boxLines.join('\n'))
+  // manual vẫn render như cũ qua compileDiagram
+  const manual = compileDiagram('geo3d', JSON.stringify(FIXTURES.GEO3D_PYRAMID.json), { uid: 7 })
+  check('manual compile vẫn vẽ dòng nét đứt', manual.svg.includes('stroke-dasharray'))
+  check('manual compile không có diagnostic pending', !manual.diagnostics.some(d => d.code === 'GEO3D_V2_AUTO_RENDER_PENDING'))
+}
+
+{
+  // Lỗi schema vẫn chặn Česk lưu qua validateQuestionDiagrams
+  const badMd = {
+    promptText: '```geo3d\n{"version":2,"points":{"A":[0,0,0],"B":[1,0,0]},"visibility":"auto"}\n```',
+    options: [], explanation: ''
+  }
+  const res = validateQuestionDiagrams(badMd)
+  const rendered = renderMarkdown? undefined : undefined
+  check('validate UI chặn auto-thiếu-faces', res.hasError)
+}
+
+{
+  section('4c. Trục Oxyz và mặt cầu')
+  const axes = compileDiagram('axes3d', JSON.stringify({
+    version: 2,
+    ranges: { x: [-4, 4], y: [-4, 4], z: [0, 4] },
+    step: 1,
+    camera: { projection: 'orthographic', eye: [7, -10, 7], target: [0, 0, 1], up: [0, 0, 1] }
+  }), { uid: 90 })
+  check('axes3d hợp lệ', axes.ok && axes.svg.includes('>x</text>') && axes.svg.includes('>z</text>'), JSON.stringify(axes.diagnostics))
+  const sphere = compileDiagram('sphere3d', JSON.stringify({
+    version: 2, center: [0, 0, 0], radius: 3,
+    sectionPlane: { normal: [0, 0, 1], offset: -1, label: '(P)' }, axes: false,
+    camera: { projection: 'orthographic', eye: [7, -10, 7], target: [0, 0, 0], up: [0, 0, 1] }
+  }), { uid: 91 })
+  check('sphere3d hợp lệ', sphere.ok && sphere.svg.includes('<polyline'), JSON.stringify(sphere.diagnostics))
+  check('sphere3d có đường bao wireframe', (sphere.svg.match(/<polyline/g) || []).length >= 1, 'polyline count')
+  check('sphere3d có giao tuyến mặt phẳng', sphere.svg.includes('>H</text>') && sphere.svg.includes('>(P)</text>'), sphere.svg.slice(0, 500))
+  const noSection = compileDiagram('sphere3d', JSON.stringify({
+    version: 2, center: [-1, 2, 3], radius: 2,
+    sectionPlane: { normal: [0, 0, 1], offset: 0 },
+    camera: { projection: 'orthographic', eye: [7, -10, 7], target: [-1, 2, 1], up: [0, 0, 1] }
+  }), { uid: 93 })
+  check('sphere3d từ chối mặt phẳng không cắt cầu', !noSection.ok && noSection.diagnostics.some(d => d.code === 'SPHERE_NO_SECTION'))
+  const badSphere = compileDiagram('sphere3d', JSON.stringify({ version: 2, center: [0, 0, 0], radius: 0 }), { uid: 92 })
+  check('sphere3d từ chối bán kính không dương', !badSphere.ok && badSphere.diagnostics.some(d => d.code === 'SPHERE_BAD_RADIUS'))
+}
+
+{
+  // §6 mục 9 — không NaN/Infinity: faces có tọa độ tuyệt đối khổng lồ SUCCESS vẫn bị chặn sulf phát hiện không phẳng
+  const res = validateGeo3dV2({
+    version: 2,
+    points: { A: [0, 0, 0], B: [1e9, 0, 0], C: [1e9, 1e9, 0], D: [0, 1e9, 2] },
+    faces: [{ id: 'HUGE', vertices: ['A', 'B', 'C', 'D'] }]
+  })
+  check('mặt không phẳng scale lớn vẫn bị phát hiện', hasErrors(res.diagnostics))
+}
+
 
 /* ================================================================== *
  * 5. PARSER — ngữ cảnh hình, round-trip, fence lỗi

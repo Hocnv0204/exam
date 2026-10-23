@@ -159,6 +159,49 @@ Ví dụ này mô tả `1/(x-1)`. Object `{left,right,at}` là giá trị giới
 
 V2 bản đầu dùng tọa độ 3D tường minh. Preset cũ chưa được coi là tọa độ toán học; adapter phải ghi rõ legacy schematic. Chỉ bổ sung preset V2 khi có bảng định nghĩa tọa độ/kích thước đã test.
 
+### 4.3. Hệ trục tọa độ Oxyz
+
+Khối `axes3d` vẽ ba trục trực giao theo camera orthographic:
+
+````md
+```axes3d
+{
+  "version": 2,
+  "ranges": {"x": [-4,4], "y": [-4,4], "z": [0,4]},
+  "step": 1,
+  "camera": {
+    "projection": "orthographic",
+    "eye": [7,-10,7], "target": [0,0,1], "up": [0,0,1]
+  },
+  "labels": {"x":"x", "y":"y", "z":"z", "origin":"O"}
+}
+```
+````
+
+`ranges` là khoảng số của từng trục; `step` hiện dùng để mô tả dữ liệu (renderer vẽ trục và nhãn, chưa vẽ toàn bộ vạch chia).
+
+### 4.4. Mặt cầu `sphere3d`
+
+Renderer vẽ mặt cầu dạng wireframe chiếu trực giao, gồm kinh tuyến và vĩ tuyến:
+
+````md
+```sphere3d
+{
+  "version": 2,
+  "center": [0,0,0],
+  "radius": 3,
+  "sectionPlane": {"normal": [0,0,1], "offset": -1, "label": "(P)"},
+  "axes": false,
+  "camera": {
+    "projection": "orthographic",
+    "eye": [7,-10,7], "target": [0,0,0], "up": [0,0,1]
+  }
+}
+```
+````
+
+Đây là hình cầu toán học với tâm/bán kính thật theo kiểu hình THPT: đường bao ngoài nét liền, phần giao tuyến phía sau nét đứt, mặt phẳng cắt có chân chiếu `H`, bán kính `HA` và tâm cầu `I`. `radius` phải dương; `sectionPlane.normal` là pháp tuyến mặt phẳng và `offset` là hằng số trong phương trình `normal·X = offset`. `wireframe` chỉ còn là tùy chọn tương thích, không dùng để vẽ lưới dày mặc định.
+
 ### 4.1. Chóp S.ABCD có đáy hình vuông, SA vuông đáy
 
 ````md
@@ -231,7 +274,7 @@ H tính từ dữ kiện này phải bằng (1.92,0,1.44); AH vuông SB. Tọa �
 | Biểu thức | Bộ phân tích riêng (AST), **không eval / new Function**; đúng thứ tự ưu tiên (`-x^2`, `x^2^3`, `2^-1`); whitelist hàm; chặn truy cập global/gán/thuộc tính/nhân ẩn | `test-diagrams.mjs` mục 1 |
 | BBT V2 | N mốc → N-1 khoảng; **mọi hàng dùng chung một lưới neo**; dấu ở giữa khoảng, giá trị ở đúng mốc; mũi tên suy từ dấu; đường đôi ở gián đoạn và **không nối qua**; phân biệt “đạo hàm không tồn tại” với “hàm không xác định”; bảng chỉ xét dấu không tự thêm hàng y; từ chối dữ liệu mâu thuẫn | mục 2 |
 | Đồ thị V2 | Tách viewport / domain / breaks; lấy mẫu thích ứng theo sai số màn hình; tự tìm biên miền (căn, log, mẫu 0, tan) và **không nối qua vùng không hợp lệ**; `scale: equal` giữ tỷ lệ (không méo nửa đường tròn); điểm thuộc đường cong tính y từ hàm; điểm tự do tách riêng; tick trục; không vẽ “O” khi gốc ngoài khung | mục 3 |
-| Hình 3D V2 | Toạ độ 3D tường minh; `mid / centroid / ratio / projectLine / projectPlane`; kiểm tra vuông góc trong không gian; phát hiện thiếu tên / trùng tên / vòng phụ thuộc / mặt phẳng suy biến; camera **trực giao** cố định, fit đều (không scale x/y riêng); cạnh solid/dashed **thủ công**; nhãn dịch bằng pixel | mục 4 |
+| Hình 3D V2 | Toạ độ 3D tường minh; `mid / centroid / ratio / projectLine / projectPlane`; `faces` + `visibility:auto`; tự phân loại mặt/cạnh theo camera, depth-test đường phụ và tách run visible/hidden; vẫn hỗ trợ `manual`; kiểm tra vuông góc, mặt phẳng, mặt lồi, thiếu tên/trùng tên/vòng phụ thuộc; camera **trực giao** cố định, fit đều | mục 4 |
 | Parser | Khối hình giữ đúng nơi (đề / phương án / ý đúng–sai / lời giải); hình lời giải **không** chuyển sang đề; phương án nhiều dòng; fence chưa đóng **không nuốt câu sau** và báo lỗi có số dòng; parse → format → parse giữ nguyên ý nghĩa | mục 5 |
 | An toàn | Escape mọi nhãn trước khi chèn vào SVG; KaTeX `trust:false`; không có `eval`/`new Function` trong mã khối hình | mục 5 |
 | Chẩn đoán | Mỗi lỗi/cảnh báo có mã + vị trí + thông điệp; trang Tạo bài tập hiện “Chẩn đoán khối hình” theo từng câu; **chặn lưu** khi còn lỗi | mục 5 + UI |
@@ -242,7 +285,8 @@ H tính từ dữ kiện này phải bằng (1.92,0,1.44); AH vuông SB. Tọa �
   bằng phân tích giới hạn, nên khai báo tiệm cận là **chưa được kiểm chứng** (giáo viên tự kiểm).
 - **Không tự tìm cực trị**: điểm cực trị phải khai báo bằng `points` (x) — engine tính y, không suy ra cực trị từ biểu thức.
 - **Lỗ thủng**: đường cong bị đứt ở lỗ thủng nhưng khoảng hở rất nhỏ; muốn thấy rõ phải thêm điểm tự do `marker:"open"`.
-- **Hình 3D**: `visibility` chỉ có chế độ `manual` (người soạn tự chọn nét liền/đứt); chưa tự phân loại cạnh khuất theo mặt che.
+- **Hình 3D**: `visibility:auto` chỉ áp dụng cho đa diện lồi có `faces` phẳng, lồi và camera trực giao hợp lệ; vật thể lõm/mặt cắt phức tạp chưa tự phân loại.
+  Đường phụ được sample để tách đoạn khuất; tolerance và các trường hợp đồng phẳng sát biên vẫn cần kiểm tra bằng mắt.
   Ký hiệu góc vuông được dựng đúng trong không gian rồi chiếu, nên **trên màn hình không nhất thiết nhìn vuông góc 90°** (đúng như thực tế).
 - **Preset cũ (legacy `geo3d`)** chỉ là hình sơ đồ 2D toạ độ pixel, **không phải dựng hình 3D đúng**; engine gắn nhãn thông tin
   cho mỗi khối legacy để không ai nhầm là hình 3D đã kiểm chứng. Muốn hình 3D đúng phải dùng JSON V2.

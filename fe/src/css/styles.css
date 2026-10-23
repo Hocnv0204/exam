@@ -1297,6 +1297,97 @@ select.form-input {
 }
 
 /* =========================================================
+   POPUP "HỌC SINH CÓ SỐ DƯ 0 Đ" (Dashboard quản trị)
+   ------------------------------------------------------------
+   - Vỏ modal (`.modal-content.zb-popup`): overflow hidden + flex column.
+     Nhờ vậy THANH CUỘN không còn nằm trên vỏ modal (vỏ modal có bo góc =>
+     thanh cuộn cũ làm mất bo góc, tạo sọc trắng vuông ở mép phải).
+   - Header + footer (nút Đóng) cố định, KHÔNG cuộn theo danh sách.
+   - Chỉ vùng danh sách cuộn dọc (min-height: 0) => không có 2 thanh cuộn dọc.
+   - Cuộn ngang do `.table-responsive` đảm nhiệm (chỉ xuất hiện khi thật sự chật).
+   - Vùng danh sách có tabindex => cuộn bằng bàn phím (Tab + mũi tên/PageDown).
+   ========================================================= */
+.modal-content.zb-popup {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+}
+
+/* Header (tiêu đề + nút X) và footer (nút Đóng): giữ nguyên, không cuộn */
+.modal-content.zb-popup > div:first-child,
+.modal-content.zb-popup > div:last-child {
+  flex: 0 0 auto;
+}
+
+/* Vùng nội dung co giãn theo chiều cao còn lại của vỏ modal */
+.modal-content.zb-popup .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-content.zb-popup #zero-balance-modal-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Chỉ danh sách cuộn dọc; thanh cuộn nằm trong vỏ bo góc */
+.modal-content.zb-popup #zero-balance-modal-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Thanh cuộn mảnh, không lấn vào mép bo góc của vỏ modal */
+.modal-content.zb-popup #zero-balance-modal-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-content.zb-popup #zero-balance-modal-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-content.zb-popup #zero-balance-modal-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.modal-content.zb-popup #zero-balance-modal-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+}
+
+.modal-content.zb-popup #zero-balance-modal-list:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: -2px;
+}
+
+/* Thanh phân trang luôn nhìn thấy, không bị cuộn theo danh sách */
+.modal-content.zb-popup #zero-balance-modal-pagination {
+  flex: 0 0 auto;
+}
+
+/* Màn hình hẹp: modal dạng bottom-sheet, giới hạn 85vh như các modal khác */
+@media (max-width: 768px) {
+  .modal-content.zb-popup {
+    max-height: 85vh;
+  }
+}
+
+/* =========================================================
    SIDEBAR TOGGLE STYLING
    ========================================================= */
 .sidebar {
