@@ -1751,6 +1751,15 @@ serve(async (req: Request) => {
         let effectiveDynChapterId = chapterId || null
         let effectiveDynLessonId = lessonId || null
 
+        // Khi FE gửi taxonomy Constant rõ ràng, các cột FK curriculum động
+        // phải để NULL. Hai hệ taxonomy dùng hai bảng khác nhau; không được
+        // ghi ID qb_classes vào question_bank.class_id.
+        if (effectiveQbClassId || effectiveQbChapterId || effectiveQbLessonId) {
+          effectiveDynClassId = null
+          effectiveDynChapterId = null
+          effectiveDynLessonId = null
+        }
+
         // Phân giải nếu classId/chapterId/lessonId thực chất là taxonomy Constant
         if (!effectiveQbClassId && classId) {
           const { data: qbCl } = await serviceRoleClient.from('qb_classes').select('id, grade_block').eq('id', classId).maybeSingle()
