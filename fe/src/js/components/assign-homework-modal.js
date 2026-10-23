@@ -426,8 +426,9 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
     if (lessonSelect) lessonSelect.innerHTML = '<option value="">Chọn chương trước...</option>'
     try {
       const chapters = await api.getChapters(classId)
+      const chList = Array.isArray(chapters) ? chapters : (chapters?.items || [])
       let html = '<option value="">Chọn chương đích...</option>'
-      ;(chapters || []).forEach(ch => {
+      chList.forEach(ch => {
         html += `<option value="${ch.id}">${ch.title}</option>`
       })
       chapterSelect.innerHTML = html
@@ -447,8 +448,9 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
     lessonSelect.innerHTML = '<option value="">Đang tải bài học...</option>'
     try {
       const lessons = await api.getLessons(chapterId)
+      const lList = Array.isArray(lessons) ? lessons : (lessons?.items || [])
       let html = '<option value="">Chọn bài học đích...</option>'
-      ;(lessons || []).forEach(l => {
+      lList.forEach(l => {
         html += `<option value="${l.id}">${l.title}</option>`
       })
       lessonSelect.innerHTML = html

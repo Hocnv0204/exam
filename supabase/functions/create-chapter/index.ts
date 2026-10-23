@@ -16,26 +16,32 @@ serve(async (req: Request) => {
     const url = new URL(req.url)
     const action = url.searchParams.get('action')
 
-    // GET: List chapters (filter by classId if provided)
+    // GET: List chapters (filter by classId if provided, support server pagination/filter/sort)
     if (req.method === 'GET') {
       const classId = url.searchParams.get('classId')
       const includeLessons = url.searchParams.get('includeLessons') === 'true'
+      const pageParam = url.searchParams.get('page')
+      const pageSizeParam = url.searchParams.get('pageSize')
+      const sort = url.searchParams.get('sort') || 'order'
+      const q = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim()
+      const format = url.searchParams.get('format') // 'array' | 'envelope'
+      const isPagedRequest = pageParam !== null || pageSizeParam !== null || format === 'envelope'
 
       // Chạy song song xác thực JWT/Profile và truy vấn cơ sở dữ liệu
       const serviceRoleClient = createServiceRoleClient()
 
-      let q = serviceRoleClient
+      let dbQuery = serviceRoleClient
         .from('chapters')
         .select(includeLessons ? '*, lessons(*, homeworks(*))' : '*')
         .order('order_index', { ascending: true })
 
       if (classId) {
-        q = q.eq('class_id', classId)
+        dbQuery = dbQuery.eq('class_id', classId)
       }
 
       const [authResult, chaptersResult] = await Promise.all([
         requireAuth(req),
-        q
+        dbQuery
       ])
 
       const { user } = authResult
@@ -63,7 +69,69 @@ serve(async (req: Request) => {
         })
       }
 
-      return jsonResponse(chapters)
+      const normalize = (s: string) => {
+        if (!s) return ''
+        return String(s)
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[đ]/g, 'd')
+          .replace(/[Đ]/g, 'D')
+          .toLowerCase()
+          .trim()
+      }
+
+      let list: any[] = Array.isArray(chapters) ? chapters.slice() : []
+
+      // Filter by keyword q
+      if (q) {
+        const normQ = normalize(q)
+        list = list.filter((ch: any) => normalize(ch.title).includes(normQ))
+      }
+
+      // Sort stable
+      list.sort((a: any, b: any) => {
+        if (sort === 'title-asc') {
+          const c = (a.title || '').localeCompare(b.title || '', 'vi')
+          if (c !== 0) return c
+          return (a.order_index ?? 0) - (b.order_index ?? 0) || String(a.id || '').localeCompare(String(b.id || ''))
+        }
+        if (sort === 'title-desc') {
+          const c = (b.title || '').localeCompare(a.title || '', 'vi')
+          if (c !== 0) return c
+          return (a.order_index ?? 0) - (b.order_index ?? 0) || String(a.id || '').localeCompare(String(b.id || ''))
+        }
+        if (sort === 'newest') {
+          const diff = new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+          if (diff !== 0) return diff
+          return (b.order_index ?? 0) - (a.order_index ?? 0) || String(a.id || '').localeCompare(String(b.id || ''))
+        }
+        if (sort === 'order-desc') {
+          const diff = (b.order_index ?? 0) - (a.order_index ?? 0)
+          if (diff !== 0) return diff
+          return String(a.id || '').localeCompare(String(b.id || ''))
+        }
+        // Default 'order' / 'order-asc'
+        const diff = (a.order_index ?? 0) - (b.order_index ?? 0)
+        if (diff !== 0) return diff
+        return String(a.id || '').localeCompare(String(b.id || ''))
+      })
+
+      // Pagination & Envelope handling
+      const total = list.length
+      if (isPagedRequest) {
+        const page = Math.max(1, parseInt(pageParam || '1', 10) || 1)
+        const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeParam || '15', 10) || 15))
+        const from = (page - 1) * pageSize
+        const items = list.slice(from, from + pageSize)
+        return jsonResponse({
+          items,
+          total,
+          page,
+          pageSize
+        })
+      }
+
+      return jsonResponse(list)
     }
 
     const { user, serviceRoleClient } = await requireAuth(req)

@@ -11,7 +11,9 @@
     "test:topup": "node scripts/test-topup.mjs",
     "test:diagrams": "node scripts/test-diagrams.mjs",
     "test:matrix-scope": "node scripts/test-matrix-scope.mjs",
-    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs"
+    "test:constant-sync": "node scripts/test-constant-taxonomy-sync.mjs",
+    "test:curriculum-search": "node scripts/test-curriculum-search.mjs",
+    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && node scripts/test-constant-taxonomy-sync.mjs && node scripts/test-curriculum-search.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.0"

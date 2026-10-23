@@ -6,6 +6,13 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { api, SUPABASE_URL } from '../api.js'
 import { downloadHomeworkPdf, escapeHtml } from '../utils/download-helper.js'
+import {
+  normalizeSearchText,
+  highlightMatch,
+  filterLessons,
+  groupLessonsByChapter,
+  createSearchController
+} from '../utils/curriculum-search.js'
 
 window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
   if (type === 'EXAM') {
@@ -28,6 +35,8 @@ window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
 }
 
 let collapsedChapterIds = new Set()
+let studentSelectedChapterId = 'all'
+let lastStudentClassId = null
 
 // Đo thời gian xem bài học/video: log LESSON_VIEW khi mở, VIDEO_WATCH kèm
 // số giây khi rời bài (chỉ học sinh). Dùng keepalive để không mất log khi chuyển trang.
@@ -82,7 +91,15 @@ export function renderMyClassesView() {
 
   // Case 1: Viewing Specific Class Details (Lessons & Assignments)
   if (classId) {
+    if (lastStudentClassId !== classId) {
+      lastStudentClassId = classId
+      studentSelectedChapterId = 'all'
+    }
     const selectedClass = classes.find(c => c.id === classId) || classes[0]
+    const totalLessonsCount = classChapters.reduce((acc, ch) => acc + ((ch.lessons || []).length), 0)
+    const displayedChapters = studentSelectedChapterId === 'all'
+      ? classChapters
+      : classChapters.filter(c => c.id === studentSelectedChapterId)
 
     return `
       <div class="app-layout">
@@ -261,15 +278,67 @@ export function renderMyClassesView() {
                   </h2>
                 </div>
 
+                <!-- Student Chapter Filter & Search Bar -->
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:20px;">
+                  <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                    <!-- Chapter Filter -->
+                    <div style="flex:1 1 240px; min-width:200px;">
+                      <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">
+                        <i class="fa-solid fa-filter" style="color:#0066cc;"></i> Lọc theo chương học
+                      </label>
+                      <select id="student-chapter-filter" class="form-input" style="height:42px; border-radius:10px; font-size:13px; background:#ffffff;">
+                        <option value="all" ${studentSelectedChapterId === 'all' ? 'selected' : ''}>
+                          Tất cả chương (${totalLessonsCount} bài học)
+                        </option>
+                        ${classChapters.map((ch, idx) => `
+                          <option value="${ch.id}" ${studentSelectedChapterId === ch.id ? 'selected' : ''}>
+                            Chương ${idx + 1}: ${escapeHtml(ch.title)} (${(ch.lessons || []).length} bài)
+                          </option>
+                        `).join('')}
+                      </select>
+                    </div>
+
+                    <!-- Search Input -->
+                    <div style="flex:2 1 320px; min-width:260px; position:relative;">
+                      <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">
+                        <i class="fa-solid fa-magnifying-glass" style="color:#0066cc;"></i> Tìm kiếm bài học
+                      </label>
+                      <div class="curriculum-search-input-wrap">
+                        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:14px; color:#94a3b8; font-size:14px; z-index:1;"></i>
+                        <input
+                          type="text"
+                          id="student-curriculum-search-input"
+                          class="form-input"
+                          style="padding-left:38px; padding-right:72px; height:42px; border-radius:10px; font-size:13.5px; background:#ffffff;"
+                          placeholder="Tìm kiếm bài học theo tên, nội dung... (Phím tắt: /)"
+                          autocomplete="off"
+                        />
+                        <div style="position:absolute; right:10px; display:flex; align-items:center; gap:6px; z-index:1;">
+                          <button type="button" id="student-curriculum-search-clear" class="btn-clear-search" style="display:none; background:none; border:none; color:#94a3b8; cursor:pointer; font-size:14px; padding:4px;" title="Xóa tìm kiếm">
+                            <i class="fa-solid fa-xmark"></i>
+                          </button>
+                          <kbd class="curriculum-search-shortcut" title="Phím tắt">Esc</kbd>
+                        </div>
+                      </div>
+                      <div id="student-curriculum-search-results-panel" class="curriculum-search-results-panel" style="display:none;"></div>
+                    </div>
+                  </div>
+                </div>
+
                 ${(classChapters.length === 0) ? `
                   <div class="card" style="text-align:center; padding:32px; color:#64748b;">
                     <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
                     <p style="font-weight:600;">Lớp học này chưa cập nhật danh sách bài học.</p>
                   </div>
-                ` : classChapters.map(ch => {
+                ` : (displayedChapters.length === 0 ? `
+                  <div class="card" style="text-align:center; padding:32px; color:#64748b;">
+                    <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
+                    <p style="font-weight:600;">Không có bài học nào trong chương đã chọn.</p>
+                  </div>
+                ` : displayedChapters.map(ch => {
                   const isCollapsed = collapsedChapterIds.has(ch.id)
                   return `
-                  <div class="card" style="padding:18px; margin-bottom:16px;">
+                  <div class="card chapter-card-item" data-ch-id="${ch.id}" style="padding:18px; margin-bottom:16px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" class="chapter-card-header" data-ch-id="${ch.id}">
                       <div style="display:flex; align-items:center; gap:10px;">
                         <i class="fa-solid ${isCollapsed ? 'fa-folder' : 'fa-folder-open'}" style="color:#0066cc; font-size:16px;"></i>
@@ -338,7 +407,7 @@ export function renderMyClassesView() {
                       }).join('')}
                     </div>
                   </div>
-                `}).join('')}
+                `}).join(''))}
               </div>
             `}
           </div>
@@ -539,6 +608,231 @@ export function bindMyClassesEvents() {
   document.getElementById('btn-back-to-lessons')?.addEventListener('click', () => {
     window.location.hash = `#my-classes?classId=${classId}`
   })
+
+  // Chapter Filter for Student
+  const studentChapterFilter = document.getElementById('student-chapter-filter')
+  studentChapterFilter?.addEventListener('change', (e) => {
+    studentSelectedChapterId = e.target.value
+    const app = document.getElementById('app')
+    if (app) {
+      app.innerHTML = renderMyClassesView()
+      bindMyClassesEvents()
+    }
+  })
+
+  // Search Input for Student in Class Curriculum
+  const studentSearchInput = document.getElementById('student-curriculum-search-input')
+  const studentClearBtn = document.getElementById('student-curriculum-search-clear')
+  const studentResultsPanel = document.getElementById('student-curriculum-search-results-panel')
+
+  if (studentSearchInput && studentResultsPanel) {
+    let highlightedIndex = -1
+    let currentSearchResults = []
+
+    const getAllClassLessons = () => {
+      const list = []
+      const chapters = state.classChapters || []
+      for (const ch of chapters) {
+        for (const l of (ch.lessons || [])) {
+          const publishedHws = (l.homeworks || []).filter(h => h.is_published !== false)
+          list.push({
+            id: l.id,
+            chapterId: ch.id,
+            chapterTitle: ch.title,
+            chapterOrderIndex: Number(ch.orderIndex || ch.order_index || 0),
+            code: String(l.order_index || l.code || ''),
+            title: l.title || '',
+            content: l.content || '',
+            hasVideo: Boolean(l.videoUrl || l.video_url),
+            theoryFilesCount: Array.isArray(l.theoryFiles) ? l.theoryFiles.length : 0,
+            homeworksCount: publishedHws.length
+          })
+        }
+      }
+      return list
+    }
+
+    const renderStudentSearchResultsHTML = (results, query) => {
+      if (!results || results.length === 0) {
+        return `
+          <div style="padding:24px; text-align:center; color:#64748b;">
+            <i class="fa-solid fa-magnifying-glass" style="font-size:24px; color:#cbd5e1; margin-bottom:8px; display:block;"></i>
+            Không tìm thấy bài học nào phù hợp với từ khóa "<strong>${escapeHtml(query)}</strong>"
+          </div>
+        `
+      }
+
+      const grouped = groupLessonsByChapter(results)
+      let globalIdx = 0
+
+      return grouped.map(g => `
+        <div class="curriculum-search-group">
+          <div class="curriculum-search-chapter-header">
+            <span><i class="fa-solid fa-folder-open" style="color:#0066cc; margin-right:6px;"></i> ${escapeHtml(g.chapterTitle)}</span>
+            <span style="font-size:11px; font-weight:600; color:#64748b;">${g.lessons.length} bài phù hợp</span>
+          </div>
+          <div class="curriculum-search-items">
+            ${g.lessons.map(l => {
+              const thisIdx = globalIdx++
+              const highlightedTitle = highlightMatch(l.title, query)
+              const highlightedContent = l.content ? highlightMatch(l.content, query) : ''
+              return `
+                <div class="curriculum-search-result-item" data-index="${thisIdx}" data-chapter-id="${l.chapterId}" data-lesson-id="${l.id}">
+                  <div style="display:flex; align-items:center; gap:10px; flex-1; min-width:0;">
+                    <span style="width:28px; height:28px; border-radius:8px; background:#eff6ff; color:#0066cc; font-size:12px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;">
+                      ${escapeHtml(l.code || '')}
+                    </span>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:13.5px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        ${highlightedTitle}
+                      </div>
+                      ${highlightedContent ? `
+                        <div style="font-size:12px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
+                          ${highlightedContent}
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                    ${l.hasVideo ? `<span style="font-size:11px; color:#0284c7;" title="Có video bài giảng"><i class="fa-solid fa-circle-play"></i></span>` : ''}
+                    <span style="font-size:11px; color:#64748b; background:#f1f5f9; padding:2px 6px; border-radius:4px;">
+                      <i class="fa-solid fa-list-check" style="font-size:10px;"></i> ${l.homeworksCount || 0} bài tập
+                    </span>
+                    <i class="fa-solid fa-arrow-right" style="color:#94a3b8; font-size:11px; margin-left:4px;"></i>
+                  </div>
+                </div>
+              `
+            }).join('')}
+          </div>
+        </div>
+      `).join('')
+    }
+
+    const studentSearchCtrl = createSearchController({
+      debounceMs: 200,
+      onSearch: async (query, { isCurrent, signal }) => {
+        const q = query.trim()
+        if (!q) {
+          if (studentResultsPanel) studentResultsPanel.style.display = 'none'
+          if (studentClearBtn) studentClearBtn.style.display = 'none'
+          return
+        }
+
+        if (studentClearBtn) studentClearBtn.style.display = 'inline-flex'
+        if (studentResultsPanel) {
+          studentResultsPanel.style.display = 'block'
+          studentResultsPanel.innerHTML = `
+            <div style="padding:20px; text-align:center; color:#64748b;">
+              <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc; margin-bottom:8px; font-size:18px; display:block;"></i>
+              <span style="font-size:12.5px;">Đang tìm kiếm bài học...</span>
+            </div>
+          `
+        }
+
+        try {
+          const res = await api.searchClassLessons(classId, q, {
+            chapterId: studentSelectedChapterId !== 'all' ? studentSelectedChapterId : undefined,
+            signal
+          })
+          if (!isCurrent()) return
+
+          const matched = Array.isArray(res) ? res : (res?.items || res?.results || [])
+          currentSearchResults = matched
+          highlightedIndex = -1
+
+          if (studentResultsPanel) {
+            studentResultsPanel.style.display = 'block'
+            studentResultsPanel.innerHTML = renderStudentSearchResultsHTML(matched, q)
+
+            studentResultsPanel.querySelectorAll('.curriculum-search-result-item').forEach(item => {
+              item.addEventListener('click', () => {
+                const chId = item.getAttribute('data-chapter-id')
+                const lId = item.getAttribute('data-lesson-id')
+                if (chId) collapsedChapterIds.delete(chId)
+                if (lId) {
+                  window.location.hash = `#my-classes?classId=${classId}&lessonId=${lId}`
+                }
+              })
+            })
+          }
+        } catch (err) {
+          if (err?.name === 'AbortError') return
+          if (!isCurrent()) return
+          if (studentResultsPanel) {
+            studentResultsPanel.style.display = 'block'
+            studentResultsPanel.innerHTML = `
+              <div style="padding:16px; text-align:center; color:#ef4444; font-size:13px;">
+                <i class="fa-solid fa-triangle-exclamation" style="margin-bottom:6px; display:block;"></i>
+                Không thể tải kết quả tìm kiếm: ${escapeHtml(err.message)}
+              </div>
+            `
+          }
+        }
+      }
+    })
+
+    studentSearchInput.addEventListener('input', (e) => {
+      studentSearchCtrl.search(e.target.value)
+    })
+
+    studentClearBtn?.addEventListener('click', () => {
+      studentSearchInput.value = ''
+      studentSearchCtrl.abort()
+      studentResultsPanel.style.display = 'none'
+      studentClearBtn.style.display = 'none'
+    })
+
+    studentSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        studentSearchInput.value = ''
+        studentSearchCtrl.abort()
+        studentResultsPanel.style.display = 'none'
+        if (studentClearBtn) studentClearBtn.style.display = 'none'
+        studentSearchInput.blur()
+        return
+      }
+
+      const items = studentResultsPanel.querySelectorAll('.curriculum-search-result-item') || []
+      if (items.length === 0 || studentResultsPanel.style.display === 'none') return
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        highlightedIndex = (highlightedIndex + 1) % items.length
+        items.forEach((item, idx) => {
+          if (idx === highlightedIndex) {
+            item.classList.add('highlighted')
+            item.scrollIntoView({ block: 'nearest' })
+          } else {
+            item.classList.remove('highlighted')
+          }
+        })
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        highlightedIndex = (highlightedIndex - 1 + items.length) % items.length
+        items.forEach((item, idx) => {
+          if (idx === highlightedIndex) {
+            item.classList.add('highlighted')
+            item.scrollIntoView({ block: 'nearest' })
+          } else {
+            item.classList.remove('highlighted')
+          }
+        })
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (highlightedIndex >= 0 && highlightedIndex < items.length) {
+          items[highlightedIndex].click()
+        } else if (items.length > 0) {
+          items[0].click()
+        }
+      }
+    })
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.curriculum-search-container')) {
+        if (studentResultsPanel) studentResultsPanel.style.display = 'none'
+      }
+    })
+  }
 
   // Tour chi tiết bài học (chạy 1 lần đầu cho học sinh)
   if (classId && lessonId && state.user?.role === 'STUDENT') {

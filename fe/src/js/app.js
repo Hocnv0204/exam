@@ -234,7 +234,8 @@ async function router() {
                 progress: 0
               }))
             } else if (type === 'chapters') {
-              state.classChapters = (res || []).map(ch => ({
+              const chaptersList = Array.isArray(res) ? res : (res?.items || [])
+              state.classChapters = chaptersList.map(ch => ({
                 id: ch.id,
                 code: '',
                 title: ch.title,

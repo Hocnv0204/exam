@@ -482,8 +482,9 @@ async function handleClassChange(classId) {
 
   try {
     const chapters = await api.getChapters(classId)
+    const chList = Array.isArray(chapters) ? chapters : (chapters?.items || [])
     let chHtml = '<option value="">Tất cả chương</option>'
-    ;(chapters || []).forEach(ch => {
+    chList.forEach(ch => {
       chHtml += `<option value="${ch.id}">${ch.title}</option>`
     })
     if (chapterSelect) chapterSelect.innerHTML = chHtml
@@ -511,8 +512,9 @@ async function handleChapterChange(chapterId) {
 
   try {
     const lessons = await api.getLessons(chapterId)
+    const lList = Array.isArray(lessons) ? lessons : (lessons?.items || [])
     let lHtml = '<option value="">Tất cả bài học</option>'
-    ;(lessons || []).forEach(l => {
+    lList.forEach(l => {
       lHtml += `<option value="${l.id}">${l.title}</option>`
     })
     if (lessonSelect) lessonSelect.innerHTML = lHtml

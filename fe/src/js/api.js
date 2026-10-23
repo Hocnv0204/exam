@@ -80,6 +80,44 @@ async function request(endpoint, options = {}) {
         }
       ])
     }
+    if (endpoint.startsWith('create-lesson?lessonId')) {
+      return Promise.resolve({
+        id: 'l1',
+        chapterId: 'ch1',
+        title: 'Lý thuyết cơ bản',
+        orderIndex: 1,
+        content: 'Nội dung bài học demo',
+        isTrial: false,
+        videoUrl: 'https://youtube.com/watch?v=demo',
+        theoryFiles: [],
+        createdAt: new Date().toISOString()
+      })
+    }
+    if (endpoint.startsWith('create-lesson?action=search')) {
+      return Promise.resolve({
+        classId: 'c1',
+        totalChapters: 1,
+        totalLessons: 1,
+        query: '',
+        results: [
+          {
+            id: 'l1',
+            chapterId: 'ch1',
+            chapterTitle: 'Chương 1',
+            chapterOrderIndex: 1,
+            code: '1',
+            title: 'Lý thuyết cơ bản',
+            orderIndex: 1,
+            content: 'Nội dung bài học demo',
+            isTrial: false,
+            hasVideo: true,
+            theoryFilesCount: 1,
+            homeworksCount: 1,
+            createdAt: new Date().toISOString()
+          }
+        ]
+      })
+    }
     if (endpoint.startsWith('student-history')) {
       return Promise.resolve({
         studentId: 's1',
@@ -429,12 +467,69 @@ export const api = {
   addStudentToClass: (classId, studentId) => request('create-class?action=add-student-to-class', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
   archiveClass: (classId, isArchived) => request('create-class?action=archive-class', { method: 'POST', body: JSON.stringify({ classId, isArchived }) }),
   createChapter: (data) => request('create-chapter', { method: 'POST', body: JSON.stringify(data) }),
-  getChapters: (classId = '', includeLessons = false) => request(`create-chapter${classId ? `?classId=${classId}` : ''}${includeLessons ? `${classId ? '&' : '?'}includeLessons=true` : ''}`, { method: 'GET' }),
+  getChapters: (classId = '', options = {}) => {
+    let includeLessons = false
+    const qParams = []
+
+    if (typeof options === 'boolean') {
+      includeLessons = options
+      if (includeLessons) qParams.push('includeLessons=true')
+    } else if (typeof options === 'object' && options !== null) {
+      if (options.includeLessons) qParams.push('includeLessons=true')
+      if (options.page !== undefined && options.page !== null) qParams.push(`page=${encodeURIComponent(options.page)}`)
+      if (options.pageSize !== undefined && options.pageSize !== null) qParams.push(`pageSize=${encodeURIComponent(options.pageSize)}`)
+      if (options.sort) qParams.push(`sort=${encodeURIComponent(options.sort)}`)
+      if (options.q) qParams.push(`q=${encodeURIComponent(options.q)}`)
+      if (options.format) qParams.push(`format=${encodeURIComponent(options.format)}`)
+    }
+
+    if (classId) qParams.unshift(`classId=${encodeURIComponent(classId)}`)
+    const qs = qParams.length ? `?${qParams.join('&')}` : ''
+    const fetchOpts = typeof options === 'object' && options !== null ? { ...options } : {}
+    delete fetchOpts.includeLessons
+    delete fetchOpts.page
+    delete fetchOpts.pageSize
+    delete fetchOpts.sort
+    delete fetchOpts.q
+    delete fetchOpts.format
+    return request(`create-chapter${qs}`, { method: 'GET', ...fetchOpts })
+  },
   deleteChapter: (chapterId) => request(`create-chapter?chapterId=${chapterId}`, { method: 'DELETE' }),
   updateChapter: (data) => request('create-chapter', { method: 'PUT', body: JSON.stringify(data) }),
   createLesson: (data) => request('create-lesson', { method: 'POST', body: JSON.stringify(data) }),
   updateLesson: (data) => request('create-lesson?action=update', { method: 'PUT', body: JSON.stringify(data) }),
-  getLessons: (chapterId = '') => request(`create-lesson${chapterId ? `?chapterId=${chapterId}` : ''}`, { method: 'GET' }),
+  getLessons: (chapterId = '', options = {}) => {
+    const qParams = []
+    if (chapterId) qParams.push(`chapterId=${encodeURIComponent(chapterId)}`)
+    if (typeof options === 'object' && options !== null) {
+      if (options.page !== undefined && options.page !== null) qParams.push(`page=${encodeURIComponent(options.page)}`)
+      if (options.pageSize !== undefined && options.pageSize !== null) qParams.push(`pageSize=${encodeURIComponent(options.pageSize)}`)
+      if (options.format) qParams.push(`format=${encodeURIComponent(options.format)}`)
+    }
+    const qs = qParams.length ? `?${qParams.join('&')}` : ''
+    const fetchOpts = typeof options === 'object' && options !== null ? { ...options } : {}
+    delete fetchOpts.page
+    delete fetchOpts.pageSize
+    delete fetchOpts.format
+    return request(`create-lesson${qs}`, { method: 'GET', ...fetchOpts })
+  },
+  getLesson: (lessonId, options = {}) => request(`create-lesson?lessonId=${lessonId}`, { method: 'GET', ...options }),
+  searchClassLessons: (classId, q = '', options = {}) => {
+    const { chapterId, sort, page, pageSize, isTrial, hasVideo, hasTheory, hasHomework, ...fetchOpts } = options
+    const qParams = ['action=search']
+    if (classId) qParams.push(`classId=${encodeURIComponent(classId)}`)
+    if (q && q.trim()) qParams.push(`q=${encodeURIComponent(q.trim())}`)
+    if (chapterId && chapterId !== 'all') qParams.push(`chapterId=${encodeURIComponent(chapterId)}`)
+    if (sort) qParams.push(`sort=${encodeURIComponent(sort)}`)
+    if (page !== undefined && page !== null) qParams.push(`page=${encodeURIComponent(page)}`)
+    if (pageSize !== undefined && pageSize !== null) qParams.push(`pageSize=${encodeURIComponent(pageSize)}`)
+    if (isTrial !== undefined && isTrial !== null) qParams.push(`isTrial=${encodeURIComponent(isTrial)}`)
+    if (hasVideo !== undefined && hasVideo !== null) qParams.push(`hasVideo=${encodeURIComponent(hasVideo)}`)
+    if (hasTheory !== undefined && hasTheory !== null) qParams.push(`hasTheory=${encodeURIComponent(hasTheory)}`)
+    if (hasHomework !== undefined && hasHomework !== null) qParams.push(`hasHomework=${encodeURIComponent(hasHomework)}`)
+    return request(`create-lesson?${qParams.join('&')}`, { method: 'GET', ...fetchOpts })
+  },
+  getClassCurriculumSummary: (classId, options = {}) => request(`create-lesson?action=search&classId=${encodeURIComponent(classId)}`, { method: 'GET', ...options }),
   getTrialLessons: () => request('create-lesson?isTrial=true', { method: 'GET', isPublic: true }),
   deleteLesson: (lessonId) => request(`create-lesson?lessonId=${lessonId}`, { method: 'DELETE' }),
   createMeetSession: (lessonId, title) => request('meet-create', { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, title }) }),
@@ -555,6 +650,12 @@ export const api = {
   deleteQuestionFromBank: (id) => request(`question-bank?id=${id}`, { method: 'DELETE' }),
   deleteQuestionsBulkFromBank: (ids) => request('question-bank?action=bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   updateQuestionInBank: (data) => request('question-bank', { method: 'PUT', body: JSON.stringify(data) }),
+  getConstantTaxonomy: (params = '') => request(`question-bank?action=constant-taxonomy${params ? (params.startsWith('?') || params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
+  previewSyncDynamicToConstant: (data) => request('question-bank?action=preview-sync', { method: 'POST', body: JSON.stringify(data) }),
+  syncDynamicToConstant: (data) => request('question-bank?action=sync-dynamic-to-constant', { method: 'POST', body: JSON.stringify(data) }),
+  createConstantTaxonomyItem: (data) => request('question-bank?action=create-constant-taxonomy', { method: 'POST', body: JSON.stringify(data) }),
+  updateConstantTaxonomyItem: (data) => request('question-bank?action=update-constant-taxonomy', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteConstantTaxonomyItem: (data) => request('question-bank?action=delete-constant-taxonomy', { method: 'POST', body: JSON.stringify(data) }),
   uploadFile: async (file) => {
     const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
     const contentType = file.type || 'application/pdf'

@@ -1906,6 +1906,7 @@ export function bindCreateHwEvents() {
 
     try {
       const chapters = await api.getChapters(classId)
+      const chList = Array.isArray(chapters) ? chapters : (chapters?.items || [])
       let chOptions = '<option value="">-- Chọn chương --</option>'
 
       const isEdit = !!state.editHomeworkData
@@ -1914,22 +1915,22 @@ export function bindCreateHwEvents() {
       const editLessonId = targetLessonId || (hw ? (hw.lessonId || hw.lesson_id) : null)
 
       let selectedChId = ''
-      for (const ch of (chapters || [])) {
+      for (const ch of chList) {
         const isSel = editChapterId === ch.id
         if (isSel) selectedChId = ch.id
         chOptions += `<option value="${ch.id}" ${isSel ? 'selected' : ''}>${ch.title}</option>`
       }
 
       if (chapterSelect) {
-        chapterSelect.innerHTML = (chapters && chapters.length > 0) ? chOptions : '<option value="">Chưa có chương nào</option>'
+        chapterSelect.innerHTML = (chList && chList.length > 0) ? chOptions : '<option value="">Chưa có chương nào</option>'
       }
 
       // If we have a pre-selected chapter
       if (selectedChId) {
         await updateLessonsDropdown(selectedChId, editLessonId)
-      } else if (!isEdit && chapters && chapters.length === 1) {
-        chapterSelect.value = chapters[0].id
-        await updateLessonsDropdown(chapters[0].id, null)
+      } else if (!isEdit && chList && chList.length === 1) {
+        chapterSelect.value = chList[0].id
+        await updateLessonsDropdown(chList[0].id, null)
       }
     } catch (e) {
       if (chapterSelect) {
@@ -1952,21 +1953,22 @@ export function bindCreateHwEvents() {
 
     try {
       const lessons = await api.getLessons(chapterId)
+      const lList = Array.isArray(lessons) ? lessons : (lessons?.items || [])
       let lOptions = '<option value="">-- Chọn bài học --</option>'
 
       const isEdit = !!state.editHomeworkData
       const hw = isEdit ? state.editHomeworkData.homework : null
       const editLessonId = targetLessonId || (hw ? (hw.lessonId || hw.lesson_id) : null)
 
-      for (const l of (lessons || [])) {
+      for (const l of lList) {
         const isSel = editLessonId === l.id ? 'selected' : ''
         lOptions += `<option value="${l.id}" ${isSel}>${l.title}</option>`
       }
 
       if (lessonSelect) {
-        lessonSelect.innerHTML = (lessons && lessons.length > 0) ? lOptions : '<option value="">Chưa có bài học nào</option>'
-        if (!isEdit && lessons && lessons.length === 1) {
-          lessonSelect.value = lessons[0].id
+        lessonSelect.innerHTML = (lList && lList.length > 0) ? lOptions : '<option value="">Chưa có bài học nào</option>'
+        if (!isEdit && lList && lList.length === 1) {
+          lessonSelect.value = lList[0].id
         }
       }
     } catch (e) {
