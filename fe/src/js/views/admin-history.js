@@ -25,6 +25,13 @@ let restoreSearchFocus = false
 const PAGE_SIZE = 20
 const classHomeworksCache = new Map()
 
+// Quản lý huỷ request cũ, requestId chống stale response và trạng thái loading/lỗi
+let historyAbortController = null
+let historyRequestId = 0
+let lastLoadError = null
+let isHistoryLoading = false
+let searchDebounceTimer = null
+
 function parseQuestionPrompt(rawPrompt, qType) {
   let text = ''
   let options = []
@@ -168,9 +175,11 @@ function escapeHtmlAttr(s) {
 
 function buildHistoryHash(opts = {}) {
   const p = new URLSearchParams()
-  p.set('mode', opts.mode !== undefined ? opts.mode : currentMode)
+  const m = opts.mode !== undefined ? opts.mode : currentMode
+  p.set('mode', m)
   const cid = opts.classId !== undefined ? opts.classId : selectedClassId
-  if (cid) p.set('classId', cid)
+  if (cid && cid !== 'TRIAL') p.set('classId', cid)
+  else if (cid === 'TRIAL' || m === 'trial') p.set('classId', 'TRIAL')
   const hw = opts.homeworkId !== undefined ? opts.homeworkId : selectedHomeworkId
   if (hw) p.set('homeworkId', hw)
   const tab = opts.subTab !== undefined ? opts.subTab : currentSubTab
@@ -198,13 +207,22 @@ function parseUrlParams() {
       selectedClassId = 'TRIAL'
     } else {
       currentMode = 'class'
-      // Không chọn lớp nào => mặc định lấy tất cả các lớp
+      // Không chọn lớp nào => mặc định lấy tất cả các lớp ('')
       selectedClassId = (cId && cId !== 'TRIAL') ? cId : ''
     }
     selectedHomeworkId = hId || ''
     if (tabParam && ['submitted', 'wrong-questions', 'unsubmitted'].includes(tabParam)) {
       currentSubTab = tabParam
+    } else {
+      currentSubTab = 'submitted'
     }
+  } else {
+    currentMode = 'class'
+    selectedClassId = ''
+    selectedHomeworkId = ''
+    currentPage = 1
+    searchQuery = ''
+    currentSubTab = 'submitted'
   }
 }
 
@@ -240,7 +258,7 @@ export function renderAdminHistoryView() {
   const classNameText = isTrialMode ? '🌟 Học sinh học thử (Khách trải nghiệm)' : (selectedClass ? selectedClass.name : 'Tất cả các lớp')
 
   const selectedHw = classHomeworks.find(h => h.id === selectedHomeworkId)
-  const hwNameText = selectedHw ? selectedHw.title : (submissionStats?.homeworkTitle || (isTrialMode ? 'Tất cả bài tập học thử' : 'Tất cả bài tập trong lớp'))
+  const hwNameText = selectedHw ? selectedHw.title : (submissionStats?.homeworkTitle || (isTrialMode ? 'Tất cả bài tập học thử' : (selectedClassId ? 'Tất cả bài tập trong lớp' : 'Tất cả bài tập')))
 
   const totalClassStudents = submissionStats?.totalStudents || 0
   const submittedCount = submissionStats?.submittedCount !== undefined ? submissionStats.submittedCount : submissions.length
@@ -495,16 +513,31 @@ export function renderAdminHistoryView() {
 
                 <!-- 2. Search & Select Homework of Class -->
                 <div style="display:flex; flex-direction:column; gap:6px; min-width:280px; flex:1.5;">
-                  <label style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase;">
-                    <i class="fa-solid fa-book-open-reader"></i> Lọc theo Bài học / Bài tập
-                  </label>
-                  <select id="admin-history-hw-select" class="form-input" style="background:#ffffff; cursor:pointer;" ${classHomeworks.length === 0 ? 'disabled' : ''}>
-                    <option value="">-- Tất cả bài tập${selectedClassId ? ' trong lớp' : ''} (${classHomeworks.length} bài) --</option>
-                    ${classHomeworks.map(h => `
-                      <option value="${h.id}" ${h.id === selectedHomeworkId ? 'selected' : ''}>
-                        ${h.title} ${h.type === 'EXAM' ? '[Bài thi]' : '[Luyện tập]'}
-                      </option>
-                    `).join('')}
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label style="font-size:12px; font-weight:700; color:#0284c7; text-transform:uppercase;">
+                      <i class="fa-solid fa-book-open-reader"></i> Lọc theo Bài học / Bài tập
+                    </label>
+                    ${lastLoadError ? `
+                      <button type="button" id="btn-retry-homeworks" class="btn-secondary" style="padding:2px 8px; font-size:11px; font-weight:700; color:#dc2626; border-color:#fca5a5; background:#fef2f2; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Thử lại tải bài tập">
+                        <i class="fa-solid fa-rotate-right"></i> Thử lại
+                      </button>
+                    ` : ''}
+                  </div>
+                  <select id="admin-history-hw-select" class="form-input" style="background:${lastLoadError ? '#fef2f2' : '#ffffff'}; cursor:pointer;" ${(isHistoryLoading || classHomeworks.length === 0 || !!lastLoadError) ? 'disabled' : ''}>
+                    ${isHistoryLoading ? `
+                      <option value="">⏳ Đang tải danh sách bài tập...</option>
+                    ` : lastLoadError ? `
+                      <option value="">⚠️ Lỗi tải bài tập: ${escapeHtmlAttr(lastLoadError)}</option>
+                    ` : classHomeworks.length === 0 ? `
+                      <option value="">-- ${selectedClassId ? 'Lớp chưa có bài tập nào (0 bài)' : 'Chưa có bài tập nào (0 bài)'} --</option>
+                    ` : `
+                      <option value="">-- Tất cả bài tập${selectedClassId ? ' trong lớp' : ''} (${classHomeworks.length} bài) --</option>
+                      ${classHomeworks.map(h => `
+                        <option value="${h.id}" ${h.id === selectedHomeworkId ? 'selected' : ''}>
+                          ${h.title} ${!selectedClassId && h.className ? `(${h.className}) ` : ''}${h.type === 'EXAM' ? '[Bài thi]' : '[Luyện tập]'}
+                        </option>
+                      `).join('')}
+                    `}
                   </select>
                 </div>
                 
@@ -784,11 +817,21 @@ export function renderAdminHistoryView() {
                       </tr>
                     </thead>
                     <tbody id="admin-history-table-body">
-                      ${submissions.length === 0 ? `
+                      ${lastLoadError ? `
+                        <tr>
+                          <td colspan="7" style="text-align:center; padding:40px; color:#dc2626;">
+                            <i class="fa-solid fa-triangle-exclamation" style="font-size:36px; margin-bottom:12px; color:#fca5a5; display:block;"></i>
+                            <div style="font-weight:700; margin-bottom:8px;">Tải dữ liệu thất bại: ${escapeHtmlAttr(lastLoadError)}</div>
+                            <button type="button" class="btn-primary btn-retry-history" style="padding:6px 16px; font-size:13px; cursor:pointer; width:auto; display:inline-flex; align-items:center; gap:6px;">
+                              <i class="fa-solid fa-rotate-right"></i> Thử lại ngay
+                            </button>
+                          </td>
+                        </tr>
+                      ` : submissions.length === 0 ? `
                         <tr>
                           <td colspan="7" style="text-align:center; padding:40px; color:#64748b;">
                             <i class="fa-solid fa-folder-open" style="font-size:36px; margin-bottom:12px; color:#cbd5e1; display:block;"></i>
-                            Chưa có bài tập nào nộp phù hợp với bộ lọc này.
+                            ${selectedClassId && classHomeworks.length === 0 ? 'Lớp học này chưa có bài tập nào.' : 'Chưa có bài tập nào nộp phù hợp với bộ lọc này.'}
                           </td>
                         </tr>
                       ` : submissions.map(sub => {
@@ -1000,16 +1043,33 @@ function exportSubmissionsToCsv() {
 }
 
 export async function loadAdminHistoryData(classId = '', homeworkId = '', mode = '', opts = {}) {
+  // Cancel previous pending request to prevent stale async overwrite
+  if (historyAbortController) {
+    try {
+      historyAbortController.abort()
+    } catch {}
+  }
+  historyAbortController = new AbortController()
+  const signal = historyAbortController.signal
+  const reqId = ++historyRequestId
+
+  const prevClassId = selectedClassId
+
   // Update state from parameters
   if (mode === 'trial' || classId === 'TRIAL') {
     currentMode = 'trial'
     selectedClassId = 'TRIAL'
   } else {
     currentMode = 'class'
-    selectedClassId = (classId && classId !== 'TRIAL') ? classId : (selectedClassId || '')
+    selectedClassId = (classId && classId !== 'TRIAL') ? classId : ''
   }
+
+  const classChanged = (prevClassId !== selectedClassId)
   selectedHomeworkId = homeworkId || ''
+
   if (opts.page) currentPage = opts.page
+  else if (classChanged) currentPage = 1
+
   if (opts.search !== undefined) searchQuery = opts.search
 
   submissions = []
@@ -1018,8 +1078,21 @@ export async function loadAdminHistoryData(classId = '', homeworkId = '', mode =
   unsubmittedStudents = []
   totalPages = 1
   totalCount = 0
+  lastLoadError = null
+  isHistoryLoading = true
 
-  // If in class mode and no classId is specified, keep all classes (no forced default)
+  // Xóa options cũ ngay lập tức nếu class thay đổi
+  if (classChanged && currentMode === 'class') {
+    classHomeworks = []
+  }
+
+  // Hiển thị loading trên DOM nếu element có sẵn
+  const hwSelectEl = document.getElementById('admin-history-hw-select')
+  if (hwSelectEl) {
+    hwSelectEl.disabled = true
+    hwSelectEl.innerHTML = '<option value="">⏳ Đang tải danh sách bài tập...</option>'
+  }
+
   try {
     let queryStr = ''
     if (currentMode === 'trial') {
@@ -1044,7 +1117,13 @@ export async function loadAdminHistoryData(classId = '', homeworkId = '', mode =
       }
     }
 
-    const result = await api.getStudentHistory(queryStr)
+    const result = await api.getStudentHistory(queryStr, { signal })
+
+    // Nếu có request mới hơn đến trước hoặc request này đã bị hủy, loại bỏ response này
+    if (reqId !== historyRequestId || signal.aborted) {
+      return
+    }
+
     submissions = result?.history || []
     totalPages = result?.totalPages || 1
     totalCount = result?.total ?? submissions.length
@@ -1053,23 +1132,50 @@ export async function loadAdminHistoryData(classId = '', homeworkId = '', mode =
     submissionStats = result?.submissionStats || null
     unsubmittedStudents = result?.unsubmittedStudents || []
 
-    if (result?.classHomeworks && result.classHomeworks.length > 0) {
+    // Load lại danh sách bài tập thuộc class mới
+    if (Array.isArray(result?.classHomeworks)) {
       classHomeworks = result.classHomeworks
       if (selectedClassId) {
         classHomeworksCache.set(selectedClassId, classHomeworks)
       }
-    } else if (currentMode === 'class' && selectedClassId) {
-      if (classHomeworksCache.has(selectedClassId)) {
-        classHomeworks = classHomeworksCache.get(selectedClassId) || []
+    } else if (currentMode === 'class' && selectedClassId && classHomeworksCache.has(selectedClassId)) {
+      classHomeworks = classHomeworksCache.get(selectedClassId) || []
+    } else {
+      classHomeworks = []
+    }
+
+    // Nếu class mới không còn homework đang chọn thì reset filter và reload kết quả
+    if (selectedHomeworkId && currentMode === 'class' && selectedClassId) {
+      const hwStillExists = classHomeworks.some(h => h.id === selectedHomeworkId)
+      if (!hwStillExists) {
+        selectedHomeworkId = ''
+        const cleanHash = buildHistoryHash({ mode: 'class', classId: selectedClassId, homeworkId: '', page: 1, search: searchQuery })
+        if (window.location.hash !== cleanHash) {
+          if (window.history?.replaceState) {
+            window.history.replaceState(null, '', cleanHash)
+          } else {
+            window.location.hash = cleanHash
+          }
+        }
+        return await loadAdminHistoryData(selectedClassId, '', currentMode, { page: 1, search: searchQuery })
       }
     }
   } catch (err) {
+    if (err.name === 'AbortError' || signal.aborted || reqId !== historyRequestId) {
+      return
+    }
     console.error('[AdminHistory] Failed to load history data:', err)
     submissions = []
     wrongQuestionsSummary = []
     submissionStats = null
     unsubmittedStudents = []
+    classHomeworks = []
+    lastLoadError = err.message || 'Lỗi kết nối máy chủ'
     showToast(`Tải lịch sử làm bài thất bại: ${err.message}`, 'error')
+  } finally {
+    if (reqId === historyRequestId) {
+      isHistoryLoading = false
+    }
   }
 }
 
@@ -1080,58 +1186,136 @@ export function bindAdminHistoryEvents() {
   const btnModeClass = document.getElementById('btn-mode-class')
   const btnModeTrial = document.getElementById('btn-mode-trial')
 
-  btnModeClass?.addEventListener('click', () => {
-    currentMode = 'class'
-    window.location.hash = buildHistoryHash({ mode: 'class', classId: '', homeworkId: '', subTab: 'submitted' })
-  })
+  if (btnModeClass && !btnModeClass.dataset.bound) {
+    btnModeClass.dataset.bound = 'true'
+    btnModeClass.addEventListener('click', () => {
+      currentMode = 'class'
+      selectedClassId = ''
+      selectedHomeworkId = ''
+      window.location.hash = buildHistoryHash({ mode: 'class', classId: '', homeworkId: '', subTab: 'submitted', page: 1 })
+    })
+  }
 
-  btnModeTrial?.addEventListener('click', () => {
-    currentMode = 'trial'
-    window.location.hash = buildHistoryHash({ mode: 'trial', classId: 'TRIAL', homeworkId: '' })
-  })
+  if (btnModeTrial && !btnModeTrial.dataset.bound) {
+    btnModeTrial.dataset.bound = 'true'
+    btnModeTrial.addEventListener('click', () => {
+      currentMode = 'trial'
+      selectedClassId = 'TRIAL'
+      selectedHomeworkId = ''
+      window.location.hash = buildHistoryHash({ mode: 'trial', classId: 'TRIAL', homeworkId: '', page: 1 })
+    })
+  }
 
   // 2. Sub-tab switching: Submitted vs Wrong Analysis vs Unsubmitted
   const tabBtnSubmitted = document.getElementById('tab-btn-submitted')
   const tabBtnWrong = document.getElementById('tab-btn-wrong')
   const tabBtnUnsubmitted = document.getElementById('tab-btn-unsubmitted')
 
-  tabBtnSubmitted?.addEventListener('click', () => {
-    currentSubTab = 'submitted'
-    window.location.hash = buildHistoryHash({ subTab: 'submitted' })
-  })
+  if (tabBtnSubmitted && !tabBtnSubmitted.dataset.bound) {
+    tabBtnSubmitted.dataset.bound = 'true'
+    tabBtnSubmitted.addEventListener('click', () => {
+      currentSubTab = 'submitted'
+      window.location.hash = buildHistoryHash({ subTab: 'submitted' })
+    })
+  }
 
-  tabBtnWrong?.addEventListener('click', () => {
-    currentSubTab = 'wrong-questions'
-    window.location.hash = buildHistoryHash({ subTab: 'wrong-questions' })
-  })
+  if (tabBtnWrong && !tabBtnWrong.dataset.bound) {
+    tabBtnWrong.dataset.bound = 'true'
+    tabBtnWrong.addEventListener('click', () => {
+      currentSubTab = 'wrong-questions'
+      window.location.hash = buildHistoryHash({ subTab: 'wrong-questions' })
+    })
+  }
 
-  tabBtnUnsubmitted?.addEventListener('click', () => {
-    currentSubTab = 'unsubmitted'
-    window.location.hash = buildHistoryHash({ subTab: 'unsubmitted' })
-  })
+  if (tabBtnUnsubmitted && !tabBtnUnsubmitted.dataset.bound) {
+    tabBtnUnsubmitted.dataset.bound = 'true'
+    tabBtnUnsubmitted.addEventListener('click', () => {
+      currentSubTab = 'unsubmitted'
+      window.location.hash = buildHistoryHash({ subTab: 'unsubmitted' })
+    })
+  }
 
   // 3. Class Select Change (trống = tất cả các lớp, reset trang + tìm kiếm)
   const classSelect = document.getElementById('admin-history-class-select')
-  classSelect?.addEventListener('change', (e) => {
-    const classId = e.target.value
-    window.location.hash = buildHistoryHash({ mode: 'class', classId, homeworkId: '' })
-  })
+  if (classSelect && !classSelect.dataset.bound) {
+    classSelect.dataset.bound = 'true'
+    classSelect.addEventListener('change', async (e) => {
+      const newClassId = e.target.value || ''
+
+      // 1. Reset homeworkId về rỗng ngay lập tức
+      selectedHomeworkId = ''
+      selectedClassId = newClassId
+      currentPage = 1
+
+      // 2. Xóa options cũ ngay lập tức + 3. Hiển thị loading
+      const hwSelect = document.getElementById('admin-history-hw-select')
+      if (hwSelect) {
+        hwSelect.disabled = true
+        hwSelect.innerHTML = '<option value="">⏳ Đang tải danh sách bài tập...</option>'
+      }
+
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer)
+        searchDebounceTimer = null
+      }
+
+      const newHash = buildHistoryHash({ mode: 'class', classId: newClassId, homeworkId: '', page: 1, search: searchQuery })
+      if (window.location.hash !== newHash) {
+        window.location.hash = newHash
+      } else {
+        await loadAdminHistoryData(newClassId, '', 'class', { page: 1, search: searchQuery })
+        const app = document.getElementById('app')
+        if (app) {
+          app.innerHTML = renderAdminHistoryView()
+          bindAdminHistoryEvents()
+        }
+      }
+    })
+  }
 
   // 4. Homework Select Change
   const hwSelect = document.getElementById('admin-history-hw-select')
-  hwSelect?.addEventListener('change', (e) => {
-    const hwId = e.target.value
-    if (currentMode === 'trial') {
-      window.location.hash = buildHistoryHash({ mode: 'trial', classId: 'TRIAL', homeworkId: hwId })
-    } else {
-      window.location.hash = buildHistoryHash({ homeworkId: hwId })
+  if (hwSelect && !hwSelect.dataset.bound) {
+    hwSelect.dataset.bound = 'true'
+    hwSelect.addEventListener('change', (e) => {
+      const hwId = e.target.value || ''
+      selectedHomeworkId = hwId
+      if (currentMode === 'trial') {
+        window.location.hash = buildHistoryHash({ mode: 'trial', classId: 'TRIAL', homeworkId: hwId })
+      } else {
+        window.location.hash = buildHistoryHash({ homeworkId: hwId, subTab: hwId ? currentSubTab : 'submitted', page: 1 })
+      }
+    })
+  }
+
+  // Retry buttons (xử lý error/retry)
+  const handleRetry = async () => {
+    lastLoadError = null
+    await loadAdminHistoryData(selectedClassId, selectedHomeworkId, currentMode, { page: currentPage, search: searchQuery })
+    const app = document.getElementById('app')
+    if (app) {
+      app.innerHTML = renderAdminHistoryView()
+      bindAdminHistoryEvents()
+    }
+  }
+
+  const btnRetryHw = document.getElementById('btn-retry-homeworks')
+  if (btnRetryHw && !btnRetryHw.dataset.bound) {
+    btnRetryHw.dataset.bound = 'true'
+    btnRetryHw.addEventListener('click', handleRetry)
+  }
+
+  document.querySelectorAll('.btn-retry-history').forEach(btn => {
+    if (!btn.dataset.bound) {
+      btn.dataset.bound = 'true'
+      btn.addEventListener('click', handleRetry)
     }
   })
 
   // 5. Search: tìm ở server (debounce, reset về trang 1); giữ focus sau khi render lại
   const searchInput = document.getElementById('admin-history-search')
-  if (searchInput) {
-    let searchTimer = null
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.dataset.bound = 'true'
     if (restoreSearchFocus) {
       restoreSearchFocus = false
       searchInput.focus()
@@ -1148,10 +1332,12 @@ export function bindAdminHistoryEvents() {
       })
     } else {
       searchInput.addEventListener('input', (e) => {
-        clearTimeout(searchTimer)
-        searchTimer = setTimeout(() => {
+        if (searchDebounceTimer) {
+          clearTimeout(searchDebounceTimer)
+        }
+        searchDebounceTimer = setTimeout(() => {
           restoreSearchFocus = true
-          window.location.hash = buildHistoryHash({ search: e.target.value.trim() })
+          window.location.hash = buildHistoryHash({ search: e.target.value.trim(), page: 1 })
         }, 500)
       })
     }
@@ -1159,16 +1345,21 @@ export function bindAdminHistoryEvents() {
 
   // 6. Real-time Search for Trial Leads (Name or Phone)
   const leadSearchInput = document.getElementById('admin-history-lead-search')
-  leadSearchInput?.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase().trim()
-    document.querySelectorAll('.history-row').forEach(row => {
-      const text = row.textContent.toLowerCase()
-      row.style.display = text.includes(query) ? '' : 'none'
+  if (leadSearchInput && !leadSearchInput.dataset.bound) {
+    leadSearchInput.dataset.bound = 'true'
+    leadSearchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim()
+      document.querySelectorAll('.history-row').forEach(row => {
+        const text = row.textContent.toLowerCase()
+        row.style.display = text.includes(query) ? '' : 'none'
+      })
     })
-  })
+  }
 
   // 7. Copy Phone Number Buttons
   document.querySelectorAll('.btn-copy-phone').forEach(btn => {
+    if (btn.dataset.bound) return
+    btn.dataset.bound = 'true'
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
       const phone = btn.getAttribute('data-phone')
@@ -1183,30 +1374,48 @@ export function bindAdminHistoryEvents() {
   })
 
   // 8. Export CSV Buttons
-  document.getElementById('btn-export-trial-csv')?.addEventListener('click', () => {
-    exportSubmissionsToCsv()
-  })
+  const btnExportTrial = document.getElementById('btn-export-trial-csv')
+  if (btnExportTrial && !btnExportTrial.dataset.bound) {
+    btnExportTrial.dataset.bound = 'true'
+    btnExportTrial.addEventListener('click', () => {
+      exportSubmissionsToCsv()
+    })
+  }
 
-  document.getElementById('btn-export-submissions-csv')?.addEventListener('click', () => {
-    exportSubmissionsToCsv()
-  })
+  const btnExportSubmissions = document.getElementById('btn-export-submissions-csv')
+  if (btnExportSubmissions && !btnExportSubmissions.dataset.bound) {
+    btnExportSubmissions.dataset.bound = 'true'
+    btnExportSubmissions.addEventListener('click', () => {
+      exportSubmissionsToCsv()
+    })
+  }
 
-  document.getElementById('btn-export-unsubmitted-csv')?.addEventListener('click', () => {
-    exportUnsubmittedToCsv()
-  })
+  const btnExportUnsubmitted = document.getElementById('btn-export-unsubmitted-csv')
+  if (btnExportUnsubmitted && !btnExportUnsubmitted.dataset.bound) {
+    btnExportUnsubmitted.dataset.bound = 'true'
+    btnExportUnsubmitted.addEventListener('click', () => {
+      exportUnsubmittedToCsv()
+    })
+  }
 
   // 9. Copy Reminder Button
-  document.getElementById('btn-copy-reminder')?.addEventListener('click', () => {
-    const text = generateReminderText()
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Đã sao chép nội dung nhắc nhở bài tập!', 'success')
-    }).catch(() => {
-      showToast('Không thể sao chép văn bản!', 'error')
+  const btnCopyReminder = document.getElementById('btn-copy-reminder')
+  if (btnCopyReminder && !btnCopyReminder.dataset.bound) {
+    btnCopyReminder.dataset.bound = 'true'
+    btnCopyReminder.addEventListener('click', () => {
+      const text = generateReminderText()
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Đã sao chép nội dung nhắc nhở bài tập!', 'success')
+      }).catch(() => {
+        showToast('Không thể sao chép văn bản!', 'error')
+      })
     })
-  })
+  }
 
   // 10. View Submission Details
   document.querySelectorAll('.view-detail-btn').forEach(btn => {
+    if (btn.dataset.bound) return
+    btn.dataset.bound = 'true'
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
       const subId = btn.getAttribute('data-id')
@@ -1218,6 +1427,8 @@ export function bindAdminHistoryEvents() {
 
   // 11. View Wrong Answers Modal
   document.querySelectorAll('.view-wrong-modal-btn').forEach(btn => {
+    if (btn.dataset.bound) return
+    btn.dataset.bound = 'true'
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
       const subId = btn.getAttribute('data-subid')
@@ -1265,6 +1476,8 @@ export function bindAdminHistoryEvents() {
 
   // 12. Reopen Submission Modal
   document.querySelectorAll('.reopen-sub-btn').forEach(btn => {
+    if (btn.dataset.bound) return
+    btn.dataset.bound = 'true'
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
       const hwId = btn.getAttribute('data-hwid')
@@ -1327,6 +1540,8 @@ export function bindAdminHistoryEvents() {
 
   // 13. Redirect to Homework Editor
   document.querySelectorAll('.redirect-edit-hw-btn').forEach(btn => {
+    if (btn.dataset.bound) return
+    btn.dataset.bound = 'true'
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
       const hwId = btn.getAttribute('data-hwid')
@@ -1378,6 +1593,8 @@ export function bindAdminHistoryEvents() {
   }
 
   document.querySelectorAll('.bonus-btn').forEach(btn => {
+    if (btn.dataset.bound) return
+    btn.dataset.bound = 'true'
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
       const hwId = btn.getAttribute('data-hwid')
@@ -1396,23 +1613,27 @@ export function bindAdminHistoryEvents() {
     })
   })
 
-  document.getElementById('btn-bonus-whole-class')?.addEventListener('click', () => {
-    if (!selectedHomeworkId) return
-    openBonusModal({
-      title: 'Cộng điểm cả lớp',
-      desc: `Nhập điểm cộng thêm áp dụng cho <strong>tất cả bài đã nộp</strong> trong bài tập này${selectedClassId && selectedClassId !== 'TRIAL' ? ' của lớp đang xem' : ''}.`,
-      currentBonus: 0,
-      onConfirm: async (val) => {
-        const res = await api.setBonus({
-          homeworkId: selectedHomeworkId,
-          allInHomework: true,
-          classId: selectedClassId && selectedClassId !== 'TRIAL' ? selectedClassId : undefined,
-          bonus: val
-        })
-        showToast(`Đã cộng ${val}đ cho ${res?.updated || 0} bài làm!`, 'success')
-      }
+  const btnBonusWholeClass = document.getElementById('btn-bonus-whole-class')
+  if (btnBonusWholeClass && !btnBonusWholeClass.dataset.bound) {
+    btnBonusWholeClass.dataset.bound = 'true'
+    btnBonusWholeClass.addEventListener('click', () => {
+      if (!selectedHomeworkId) return
+      openBonusModal({
+        title: 'Cộng điểm cả lớp',
+        desc: `Nhập điểm cộng thêm áp dụng cho <strong>tất cả bài đã nộp</strong> trong bài tập này${selectedClassId && selectedClassId !== 'TRIAL' ? ' của lớp đang xem' : ''}.`,
+        currentBonus: 0,
+        onConfirm: async (val) => {
+          const res = await api.setBonus({
+            homeworkId: selectedHomeworkId,
+            allInHomework: true,
+            classId: selectedClassId && selectedClassId !== 'TRIAL' ? selectedClassId : undefined,
+            bonus: val
+          })
+          showToast(`Đã cộng ${val}đ cho ${res?.updated || 0} bài làm!`, 'success')
+        }
+      })
     })
-  })
+  }
 
   // 14. Render KaTeX / Math / Chemical formulas on the page
   setTimeout(() => {
@@ -1463,4 +1684,53 @@ function renderHistoryPager() {
       window.location.hash = buildHistoryHash({ page: next, search: searchQuery })
     })
   })
+}
+
+export function _getAdminHistoryState() {
+  return {
+    currentMode,
+    selectedClassId,
+    selectedHomeworkId,
+    currentSubTab,
+    classHomeworks: [...classHomeworks],
+    submissions: [...submissions],
+    currentPage,
+    totalPages,
+    totalCount,
+    searchQuery,
+    lastLoadError,
+    isHistoryLoading,
+    historyRequestId
+  }
+}
+
+export function _resetAdminHistoryState() {
+  currentMode = 'class'
+  selectedClassId = ''
+  selectedHomeworkId = ''
+  currentSubTab = 'submitted'
+  submissions = []
+  wrongQuestionsSummary = []
+  classHomeworks = []
+  submissionStats = null
+  unsubmittedStudents = []
+  currentPage = 1
+  totalPages = 1
+  totalCount = 0
+  searchQuery = ''
+  restoreSearchFocus = false
+  classHomeworksCache.clear()
+  if (historyAbortController) {
+    try {
+      historyAbortController.abort()
+    } catch {}
+    historyAbortController = null
+  }
+  historyRequestId = 0
+  lastLoadError = null
+  isHistoryLoading = false
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = null
+  }
 }

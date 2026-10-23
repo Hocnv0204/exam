@@ -595,6 +595,15 @@ serve(async (req: Request) => {
       rawSubmissions = subResult.data || []
       fetchErr = subResult.error
       prefetchedEnrolledStudents = enrolledResult.data || null
+
+      if (classId && classId !== 'TRIAL') {
+        if (homeworkId && !classHwIds.includes(homeworkId)) {
+          // Homework does not belong to the requested class -> return empty submissions to prevent cross-class leakage
+          rawSubmissions = []
+        } else if (classHwIds.length === 0) {
+          rawSubmissions = []
+        }
+      }
     } else {
       // Must wait for class homeworks to get classHwIds
       classHomeworks = await homeworksPromise

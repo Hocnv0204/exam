@@ -267,7 +267,7 @@ serve(async (req: Request) => {
         }
 
         // 3. Sắp xếp kết quả stable
-        const sort = url.searchParams.get('sort') || 'order'
+        const sort = url.searchParams.get('sort') || 'newest'
         filtered.sort((a: any, b: any) => {
           if (sort === 'title-asc') {
             const c = (a.title || '').localeCompare(b.title || '', 'vi')

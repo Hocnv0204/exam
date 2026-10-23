@@ -1836,6 +1836,8 @@ async function openSyncDynamicToConstantModal() {
       showToast(res.message || 'Đã đồng bộ thành công!', 'success')
       await fetchAndRenderQuestions({ includeStats: true })
       await refreshStats()
+      // Đồng bộ thành công thì đóng popup để người dùng quay lại danh sách đã cập nhật.
+      closeModal()
     } catch (err) {
       resultAlert.style.display = 'block'
       resultAlert.style.background = '#fef2f2'

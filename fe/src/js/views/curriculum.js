@@ -114,7 +114,7 @@ let selectedChapterId = null
 let cachedClassCurriculumSummaries = {}
 let currentSearchQuery = ''
 let selectedChapterFilter = 'all'
-let selectedSortOrder = 'order'
+let selectedSortOrder = 'newest'
 let curriculumCurrentPage = 1
 let CURRICULUM_PAGE_SIZE = 15
 let serverLessonsResult = { items: [], total: 0, page: 1, pageSize: 15 }
@@ -151,7 +151,7 @@ export async function ensureCurriculumLoaded(classId) {
     selectedLessonId = null
     currentSearchQuery = ''
     selectedChapterFilter = 'all'
-    selectedSortOrder = 'order'
+    selectedSortOrder = 'newest'
     curriculumCurrentPage = 1
     curriculumError = null
   }

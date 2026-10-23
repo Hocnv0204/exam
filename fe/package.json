@@ -13,7 +13,8 @@
     "test:matrix-scope": "node scripts/test-matrix-scope.mjs",
     "test:constant-sync": "node scripts/test-constant-taxonomy-sync.mjs",
     "test:curriculum-search": "node scripts/test-curriculum-search.mjs",
-    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && node scripts/test-constant-taxonomy-sync.mjs && node scripts/test-curriculum-search.mjs"
+    "test:admin-history": "node scripts/test-admin-history-filter.mjs",
+    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && node scripts/test-constant-taxonomy-sync.mjs && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.0"

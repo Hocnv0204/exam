@@ -584,7 +584,22 @@ export const api = {
   autosaveExamSession: (homeworkId, sessionToken, draftAnswers, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'autosave', homeworkId, sessionToken, draftAnswers }), silent: true, ...options }),
   getDashboard: () => request('dashboard', { method: 'GET' }),
   getStatistics: (params = '') => request(`statistics?${params}`, { method: 'GET' }),
-  getStudentHistory: (params = '') => request(`student-history${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
+  getStudentHistory: (params = '', options = {}) => {
+    let qs = ''
+    if (typeof params === 'string') {
+      qs = params ? (params.startsWith('?') ? params : `?${params}`) : ''
+    } else if (params && typeof params === 'object') {
+      const sp = new URLSearchParams()
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          sp.set(k, v)
+        }
+      })
+      const str = sp.toString()
+      qs = str ? `?${str}` : ''
+    }
+    return request(`student-history${qs}`, { method: 'GET', ...options })
+  },
   getStudents: (params = '', options = {}) => {
     let qs = ''
     if (typeof params === 'string') {
