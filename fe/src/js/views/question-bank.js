@@ -1786,6 +1786,9 @@ async function openSyncDynamicToConstantModal() {
             <span class="sync-preview-markdown" style="flex:1; min-width:0; color:#334155; overflow-wrap:anywhere;">${renderMarkdown(q.promptSnippet || '')}</span>
           </div>
           `).join('')}`
+        // Nội dung preview vừa được chèn động; cần chạy lại KaTeX/mhchem
+        // để các delimiters $...$, $$...$$ và \\ce{...} không còn hiển thị thô.
+        renderMath(snippetsBox)
       }
     } catch (err) {
       showToast('Lỗi xem trước: ' + err.message, 'error')
