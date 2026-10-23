@@ -1559,7 +1559,7 @@ async function openSyncDynamicToConstantModal() {
             </div>
 
             <!-- Snippets -->
-            <div id="sync-preview-snippets" style="max-height:160px; overflow-y:auto; border:1px solid #f1f5f9; border-radius:8px; padding:6px; background:#fafafa; font-size:12px;"></div>
+            <div id="sync-preview-snippets" style="max-height:360px; overflow-y:auto; border:1px solid #f1f5f9; border-radius:8px; padding:6px; background:#fafafa; font-size:12px;"></div>
           </div>
 
           <!-- Status / Execution Alert Box -->
@@ -1776,14 +1776,16 @@ async function openSyncDynamicToConstantModal() {
       if (prevQs.length === 0) {
         snippetsBox.innerHTML = '<div style="color:#94a3b8; padding:8px; text-align:center;">Các bài học nguồn không có câu hỏi nào</div>'
       } else {
-        snippetsBox.innerHTML = prevQs.map((q, idx) => `
-          <div style="padding:4px 8px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:8px;">
+        snippetsBox.innerHTML = `
+          <div style="padding:4px 8px 8px; color:#64748b; font-size:11.5px; font-weight:600;">Hiển thị ${prevQs.length} / ${res.totalSourceQuestions || prevQs.length} câu nguồn</div>
+          ${prevQs.map((q, idx) => `
+          <div style="padding:8px; border-bottom:1px solid #f1f5f9; display:flex; align-items:flex-start; gap:8px; line-height:1.5;">
             <span style="font-weight:700; color:#64748b;">${idx + 1}.</span>
             <span style="font-size:11px; font-weight:700; padding:1px 5px; border-radius:4px; background:#e0f2fe; color:#0369a1;">${escapeHtml(q.questionType)}</span>
             <span style="font-size:11px; font-weight:600; color:#64748b;">[${escapeHtml(q.sourceLessonTitle)}]</span>
-            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#334155;">${escapeHtml(q.promptSnippet || '')}</span>
+            <span class="sync-preview-markdown" style="flex:1; min-width:0; color:#334155; overflow-wrap:anywhere;">${renderMarkdown(q.promptSnippet || '')}</span>
           </div>
-        `).join('')
+          `).join('')}`
       }
     } catch (err) {
       showToast('Lỗi xem trước: ' + err.message, 'error')

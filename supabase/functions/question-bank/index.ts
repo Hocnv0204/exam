@@ -855,11 +855,11 @@ serve(async (req: Request) => {
             className: (targetLesson as any)?.qb_chapters?.qb_classes?.name,
             gradeBlock: (targetLesson as any)?.qb_chapters?.qb_classes?.grade_block
           },
-          previewQuestions: candidateQuestions.slice(0, 10).map((q: any) => ({
+          previewQuestions: candidateQuestions.slice(0, 100).map((q: any) => ({
             id: q.id,
             questionType: q.question_type,
             difficulty: q.difficulty,
-            promptSnippet: typeof q.prompt === 'object' ? (q.prompt?.text || '').slice(0, 100) : String(q.prompt || '').slice(0, 100),
+            promptSnippet: typeof q.prompt === 'object' ? (q.prompt?.text || '').slice(0, 300) : String(q.prompt || '').slice(0, 300),
             sourceLessonTitle: q.lessons?.title || 'Chưa đặt tên',
             sourceClassName: q.chapters?.classes?.name || ''
           }))
@@ -1535,11 +1535,11 @@ serve(async (req: Request) => {
             className: (targetLesson as any)?.qb_chapters?.qb_classes?.name,
             gradeBlock: (targetLesson as any)?.qb_chapters?.qb_classes?.grade_block
           },
-          previewQuestions: candidateQuestions.slice(0, 10).map((q: any) => ({
+          previewQuestions: candidateQuestions.slice(0, 100).map((q: any) => ({
             id: q.id,
             questionType: q.question_type,
             difficulty: q.difficulty,
-            promptSnippet: typeof q.prompt === 'object' ? (q.prompt?.text || '').slice(0, 100) : String(q.prompt || '').slice(0, 100),
+            promptSnippet: typeof q.prompt === 'object' ? (q.prompt?.text || '').slice(0, 300) : String(q.prompt || '').slice(0, 300),
             sourceLessonTitle: q.lessons?.title || 'Chưa đặt tên',
             sourceClassName: q.chapters?.classes?.name || ''
           }))
