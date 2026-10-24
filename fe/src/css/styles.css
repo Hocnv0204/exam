@@ -702,6 +702,60 @@ select.form-input {
   vertical-align: middle;
 }
 
+/* Class management: keep the entry point to a class prominent and compact. */
+.class-list-row {
+  transition: background-color 0.15s ease;
+}
+
+.class-list-row:hover {
+  background: #f8fbff;
+}
+
+.class-list-name-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.class-list-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 16px;
+}
+
+.class-list-name {
+  display: block;
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.class-list-hint {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.class-list-hint i {
+  margin-left: 3px;
+  color: #2563eb;
+  font-size: 10px;
+}
+
+.class-enter-btn {
+  white-space: nowrap;
+}
+
 .student-info-cell {
   display: flex;
   align-items: center;
@@ -4065,6 +4119,5 @@ body.review-split-mode .page-header {
   background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
   box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
 }
-
 
 

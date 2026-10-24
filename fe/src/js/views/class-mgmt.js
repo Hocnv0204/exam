@@ -44,7 +44,7 @@ export function renderClassMgmtView() {
           <div class="page-header">
             <div>
               <h1 class="page-title">Quản lý lớp học</h1>
-              <p class="page-description">Quản lý danh sách các lớp học, khối học và phân bổ học sinh.</p>
+              <p class="page-description">Chọn một lớp để vào thẳng không gian quản lý lớp học.</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn-secondary" id="open-manage-grade-blocks-btn" style="padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; border-radius:10px; background:#f8fafc; border:1px solid #cbd5e1; color:#334155;">
@@ -61,19 +61,16 @@ export function renderClassMgmtView() {
             <div class="flex-wrap-mobile" style="display:flex; gap:16px; margin-bottom:20px; align-items:center;">
               <div class="search-box full-width-mobile" style="width: 100%; max-width: 320px;">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="class-search-input" placeholder="Tìm tên lớp hoặc khối...">
+                <input type="text" id="class-search-input" placeholder="Tìm tên lớp học...">
               </div>
             </div>
 
               <!-- Class Data Table -->
-              <div class="table-responsive">
+              <div class="table-responsive class-list-table-wrap">
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>Tên lớp học <i class="fa-solid fa-arrow-down-short-wide"></i></th>
-                      <th>Khối</th>
-                      <th>Số học sinh</th>
-                      <th>Tiến độ</th>
+                      <th>Lớp học <i class="fa-solid fa-arrow-down-short-wide"></i></th>
                       <th>Thao tác</th>
                     </tr>
                   </thead>
@@ -96,27 +93,19 @@ export function renderClassMgmtView() {
 
 function renderClassRow(c) {
   return `
-    <tr id="row-class-${c.id}">
+    <tr id="row-class-${c.id}" class="class-list-row">
       <td>
-        <div style="font-weight:700; color:#0f172a;">${c.name}</div>
-      </td>
-      <td>
-        <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700; padding:4px 10px; border-radius:6px; font-size:12px; border:1px solid #bae6fd; display:inline-flex; align-items:center; gap:5px;">
-          <i class="fa-solid fa-layer-group" style="font-size:11px;"></i>${c.gradeBlock || '12-Toán'}
-        </span>
-      </td>
-      <td style="font-weight:600; color:#0f172a;"><i class="fa-solid fa-users" style="color:#64748b;"></i> ${c.studentsCount} học sinh</td>
-      <td>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div class="progress-bar-bg" style="width:100px; height:8px;">
-            <div class="progress-bar-fill" style="width: ${c.progress}%;"></div>
-          </div>
-          <span style="font-size:12px; font-weight:700; color:#0066cc;">${c.progress}%</span>
-        </div>
+        <a href="#class-details?classId=${c.id}" class="class-list-name-link">
+          <span class="class-list-icon"><i class="fa-solid fa-graduation-cap"></i></span>
+          <span>
+            <span class="class-list-name">${c.name}</span>
+            <span class="class-list-hint">Mở không gian lớp học <i class="fa-solid fa-arrow-right"></i></span>
+          </span>
+        </a>
       </td>
       <td>
         <div style="display:flex; gap:10px; align-items:center;">
-          <a href="#class-details?classId=${c.id}" class="btn-primary" style="padding:5px 12px; font-size:12px; width:auto; border-radius:6px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-circle-info"></i> Chi tiết</a>
+          <a href="#class-details?classId=${c.id}" class="btn-primary class-enter-btn" style="padding:8px 14px; font-size:12px; width:auto; border-radius:8px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-arrow-right"></i> Vào lớp học</a>
           <button class="btn-edit-class" data-id="${c.id}" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;" title="Chỉnh sửa lớp học"><i class="fa-solid fa-pen-to-square"></i></button>
           <button class="btn-delete-class" data-id="${c.id}" data-name="${c.name}" title="Xóa lớp học" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
         </div>
