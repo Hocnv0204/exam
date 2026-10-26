@@ -4,7 +4,7 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
-import { parseExamMarkdown, formatQuestionToMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
+import { parseExamMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 // ========================================================
@@ -3317,7 +3317,7 @@ async function openImportMarkdownModal() {
           <!-- Preview & Difficulty Adjustment Pane -->
           <div id="md-preview-pane" style="display:none; margin-bottom:14px; border:1px solid #cbdceb; border-radius:12px; background:#ffffff; overflow:hidden; box-shadow:0 2px 5px rgba(15,23,42,.04);">
             <div style="padding:12px 16px; background:linear-gradient(135deg,#eff6ff,#ffffff); border-bottom:1px solid #dbe5f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-              <div><div style="font-size:14px; font-weight:800; color:#1e3a5f;"><i class="fa-solid fa-eye" style="color:#0284c7;"></i> Preview câu hỏi đã render</div><div style="font-size:11px; color:#64748b; margin-top:2px;">Bấm vào câu hỏi hoặc nút Chi tiết để xem đầy đủ nội dung.</div></div>
+              <div><div style="font-size:14px; font-weight:800; color:#1e3a5f;"><i class="fa-solid fa-eye" style="color:#0284c7;"></i> Preview câu hỏi đã render</div><div style="font-size:11px; color:#64748b; margin-top:2px;">Bấm vào thẻ câu để xem nội dung đầy đủ; bấm <strong>Mã nguồn</strong> để sửa trực tiếp Markdown của câu đó.</div></div>
               </span>
               <!-- Fast apply for all in modal -->
               <div style="display:flex; align-items:center; gap:8px;">
@@ -3715,9 +3715,9 @@ async function openImportMarkdownModal() {
       const displayNumber = q.questionNumber || idx + 1
       html += `
         <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;"><strong style="color:#334155;">Câu ${displayNumber}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span></div>
-            <div style="display:flex; gap:5px;"><button type="button" class="md-view-detail-btn" data-index="${idx}" style="border:1px solid #93c5fd; color:#0369a1; background:#eff6ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-eye"></i> Chi tiết</button><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap; min-width:0;">
+            <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-width:0;"><strong style="color:#334155;">Câu ${displayNumber}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span></div>
+            <div class="md-preview-card-actions" style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:5px; min-width:0; max-width:100%;"><button type="button" class="md-source-question-btn" data-index="${idx}" title="Sửa trực tiếp Markdown của câu này trong vùng nhập" style="border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-code"></i> Mã nguồn</button><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button></div>
           </div>
           <div style="border-top:1px solid #f1f5f9; padding-top:10px;">${renderQuestionBody(q)}</div>
           <div style="margin-top:8px; font-size:11px;">${status}</div>
@@ -3750,16 +3750,16 @@ async function openImportMarkdownModal() {
     })
     container.querySelectorAll('.md-preview-card').forEach(el => {
       el.addEventListener('click', (e) => {
-        if (e.target.closest('.md-item-diff-select')) return
+        if (e.target.closest('.md-item-diff-select') || e.target.closest('.md-preview-card-actions')) return
         const idx = parseInt(el.getAttribute('data-index'), 10)
         if (Number.isInteger(idx)) showQuestionDetail(idx)
       })
     })
-    container.querySelectorAll('.md-view-detail-btn').forEach(btn => {
+    container.querySelectorAll('.md-source-question-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation()
         const idx = parseInt(btn.getAttribute('data-index'), 10)
-        if (Number.isInteger(idx)) showQuestionDetail(idx)
+        if (Number.isInteger(idx)) openQuestionMarkdownSource(idx)
       })
     })
     container.querySelectorAll('.md-delete-question-btn').forEach(btn => {
@@ -3793,9 +3793,9 @@ async function openImportMarkdownModal() {
     const options = (q.options || []).map(o => `<div style="padding:5px 0;">${escapeHtml(String(o.id || '').toUpperCase())}. ${renderMarkdown(o.text || '')}</div>`).join('')
     detail.style.display = 'block'
     const detailNumber = q.questionNumber || index + 1
-    detail.innerHTML = `<div style="padding:12px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; gap:8px;"><strong>Chi tiết Câu ${detailNumber}</strong><div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;"><button type="button" id="md-edit-question-btn" class="btn-secondary" style="padding:5px 9px; font-size:11px; border:1px solid #f59e0b; color:#b45309; background:#fffbeb; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-pen"></i> Sửa Markdown câu này</button><button type="button" id="md-delete-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-trash"></i> Xóa câu</button><button type="button" id="md-close-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer;">Đóng</button></div></div><div style="padding:14px; max-height:520px; overflow:auto;">${renderQuestionBodyForDetail(q, options)}</div>`
+    detail.innerHTML = `<div style="padding:12px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;"><strong>Chi tiết Câu ${detailNumber}</strong><div style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:6px; min-width:0; max-width:100%;"><button type="button" id="md-edit-question-btn" class="btn-secondary" title="Sửa trực tiếp Markdown của câu này trong vùng nhập" style="padding:5px 9px; font-size:11px; border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-code"></i> Mã nguồn</button><button type="button" id="md-delete-detail-btn" title="Loại câu này khỏi danh sách nhập" style="padding:5px 9px; font-size:11px; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa câu</button><button type="button" id="md-close-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer; white-space:nowrap;">Đóng</button></div></div><div style="padding:14px; max-height:520px; overflow:auto;">${renderQuestionBodyForDetail(q, options)}</div>`
     document.getElementById('md-close-detail-btn')?.addEventListener('click', () => { detail.style.display = 'none'; detail.innerHTML = '' })
-    document.getElementById('md-edit-question-btn')?.addEventListener('click', () => editQuestionMarkdown(index))
+    document.getElementById('md-edit-question-btn')?.addEventListener('click', () => openQuestionMarkdownSource(index))
     document.getElementById('md-delete-detail-btn')?.addEventListener('click', () => deleteParsedQuestion(index))
     renderMath(detail)
     detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -3805,23 +3805,47 @@ async function openImportMarkdownModal() {
     return `<div class="math-content" style="line-height:1.6;">${renderMarkdown(q.promptText || '')}</div><div style="margin-top:10px;">${optionsHtml}</div>${q.explanation ? `<div style="margin-top:14px; padding:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;"><strong>Lời giải</strong><div>${renderMarkdown(q.explanation)}</div></div>` : ''}`
   }
 
-  function editQuestionMarkdown(index) {
-    const question = parsedQuestions[index]
-    if (!question || !editor) return
-    const lines = editor.value.replace(/\r\n/g, '\n').split('\n')
+  function locateQuestionBlockRange(index) {
+    if (!editor) return null
+    const source = editor.value.replace(/\r\n/g, '\n')
+    const lines = source.split('\n')
     const starts = []
     lines.forEach((line, lineIndex) => { if (/^\s*\[(?:Câu|Bài)\s*\d+\]/i.test(line.trim())) starts.push(lineIndex) })
     const start = starts[index]
-    if (start === undefined) return showToast('Không xác định được vị trí Markdown của câu này.', 'warning')
+    if (start === undefined) return null
     const end = starts[index + 1] ?? lines.length
-    lines.splice(start, end - start, formatQuestionToMarkdown(question))
-    editor.value = lines.join('\n')
-    updateParsedCounters(editor.value)
-    document.getElementById('md-question-detail').style.display = 'none'
+    const lineOffsets = []
+    let offset = 0
+    lines.forEach((line, lineIndex) => {
+      lineOffsets[lineIndex] = offset
+      offset += line.length + 1
+    })
+    return {
+      lines,
+      start,
+      end,
+      sourceStart: lineOffsets[start],
+      sourceEnd: end < lines.length ? lineOffsets[end] : source.length
+    }
+  }
+
+  // Nhảy thẳng tới vùng Markdown của câu, chỉ chọn đúng khối câu đó (không render lại)
+  function openQuestionMarkdownSource(index) {
+    const question = parsedQuestions[index]
+    if (!question || !editor) return
+    const block = locateQuestionBlockRange(index)
+    if (!block) return showToast('Không xác định được vị trí Markdown của câu này.', 'warning')
+    const { sourceStart, sourceEnd } = block
+    const detail = document.getElementById('md-question-detail')
+    if (detail) {
+      detail.style.display = 'none'
+      detail.innerHTML = ''
+    }
     editor.focus()
-    editor.setSelectionRange(lines.slice(0, start).join('\n').length, editor.value.length)
+    editor.setSelectionRange(sourceStart, sourceEnd)
     editor.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    showToast(`Đã đưa Câu ${index + 1} về vùng Markdown để chỉnh sửa.`, 'info')
+    const detailNumber = question.questionNumber || index + 1
+    showToast(`Đang sửa Markdown của Câu ${detailNumber} (đã chọn đúng khối câu này).`, 'info')
   }
 
   // Submit
