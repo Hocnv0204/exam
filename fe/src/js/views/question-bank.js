@@ -3317,7 +3317,7 @@ async function openImportMarkdownModal() {
           <!-- Preview & Difficulty Adjustment Pane -->
           <div id="md-preview-pane" style="display:none; margin-bottom:14px; border:1px solid #cbdceb; border-radius:12px; background:#ffffff; overflow:hidden; box-shadow:0 2px 5px rgba(15,23,42,.04);">
             <div style="padding:12px 16px; background:linear-gradient(135deg,#eff6ff,#ffffff); border-bottom:1px solid #dbe5f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-              <div><div style="font-size:14px; font-weight:800; color:#1e3a5f;"><i class="fa-solid fa-eye" style="color:#0284c7;"></i> Preview câu hỏi đã render</div><div style="font-size:11px; color:#64748b; margin-top:2px;">Bấm vào thẻ câu để xem nội dung đầy đủ; bấm <strong>Mã nguồn</strong> để sửa trực tiếp Markdown của câu đó.</div></div>
+              <div><div style="font-size:14px; font-weight:800; color:#1e3a5f;"><i class="fa-solid fa-eye" style="color:#0284c7;"></i> Preview câu hỏi đã render</div><div style="font-size:11px; color:#64748b; margin-top:2px;">Bấm vào thẻ câu để xem nội dung đầy đủ; bấm <strong>Mã nguồn</strong> để sửa trực tiếp Markdown của câu đó ngay trong thẻ.</div></div>
               </span>
               <!-- Fast apply for all in modal -->
               <div style="display:flex; align-items:center; gap:8px;">
@@ -3370,8 +3370,19 @@ async function openImportMarkdownModal() {
 
   let parsedQuestions = []
 
+  // Nguồn Markdown của batch: luôn đồng bộ với textarea khi parse / xóa / sửa card,
+  // dùng làm "nguồn sự thật" để submit parse lại mà không hồi sinh câu đã Xóa.
+  let batchSource = (editor?.value || '').replace(/\r\n/g, '\n')
+  // Câu đang mở editor Mã nguồn ngay trong card (null = không mở) + bản nháp chưa Lưu
+  let activeSourceEditorIndex = null
+  let activeSourceDraft = null
+  // Chỉ focus textarea card ở lần render mở editor (tránh cướp focus khi render lại)
+  let pendingSourceFocus = false
+  // false = cấu trúc nguồn không khớp số câu parse được (không reparse toàn bộ để tránh hồi sinh câu đã xóa)
+  let batchSourceAligned = true
+
   analyzeBtn?.addEventListener('click', () => {
-    updateParsedCounters(editor?.value || '')
+    updateParsedCounters(editor?.value || '', parsedQuestions)
     const summary = document.getElementById('md-parse-summary')
     if (summary) summary.style.display = 'flex'
     if (previewPane) previewPane.style.display = 'block'
@@ -3455,7 +3466,7 @@ async function openImportMarkdownModal() {
 
   // Editor typing parse counter update
   editor?.addEventListener('input', () => {
-    updateParsedCounters(editor.value)
+    updateParsedCounters(editor.value, parsedQuestions)
   })
 
   // Paste image handler inside editor
@@ -3471,7 +3482,7 @@ async function openImportMarkdownModal() {
           const start = editor.selectionStart
           const end = editor.selectionEnd
           editor.value = editor.value.substring(0, start) + imgTag + editor.value.substring(end)
-          updateParsedCounters(editor.value)
+          updateParsedCounters(editor.value, parsedQuestions)
         } catch (err) {
           showToast('Lỗi nén ảnh: ' + err.message, 'error')
         }
@@ -3495,14 +3506,78 @@ async function openImportMarkdownModal() {
     return list
   }
 
-  function updateParsedCounters(text) {    const res = parseExamMarkdown(text || '')
+  /**
+   * Cắt nguồn Markdown thành từng khối câu theo đúng quy tắc nhận diện header của parser
+   * (`[Câu 1]`, `Câu 1:` ...) — dùng để sửa / xóa mã nguồn của đúng 1 câu mà không đụng các câu khác.
+   * Trả về { lines, lineOffsets, blocks:[{startLine,endLine,start,end}], preamble } (offset theo ký tự).
+   */
+  function splitBatchSource(source) {
+    const src = String(source || '')
+    const lines = src.split('\n')
+    const lineOffsets = []
+    let offset = 0
+    lines.forEach((line, lineIndex) => {
+      lineOffsets[lineIndex] = offset
+      offset += line.length + 1
+    })
+
+    // Mirror parser: định nghĩa ảnh `[id]: <url>` bị loại khỏi luồng parse chính
+    const IMAGE_REF_DEF_REGEX = /^\[([^\]]+)\]:\s*(data:image\/[^\s]+|https?:\/\/[^\s]+|blob:[^\s]+)\s*$/i
+    const HEADER_BRACKET_REGEX = /^\[(?:Câu|Bài)\s*(\d+)\]/i
+    const HEADER_PLAIN_REGEX = /^(?:Câu|Bài)\s*(\d+)/i
+
+    const starts = []
+    lines.forEach((line, lineIndex) => {
+      const trimmed = line.trim()
+      if (!trimmed || IMAGE_REF_DEF_REGEX.test(trimmed)) return
+      if (HEADER_BRACKET_REGEX.test(trimmed) || HEADER_PLAIN_REGEX.test(trimmed)) starts.push(lineIndex)
+    })
+
+    const blocks = starts.map((startLine, i) => {
+      const endLine = i + 1 < starts.length ? starts[i + 1] : lines.length
+      return {
+        startLine,
+        endLine,
+        start: lineOffsets[startLine],
+        end: endLine < lines.length ? lineOffsets[endLine] : src.length
+      }
+    })
+
+    return {
+      lines,
+      lineOffsets,
+      blocks,
+      preamble: blocks.length ? src.slice(0, blocks[0].start) : src
+    }
+  }
+
+  /**
+   * @param {string} text nguồn Markdown mới
+   * @param {Array} [previousQuestions] parsedQuestions trước đó — giữ lựa chọn mức độ
+   *   khi số câu không thay đổi (tránh mất công chọn mức độ khi sửa 1 câu).
+   */
+  function updateParsedCounters(text, previousQuestions = []) {
+    const source = String(text || '').replace(/\r\n/g, '\n')
+    const res = parseExamMarkdown(source || '')
     parsedQuestions = res?.questions || []
+    batchSource = source
     const defaultDiff = document.getElementById('md-target-difficulty')?.value || 'THONG_HIEU'
 
-    // If question has no difficulty tag, set it to defaultDiff initially
-    parsedQuestions.forEach(q => {
-      if (!q.difficulty) q.difficulty = defaultDiff
+    // Chỉ mang mức độ cũ sang khi cấu trúc (số câu) không đổi; câu có tag mức độ trong source vẫn lấy theo source.
+    const carried = (previousQuestions || []).length === parsedQuestions.length ? previousQuestions : []
+
+    parsedQuestions.forEach((q, idx) => {
+      if (!q.difficulty) q.difficulty = (carried[idx] && carried[idx].difficulty) || defaultDiff
     })
+
+    // Cấu trúc nguồn đổi → chỉ số câu không còn khớp, đóng editor card đang mở (bản nháp không còn chắc chắn)
+    const ranges = splitBatchSource(source)
+    batchSourceAligned = ranges.blocks.length === parsedQuestions.length
+    if (activeSourceEditorIndex !== null && (!batchSourceAligned || !ranges.blocks[activeSourceEditorIndex])) {
+      activeSourceEditorIndex = null
+      activeSourceDraft = null
+      pendingSourceFocus = false
+    }
 
     resolveParsedQuestionTypes()
 
@@ -3687,6 +3762,8 @@ async function openImportMarkdownModal() {
     if (!container) return
 
     if (parsedQuestions.length === 0) {
+      activeSourceEditorIndex = null
+      activeSourceDraft = null
       container.innerHTML = '<div style="text-align:center; padding:16px; color:#94a3b8; font-size:13px;">Chưa có câu hỏi nào được nhận diện</div>'
       return
     }
@@ -3705,6 +3782,20 @@ async function openImportMarkdownModal() {
       return `<div class="math-content" style="line-height:1.55; color:#1e293b;">${renderMarkdown(q.promptText || '')}</div>${options ? `<div style="margin-top:8px;">${options}</div>` : ''}${explanation}`
     }
 
+    // Vùng source của card đang mở editor (giữ bản nháp nếu user đã gõ nhưng chưa Lưu)
+    let activeSource = null
+    if (activeSourceEditorIndex !== null) {
+      const activeBlock = locateQuestionBlockRange(activeSourceEditorIndex)
+      if (!activeBlock) {
+        activeSourceEditorIndex = null
+        activeSourceDraft = null
+      } else {
+        activeSource = activeSourceDraft !== null
+          ? activeSourceDraft
+          : batchSource.slice(activeBlock.start, activeBlock.end)
+      }
+    }
+
     let html = ''
     parsedQuestions.forEach((q, idx) => {
       const diag = validateQuestionDiagrams(q)
@@ -3713,13 +3804,35 @@ async function openImportMarkdownModal() {
         ? `<span style="color:#b91c1c; font-size:11px; font-weight:700;">⚠ ${escapeHtml(q.questionTypeError)}</span>`
         : (q.questionTypeTag ? `<span style="color:#be185d; font-size:11px; font-weight:700;">✓ ${escapeHtml(q.questionTypeTag)}</span>` : '<span style="color:#94a3b8; font-size:11px;">Chưa gắn Dạng bài</span>')
       const displayNumber = q.questionNumber || idx + 1
+      const isEditingSource = idx === activeSourceEditorIndex
+
+      const headerActions = isEditingSource
+        ? `<span title="Đang mở editor Mã nguồn cho câu này" style="display:inline-flex; align-items:center; gap:5px; border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-pen-to-square"></i> Đang sửa mã nguồn</span><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button>`
+        : `<button type="button" class="md-source-question-btn" data-index="${idx}" title="Sửa trực tiếp Markdown của câu này ngay trong thẻ" style="border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-code"></i> Mã nguồn</button><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button>`
+
+      const questionBody = isEditingSource
+        ? `
+          <div class="md-source-editor" data-index="${idx}" style="border-top:1px solid #e2e8f0; padding-top:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px; min-width:0;">
+              <span style="font-size:11px; font-weight:800; color:#4338ca; letter-spacing:.2px;"><i class="fa-solid fa-code"></i> Markdown nguồn — Câu ${displayNumber}</span>
+              <span style="font-size:10.5px; color:#94a3b8;">Sửa trực tiếp mã nguồn của đúng câu này</span>
+            </div>
+            <textarea class="md-source-textarea" data-index="${idx}" spellcheck="false" placeholder="Markdown của Câu ${displayNumber}..." style="display:block; width:100%; height:230px; min-height:180px; max-height:380px; box-sizing:border-box; padding:10px 12px; border:1px solid #c7d2fe; border-radius:8px; background:#f8fafc; color:#0f172a; font-family:'Fira Code', Consolas, Monaco, monospace, sans-serif; font-size:12.5px; line-height:1.55; tab-size:2; resize:vertical; outline:none;">${escapeTextarea(activeSource ?? '')}</textarea>
+            <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:8px; flex-wrap:wrap;">
+              <span style="margin-right:auto; font-size:10.5px; color:#94a3b8;">Tab = 2 khoảng trắng · Esc = Hủy · Ctrl+S = Lưu</span>
+              <button type="button" class="md-cancel-source-btn" data-index="${idx}" style="height:32px; padding:0 14px; font-size:12px; font-weight:700; border:1px solid #cbd5e1; background:#ffffff; color:#475569; border-radius:7px; cursor:pointer;">Hủy</button>
+              <button type="button" class="md-save-source-btn" data-index="${idx}" style="height:32px; padding:0 14px; font-size:12px; font-weight:700; border:none; background:#0066cc; color:#ffffff; border-radius:7px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;"><i class="fa-solid fa-check"></i> Lưu mã nguồn</button>
+            </div>
+          </div>`
+        : `<div style="border-top:1px solid #f1f5f9; padding-top:10px;">${renderQuestionBody(q)}</div>`
+
       html += `
-        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
+        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:${isEditingSource ? 'default' : 'pointer'}; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap; min-width:0;">
             <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-width:0;"><strong style="color:#334155;">Câu ${displayNumber}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span></div>
-            <div class="md-preview-card-actions" style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:5px; min-width:0; max-width:100%;"><button type="button" class="md-source-question-btn" data-index="${idx}" title="Sửa trực tiếp Markdown của câu này trong vùng nhập" style="border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-code"></i> Mã nguồn</button><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button></div>
+            <div class="md-preview-card-actions" style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:5px; min-width:0; max-width:100%;">${headerActions}</div>
           </div>
-          <div style="border-top:1px solid #f1f5f9; padding-top:10px;">${renderQuestionBody(q)}</div>
+          ${questionBody}
           <div style="margin-top:8px; font-size:11px;">${status}</div>
           <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:10px; padding-top:8px; border-top:1px dashed #e2e8f0;">
             <select class="md-item-diff-select" data-index="${idx}" style="height:30px; font-size:12px; font-weight:600; padding:0 8px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
@@ -3750,7 +3863,7 @@ async function openImportMarkdownModal() {
     })
     container.querySelectorAll('.md-preview-card').forEach(el => {
       el.addEventListener('click', (e) => {
-        if (e.target.closest('.md-item-diff-select') || e.target.closest('.md-preview-card-actions')) return
+        if (e.target.closest('.md-item-diff-select') || e.target.closest('.md-preview-card-actions') || e.target.closest('.md-source-editor')) return
         const idx = parseInt(el.getAttribute('data-index'), 10)
         if (Number.isInteger(idx)) showQuestionDetail(idx)
       })
@@ -3769,14 +3882,88 @@ async function openImportMarkdownModal() {
         deleteParsedQuestion(idx)
       })
     })
+
+    // Editor Mã nguồn ngay trong card
+    container.querySelectorAll('.md-source-textarea').forEach(ta => {
+      const idx = parseInt(ta.getAttribute('data-index'), 10)
+      ta.addEventListener('click', (e) => e.stopPropagation())
+      ta.addEventListener('input', () => {
+        if (idx === activeSourceEditorIndex) activeSourceDraft = ta.value
+      })
+      ta.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          const start = ta.selectionStart
+          const end = ta.selectionEnd
+          ta.value = `${ta.value.substring(0, start)}  ${ta.value.substring(end)}`
+          ta.selectionStart = ta.selectionEnd = start + 2
+          if (idx === activeSourceEditorIndex) activeSourceDraft = ta.value
+        } else if (e.key === 'Escape') {
+          e.preventDefault()
+          e.stopPropagation()
+          closeQuestionSourceEditor()
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+          e.preventDefault()
+          saveQuestionSource(idx)
+        }
+      })
+    })
+    container.querySelectorAll('.md-save-source-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        saveQuestionSource(parseInt(btn.getAttribute('data-index'), 10))
+      })
+    })
+    container.querySelectorAll('.md-cancel-source-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        closeQuestionSourceEditor()
+      })
+    })
     renderMath(container)
+
+    if (pendingSourceFocus && activeSourceEditorIndex !== null) {
+      const ta = container.querySelector(`.md-source-textarea[data-index="${activeSourceEditorIndex}"]`)
+      if (ta) {
+        ta.focus()
+        ta.setSelectionRange(0, 0)
+        ta.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+      pendingSourceFocus = false
+    }
   }
 
   function deleteParsedQuestion(index) {
     if (!Number.isInteger(index) || !parsedQuestions[index]) return
     const number = parsedQuestions[index].questionNumber || index + 1
     if (!window.confirm(`Loại Câu ${number} khỏi danh sách nhập?`)) return
+
+    // Gỡ luôn khối Markdown của câu này khỏi batch source: lần parse lại sẽ không "hồi sinh" câu đã Xóa
+    const block = locateQuestionBlockRange(index)
+    let removedFromSource = false
+    if (block) {
+      const nextSource = batchSource.slice(0, block.start) + batchSource.slice(block.end)
+      const check = parseExamMarkdown(nextSource)
+      if ((check?.questions || []).length === parsedQuestions.length - 1) {
+        batchSource = nextSource
+        if (editor) editor.value = nextSource
+        removedFromSource = true
+      }
+    }
+    if (!removedFromSource) {
+      // Không đối chiếu được khối nguồn → đánh dấu để submit không reparse toàn bộ (tránh câu đã xóa sống lại)
+      batchSourceAligned = false
+      showToast('Không thể gỡ Markdown của câu này khỏi nguồn batch; danh sách vẫn được cập nhật.', 'warning')
+    }
+
     parsedQuestions.splice(index, 1)
+    if (removedFromSource) {
+      batchSourceAligned = splitBatchSource(batchSource).blocks.length === parsedQuestions.length
+    }
+    // Chỉ số câu dịch chuyển nên đóng editor card đang mở (nếu có)
+    activeSourceEditorIndex = null
+    activeSourceDraft = null
+    pendingSourceFocus = false
     const detail = document.getElementById('md-question-detail')
     if (detail) {
       detail.style.display = 'none'
@@ -3793,7 +3980,7 @@ async function openImportMarkdownModal() {
     const options = (q.options || []).map(o => `<div style="padding:5px 0;">${escapeHtml(String(o.id || '').toUpperCase())}. ${renderMarkdown(o.text || '')}</div>`).join('')
     detail.style.display = 'block'
     const detailNumber = q.questionNumber || index + 1
-    detail.innerHTML = `<div style="padding:12px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;"><strong>Chi tiết Câu ${detailNumber}</strong><div style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:6px; min-width:0; max-width:100%;"><button type="button" id="md-edit-question-btn" class="btn-secondary" title="Sửa trực tiếp Markdown của câu này trong vùng nhập" style="padding:5px 9px; font-size:11px; border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-code"></i> Mã nguồn</button><button type="button" id="md-delete-detail-btn" title="Loại câu này khỏi danh sách nhập" style="padding:5px 9px; font-size:11px; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa câu</button><button type="button" id="md-close-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer; white-space:nowrap;">Đóng</button></div></div><div style="padding:14px; max-height:520px; overflow:auto;">${renderQuestionBodyForDetail(q, options)}</div>`
+    detail.innerHTML = `<div style="padding:12px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;"><strong>Chi tiết Câu ${detailNumber}</strong><div style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:6px; min-width:0; max-width:100%;"><button type="button" id="md-edit-question-btn" class="btn-secondary" title="Sửa trực tiếp Markdown của câu này ngay trong thẻ" style="padding:5px 9px; font-size:11px; border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-code"></i> Mã nguồn</button><button type="button" id="md-delete-detail-btn" title="Loại câu này khỏi danh sách nhập" style="padding:5px 9px; font-size:11px; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa câu</button><button type="button" id="md-close-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer; white-space:nowrap;">Đóng</button></div></div><div style="padding:14px; max-height:520px; overflow:auto;">${renderQuestionBodyForDetail(q, options)}</div>`
     document.getElementById('md-close-detail-btn')?.addEventListener('click', () => { detail.style.display = 'none'; detail.innerHTML = '' })
     document.getElementById('md-edit-question-btn')?.addEventListener('click', () => openQuestionMarkdownSource(index))
     document.getElementById('md-delete-detail-btn')?.addEventListener('click', () => deleteParsedQuestion(index))
@@ -3806,57 +3993,135 @@ async function openImportMarkdownModal() {
   }
 
   function locateQuestionBlockRange(index) {
-    if (!editor) return null
-    const source = editor.value.replace(/\r\n/g, '\n')
-    const lines = source.split('\n')
-    const starts = []
-    lines.forEach((line, lineIndex) => { if (/^\s*\[(?:Câu|Bài)\s*\d+\]/i.test(line.trim())) starts.push(lineIndex) })
-    const start = starts[index]
-    if (start === undefined) return null
-    const end = starts[index + 1] ?? lines.length
-    const lineOffsets = []
-    let offset = 0
-    lines.forEach((line, lineIndex) => {
-      lineOffsets[lineIndex] = offset
-      offset += line.length + 1
-    })
+    if (!Number.isInteger(index) || index < 0) return null
+    const ranges = splitBatchSource(batchSource)
+    // Chỉ map theo chỉ số khi số khối nguồn khớp số câu đã parse (tránh trỏ nhầm câu khác)
+    if (ranges.blocks.length !== parsedQuestions.length) return null
+    const block = ranges.blocks[index]
+    if (!block) return null
     return {
-      lines,
-      start,
-      end,
-      sourceStart: lineOffsets[start],
-      sourceEnd: end < lines.length ? lineOffsets[end] : source.length
+      ...block,
+      lines: ranges.lines,
+      sourceStart: block.start,
+      sourceEnd: block.end
     }
   }
 
-  // Nhảy thẳng tới vùng Markdown của câu, chỉ chọn đúng khối câu đó (không render lại)
+  /** Đóng editor Mã nguồn trong card, khôi phục preview render cũ (không đụng parsedQuestions). */
+  function closeQuestionSourceEditor() {
+    if (activeSourceEditorIndex === null) return
+    const idx = activeSourceEditorIndex
+    activeSourceEditorIndex = null
+    activeSourceDraft = null
+    pendingSourceFocus = false
+    renderParsedPreviewList()
+    document.querySelector(`#md-preview-questions-list .md-preview-card[data-index="${idx}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  /**
+   * Lưu mã nguồn của đúng 1 câu: thay khối nguồn của câu đó trong batch source,
+   * parse lại toàn bộ batch source rồi render lại card + summary.
+   * Không tái tạo Markdown bằng formatQuestionToMarkdown → giữ nguyên Markdown gốc của các câu còn lại.
+   */
+  function saveQuestionSource(index) {
+    if (!Number.isInteger(index) || !parsedQuestions[index]) return
+    const container = document.getElementById('md-preview-questions-list')
+    const ta = container?.querySelector(`.md-source-textarea[data-index="${index}"]`)
+    const block = locateQuestionBlockRange(index)
+    if (!ta || !block) {
+      return showToast('Không xác định được vị trí Markdown của câu này.', 'warning')
+    }
+
+    const original = batchSource.slice(block.start, block.end)
+    let nextValue = String(ta.value || '').replace(/\r\n/g, '\n')
+    if (!nextValue.trim()) return showToast('Mã nguồn của câu không được để trống.', 'warning')
+    // Textarea tự bỏ 1 dòng trống cuối → khôi phục để khối không dính sang câu kế tiếp
+    if (!nextValue.endsWith('\n') && (block.end < batchSource.length || original.endsWith('\n'))) nextValue += '\n'
+    if (nextValue === original) {
+      closeQuestionSourceEditor()
+      return showToast('Không có thay đổi mã nguồn.', 'info')
+    }
+
+    const nextSource = batchSource.slice(0, block.start) + nextValue + batchSource.slice(block.end)
+    const previous = parsedQuestions
+    const res = parseExamMarkdown(nextSource)
+    const nextQuestions = res?.questions || []
+    // Sửa mà làm đổi số câu (thêm/bớt dòng [Câu N]) sẽ làm lệch mapping các câu khác → chặn
+    if (nextQuestions.length !== previous.length) {
+      return showToast(`Mã nguồn sửa làm số câu thay đổi (${nextQuestions.length} thay vì ${previous.length}). Hãy giữ nguyên dòng tiêu đề [Câu N] của câu này để không ảnh hưởng các câu khác.`, 'error')
+    }
+
+    const displayNumber = parsedQuestions[index]?.questionNumber || index + 1
+    activeSourceEditorIndex = null
+    activeSourceDraft = null
+    pendingSourceFocus = false
+    if (editor) editor.value = nextSource
+    updateParsedCounters(nextSource, previous)
+    showToast(`Đã cập nhật mã nguồn Câu ${displayNumber}.`, 'success')
+    document.querySelector(`#md-preview-questions-list .md-preview-card[data-index="${index}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  // Mở editor Markdown NGAY TRONG CARD của câu (không chỉ focus/bôi chọn textarea chung)
   function openQuestionMarkdownSource(index) {
     const question = parsedQuestions[index]
-    if (!question || !editor) return
+    if (!question) return
     const block = locateQuestionBlockRange(index)
-    if (!block) return showToast('Không xác định được vị trí Markdown của câu này.', 'warning')
-    const { sourceStart, sourceEnd } = block
+    if (!block) {
+      // Trường hợp hiếm: cấu trúc nguồn không khớp số câu → không map được khối để mở editor riêng
+      showToast('Không mở được editor riêng vì cấu trúc Markdown nguồn không khớp danh sách câu. Hãy kiểm tra các dòng [Câu N].', 'warning')
+      return
+    }
+    // Đang sửa câu khác mà chưa Lưu → hỏi trước khi bỏ bản nháp
+    if (activeSourceEditorIndex !== null && activeSourceEditorIndex !== index) {
+      const currentBlock = locateQuestionBlockRange(activeSourceEditorIndex)
+      const dirty = currentBlock && activeSourceDraft !== null &&
+        activeSourceDraft.replace(/\r\n/g, '\n') !== batchSource.slice(currentBlock.start, currentBlock.end)
+      if (dirty && !window.confirm('Mã nguồn của câu đang sửa chưa được Lưu. Bỏ thay đổi và mở câu khác?')) return
+    }
     const detail = document.getElementById('md-question-detail')
     if (detail) {
       detail.style.display = 'none'
       detail.innerHTML = ''
     }
-    editor.focus()
-    editor.setSelectionRange(sourceStart, sourceEnd)
-    editor.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (previewPane && previewPane.style.display === 'none') previewPane.style.display = 'block'
+    activeSourceEditorIndex = index
+    activeSourceDraft = batchSource.slice(block.start, block.end)
+    pendingSourceFocus = true
+    renderParsedPreviewList()
+
     const detailNumber = question.questionNumber || index + 1
-    showToast(`Đang sửa Markdown của Câu ${detailNumber} (đã chọn đúng khối câu này).`, 'info')
+    showToast(`Đang sửa Markdown của Câu ${detailNumber} ngay trong thẻ câu.`, 'info')
   }
 
   // Submit
   document.getElementById('import-md-submit-btn')?.addEventListener('click', async () => {
-    const text = editor?.value || ''
+    const text = (editor?.value || '').replace(/\r\n/g, '\n')
     if (!text.trim()) {
       return showToast('Vui lòng nhập hoặc dán nội dung Markdown câu hỏi!', 'warning')
     }
 
-    if (parsedQuestions.length === 0) {
-      updateParsedCounters(text)
+    // Nếu thẻ đang mở editor mà chưa Lưu → bắt buộc Lưu/Hủy trước để payload đúng mã nguồn đã sửa
+    if (activeSourceEditorIndex !== null) {
+      const openBlock = locateQuestionBlockRange(activeSourceEditorIndex)
+      const draft = activeSourceDraft === null ? null : activeSourceDraft.replace(/\r\n/g, '\n')
+      if (openBlock && draft !== null && draft !== batchSource.slice(openBlock.start, openBlock.end)) {
+        const qn = parsedQuestions[activeSourceEditorIndex]?.questionNumber || activeSourceEditorIndex + 1
+        return showToast(`Câu ${qn} đang sửa mã nguồn chưa Lưu. Bấm "Lưu mã nguồn" hoặc "Hủy" trước khi lưu vào Ngân hàng.`, 'warning')
+      }
+      activeSourceEditorIndex = null
+      activeSourceDraft = null
+      pendingSourceFocus = false
+    }
+
+    // Payload luôn theo mã nguồn hiện tại: parse lại batch source (câu đã Xóa đã bị gỡ khỏi batch source
+    // nên không bị hồi sinh). Chỉ reparse khi cấu trúc nguồn còn khớp số câu parse được.
+    if (batchSourceAligned) {
+      updateParsedCounters(text, parsedQuestions)
+    } else if (text !== batchSource) {
+      // Nguồn lệch cấu trúc: không reparse toàn bộ để tránh câu đã Xóa sống lại
+      batchSource = text
     }
 
     if (parsedQuestions.length === 0) {
