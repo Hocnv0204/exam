@@ -3179,7 +3179,15 @@ function openCreateFromSelectedModal(questionBankIds) {
   })
 }
 
-function openImportMarkdownModal() {
+async function openImportMarkdownModal() {
+  // Modal nhập Markdown cần taxonomy đầy đủ để tự suy ra target từ tag Dạng bài.
+  // Không dùng state cũ/không đầy đủ (đặc biệt sau khi vừa cập nhật taxonomy).
+  try {
+    await loadConstantTaxonomyData()
+  } catch (err) {
+    showToast(err.message || 'Không thể tải danh mục Constant', 'error')
+    return
+  }
   const modalContainer = document.getElementById('qb-modal-container')
   if (!modalContainer) return
 
