@@ -3317,7 +3317,7 @@ async function openImportMarkdownModal() {
           <!-- Preview & Difficulty Adjustment Pane -->
           <div id="md-preview-pane" style="display:none; margin-bottom:14px; border:1px solid #cbdceb; border-radius:12px; background:#ffffff; overflow:hidden; box-shadow:0 2px 5px rgba(15,23,42,.04);">
             <div style="padding:12px 16px; background:linear-gradient(135deg,#eff6ff,#ffffff); border-bottom:1px solid #dbe5f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-              <div><div style="font-size:14px; font-weight:800; color:#1e3a5f;"><i class="fa-solid fa-eye" style="color:#0284c7;"></i> Preview câu hỏi đã render</div><div style="font-size:11px; color:#64748b; margin-top:2px;">Bấm vào thẻ câu để xem nội dung đầy đủ; bấm <strong>Mã nguồn</strong> để sửa trực tiếp Markdown của câu đó ngay trong thẻ.</div></div>
+              <div><div style="font-size:14px; font-weight:800; color:#1e3a5f;"><i class="fa-solid fa-eye" style="color:#0284c7;"></i> Preview câu hỏi đã render</div><div style="font-size:11px; color:#64748b; margin-top:2px;">Dùng <strong>Mã nguồn</strong> để sửa trực tiếp Markdown của câu đó ngay trong thẻ.</div></div>
               </span>
               <!-- Fast apply for all in modal -->
               <div style="display:flex; align-items:center; gap:8px;">
@@ -3827,7 +3827,7 @@ async function openImportMarkdownModal() {
         : `<div style="border-top:1px solid #f1f5f9; padding-top:10px;">${renderQuestionBody(q)}</div>`
 
       html += `
-        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:${isEditingSource ? 'default' : 'pointer'}; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
+        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:default; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap; min-width:0;">
             <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-width:0;"><strong style="color:#334155;">Câu ${displayNumber}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span></div>
             <div class="md-preview-card-actions" style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:5px; min-width:0; max-width:100%;">${headerActions}</div>
@@ -3859,13 +3859,6 @@ async function openImportMarkdownModal() {
           document.getElementById('md-diff-vd').textContent = `${vd} Vận dụng`
           document.getElementById('md-diff-vdc').textContent = `${vdc} Vận dụng cao`
         }
-      })
-    })
-    container.querySelectorAll('.md-preview-card').forEach(el => {
-      el.addEventListener('click', (e) => {
-        if (e.target.closest('.md-item-diff-select') || e.target.closest('.md-preview-card-actions') || e.target.closest('.md-source-editor')) return
-        const idx = parseInt(el.getAttribute('data-index'), 10)
-        if (Number.isInteger(idx)) showQuestionDetail(idx)
       })
     })
     container.querySelectorAll('.md-source-question-btn').forEach(btn => {
