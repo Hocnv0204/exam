@@ -468,6 +468,118 @@ export function compressImage(fileOrBlob, maxWidth = 900, quality = 0.82) {
 }
 
 /**
+ * Bóc các thẻ metadata / loại câu / mức độ ở đầu một dòng (hoặc đầu header câu hỏi)
+ * và ghi vào `target`. Hỗ trợ: [LỚP]/[KHỐI], [MÔN]/[MÔN HỌC], [CHƯƠNG], [BÀI HỌC]/[BÀI],
+ * [DẠNG BÀI] (+ biến thể không dấu, QB_TYPE/QUESTION_TYPE), [TF]/[SA]/[MC], [NB]/[TH]/[VD]/[VDC].
+ * Trả về { rest, matchedAny }: `rest` là phần còn lại sau khi bóc hết thẻ ở đầu dòng.
+ * Hàm này KHÔNG tự quyết thẻ thuộc câu nào — caller quyết target (câu hiện tại hay pending).
+ */
+export function parseMetadataTags(textStr, target) {
+  let restStr = String(textStr || '').trim()
+  let matchedAny = false
+  while (restStr) {
+    const tagMatch = restStr.match(/^\[([^\]]+)\]\s*(.*)$/)
+    if (!tagMatch) break
+
+    const rawContent = tagMatch[1].trim()
+    const rawUpper = rawContent.toUpperCase()
+
+    const taxonomyMatch = rawContent.match(/^(?:DẠNG\s*BÀI|DANG\s*BAI|DẠNG|DANG|QB_TYPE|QUESTION_TYPE)\s*[:=]\s*(.+)$/i)
+    const classMatch = rawContent.match(/^(?:LỚP|LOP|KHỐI|KHOI|CLASS|GRADE)\s*[:=]\s*(.+)$/i)
+    const subjectMatch = rawContent.match(/^(?:MÔN\s*HỌC|MON\s*HOC|MÔN|MON|SUBJECT)\s*[:=]\s*(.+)$/i)
+    const chapterMatch = rawContent.match(/^(?:CHƯƠNG|CHUONG|CHAPTER)\s*[:=]\s*(.+)$/i)
+    const lessonMatch = rawContent.match(/^(?:BÀI\s*HỌC|BAI\s*HOC|BÀI|BAI|LESSON)\s*[:=]\s*(.+)$/i)
+
+    if (taxonomyMatch) {
+      target.questionTypeTag = taxonomyMatch[1].trim()
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (classMatch) {
+      target.classTag = classMatch[1].trim()
+      target.gradeTag = classMatch[1].trim()
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (subjectMatch) {
+      target.subjectTag = subjectMatch[1].trim()
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (chapterMatch) {
+      target.chapterTag = chapterMatch[1].trim()
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (lessonMatch) {
+      target.lessonTag = lessonMatch[1].trim()
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'TF' || rawUpper === 'ĐS' || rawUpper === 'TRUE_FALSE') {
+      target.questionType = 'TRUE_FALSE'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'SA' || rawUpper === 'TLN' || rawUpper === 'SHORT_ANSWER') {
+      target.questionType = 'SHORT_ANSWER'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'MC' || rawUpper === 'MULTIPLE_CHOICE') {
+      target.questionType = 'MULTIPLE_CHOICE'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'NHAN_BIET' || rawUpper === 'NB' || rawUpper === 'NHẬN BIẾT') {
+      target.difficulty = 'NHAN_BIET'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'THONG_HIEU' || rawUpper === 'TH' || rawUpper === 'THÔNG HIỂU') {
+      target.difficulty = 'THONG_HIEU'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'VAN_DUNG' || rawUpper === 'VD' || rawUpper === 'VẬN DỤNG') {
+      target.difficulty = 'VAN_DUNG'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'VAN_DUNG_CAO' || rawUpper === 'VDC' || rawUpper === 'VẬN DỤNG CAO') {
+      target.difficulty = 'VAN_DUNG_CAO'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else {
+      break
+    }
+  }
+  return { rest: restStr, matchedAny }
+}
+
+/** Target rỗng để bóc thử thẻ metadata (dùng cho dòng tag đứng riêng chưa rõ thuộc câu nào). */
+function createEmptyMetaTarget() {
+  return {
+    questionType: null,
+    questionTypeTag: null,
+    classTag: null,
+    gradeTag: null,
+    subjectTag: null,
+    chapterTag: null,
+    lessonTag: null,
+    difficulty: null
+  }
+}
+
+const META_FIELDS = ['questionType', 'questionTypeTag', 'classTag', 'gradeTag', 'subjectTag', 'chapterTag', 'lessonTag', 'difficulty']
+
+/** Chép các field metadata khác null từ `src` sang `target` (ghi đè — dùng khi áp pending vào header mới, trước khi bóc thẻ inline). */
+function applyMetaFields(target, src) {
+  if (!src) return
+  for (const key of META_FIELDS) {
+    if (src[key] !== null && src[key] !== undefined) target[key] = src[key]
+  }
+}
+
+/** Chép các field metadata còn trống của `target` từ `src` (không ghi đè — dùng khi áp pending cuối file vào câu cuối). */
+function fillMissingMetaFields(target, src) {
+  if (!src) return
+  for (const key of META_FIELDS) {
+    if (key === 'questionType') continue // loại câu đã chốt từ section/header, pending cuối file không được đổi
+    if ((target[key] === null || target[key] === undefined) && src[key] !== null && src[key] !== undefined) target[key] = src[key]
+  }
+}
+
+/**
  * Parse an entire Exam Markdown document into structured questions
  */
 export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectionType = 'MULTIPLE_CHOICE') {
@@ -505,6 +617,13 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
   let currentMode = 'PROMPT' // 'PROMPT' | 'EXPLANATION'
   let currentOption = null   // phương án/ý đang mở (hỗ trợ phương án nhiều dòng)
   let fence = null           // { type, lines:[], startLine }
+  // Metadata đứng riêng chưa gắn câu nào (dòng tag trước [Câu N] đầu tiên, hoặc sau
+  // phương án của câu trước): GIỮ LẠI cho câu hỏi KẾ TIẾP, không nuốt mất và không
+  // áp lan ra cả file. Không có khái niệm metadata "phạm vi file" ngầm định: muốn mặc
+  // định cho cả file thì dùng dropdown đích ở modal import (manual target), không phải
+  // ghi một dòng tag rồi để mọi câu kế tiếp tự kế thừa.
+  let pendingMeta = null
+  let pendingPromptLines = []
 
   /** Ghi nội dung vào đúng nơi đang nhận (đề / phương án / lời giải). */
   const appendText = (text) => {
@@ -532,6 +651,15 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
     currentQ.explanation = currentQ.explanationLines.join('\n').trim()
     // Dọn phương án (bỏ khoảng trắng thừa ở đầu/cuối, giữ nguyên dòng bên trong)
     currentQ.options.forEach(o => { o.text = String(o.text || '').trim() })
+
+    currentQ.metadata = {
+      classTag: currentQ.classTag || currentQ.gradeTag || null,
+      gradeTag: currentQ.gradeTag || currentQ.classTag || null,
+      subjectTag: currentQ.subjectTag || null,
+      chapterTag: currentQ.chapterTag || null,
+      lessonTag: currentQ.lessonTag || null,
+      questionTypeTag: currentQ.questionTypeTag || null
+    }
 
     // Clean up options
     if (currentQ.questionType === 'MULTIPLE_CHOICE') {
@@ -643,56 +771,22 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
 
       let qType = currentSectionType
       let qDiff = null
-      let qQuestionTypeTag = null
-
-      // Extract all bracketed tags after question number: [TF], [SA], [MC], [NHAN_BIET],
-      // [NB], [DẠNG BÀI: Tên dạng bài], etc.
-      while (rest) {
-        const tagMatch = rest.match(/^\[([^\]]+)\]\s*(.*)$/)
-        if (!tagMatch) break
-
-        const rawTag = tagMatch[1].trim().toUpperCase()
-        const taxonomyMatch = tagMatch[1].trim().match(/^(?:DẠNG\s+BÀI|DANG\s+BAI|QB_TYPE|QUESTION_TYPE)\s*[:=]\s*(.+)$/i)
-        if (taxonomyMatch) {
-          qQuestionTypeTag = taxonomyMatch[1].trim()
-          rest = tagMatch[2].trim()
-        } else if (rawTag === 'TF' || rawTag === 'ĐS' || rawTag === 'TRUE_FALSE') {
-          qType = 'TRUE_FALSE'
-          rest = tagMatch[2].trim()
-        } else if (rawTag === 'SA' || rawTag === 'TLN' || rawTag === 'SHORT_ANSWER') {
-          qType = 'SHORT_ANSWER'
-          rest = tagMatch[2].trim()
-        } else if (rawTag === 'MC' || rawTag === 'MULTIPLE_CHOICE') {
-          qType = 'MULTIPLE_CHOICE'
-          rest = tagMatch[2].trim()
-        } else if (rawTag === 'NHAN_BIET' || rawTag === 'NB' || rawTag === 'NHẬN BIẾT') {
-          qDiff = 'NHAN_BIET'
-          rest = tagMatch[2].trim()
-        } else if (rawTag === 'THONG_HIEU' || rawTag === 'TH' || rawTag === 'THÔNG HIỂU') {
-          qDiff = 'THONG_HIEU'
-          rest = tagMatch[2].trim()
-        } else if (rawTag === 'VAN_DUNG' || rawTag === 'VD' || rawTag === 'VẬN DỤNG') {
-          qDiff = 'VAN_DUNG'
-          rest = tagMatch[2].trim()
-        } else if (rawTag === 'VAN_DUNG_CAO' || rawTag === 'VDC' || rawTag === 'VẬN DỤNG CAO') {
-          qDiff = 'VAN_DUNG_CAO'
-          rest = tagMatch[2].trim()
-        } else {
-          // If not a recognized type or difficulty tag, leave rest intact (could be math/bracketed text)
-          break
-        }
-      }
-
-      // Strip leading punctuation (: . -) before prompt
-      const sameLinePrompt = rest.replace(/^[:.-]\s*/, '').trim()
 
       currentQ = {
         questionNumber: qNum,
         questionType: qType,
-        questionTypeTag: qQuestionTypeTag,
+        questionTypeTag: null,
+        classTag: null,
+        gradeTag: null,
+        subjectTag: null,
+        chapterTag: null,
+        lessonTag: null,
         qbQuestionTypeId: null,
+        qbLessonId: null,
+        qbChapterId: null,
+        qbClassId: null,
         difficulty: qDiff,
-        promptLines: sameLinePrompt ? [sameLinePrompt] : [],
+        promptLines: [],
         options: [],
         mcAnswer: null,
         tfAnswers: {},
@@ -704,11 +798,48 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
         diagnostics: [],
         points: qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)
       }
+
+      // Áp metadata pending (dòng tag đứng riêng trước header này) trước, rồi thẻ
+      // inline trên chính dòng header ghi đè khi trùng field — thẻ inline thắng.
+      if (pendingMeta) {
+        applyMetaFields(currentQ, pendingMeta)
+        if (pendingPromptLines.length > 0) {
+          currentQ.promptLines.push(...pendingPromptLines)
+          pendingPromptLines = []
+        }
+        pendingMeta = null
+      }
+      const headerTagsRes = parseMetadataTags(rest, currentQ)
+      rest = headerTagsRes.rest
+
+      // Recalculate default points if questionType changed from tags
+      currentQ.points = currentQ.questionType === 'TRUE_FALSE' ? 1.0 : (currentQ.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)
+
+      // Strip leading punctuation (: . -) before prompt
+      const sameLinePrompt = rest.replace(/^[:.-]\s*/, '').trim()
+      if (sameLinePrompt) {
+        currentQ.promptLines.push(sameLinePrompt)
+      }
+
       currentMode = 'PROMPT'
       continue
     }
 
-    if (!currentQ) continue
+    // Chưa có câu hỏi nào: dòng tag đứng riêng KHÔNG được nuốt mất — giữ vào pending
+    // để gắn cho câu hỏi kế tiếp. Dòng thường (tiêu đề file, ghi chú...) vẫn bỏ qua.
+    if (!currentQ) {
+      if (trimmed.startsWith('[') && !/^\[(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Đáp án|ĐA|KQ|Dung sai|Ảnh|Hình ảnh|Hình vẽ|Sơ đồ|SMILES)/i.test(trimmed)) {
+        const tmp = createEmptyMetaTarget()
+        const preRes = parseMetadataTags(trimmed, tmp)
+        if (preRes.matchedAny) {
+          if (!pendingMeta) pendingMeta = createEmptyMetaTarget()
+          applyMetaFields(pendingMeta, tmp)
+          const restPrompt = preRes.rest.replace(/^[:.-]\s*/, '').trim()
+          if (restPrompt) pendingPromptLines.push(restPrompt)
+        }
+      }
+      continue
+    }
 
     // Check Explanation tag [Lời giải] or [Hướng dẫn giải]
     if (/^\[(?:Lời giải|Hướng dẫn giải|Giải chi tiết)\]/i.test(trimmed) || /^(?:Lời giải|Hướng dẫn giải):/i.test(trimmed)) {
@@ -763,6 +894,36 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       }
     }
 
+    // Dòng tag metadata đứng riêng: NHẬN DIỆN TRƯỚC KHI append vào phương án.
+    // - Chưa mở phương án nào (vùng header/đề): tag thuộc câu hiện tại.
+    // - Đã mở phương án: tag KHÔNG thuộc phương án đang mở — giữ vào pending cho
+    //   câu kế tiếp, tuyệt đối không nối vào option text.
+    // Dòng bắt đầu bằng '[' nhưng không phải thẻ đã biết sẽ rơi xuống nhánh dưới
+    // (nối phương án / đề bài) như cũ, nên nội dung phương án dạng "[x, y]" vẫn an toàn.
+    if (trimmed.startsWith('[') && !/^\[(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Đáp án|ĐA|KQ|Dung sai|Ảnh|Hình ảnh|Hình vẽ|Sơ đồ|SMILES)/i.test(trimmed)) {
+      if (!currentOption) {
+        const lineTagRes = parseMetadataTags(trimmed, currentQ)
+        if (lineTagRes.matchedAny) {
+          currentQ.points = currentQ.questionType === 'TRUE_FALSE' ? 1.0 : (currentQ.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)
+          const restLinePrompt = lineTagRes.rest.replace(/^[:.-]\s*/, '').trim()
+          if (restLinePrompt) {
+            currentQ.promptLines.push(restLinePrompt)
+          }
+          continue
+        }
+      } else {
+        const tmp = createEmptyMetaTarget()
+        const lineTagRes = parseMetadataTags(trimmed, tmp)
+        if (lineTagRes.matchedAny) {
+          if (!pendingMeta) pendingMeta = createEmptyMetaTarget()
+          applyMetaFields(pendingMeta, tmp)
+          const restLinePrompt = lineTagRes.rest.replace(/^[:.-]\s*/, '').trim()
+          if (restLinePrompt) pendingPromptLines.push(restLinePrompt)
+          continue
+        }
+      }
+    }
+
     // In PROMPT mode: Check for Multiple Choice options (A, B, C, D)
     if (currentQ.questionType === 'MULTIPLE_CHOICE') {
       const mcOptMatch = trimmed.match(/^(\*)?\s*([A-D])\s*[.:)]\s*(.*)$/i)
@@ -797,12 +958,25 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       }
     }
 
-    // Dòng tiếp theo: thuộc phương án đang mở (phương án nhiều dòng) hoặc phần đề
+    // Dòng tiếp theo: thuộc phương án đang mở (phương án nhiều dòng) hoặc phần đề.
+    // (Dòng tag đã được chặn ở khối phía trên nên không bao giờ rơi xuống đây.)
     if (currentOption) {
       currentOption.text = currentOption.text ? `${currentOption.text}\n${line}` : line
       continue
     }
+
     currentQ.promptLines.push(line)
+  }
+
+  // Metadata pending còn sót cuối file (tag sau phương án của câu cuối, không còn
+  // câu kế tiếp): áp vào chính câu cuối, chỉ điền field còn trống — không nuốt mất.
+  if (pendingMeta && currentQ) {
+    fillMissingMetaFields(currentQ, pendingMeta)
+    if (pendingPromptLines.length > 0) {
+      currentQ.promptLines.push(...pendingPromptLines)
+      pendingPromptLines = []
+    }
+    pendingMeta = null
   }
 
   flushCurrentQuestion()
@@ -875,7 +1049,19 @@ export function formatQuestionToMarkdown(q) {
   else if (isSa) headerTag = `[Câu ${qNum}] [SA]${diffTag}`
   else headerTag = `[Câu ${qNum}]${diffTag}`
 
-  const questionTypeTag = q.questionTypeTag || q.qbQuestionTypeName || q.qb_question_type_name
+  const classTag = q.classTag || q.gradeTag || q.metadata?.classTag
+  if (classTag) headerTag += ` [LỚP: ${String(classTag).trim()}]`
+
+  const subjectTag = q.subjectTag || q.metadata?.subjectTag
+  if (subjectTag) headerTag += ` [MÔN: ${String(subjectTag).trim()}]`
+
+  const chapterTag = q.chapterTag || q.metadata?.chapterTag
+  if (chapterTag) headerTag += ` [CHƯƠNG: ${String(chapterTag).trim()}]`
+
+  const lessonTag = q.lessonTag || q.metadata?.lessonTag
+  if (lessonTag) headerTag += ` [BÀI HỌC: ${String(lessonTag).trim()}]`
+
+  const questionTypeTag = q.questionTypeTag || q.qbQuestionTypeName || q.qb_question_type_name || q.metadata?.questionTypeTag
   if (questionTypeTag) headerTag += ` [DẠNG BÀI: ${String(questionTypeTag).trim()}]`
 
   const lines = [headerTag]

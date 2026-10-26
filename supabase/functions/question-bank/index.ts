@@ -683,6 +683,58 @@ function shuffleVariantQuestions(
   return { variantQuestions: finalVariantQuestions, optionMaps }
 }
 
+// Dạng bài fallback cho mọi bài học Constant. Bài mới tạo qua API PHẢI luôn có nó
+// (không chỉ backfill bằng migration), vì import fallback vào đúng "Khác" của bài đó.
+const OTHER_QUESTION_TYPE_NAME = 'Khác'
+const OTHER_QUESTION_TYPE_DESC = 'Dạng bài khác hoặc câu hỏi tổng hợp thuộc bài học'
+
+function normalizeOtherTypeName(name: any): string {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim()
+}
+
+/**
+ * Đảm bảo bài học `lessonId` có Dạng bài "Khác" (idempotent, an toàn khi chạy lại
+ * hoặc khi 2 request tạo cùng lúc: unique violation 23505 thì đọc lại thay vì lỗi).
+ */
+async function ensureOtherQuestionType(serviceRoleClient: any, lessonId: string): Promise<{ ok: boolean; item: any; created: boolean; error?: string }> {
+  const { data: existing, error: selErr } = await serviceRoleClient
+    .from('qb_question_types')
+    .select('id, name, order_index')
+    .eq('lesson_id', lessonId)
+  if (selErr) return { ok: false, item: null, created: false, error: selErr.message }
+  const found = (existing || []).find((t: any) => normalizeOtherTypeName(t.name) === 'khac')
+  if (found) return { ok: true, item: found, created: false }
+  const orderIndex = (existing || []).length
+    ? (existing || []).reduce((m: number, t: any) => Math.max(m, Number(t.order_index) || 0), 0) + 1
+    : 0
+  const { data: created, error: insErr } = await serviceRoleClient
+    .from('qb_question_types')
+    .insert({
+      lesson_id: lessonId,
+      name: OTHER_QUESTION_TYPE_NAME,
+      description: OTHER_QUESTION_TYPE_DESC,
+      order_index: orderIndex
+    })
+    .select()
+    .single()
+  if (!insErr) return { ok: true, item: created, created: true }
+  if (insErr.code === '23505') {
+    const { data: retry } = await serviceRoleClient
+      .from('qb_question_types')
+      .select('id, name, order_index')
+      .eq('lesson_id', lessonId)
+    const refound = (retry || []).find((t: any) => normalizeOtherTypeName(t.name) === 'khac')
+    if (refound) return { ok: true, item: refound, created: false }
+  }
+  return { ok: false, item: null, created: false, error: insErr.message }
+}
+
 async function handleUpdateConstantTaxonomy(serviceRoleClient: any, body: any) {
   const { type, id, data } = body || {}
   if (!type || !id || !data) return errorResponse('Thiếu type, id hoặc data cập nhật', 400)
@@ -1695,7 +1747,14 @@ serve(async (req: Request) => {
             .select()
             .single()
           if (error) return errorResponse(error.message, 500)
-          return jsonResponse({ success: true, item: created })
+          // Bài học mới PHẢI luôn có Dạng bài "Khác" (import fallback vào đúng bài này).
+          // Tạo thiếu thì rollback bài vừa tạo để không tồn tại bài không fallback được.
+          const otherRes = await ensureOtherQuestionType(serviceRoleClient, created.id)
+          if (!otherRes.ok) {
+            await serviceRoleClient.from('qb_lessons').delete().eq('id', created.id)
+            return errorResponse(`Tạo bài học xong nhưng không tạo được Dạng bài "Khác": ${otherRes.error}`, 500)
+          }
+          return jsonResponse({ success: true, item: created, otherType: otherRes.item })
         }
 
         if (normType === 'questionType') {
@@ -1887,25 +1946,134 @@ serve(async (req: Request) => {
             .map((q: any) => q?.qbQuestionTypeId)
             .filter((id: any) => typeof id === 'string' && id.trim())
         )) as string[]
+
+        const requestedLessonIds = Array.from(new Set(
+          questions
+            .map((q: any) => q?.qbLessonId)
+            .filter((id: any) => typeof id === 'string' && id.trim())
+        )) as string[]
+
+        const requestedChapterIds = Array.from(new Set(
+          questions
+            .map((q: any) => q?.qbChapterId)
+            .filter((id: any) => typeof id === 'string' && id.trim())
+        )) as string[]
+
+        const requestedClassIds = Array.from(new Set(
+          questions
+            .map((q: any) => q?.qbClassId)
+            .filter((id: any) => typeof id === 'string' && id.trim())
+        )) as string[]
+
         const taxonomyTypesById = new Map<string, any>()
+        const taxonomyLessonsById = new Map<string, any>()
+        const taxonomyChaptersById = new Map<string, any>()
+        const taxonomyClassesById = new Map<string, any>()
+
         if (requestedQuestionTypeIds.length > 0) {
           const { data: taxonomyTypes, error: taxonomyError } = await serviceRoleClient
             .from('qb_question_types')
-            .select('id, lesson_id')
+            .select('id, lesson_id, name')
             .in('id', requestedQuestionTypeIds)
           if (taxonomyError) return errorResponse(taxonomyError.message, 500)
           ;(taxonomyTypes || []).forEach((t: any) => taxonomyTypesById.set(t.id, t))
           if (requestedQuestionTypeIds.some(id => !taxonomyTypesById.has(id))) {
             return errorResponse('Có Dạng bài Constant không tồn tại.', 400)
           }
-          const invalidLesson = questions.some((q: any) => {
-            const type = taxonomyTypesById.get(q?.qbQuestionTypeId)
-            if (!type) return false
-            const lessonIdForQuestion = q?.qbLessonId || effectiveQbLessonId || type.lesson_id
-            return lessonIdForQuestion !== type.lesson_id
+          ;(taxonomyTypes || []).forEach((t: any) => {
+            if (t.lesson_id && !requestedLessonIds.includes(t.lesson_id)) {
+              requestedLessonIds.push(t.lesson_id)
+            }
           })
-          if (invalidLesson) {
-            return errorResponse('Có Dạng bài không thuộc Bài học Constant của chính câu hỏi.', 400)
+        }
+
+        if (effectiveQbLessonId && !requestedLessonIds.includes(effectiveQbLessonId)) {
+          requestedLessonIds.push(effectiveQbLessonId)
+        }
+
+        if (requestedLessonIds.length > 0) {
+          const { data: taxonomyLessons, error: lessonError } = await serviceRoleClient
+            .from('qb_lessons')
+            .select('id, chapter_id, title')
+            .in('id', requestedLessonIds)
+          if (lessonError) return errorResponse(lessonError.message, 500)
+          ;(taxonomyLessons || []).forEach((l: any) => taxonomyLessonsById.set(l.id, l))
+          ;(taxonomyLessons || []).forEach((l: any) => {
+            if (l.chapter_id && !requestedChapterIds.includes(l.chapter_id)) {
+              requestedChapterIds.push(l.chapter_id)
+            }
+          })
+        }
+
+        if (effectiveQbChapterId && !requestedChapterIds.includes(effectiveQbChapterId)) {
+          requestedChapterIds.push(effectiveQbChapterId)
+        }
+
+        if (requestedChapterIds.length > 0) {
+          const { data: taxonomyChapters, error: chapError } = await serviceRoleClient
+            .from('qb_chapters')
+            .select('id, class_id, title')
+            .in('id', requestedChapterIds)
+          if (chapError) return errorResponse(chapError.message, 500)
+          ;(taxonomyChapters || []).forEach((c: any) => taxonomyChaptersById.set(c.id, c))
+          ;(taxonomyChapters || []).forEach((c: any) => {
+            if (c.class_id && !requestedClassIds.includes(c.class_id)) {
+              requestedClassIds.push(c.class_id)
+            }
+          })
+        }
+
+        if (effectiveQbClassId && !requestedClassIds.includes(effectiveQbClassId)) {
+          requestedClassIds.push(effectiveQbClassId)
+        }
+
+        if (requestedClassIds.length > 0) {
+          const { data: taxonomyClasses, error: classError } = await serviceRoleClient
+            .from('qb_classes')
+            .select('id, grade_block, name')
+            .in('id', requestedClassIds)
+          if (classError) return errorResponse(classError.message, 500)
+          ;(taxonomyClasses || []).forEach((c: any) => taxonomyClassesById.set(c.id, c))
+        }
+
+        // Validate toàn bộ phân cấp cha-con cho từng câu hỏi: type -> lesson -> chapter -> class
+        for (let i = 0; i < questions.length; i++) {
+          const q = questions[i]
+          const qNum = q?.questionNumber || (i + 1)
+          const qbTypeId = q?.qbQuestionTypeId || null
+          const type = qbTypeId ? taxonomyTypesById.get(qbTypeId) : null
+
+          const qbLessonId = q?.qbLessonId || type?.lesson_id || effectiveQbLessonId
+          const lesson = qbLessonId ? taxonomyLessonsById.get(qbLessonId) : null
+
+          const qbChapterId = q?.qbChapterId || lesson?.chapter_id || effectiveQbChapterId
+          const chapter = qbChapterId ? taxonomyChaptersById.get(qbChapterId) : null
+
+          const qbClassId = q?.qbClassId || chapter?.class_id || effectiveQbClassId
+          const cl = qbClassId ? taxonomyClassesById.get(qbClassId) : null
+
+          if (type) {
+            if (qbLessonId && type.lesson_id !== qbLessonId) {
+              return errorResponse(`Câu ${qNum}: Dạng bài "${type.name}" không thuộc Bài học Constant của câu hỏi.`, 400)
+            }
+            if (lesson && qbChapterId && lesson.chapter_id !== qbChapterId) {
+              return errorResponse(`Câu ${qNum}: Dạng bài "${type.name}" không thuộc đúng Chương Constant của câu hỏi.`, 400)
+            }
+            if (chapter && qbClassId && chapter.class_id !== qbClassId) {
+              return errorResponse(`Câu ${qNum}: Dạng bài "${type.name}" không thuộc đúng Lớp Constant của câu hỏi.`, 400)
+            }
+          }
+
+          if (lesson && qbChapterId && lesson.chapter_id !== qbChapterId) {
+            return errorResponse(`Câu ${qNum}: Bài học "${lesson.title}" không thuộc đúng Chương Constant của câu hỏi.`, 400)
+          }
+
+          if (chapter && qbClassId && chapter.class_id !== qbClassId) {
+            return errorResponse(`Câu ${qNum}: Chương "${chapter.title}" không thuộc đúng Lớp Constant của câu hỏi.`, 400)
+          }
+
+          if (qbClassId && !cl) {
+            return errorResponse(`Câu ${qNum}: Lớp Constant không tồn tại.`, 400)
           }
         }
 
@@ -1956,13 +2124,17 @@ serve(async (req: Request) => {
 
           const taxonomyType = q.qbQuestionTypeId ? taxonomyTypesById.get(q.qbQuestionTypeId) : null
           const rowQbLessonId = q.qbLessonId || taxonomyType?.lesson_id || effectiveQbLessonId
-          const rowQbChapterId = q.qbChapterId || effectiveQbChapterId
-          const rowQbClassId = q.qbClassId || effectiveQbClassId
-          const rowGradeBlock = q.qbGradeBlock || effectiveGradeBlock
+          const taxonomyLesson = rowQbLessonId ? taxonomyLessonsById.get(rowQbLessonId) : null
+          const rowQbChapterId = q.qbChapterId || taxonomyLesson?.chapter_id || effectiveQbChapterId
+          const taxonomyChapter = rowQbChapterId ? taxonomyChaptersById.get(rowQbChapterId) : null
+          const rowQbClassId = q.qbClassId || taxonomyChapter?.class_id || effectiveQbClassId
+          const taxonomyClass = rowQbClassId ? taxonomyClassesById.get(rowQbClassId) : null
+          const rowGradeBlock = q.qbGradeBlock || taxonomyClass?.grade_block || effectiveGradeBlock
           const rowGradeLevel = Number(q.gradeLevel) || Number(String(rowGradeBlock).match(/^\d+/)?.[0]) || Number(gradeLevel) || 12
+          const rowSubject = q.subject || (rowGradeBlock && rowGradeBlock.includes('Hóa') ? 'HOA' : subject)
 
           return {
-            subject,
+            subject: rowSubject,
             grade_level: rowGradeLevel,
             grade_block: rowGradeBlock,
             qb_class_id: rowQbClassId,
@@ -1986,34 +2158,57 @@ serve(async (req: Request) => {
           }
         })
 
-        // 1. Tính toán hash cho toàn bộ câu hỏi và phát hiện trùng lặp ngay trong batch tải lên
+        // 1. Tính toán hash cho toàn bộ câu hỏi và phát hiện trùng lặp ngay trong batch tải lên.
+        // Phạm vi trùng = CẶP (qb_lesson_id, content_hash) — khớp unique index
+        // uq_qb_constant_lesson_hash. Hai câu cùng nội dung nhưng khác bài học KHÔNG phải
+        // trùng nhau (cả trong batch lẫn trong DB); câu không có lesson thì rơi về cặp
+        // (grade_block, content_hash) theo unique index uq_qb_dynamic_block_hash.
+        const dedupKeyForRow = (lessonId: any, gradeBlock: any, hash: string) =>
+          lessonId ? `lesson:${lessonId}|${hash}` : `block:${gradeBlock || ''}|${hash}`
         const candidateRows: any[] = []
         let skippedInFile = 0
         const seenInBatch = new Set<string>()
+        const hashList: string[] = []
+        const seenHashes = new Set<string>()
 
         for (const row of rowsToInsert) {
           const hash = await computeQbContentHash(row.question_type, row.prompt)
           row.content_hash = hash
+          if (!seenHashes.has(hash)) {
+            seenHashes.add(hash)
+            hashList.push(hash)
+          }
 
-          if (seenInBatch.has(hash)) {
+          const key = dedupKeyForRow(row.qb_lesson_id, row.grade_block, hash)
+          if (seenInBatch.has(key)) {
             skippedInFile++
             continue
           }
-          seenInBatch.add(hash)
+          seenInBatch.add(key)
           candidateRows.push(row)
         }
 
-        // 2. Tra cứu cơ sở dữ liệu để lọc bỏ những câu đã tồn tại (theo bài học constant hoặc khối)
-        const existingHashes = new Set<string>()
-        const hashList = Array.from(seenInBatch)
+        // 2. Tra cứu cơ sở dữ liệu để lọc bỏ những câu đã tồn tại. Phạm vi query vẫn
+        // theo lesson/khối của batch để không kéo toàn bảng, nhưng quyết định skip thì
+        // theo CẶP (lesson, hash) — câu ở bài khác có cùng hash không bị skip nhầm.
+        const existingPairs = new Set<string>()
         const CHUNK_SIZE = 500
         for (let i = 0; i < hashList.length; i += CHUNK_SIZE) {
           const chunk = hashList.slice(i, i + CHUNK_SIZE)
           let dbCheckQuery = serviceRoleClient
             .from('question_bank')
-            .select('content_hash')
+            .select('qb_lesson_id, grade_block, content_hash')
 
-          if (effectiveQbLessonId) {
+          const uniqueBatchLessons = Array.from(new Set(candidateRows.map((r: any) => r.qb_lesson_id).filter(Boolean)))
+          const uniqueBatchBlocks = Array.from(new Set(candidateRows.map((r: any) => r.grade_block).filter(Boolean)))
+
+          if (uniqueBatchLessons.length === 1 && !candidateRows.some((r: any) => !r.qb_lesson_id)) {
+            dbCheckQuery = dbCheckQuery.eq('qb_lesson_id', uniqueBatchLessons[0])
+          } else if (uniqueBatchBlocks.length === 1) {
+            dbCheckQuery = dbCheckQuery.eq('grade_block', uniqueBatchBlocks[0])
+          } else if (uniqueBatchBlocks.length > 1) {
+            dbCheckQuery = dbCheckQuery.in('grade_block', uniqueBatchBlocks)
+          } else if (effectiveQbLessonId) {
             dbCheckQuery = dbCheckQuery.eq('qb_lesson_id', effectiveQbLessonId)
           } else {
             dbCheckQuery = dbCheckQuery.eq('grade_block', effectiveGradeBlock)
@@ -2023,12 +2218,12 @@ serve(async (req: Request) => {
 
           if (matchedRows) {
             matchedRows.forEach((r: any) => {
-              if (r.content_hash) existingHashes.add(r.content_hash)
+              if (r.content_hash) existingPairs.add(dedupKeyForRow(r.qb_lesson_id, r.grade_block, r.content_hash))
             })
           }
         }
 
-        const filteredRows = candidateRows.filter(r => !existingHashes.has(r.content_hash))
+        const filteredRows = candidateRows.filter(r => !existingPairs.has(dedupKeyForRow(r.qb_lesson_id, r.grade_block, r.content_hash)))
         const skippedInDb = candidateRows.length - filteredRows.length
         const totalSkipped = skippedInFile + skippedInDb
 

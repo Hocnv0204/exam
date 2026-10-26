@@ -151,8 +151,22 @@ const byType = (t) => levelPlan.filter((x) => x.type === t).length
 console.log(`Chế độ: ${APPLY ? 'APPLY (ghi thật)' : 'DRY-RUN (không ghi)'}`)
 console.log(`Plan: ${levelPlan.length} item cần tạo — Khối ${byType('gradeBlock')}, Lớp ${byType('class')}, Chương ${byType('chapter')}, Bài ${byType('lesson')}, Dạng bài ${byType('questionType')}`)
 
+// Dạng bài fallback "Khác": mọi bài học PHẢI có một cái (import fallback vào đúng bài đó).
+// Bài mới tạo qua API đã tự có "Khác" (backend ensure); bước này chỉ lo các bài đã tồn
+// tại từ trước mà chưa có. Idempotent: chạy lại thấy đủ thì không tạo thêm.
+const normOther = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim()
+const lessonsMissingOther = () => tax.lessons.filter((ls) =>
+  !tax.questionTypes.some((t) => t.lesson_id === ls.id && normOther(t.name) === 'khac'))
+
 if (!APPLY) {
   for (const item of levelPlan) console.log(`  + [${item.type}] ${item.desc}`)
+  const missing = lessonsMissingOther()
+  if (missing.length) {
+    console.log(`[ADVISORY] ${missing.length} bài học đã có trong DB nhưng chưa có Dạng bài "Khác" (bước ensure cuối khi --apply sẽ tạo, KHÔNG nằm trong plan trên):`)
+    for (const ls of missing) console.log(`  ! [Khác còn thiếu] ${ls.title}`)
+  } else {
+    console.log('[ADVISORY] Mọi bài học đã có Dạng bài "Khác".')
+  }
   console.log('Chạy thêm --apply để ghi. Kiểm tra lại plan trước khi apply.')
   process.exit(0)
 }
@@ -194,3 +208,29 @@ for (const level of LEVEL_ORDER) {
   levelPlan = computeLevelPlan()
 }
 console.log(`Xong: đã tạo ${created} item. Chạy lại (dry-run) để xác nhận plan rỗng = idempotent.`)
+
+// Bước cuối: ensure Dạng bài "Khác" cho mọi bài học còn thiếu (chủ yếu là bài đã tồn
+// tại từ trước khi backend tự tạo "Khác"; bài mới tạo trong lần apply này backend đã
+// tạo kèm nên bước này sẽ bỏ qua chúng). Idempotent: chạy lại thì không còn gì để tạo.
+{
+  Object.assign(tax, await getTaxonomy())
+  const missing = lessonsMissingOther()
+  let otherCreated = 0
+  for (const ls of missing) {
+    const tyRows = tax.questionTypes.filter((t) => t.lesson_id === ls.id)
+    const orderIndex = tyRows.length ? Math.max(...tyRows.map((t) => Number(t.order_index) || 0)) + 1 : 0
+    try {
+      await api('?action=create-constant-taxonomy', {
+        method: 'POST',
+        body: { type: 'questionType', data: { lessonId: ls.id, name: 'Khác', description: 'Dạng bài khác hoặc câu hỏi tổng hợp thuộc bài học', orderIndex } }
+      })
+      otherCreated++
+      console.log(`  OK [Khác] Bài ${ls.title}`)
+    } catch (e) {
+      console.error(`LỖI ensure "Khác" tại bài ${ls.title}: ${e.message}`)
+      console.error('Dừng ngay, không retry. Chạy lại script sẽ tiếp tục từ bài chưa có "Khác".')
+      process.exit(1)
+    }
+  }
+  console.log(`Ensure "Khác": đã tạo ${otherCreated}/${missing.length} (còn lại đã có sẵn hoặc backend đã tạo kèm).`)
+}

@@ -5,6 +5,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
 import { parseExamMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
+import { resolveBatchQuestionsTaxonomy, resolveSingleQuestion, normalizeTaxonomyText } from '../utils/qb-metadata-resolver.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 // ========================================================
@@ -3618,60 +3619,48 @@ async function openImportMarkdownModal() {
   }
 
   function resolveParsedQuestionTypes() {
-    const lessonId = lessonSel?.value || ''
-    const allTypes = constantTaxonomyState.questionTypes || []
-    const getMatches = (tag) => {
-      const parts = String(tag || '').split('>').map(s => s.trim()).filter(Boolean)
-      const typeName = normalizeQuestionTypeName(parts.at(-1) || tag)
-      let matches = allTypes.filter(t => normalizeQuestionTypeName(t.name) === typeName)
-      if (lessonId) matches = matches.filter(t => t.lesson_id === lessonId)
-      if (parts.length > 1) {
-        matches = matches.filter(t => {
-          const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === t.lesson_id)
-          const chapter = lesson && (constantTaxonomyState.chapters || []).find(ch => ch.id === lesson.chapter_id)
-          const parentText = normalizeQuestionTypeName(`${chapter?.title || ''} ${lesson?.title || ''}`)
-          return parts.slice(0, -1).every(part => parentText.includes(normalizeQuestionTypeName(part)))
-        })
-      }
-      return matches
+    // 1. Phân giải metadata độc lập theo từng câu
+    resolveBatchQuestionsTaxonomy(parsedQuestions, constantTaxonomyState)
+
+    // 2. Hỗ trợ câu hoàn toàn không có metadata cấp câu (dùng target chọn thủ công từ dropdown nếu có)
+    const manualLessonId = lessonSel?.value || ''
+    if (manualLessonId) {
+      const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === manualLessonId)
+      const chapter = lesson && (constantTaxonomyState.chapters || []).find(ch => ch.id === lesson.chapter_id)
+      const targetClass = chapter && (constantTaxonomyState.classes || []).find(cl => cl.id === chapter.class_id)
+
+      parsedQuestions.forEach(q => {
+        const hasOwnMeta = q.classTag || q.gradeTag || q.subjectTag || q.chapterTag || q.lessonTag
+        if (!hasOwnMeta && (q.metadataError || q.questionTypeError)) {
+          const simulatedQ = {
+            ...q,
+            classTag: targetClass?.name || targetClass?.grade_block,
+            chapterTag: chapter?.title,
+            lessonTag: lesson?.title,
+            questionTypeTag: q.questionTypeTag
+          }
+          const single = resolveSingleQuestion(simulatedQ, constantTaxonomyState)
+          if (single.success) {
+            q.qbClassId = single.qbClassId
+            q.qbChapterId = single.qbChapterId
+            q.qbLessonId = single.qbLessonId
+            q.qbQuestionTypeId = single.qbQuestionTypeId
+            q.qbGradeBlock = single.qbGradeBlock
+            q.resolvedClassName = single.resolvedNames?.className || null
+            q.resolvedChapterTitle = single.resolvedNames?.chapterTitle || null
+            q.resolvedLessonTitle = single.resolvedNames?.lessonTitle || null
+            q.resolvedQuestionTypeName = single.resolvedNames?.questionTypeName || null
+            q.isFallback = single.isFallback
+            q.metadataError = ''
+            q.questionTypeError = ''
+          }
+        }
+      })
     }
 
-    const inferredLessonIds = new Set()
-
-    parsedQuestions.forEach(q => {
-      q.qbQuestionTypeId = null
-      q.qbLessonId = null
-      q.qbChapterId = null
-      q.qbClassId = null
-      q.qbGradeBlock = null
-      q.questionTypeError = ''
-      const tag = String(q.questionTypeTag || '').trim()
-      if (!tag) return
-      const matches = getMatches(tag)
-      if (matches.length === 1) {
-        q.qbQuestionTypeId = matches[0].id
-        const type = matches[0]
-        const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === type.lesson_id)
-        const chapter = lesson && (constantTaxonomyState.chapters || []).find(ch => ch.id === lesson.chapter_id)
-        const targetClass = chapter && (constantTaxonomyState.classes || []).find(cl => cl.id === chapter.class_id)
-        q.qbLessonId = lesson?.id || null
-        q.qbChapterId = chapter?.id || null
-        q.qbClassId = targetClass?.id || null
-        q.qbGradeBlock = targetClass?.grade_block || null
-        if (lesson?.id) inferredLessonIds.add(lesson.id)
-      } else if (matches.length === 0) {
-        q.questionTypeError = `Không tìm thấy Dạng bài "${tag}" trong Constant`
-      } else {
-        const lessonNames = matches.map(t => {
-          const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === t.lesson_id)
-          return lesson?.title || t.lesson_id
-        })
-        q.questionTypeError = `Dạng bài "${tag}" bị trùng; ghi thêm đường dẫn Bài học > Dạng bài (các lựa chọn: ${lessonNames.join(' / ')})`
-      }
-    })
-
-    // Nếu tất cả tag thuộc cùng một bài, tự điền cây để người dùng vẫn thấy target đã suy ra.
-    if (!lessonId && inferredLessonIds.size === 1 && !parsedQuestions.some(q => q.questionTypeError)) {
+    // 3. Nếu tất cả câu hỏi đều thuộc cùng một bài học, đồng bộ hiển thị dropdown
+    const inferredLessonIds = new Set(parsedQuestions.map(q => q.qbLessonId).filter(Boolean))
+    if (!manualLessonId && inferredLessonIds.size === 1 && !parsedQuestions.some(q => q.questionTypeError || q.metadataError)) {
       setInferredLessonTarget([...inferredLessonIds][0])
     }
   }
@@ -3685,7 +3674,9 @@ async function openImportMarkdownModal() {
     const th = parsedQuestions.filter(q => q.difficulty === 'THONG_HIEU').length
     const vd = parsedQuestions.filter(q => q.difficulty === 'VAN_DUNG').length
     const vdc = parsedQuestions.filter(q => q.difficulty === 'VAN_DUNG_CAO').length
-    const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError).length
+    const resolvedTypes = parsedQuestions.filter(q => !q.questionTypeError && !q.metadataError && !q.isFallback).length
+    const fallbackTypes = parsedQuestions.filter(q => !q.questionTypeError && !q.metadataError && q.isFallback).length
+    const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError || q.metadataError).length
 
     document.getElementById('md-cnt-mc').textContent = `${mc} Trắc nghiệm`
     document.getElementById('md-cnt-tf').textContent = `${tf} Đúng/Sai`
@@ -3722,10 +3713,19 @@ async function openImportMarkdownModal() {
         taxonomyBadge.style.background = '#fef2f2'
         taxonomyBadge.style.color = '#b91c1c'
         taxonomyBadge.style.border = '1px solid #fecaca'
-        taxonomyBadge.textContent = `⚠ ${taxonomyErrors} câu chưa nhận diện Dạng bài`
+        taxonomyBadge.textContent = `⚠ ${taxonomyErrors} câu lỗi phân loại Constant`
+      } else if (fallbackTypes > 0) {
+        taxonomyBadge.style.display = 'inline-flex'
+        taxonomyBadge.style.background = '#fffbeb'
+        taxonomyBadge.style.color = '#b45309'
+        taxonomyBadge.style.border = '1px solid #fde68a'
+        taxonomyBadge.textContent = `✓ Đã khớp: ${resolvedTypes} | ↱ Fallback "Khác": ${fallbackTypes}`
       } else {
-        taxonomyBadge.style.display = 'none'
-        taxonomyBadge.textContent = ''
+        taxonomyBadge.style.display = 'inline-flex'
+        taxonomyBadge.style.background = '#f0fdf4'
+        taxonomyBadge.style.color = '#15803d'
+        taxonomyBadge.style.border = '1px solid #bbf7d0'
+        taxonomyBadge.textContent = `✓ Đã khớp ${resolvedTypes} câu Constant`
       }
     }
 
@@ -3800,11 +3800,51 @@ async function openImportMarkdownModal() {
     parsedQuestions.forEach((q, idx) => {
       const diag = validateQuestionDiagrams(q)
       const typeLabel = q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : 'Trắc nghiệm')
-      const status = q.questionTypeError
-        ? `<span style="color:#b91c1c; font-size:11px; font-weight:700;">⚠ ${escapeHtml(q.questionTypeError)}</span>`
-        : (q.questionTypeTag ? `<span style="color:#be185d; font-size:11px; font-weight:700;">✓ ${escapeHtml(q.questionTypeTag)}</span>` : '<span style="color:#94a3b8; font-size:11px;">Chưa gắn Dạng bài</span>')
       const displayNumber = q.questionNumber || idx + 1
       const isEditingSource = idx === activeSourceEditorIndex
+
+      // Metadata tags trích xuất từ đề bài
+      const metaTags = []
+      if (q.classTag || q.gradeTag) metaTags.push(`Lớp: ${escapeHtml(q.classTag || q.gradeTag)}`)
+      if (q.subjectTag) metaTags.push(`Môn: ${escapeHtml(q.subjectTag)}`)
+      if (q.chapterTag) metaTags.push(`Chương: ${escapeHtml(q.chapterTag)}`)
+      if (q.lessonTag) metaTags.push(`Bài: ${escapeHtml(q.lessonTag)}`)
+      if (q.questionTypeTag) metaTags.push(`Dạng bài: ${escapeHtml(q.questionTypeTag)}`)
+
+      const metaBadges = metaTags.length > 0
+        ? `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:6px; font-size:11px;">
+            <span style="font-weight:700; color:#64748b;">Metadata:</span>
+            ${metaTags.map(t => `<span style="background:#f1f5f9; color:#334155; padding:1px 6px; border-radius:4px; border:1px solid #e2e8f0;">${t}</span>`).join('')}
+          </div>`
+        : `<div style="margin-top:6px; font-size:11px; color:#94a3b8; font-style:italic;">Không gắn metadata cấp câu</div>`
+
+      // Phân giải Target Constant / Fallback / Lỗi
+      let targetDisplay = ''
+      const hasError = !!(q.questionTypeError || q.metadataError)
+      if (hasError) {
+        const errMsg = q.questionTypeError || q.metadataError
+        targetDisplay = `<div style="margin-top:8px; padding:6px 10px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#b91c1c; font-size:11.5px; font-weight:700;">
+          <i class="fa-solid fa-circle-exclamation"></i> Lỗi phân loại: ${escapeHtml(errMsg)}
+        </div>`
+      } else if (q.resolvedLessonTitle) {
+        const pathText = `${escapeHtml(q.resolvedClassName || q.qbGradeBlock)} &rarr; ${escapeHtml(q.resolvedChapterTitle)} &rarr; ${escapeHtml(q.resolvedLessonTitle)}`
+        const typeBadge = q.isFallback
+          ? `<span title="Tự động fallback vào Dạng bài Khác của bài học" style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
+              <i class="fa-solid fa-arrows-split-up-and-left"></i> Fallback Dạng bài: <strong>${escapeHtml(q.resolvedQuestionTypeName || 'Khác')}</strong>
+            </span>`
+          : `<span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
+              <i class="fa-solid fa-check"></i> Dạng bài: <strong>${escapeHtml(q.resolvedQuestionTypeName)}</strong>
+            </span>`
+
+        targetDisplay = `<div style="margin-top:8px; padding:7px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; display:flex; flex-direction:column; gap:5px; font-size:11.5px;">
+          <div style="color:#0369a1; font-weight:600;"><i class="fa-solid fa-folder-tree"></i> Đích: ${pathText}</div>
+          <div>${typeBadge}</div>
+        </div>`
+      } else {
+        targetDisplay = `<div style="margin-top:8px; color:#94a3b8; font-size:11px;">Chưa xác định phân loại Constant</div>`
+      }
+
+      const cardBorder = hasError ? '#fecaca' : (q.isFallback ? '#fde68a' : '#dbeafe')
 
       const headerActions = isEditingSource
         ? `<span title="Đang mở editor Mã nguồn cho câu này" style="display:inline-flex; align-items:center; gap:5px; border:1px solid #c7d2fe; color:#4338ca; background:#eef2ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-pen-to-square"></i> Đang sửa mã nguồn</span><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button>`
@@ -3827,13 +3867,14 @@ async function openImportMarkdownModal() {
         : `<div style="border-top:1px solid #f1f5f9; padding-top:10px;">${renderQuestionBody(q)}</div>`
 
       html += `
-        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:default; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
+        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${cardBorder}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:default; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap; min-width:0;">
             <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-width:0;"><strong style="color:#334155;">Câu ${displayNumber}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span></div>
             <div class="md-preview-card-actions" style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:5px; min-width:0; max-width:100%;">${headerActions}</div>
           </div>
           ${questionBody}
-          <div style="margin-top:8px; font-size:11px;">${status}</div>
+          ${metaBadges}
+          ${targetDisplay}
           <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:10px; padding-top:8px; border-top:1px dashed #e2e8f0;">
             <select class="md-item-diff-select" data-index="${idx}" style="height:30px; font-size:12px; font-weight:600; padding:0 8px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
               <option value="NHAN_BIET" ${q.difficulty === 'NHAN_BIET' ? 'selected' : ''}>Nhận biết</option><option value="THONG_HIEU" ${q.difficulty === 'THONG_HIEU' ? 'selected' : ''}>Thông hiểu</option><option value="VAN_DUNG" ${q.difficulty === 'VAN_DUNG' ? 'selected' : ''}>Vận dụng</option><option value="VAN_DUNG_CAO" ${q.difficulty === 'VAN_DUNG_CAO' ? 'selected' : ''}>Vận dụng cao</option>
@@ -4122,10 +4163,17 @@ async function openImportMarkdownModal() {
     }
 
     resolveParsedQuestionTypes()
-    const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError)
+    const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError || q.metadataError)
     if (taxonomyErrors.length > 0) {
       const first = taxonomyErrors[0]
-      return showToast(`Câu ${first.questionNumber}: ${first.questionTypeError}. Vui lòng chọn đúng Bài học và sửa tag Dạng bài!`, 'error')
+      const err = first.questionTypeError || first.metadataError
+      return showToast(`Câu ${first.questionNumber}: ${err}. Vui lòng sửa metadata câu hỏi trước khi lưu!`, 'error')
+    }
+
+    const unassigned = parsedQuestions.filter(q => !q.qbLessonId)
+    if (unassigned.length > 0) {
+      const first = unassigned[0]
+      return showToast(`Câu ${first.questionNumber}: Chưa xác định được Bài học Constant. Vui lòng kiểm tra metadata [LỚP], [MÔN], [CHƯƠNG], [BÀI HỌC]!`, 'error')
     }
 
     // Chặn lưu khi còn lỗi khối hình (bbt/graph/geo3d)
@@ -4140,18 +4188,26 @@ async function openImportMarkdownModal() {
     const defaultDifficulty = document.getElementById('md-target-difficulty')?.value || 'THONG_HIEU'
     const finalQuestions = parsedQuestions.map(q => ({
       ...q,
-      difficulty: q.difficulty || defaultDifficulty
+      difficulty: q.difficulty || defaultDifficulty,
+      qbClassId: q.qbClassId || null,
+      qbChapterId: q.qbChapterId || null,
+      qbLessonId: q.qbLessonId || null,
+      qbQuestionTypeId: q.qbQuestionTypeId || null,
+      qbGradeBlock: q.qbGradeBlock || null,
+      gradeLevel: Number(String(q.qbGradeBlock).match(/^\d+/)?.[0]) || 12,
+      subject: (q.qbGradeBlock && q.qbGradeBlock.includes('Hóa')) ? 'HOA' : 'TOAN'
     }))
 
+    const firstBlock = finalQuestions[0]?.qbGradeBlock || ''
     const payload = {
-      subject: 'TOAN',
-      gradeLevel: 12,
-      classId: classSel?.value || null,
-      qbClassId: classSel?.value || null,
-      chapterId: chapterSel?.value || null,
-      qbChapterId: chapterSel?.value || null,
-      lessonId: lessonSel?.value || null,
-      qbLessonId: lessonSel?.value || null,
+      subject: (firstBlock && firstBlock.includes('Hóa')) ? 'HOA' : 'TOAN',
+      gradeLevel: Number(String(firstBlock).match(/^\d+/)?.[0]) || 12,
+      classId: finalQuestions[0]?.qbClassId || classSel?.value || null,
+      qbClassId: finalQuestions[0]?.qbClassId || classSel?.value || null,
+      chapterId: finalQuestions[0]?.qbChapterId || chapterSel?.value || null,
+      qbChapterId: finalQuestions[0]?.qbChapterId || chapterSel?.value || null,
+      lessonId: finalQuestions[0]?.qbLessonId || lessonSel?.value || null,
+      qbLessonId: finalQuestions[0]?.qbLessonId || lessonSel?.value || null,
       defaultDifficulty,
       questions: finalQuestions
     }
