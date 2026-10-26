@@ -4,7 +4,7 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
-import { parseExamMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
+import { parseExamMarkdown, formatQuestionToMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 // ========================================================
@@ -3333,9 +3333,10 @@ async function openImportMarkdownModal() {
                 </button>
               </div>
             </div>
-            <div id="md-preview-questions-list" style="max-height:280px; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px;">
+            <div id="md-preview-questions-list" style="max-height:480px; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px;">
               <!-- Question rows render here -->
             </div>
+            <div id="md-question-detail" style="display:none; margin:0 12px 12px; border:1px solid #bfdbfe; border-radius:10px; background:#ffffff; overflow:hidden;"></div>
           </div>
 
         </div>
@@ -3690,38 +3691,40 @@ async function openImportMarkdownModal() {
       return
     }
 
+    const renderQuestionBody = (q, includeExplanation = false) => {
+      const options = (q.options || []).map((o) => {
+        const id = String(o.id || '').toUpperCase()
+        const correct = q.questionType === 'TRUE_FALSE' ? q.tfAnswers?.[o.id] : q.mcAnswer === o.id
+        return `<div style="display:flex; gap:8px; padding:4px 0; color:${correct ? '#15803d' : '#334155'}; font-weight:${correct ? '700' : '400'};">
+          <span style="min-width:22px;">${correct ? '✓' : ''}${escapeHtml(id)}.</span><span>${renderMarkdown(o.text || '')}</span>
+        </div>`
+      }).join('')
+      const explanation = includeExplanation && q.explanation
+        ? `<div style="margin-top:12px; padding:10px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;"><strong style="color:#166534;">Lời giải</strong><div style="margin-top:5px;">${renderMarkdown(q.explanation)}</div></div>`
+        : ''
+      return `<div class="math-content" style="line-height:1.55; color:#1e293b;">${renderMarkdown(q.promptText || '')}</div>${options ? `<div style="margin-top:8px;">${options}</div>` : ''}${explanation}`
+    }
+
     let html = ''
     parsedQuestions.forEach((q, idx) => {
-      const promptSnippet = (q.promptText || '').slice(0, 100) + ((q.promptText || '').length > 100 ? '...' : '')
       const diag = validateQuestionDiagrams(q)
-      const diagBadge = diag.errors.length
-        ? `<span title="${escapeHtmlAttr(diag.errors.map(e => `[${e.code}] ${e.message}`).join(' | '))}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; white-space:nowrap;">⚠ ${diag.errors.length} lỗi hình</span>`
-        : (diag.warnings.length
-          ? `<span title="${escapeHtmlAttr(diag.warnings.map(e => `[${e.code}] ${e.message}`).join(' | '))}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; white-space:nowrap;">⚠ ${diag.warnings.length} cảnh báo hình</span>`
-          : '')
+      const typeLabel = q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : 'Trắc nghiệm')
+      const status = q.questionTypeError
+        ? `<span style="color:#b91c1c; font-size:11px; font-weight:700;">⚠ ${escapeHtml(q.questionTypeError)}</span>`
+        : (q.questionTypeTag ? `<span style="color:#be185d; font-size:11px; font-weight:700;">✓ ${escapeHtml(q.questionTypeTag)}</span>` : '<span style="color:#94a3b8; font-size:11px;">Chưa gắn Dạng bài</span>')
       html += `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; font-size:13px;">
-          <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
-            <span style="font-weight:700; color:#334155; flex-shrink:0;">Câu ${idx + 1}</span>
-            <span style="font-size:11px; font-weight:700; padding:2px 6px; border-radius:4px; background:#eff6ff; color:#0284c7; flex-shrink:0;">
-              ${q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : 'Trắc nghiệm')}
-            </span>
-            ${diagBadge}
-            ${q.questionTypeTag ? `<span title="${escapeHtmlAttr(q.questionTypeError || q.questionTypeTag)}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:${q.questionTypeError ? '#fef2f2' : '#fdf2f8'}; color:${q.questionTypeError ? '#b91c1c' : '#be185d'}; border:1px solid ${q.questionTypeError ? '#fecaca' : '#fbcfe8'}; white-space:nowrap;">${q.questionTypeError ? '⚠ ' : '✓ '}${escapeHtml(q.questionTypeTag)}</span>` : '<span style="font-size:10.5px; color:#94a3b8;">Không có tag Dạng bài</span>'}
-            <span style="color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px;">
-              ${promptSnippet}
-            </span>
+        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:12px 14px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.04);">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;"><strong style="color:#334155;">Câu ${idx + 1}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span>${status}</div>
+            <div style="display:flex; gap:5px;"><button type="button" class="md-view-detail-btn" data-index="${idx}" style="border:1px solid #93c5fd; color:#0369a1; background:#eff6ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-eye"></i> Chi tiết</button><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button></div>
           </div>
-          <div style="flex-shrink:0;">
+          <div style="max-height:190px; overflow:hidden; position:relative;">${renderQuestionBody(q)}</div>
+          <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:10px; padding-top:8px; border-top:1px dashed #e2e8f0;">
             <select class="md-item-diff-select" data-index="${idx}" style="height:30px; font-size:12px; font-weight:600; padding:0 8px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-              <option value="NHAN_BIET" ${q.difficulty === 'NHAN_BIET' ? 'selected' : ''}>Nhận biết</option>
-              <option value="THONG_HIEU" ${q.difficulty === 'THONG_HIEU' ? 'selected' : ''}>Thông hiểu</option>
-              <option value="VAN_DUNG" ${q.difficulty === 'VAN_DUNG' ? 'selected' : ''}>Vận dụng</option>
-              <option value="VAN_DUNG_CAO" ${q.difficulty === 'VAN_DUNG_CAO' ? 'selected' : ''}>Vận dụng cao</option>
+              <option value="NHAN_BIET" ${q.difficulty === 'NHAN_BIET' ? 'selected' : ''}>Nhận biết</option><option value="THONG_HIEU" ${q.difficulty === 'THONG_HIEU' ? 'selected' : ''}>Thông hiểu</option><option value="VAN_DUNG" ${q.difficulty === 'VAN_DUNG' ? 'selected' : ''}>Vận dụng</option><option value="VAN_DUNG_CAO" ${q.difficulty === 'VAN_DUNG_CAO' ? 'selected' : ''}>Vận dụng cao</option>
             </select>
           </div>
-        </div>
-      `
+        </article>`
     })
 
     container.innerHTML = html
@@ -3743,6 +3746,79 @@ async function openImportMarkdownModal() {
         }
       })
     })
+    container.querySelectorAll('.md-preview-card').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.md-item-diff-select')) return
+        const idx = parseInt(el.getAttribute('data-index'), 10)
+        if (Number.isInteger(idx)) showQuestionDetail(idx)
+      })
+    })
+    container.querySelectorAll('.md-view-detail-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const idx = parseInt(btn.getAttribute('data-index'), 10)
+        if (Number.isInteger(idx)) showQuestionDetail(idx)
+      })
+    })
+    container.querySelectorAll('.md-delete-question-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const idx = parseInt(btn.getAttribute('data-index'), 10)
+        deleteParsedQuestion(idx)
+      })
+    })
+    renderMath(container)
+  }
+
+  function deleteParsedQuestion(index) {
+    if (!Number.isInteger(index) || !parsedQuestions[index]) return
+    const number = parsedQuestions[index].questionNumber || index + 1
+    if (!window.confirm(`Loại Câu ${number} khỏi danh sách nhập?`)) return
+    parsedQuestions.splice(index, 1)
+    const detail = document.getElementById('md-question-detail')
+    if (detail) {
+      detail.style.display = 'none'
+      detail.innerHTML = ''
+    }
+    renderParsedSummaryAndList()
+    showToast(`Đã loại Câu ${number} khỏi danh sách nhập.`, 'info')
+  }
+
+  function showQuestionDetail(index) {
+    const q = parsedQuestions[index]
+    const detail = document.getElementById('md-question-detail')
+    if (!q || !detail) return
+    const options = (q.options || []).map(o => `<div style="padding:5px 0;">${escapeHtml(String(o.id || '').toUpperCase())}. ${renderMarkdown(o.text || '')}</div>`).join('')
+    detail.style.display = 'block'
+    detail.innerHTML = `<div style="padding:12px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; gap:8px;"><strong>Chi tiết Câu ${index + 1}</strong><div style="display:flex; gap:6px;"><button type="button" id="md-edit-question-btn" class="btn-secondary" style="padding:5px 9px; font-size:11px; border:1px solid #f59e0b; color:#b45309; background:#fffbeb; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-pen"></i> Sửa Markdown câu này</button><button type="button" id="md-delete-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-trash"></i> Xóa câu</button><button type="button" id="md-close-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer;">Đóng</button></div></div><div style="padding:14px; max-height:420px; overflow:auto;">${renderQuestionBodyForDetail(q, options)}</div>`
+    document.getElementById('md-close-detail-btn')?.addEventListener('click', () => { detail.style.display = 'none'; detail.innerHTML = '' })
+    document.getElementById('md-edit-question-btn')?.addEventListener('click', () => editQuestionMarkdown(index))
+    document.getElementById('md-delete-detail-btn')?.addEventListener('click', () => deleteParsedQuestion(index))
+    renderMath(detail)
+    detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  function renderQuestionBodyForDetail(q, optionsHtml) {
+    return `<div class="math-content" style="line-height:1.6;">${renderMarkdown(q.promptText || '')}</div><div style="margin-top:10px;">${optionsHtml}</div>${q.explanation ? `<div style="margin-top:14px; padding:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;"><strong>Lời giải</strong><div>${renderMarkdown(q.explanation)}</div></div>` : ''}`
+  }
+
+  function editQuestionMarkdown(index) {
+    const question = parsedQuestions[index]
+    if (!question || !editor) return
+    const lines = editor.value.replace(/\r\n/g, '\n').split('\n')
+    const starts = []
+    lines.forEach((line, lineIndex) => { if (/^\s*\[(?:Câu|Bài)\s*\d+\]/i.test(line.trim())) starts.push(lineIndex) })
+    const start = starts[index]
+    if (start === undefined) return showToast('Không xác định được vị trí Markdown của câu này.', 'warning')
+    const end = starts[index + 1] ?? lines.length
+    lines.splice(start, end - start, formatQuestionToMarkdown(question))
+    editor.value = lines.join('\n')
+    updateParsedCounters(editor.value)
+    document.getElementById('md-question-detail').style.display = 'none'
+    editor.focus()
+    editor.setSelectionRange(lines.slice(0, start).join('\n').length, editor.value.length)
+    editor.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    showToast(`Đã đưa Câu ${index + 1} về vùng Markdown để chỉnh sửa.`, 'info')
   }
 
   // Submit
