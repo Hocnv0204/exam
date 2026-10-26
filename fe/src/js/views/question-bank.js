@@ -3271,6 +3271,9 @@ async function openImportMarkdownModal() {
               </label>
               <input type="file" id="md-file-input" accept=".md,.txt" style="display:none;" />
             </div>
+            <button id="md-analyze-btn" type="button" class="btn-secondary" style="padding:5px 12px; font-size:12px; font-weight:700; border-radius:6px; border:1px solid #0284c7; background:#eff6ff; color:#0369a1; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-magnifying-glass-chart"></i> Phân tích & xem trước
+            </button>
           </div>
 
           <!-- Markdown Editor Textarea -->
@@ -3282,7 +3285,7 @@ async function openImportMarkdownModal() {
           </div>
 
           <!-- Live Parse Summary & Difficulty Breakdown (Phase 1.2 & 1.5) -->
-          <div id="md-parse-summary" style="margin-bottom:14px; padding:12px 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; display:flex; flex-direction:column; gap:10px;">
+          <div id="md-parse-summary" style="display:none; margin-bottom:14px; padding:12px 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; flex-direction:column; gap:10px;">
             <!-- Types summary -->
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <span style="font-weight:700; color:#334155;">Dạng câu:</span>
@@ -3307,6 +3310,7 @@ async function openImportMarkdownModal() {
                 <i class="fa-solid fa-list-check" style="color:#0284c7;"></i> Xem & Chỉnh mức độ từng câu (<span id="md-btn-preview-count">0</span>)
               </button>
             </div>
+            <div id="md-taxonomy-breakdown" style="display:flex; flex-wrap:wrap; gap:6px; padding-top:8px; border-top:1px dashed #e2e8f0;"></div>
           </div>
 
           <!-- Preview & Difficulty Adjustment Pane -->
@@ -3361,8 +3365,17 @@ async function openImportMarkdownModal() {
   const editor = document.getElementById('md-editor-textarea')
   const previewPane = document.getElementById('md-preview-pane')
   const togglePreviewBtn = document.getElementById('md-toggle-preview-btn')
+  const analyzeBtn = document.getElementById('md-analyze-btn')
 
   let parsedQuestions = []
+
+  analyzeBtn?.addEventListener('click', () => {
+    updateParsedCounters(editor?.value || '')
+    const summary = document.getElementById('md-parse-summary')
+    if (summary) summary.style.display = 'flex'
+    if (previewPane) previewPane.style.display = 'block'
+    renderParsedPreviewList()
+  })
 
   // Toggle preview pane
   togglePreviewBtn?.addEventListener('click', () => {
@@ -3490,7 +3503,6 @@ async function openImportMarkdownModal() {
       if (!q.difficulty) q.difficulty = defaultDiff
     })
 
-    inferLessonFromQuestionTypeTags()
     resolveParsedQuestionTypes()
 
     renderParsedSummaryAndList()
@@ -3529,50 +3541,63 @@ async function openImportMarkdownModal() {
     return true
   }
 
-  function inferLessonFromQuestionTypeTags() {
-    const taggedQuestions = parsedQuestions.filter(q => String(q.questionTypeTag || '').trim())
-    if (taggedQuestions.length === 0) return false
-
-    const allTypes = constantTaxonomyState.questionTypes || []
-    const resolved = taggedQuestions.map(q => {
-      const matches = allTypes.filter(t => normalizeQuestionTypeName(t.name) === normalizeQuestionTypeName(q.questionTypeTag))
-      return { q, matches }
-    })
-    if (resolved.some(item => item.matches.length !== 1)) return false
-    const lessonIds = new Set(resolved.map(item => item.matches[0].lesson_id))
-    if (lessonIds.size !== 1) return false
-    return setInferredLessonTarget([...lessonIds][0])
-  }
-
   function resolveParsedQuestionTypes() {
     const lessonId = lessonSel?.value || ''
-    const lessonTypes = (constantTaxonomyState.questionTypes || []).filter(t => t.lesson_id === lessonId)
-    const byName = new Map()
-    lessonTypes.forEach(t => {
-      const key = normalizeQuestionTypeName(t.name)
-      const list = byName.get(key) || []
-      list.push(t)
-      byName.set(key, list)
-    })
+    const allTypes = constantTaxonomyState.questionTypes || []
+    const getMatches = (tag) => {
+      const parts = String(tag || '').split('>').map(s => s.trim()).filter(Boolean)
+      const typeName = normalizeQuestionTypeName(parts.at(-1) || tag)
+      let matches = allTypes.filter(t => normalizeQuestionTypeName(t.name) === typeName)
+      if (lessonId) matches = matches.filter(t => t.lesson_id === lessonId)
+      if (parts.length > 1) {
+        matches = matches.filter(t => {
+          const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === t.lesson_id)
+          const chapter = lesson && (constantTaxonomyState.chapters || []).find(ch => ch.id === lesson.chapter_id)
+          const parentText = normalizeQuestionTypeName(`${chapter?.title || ''} ${lesson?.title || ''}`)
+          return parts.slice(0, -1).every(part => parentText.includes(normalizeQuestionTypeName(part)))
+        })
+      }
+      return matches
+    }
+
+    const inferredLessonIds = new Set()
 
     parsedQuestions.forEach(q => {
       q.qbQuestionTypeId = null
+      q.qbLessonId = null
+      q.qbChapterId = null
+      q.qbClassId = null
+      q.qbGradeBlock = null
       q.questionTypeError = ''
       const tag = String(q.questionTypeTag || '').trim()
       if (!tag) return
-      if (!lessonId) {
-        q.questionTypeError = 'Chưa chọn Bài học Constant'
-        return
-      }
-      const matches = byName.get(normalizeQuestionTypeName(tag)) || []
+      const matches = getMatches(tag)
       if (matches.length === 1) {
         q.qbQuestionTypeId = matches[0].id
+        const type = matches[0]
+        const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === type.lesson_id)
+        const chapter = lesson && (constantTaxonomyState.chapters || []).find(ch => ch.id === lesson.chapter_id)
+        const targetClass = chapter && (constantTaxonomyState.classes || []).find(cl => cl.id === chapter.class_id)
+        q.qbLessonId = lesson?.id || null
+        q.qbChapterId = chapter?.id || null
+        q.qbClassId = targetClass?.id || null
+        q.qbGradeBlock = targetClass?.grade_block || null
+        if (lesson?.id) inferredLessonIds.add(lesson.id)
       } else if (matches.length === 0) {
-        q.questionTypeError = `Không tìm thấy Dạng bài "${tag}" trong Bài học đã chọn`
+        q.questionTypeError = `Không tìm thấy Dạng bài "${tag}" trong Constant`
       } else {
-        q.questionTypeError = `Dạng bài "${tag}" bị trùng trong Bài học đã chọn`
+        const lessonNames = matches.map(t => {
+          const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === t.lesson_id)
+          return lesson?.title || t.lesson_id
+        })
+        q.questionTypeError = `Dạng bài "${tag}" bị trùng; ghi thêm đường dẫn Bài học > Dạng bài (các lựa chọn: ${lessonNames.join(' / ')})`
       }
     })
+
+    // Nếu tất cả tag thuộc cùng một bài, tự điền cây để người dùng vẫn thấy target đã suy ra.
+    if (!lessonId && inferredLessonIds.size === 1 && !parsedQuestions.some(q => q.questionTypeError)) {
+      setInferredLessonTarget([...inferredLessonIds][0])
+    }
   }
 
   function renderParsedSummaryAndList() {
@@ -3633,6 +3658,21 @@ async function openImportMarkdownModal() {
     document.getElementById('md-diff-vd').textContent = `${vd} Vận dụng`
     document.getElementById('md-diff-vdc').textContent = `${vdc} Vận dụng cao`
 
+    const taxonomyBreakdown = document.getElementById('md-taxonomy-breakdown')
+    if (taxonomyBreakdown) {
+      const groups = new Map()
+      parsedQuestions.forEach(q => {
+        const name = String(q.questionTypeTag || 'Chưa gắn Dạng bài').trim()
+        const group = groups.get(name) || { count: 0, errors: 0 }
+        group.count++
+        if (q.questionTypeError) group.errors++
+        groups.set(name, group)
+      })
+      taxonomyBreakdown.innerHTML = '<span style="font-size:12px; font-weight:700; color:#475569; width:100%;">Phân bố Dạng bài:</span>' + Array.from(groups.entries())
+        .map(([name, group]) => `<span title="${escapeHtmlAttr(group.errors ? 'Chưa nhận diện: ' + group.errors + ' câu' : 'Đã nhận diện')}" style="font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; background:${group.errors ? '#fef2f2' : '#fdf2f8'}; color:${group.errors ? '#b91c1c' : '#be185d'}; border:1px solid ${group.errors ? '#fecaca' : '#fbcfe8'};">${escapeHtml(name)}: ${group.count}</span>`)
+        .join('')
+    }
+
     const btnCount = document.getElementById('md-btn-preview-count')
     if (btnCount) btnCount.textContent = parsedQuestions.length
 
@@ -3667,7 +3707,7 @@ async function openImportMarkdownModal() {
               ${q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : 'Trắc nghiệm')}
             </span>
             ${diagBadge}
-            ${q.questionTypeTag ? `<span title="${escapeHtmlAttr(q.questionTypeError || q.questionTypeTag)}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:${q.questionTypeError ? '#fef2f2' : '#fdf2f8'}; color:${q.questionTypeError ? '#b91c1c' : '#be185d'}; border:1px solid ${q.questionTypeError ? '#fecaca' : '#fbcfe8'}; white-space:nowrap;">${q.questionTypeError ? '⚠ ' : ''}Dạng bài</span>` : ''}
+            ${q.questionTypeTag ? `<span title="${escapeHtmlAttr(q.questionTypeError || q.questionTypeTag)}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:${q.questionTypeError ? '#fef2f2' : '#fdf2f8'}; color:${q.questionTypeError ? '#b91c1c' : '#be185d'}; border:1px solid ${q.questionTypeError ? '#fecaca' : '#fbcfe8'}; white-space:nowrap;">${q.questionTypeError ? '⚠ ' : '✓ '}${escapeHtml(q.questionTypeTag)}</span>` : '<span style="font-size:10.5px; color:#94a3b8;">Không có tag Dạng bài</span>'}
             <span style="color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px;">
               ${promptSnippet}
             </span>
@@ -3720,7 +3760,6 @@ async function openImportMarkdownModal() {
       return showToast('Không tìm thấy câu hỏi hợp lệ nào trong văn bản Markdown!', 'error')
     }
 
-    inferLessonFromQuestionTypeTags()
     resolveParsedQuestionTypes()
     const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError)
     if (taxonomyErrors.length > 0) {

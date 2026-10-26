@@ -1887,21 +1887,25 @@ serve(async (req: Request) => {
             .map((q: any) => q?.qbQuestionTypeId)
             .filter((id: any) => typeof id === 'string' && id.trim())
         )) as string[]
+        const taxonomyTypesById = new Map<string, any>()
         if (requestedQuestionTypeIds.length > 0) {
-          if (!effectiveQbLessonId) {
-            return errorResponse('Muốn gắn Dạng bài, câu hỏi phải có Bài học Constant đích.', 400)
-          }
           const { data: taxonomyTypes, error: taxonomyError } = await serviceRoleClient
             .from('qb_question_types')
             .select('id, lesson_id')
             .in('id', requestedQuestionTypeIds)
           if (taxonomyError) return errorResponse(taxonomyError.message, 500)
-          const validTypeIds = new Set((taxonomyTypes || [])
-            .filter((t: any) => t.lesson_id === effectiveQbLessonId)
-            .map((t: any) => t.id))
-          const invalidTypeIds = requestedQuestionTypeIds.filter(id => !validTypeIds.has(id))
-          if (invalidTypeIds.length > 0) {
-            return errorResponse('Có Dạng bài không thuộc Bài học Constant đã chọn.', 400)
+          ;(taxonomyTypes || []).forEach((t: any) => taxonomyTypesById.set(t.id, t))
+          if (requestedQuestionTypeIds.some(id => !taxonomyTypesById.has(id))) {
+            return errorResponse('Có Dạng bài Constant không tồn tại.', 400)
+          }
+          const invalidLesson = questions.some((q: any) => {
+            const type = taxonomyTypesById.get(q?.qbQuestionTypeId)
+            if (!type) return false
+            const lessonIdForQuestion = q?.qbLessonId || effectiveQbLessonId || type.lesson_id
+            return lessonIdForQuestion !== type.lesson_id
+          })
+          if (invalidLesson) {
+            return errorResponse('Có Dạng bài không thuộc Bài học Constant của chính câu hỏi.', 400)
           }
         }
 
@@ -1950,13 +1954,20 @@ serve(async (req: Request) => {
           const finalDiff = VALID_DIFFS.includes(detectedDiff) ? detectedDiff : (VALID_DIFFS.includes(defaultDifficulty) ? defaultDifficulty : 'THONG_HIEU')
           promptPayload.difficulty = finalDiff
 
+          const taxonomyType = q.qbQuestionTypeId ? taxonomyTypesById.get(q.qbQuestionTypeId) : null
+          const rowQbLessonId = q.qbLessonId || taxonomyType?.lesson_id || effectiveQbLessonId
+          const rowQbChapterId = q.qbChapterId || effectiveQbChapterId
+          const rowQbClassId = q.qbClassId || effectiveQbClassId
+          const rowGradeBlock = q.qbGradeBlock || effectiveGradeBlock
+          const rowGradeLevel = Number(q.gradeLevel) || Number(String(rowGradeBlock).match(/^\d+/)?.[0]) || Number(gradeLevel) || 12
+
           return {
             subject,
-            grade_level: Number(gradeLevel) || 12,
-            grade_block: effectiveGradeBlock,
-            qb_class_id: effectiveQbClassId,
-            qb_chapter_id: effectiveQbChapterId,
-            qb_lesson_id: effectiveQbLessonId,
+            grade_level: rowGradeLevel,
+            grade_block: rowGradeBlock,
+            qb_class_id: rowQbClassId,
+            qb_chapter_id: rowQbChapterId,
+            qb_lesson_id: rowQbLessonId,
             qb_question_type_id: q.qbQuestionTypeId || null,
             class_id: effectiveDynClassId,
             chapter_id: effectiveDynChapterId,
