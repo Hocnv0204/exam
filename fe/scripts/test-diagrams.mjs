@@ -820,6 +820,14 @@ section('4b. Geo3d P0: faces, visibility, kind auxiliary')
 }
 
 {
+  const md = `[Câu 1] [NHAN_BIET] [DẠNG BÀI: Xét tính đơn điệu bằng đạo hàm]\nĐề bài\nA. A\n*B. B\nC. C\nD. D\n[Lời giải]\nGiải`
+  const parsed = parseExamMarkdown(md).questions[0]
+  check('parser: nhận diện tag Dạng bài Constant', parsed.questionTypeTag === 'Xét tính đơn điệu bằng đạo hàm', parsed.questionTypeTag)
+  const roundTrip = parseExamMarkdown(formatQuestionToMarkdown(parsed)).questions[0]
+  check('parser: round-trip giữ tag Dạng bài', roundTrip.questionTypeTag === parsed.questionTypeTag, roundTrip.questionTypeTag)
+}
+
+{
   // compileDiagram với auto: tự phân loại cạnh theo mặt/camera (P1)
   const res = compileDiagram('geo3d', JSON.stringify(FIXTURES.GEO3D_PYRAMID_AUTO.json), { uid: 7 })
   check('auto compile không lỗi', res.ok && !hasErrors(res.diagnostics), JSON.stringify(res.diagnostics))

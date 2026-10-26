@@ -326,10 +326,17 @@ interface ScopeTarget {
   chapterIds: string[]
   lessonIds: string[]
   tags?: string[]
+  // constantOnly: chỉ bốc câu hỏi gắn danh mục CONSTANT (qb_class_id/qb_chapter_id/
+  // qb_lesson_id). Dùng cho flow tạo đề từ ngân hàng; các flow khác không gửi cờ này
+  // nên giữ nguyên hành vi cũ (cả động + constant).
+  constantOnly?: boolean
 }
 
+// Chấp nhận true/'true'/'1' (GET param lẫn POST body đều có thể gửi chuỗi).
+const parseScopeBool = (v: any): boolean => v === true || v === 'true' || v === '1'
+
 function normalizeScopeInput(input: any): ScopeTarget {
-  if (!input) return { scopeType: null, gradeBlock: null, classIds: [], chapterIds: [], lessonIds: [], tags: [] }
+  if (!input) return { scopeType: null, gradeBlock: null, classIds: [], chapterIds: [], lessonIds: [], tags: [], constantOnly: false }
 
   const tags: string[] = []
   const rawTags = input.scope?.tags || input.tags
@@ -339,6 +346,7 @@ function normalizeScopeInput(input: any): ScopeTarget {
   }
 
   const scopeType = input.scopeType || input.scope?.scopeType || null
+  const constantOnly = parseScopeBool(input.scope?.constantOnly ?? input.constantOnly)
 
   if (input.scope && typeof input.scope === 'object') {
     return {
@@ -347,7 +355,8 @@ function normalizeScopeInput(input: any): ScopeTarget {
       classIds: Array.isArray(input.scope.classIds) ? input.scope.classIds.filter(Boolean) : (input.scope.classId ? [input.scope.classId] : []),
       chapterIds: Array.isArray(input.scope.chapterIds) ? input.scope.chapterIds.filter(Boolean) : (input.scope.chapterId ? [input.scope.chapterId] : []),
       lessonIds: Array.isArray(input.scope.lessonIds) ? input.scope.lessonIds.filter(Boolean) : (input.scope.lessonId ? [input.scope.lessonId] : []),
-      tags
+      tags,
+      constantOnly
     }
   }
 
@@ -379,7 +388,8 @@ function normalizeScopeInput(input: any): ScopeTarget {
     classIds,
     chapterIds,
     lessonIds,
-    tags
+    tags,
+    constantOnly
   }
 }
 
@@ -424,32 +434,47 @@ async function buildPoolQuery(
   const chapterIds = [...new Set(scope.chapterIds || [])]
   const classIds = [...new Set(scope.classIds || [])]
   const scopeType = (scope.scopeType || '').toUpperCase()
+  // constantOnly = true: mọi nhánh dưới đây chỉ dùng cột qb_* và bảng qb_*, không
+  // chạm tới cột/bảng động (class_id/chapter_id/lesson_id, grade_block.eq). Câu hỏi
+  // gắn ở cấp chương/lớp constant (qb_lesson_id NULL) vẫn hợp lệ vì nhánh của nó
+  // kiểm tra qb_chapter_id/qb_class_id, không đòi qb_lesson_id.
+  const constantOnly = scope.constantOnly === true
 
   // Mở rộng phân cấp để chống "nuốt" phạm vi con (MULTI / legacy gửi kèm id cha-con):
   // resolve mọi chương/lớp đã chọn xuống danh sách bài học + chương trực thuộc (cả động & constant).
   const expandHierarchy = async (): Promise<{ allLessonIds: string[]; allChapterIds: string[] }> => {
     let chaptersOfClasses: string[] = []
     if (classIds.length > 0) {
-      const [{ data: chRows }, { data: qbChRows }] = await Promise.all([
-        serviceRoleClient.from('chapters').select('id').in('class_id', classIds),
-        serviceRoleClient.from('qb_chapters').select('id').in('class_id', classIds)
-      ])
-      chaptersOfClasses = [
-        ...(chRows || []).map((r: any) => r.id),
-        ...(qbChRows || []).map((r: any) => r.id)
-      ]
+      if (constantOnly) {
+        const { data: qbChRows } = await serviceRoleClient.from('qb_chapters').select('id').in('class_id', classIds)
+        chaptersOfClasses = [...(qbChRows || []).map((r: any) => r.id)]
+      } else {
+        const [{ data: chRows }, { data: qbChRows }] = await Promise.all([
+          serviceRoleClient.from('chapters').select('id').in('class_id', classIds),
+          serviceRoleClient.from('qb_chapters').select('id').in('class_id', classIds)
+        ])
+        chaptersOfClasses = [
+          ...(chRows || []).map((r: any) => r.id),
+          ...(qbChRows || []).map((r: any) => r.id)
+        ]
+      }
     }
     const chaptersToExpand = [...new Set([...chapterIds, ...chaptersOfClasses])]
     let lessonsOfChapters: string[] = []
     if (chaptersToExpand.length > 0) {
-      const [{ data: lRows }, { data: qbLRows }] = await Promise.all([
-        serviceRoleClient.from('lessons').select('id').in('chapter_id', chaptersToExpand),
-        serviceRoleClient.from('qb_lessons').select('id').in('chapter_id', chaptersToExpand)
-      ])
-      lessonsOfChapters = [
-        ...(lRows || []).map((r: any) => r.id),
-        ...(qbLRows || []).map((r: any) => r.id)
-      ]
+      if (constantOnly) {
+        const { data: qbLRows } = await serviceRoleClient.from('qb_lessons').select('id').in('chapter_id', chaptersToExpand)
+        lessonsOfChapters = [...(qbLRows || []).map((r: any) => r.id)]
+      } else {
+        const [{ data: lRows }, { data: qbLRows }] = await Promise.all([
+          serviceRoleClient.from('lessons').select('id').in('chapter_id', chaptersToExpand),
+          serviceRoleClient.from('qb_lessons').select('id').in('chapter_id', chaptersToExpand)
+        ])
+        lessonsOfChapters = [
+          ...(lRows || []).map((r: any) => r.id),
+          ...(qbLRows || []).map((r: any) => r.id)
+        ]
+      }
     }
     return {
       allLessonIds: [...new Set([...lessonIds, ...lessonsOfChapters])],
@@ -458,20 +483,27 @@ async function buildPoolQuery(
   }
 
   // Chế độ đơn cấp (QUICK): chỉ lọc đúng 1 cấp đã chọn, hỗ trợ cả bài học constant & động
+  // (constantOnly: chỉ cột qb_*).
   const singleLevelClause = (): string | null => {
     if (scopeType === 'LESSON') {
       return lessonIds.length > 0
-        ? `or(qb_lesson_id.in.(${lessonIds.join(',')}),lesson_id.in.(${lessonIds.join(',')}))`
+        ? (constantOnly
+          ? `qb_lesson_id.in.(${lessonIds.join(',')})`
+          : `or(qb_lesson_id.in.(${lessonIds.join(',')}),lesson_id.in.(${lessonIds.join(',')}))`)
         : null
     }
     if (scopeType === 'CHAPTER') {
       return chapterIds.length > 0
-        ? `or(qb_chapter_id.in.(${chapterIds.join(',')}),chapter_id.in.(${chapterIds.join(',')}))`
+        ? (constantOnly
+          ? `qb_chapter_id.in.(${chapterIds.join(',')})`
+          : `or(qb_chapter_id.in.(${chapterIds.join(',')}),chapter_id.in.(${chapterIds.join(',')}))`)
         : null
     }
     if (scopeType === 'CLASS') {
       return classIds.length > 0
-        ? `or(qb_class_id.in.(${classIds.join(',')}),class_id.in.(${classIds.join(',')}))`
+        ? (constantOnly
+          ? `qb_class_id.in.(${classIds.join(',')})`
+          : `or(qb_class_id.in.(${classIds.join(',')}),class_id.in.(${classIds.join(',')}))`)
         : null
     }
     return null
@@ -499,7 +531,9 @@ async function buildPoolQuery(
       query = query.eq('difficulty', extraFilters.difficulty)
     }
     if (extraFilters?.chapterId) {
-      query = query.or(`qb_chapter_id.eq.${extraFilters.chapterId},chapter_id.eq.${extraFilters.chapterId}`)
+      query = query.or(constantOnly
+        ? `qb_chapter_id.eq.${extraFilters.chapterId}`
+        : `qb_chapter_id.eq.${extraFilters.chapterId},chapter_id.eq.${extraFilters.chapterId}`)
     }
     return query
   }
@@ -518,18 +552,31 @@ async function buildPoolQuery(
     // Không chọn gì cụ thể: chỉ lọc theo khối (hoặc không lọc gì nếu thiếu khối)
     let presetOrBlock: string[] = []
     if (scope.gradeBlock) {
-      const [dynIds, constIds] = await Promise.all([
-        getScopeTargetIds(serviceRoleClient, scope.gradeBlock),
-        getConstantScopeTargetIds(serviceRoleClient, scope.gradeBlock)
-      ])
-      presetOrBlock = [`grade_block.eq.${scope.gradeBlock}`]
-      const allClasses = [...dynIds.classIds, ...constIds.classIds]
-      const allChapters = [...dynIds.chapterIds, ...constIds.chapterIds]
-      if (dynIds.classIds.length > 0) presetOrBlock.push(`class_id.in.(${dynIds.classIds.join(',')})`)
-      if (constIds.classIds.length > 0) presetOrBlock.push(`qb_class_id.in.(${constIds.classIds.join(',')})`)
-      if (dynIds.chapterIds.length > 0) presetOrBlock.push(`chapter_id.in.(${dynIds.chapterIds.join(',')})`)
-      if (constIds.chapterIds.length > 0) presetOrBlock.push(`qb_chapter_id.in.(${constIds.chapterIds.join(',')})`)
+      if (constantOnly) {
+        // Chỉ dùng id constant của khối; TUYỆT ĐỐI không dùng grade_block.eq vì câu
+        // hỏi động có thể mang cùng chuỗi khối (vd '12-Toán') và sẽ lọt vào pool.
+        const constIds = await getConstantScopeTargetIds(serviceRoleClient, scope.gradeBlock)
+        if (constIds.classIds.length > 0) presetOrBlock.push(`qb_class_id.in.(${constIds.classIds.join(',')})`)
+        if (constIds.chapterIds.length > 0) presetOrBlock.push(`qb_chapter_id.in.(${constIds.chapterIds.join(',')})`)
+        // Khối không có id constant nào -> pool rỗng, không bao giờ fallback sang toàn ngân hàng.
+        if (presetOrBlock.length === 0) return { data: [], error: null }
+      } else {
+        const [dynIds, constIds] = await Promise.all([
+          getScopeTargetIds(serviceRoleClient, scope.gradeBlock),
+          getConstantScopeTargetIds(serviceRoleClient, scope.gradeBlock)
+        ])
+        presetOrBlock = [`grade_block.eq.${scope.gradeBlock}`]
+        const allClasses = [...dynIds.classIds, ...constIds.classIds]
+        const allChapters = [...dynIds.chapterIds, ...constIds.chapterIds]
+        if (dynIds.classIds.length > 0) presetOrBlock.push(`class_id.in.(${dynIds.classIds.join(',')})`)
+        if (constIds.classIds.length > 0) presetOrBlock.push(`qb_class_id.in.(${constIds.classIds.join(',')})`)
+        if (dynIds.chapterIds.length > 0) presetOrBlock.push(`chapter_id.in.(${dynIds.chapterIds.join(',')})`)
+        if (constIds.chapterIds.length > 0) presetOrBlock.push(`qb_chapter_id.in.(${constIds.chapterIds.join(',')})`)
+      }
     }
+    // constantOnly mà không còn điều kiện lọc nào (không khối, không id) thì pool rỗng:
+    // không bao giờ được rơi về "không lọc gì" = toàn ngân hàng.
+    if (constantOnly && presetOrBlock.length === 0) return { data: [], error: null }
     const preset = presetOrBlock.length > 0 ? presetOrBlock.join(',') : null
     return await fetchAllQueryRows(() => buildQueryInstance(preset, presetOrBlock))
   }
@@ -540,16 +587,16 @@ async function buildPoolQuery(
   const orClauses: string[] = []
   if (allLessonIds.length > 0) {
     orClauses.push(`qb_lesson_id.in.(${allLessonIds.join(',')})`)
-    orClauses.push(`lesson_id.in.(${allLessonIds.join(',')})`)
+    if (!constantOnly) orClauses.push(`lesson_id.in.(${allLessonIds.join(',')})`)
   }
   const chIdsForNullLesson = chapterIds.length > 0 ? chapterIds : allChapterIds
   if (chIdsForNullLesson.length > 0) {
     orClauses.push(`and(qb_chapter_id.in.(${chIdsForNullLesson.join(',')}),qb_lesson_id.is.null)`)
-    orClauses.push(`and(chapter_id.in.(${chIdsForNullLesson.join(',')}),lesson_id.is.null)`)
+    if (!constantOnly) orClauses.push(`and(chapter_id.in.(${chIdsForNullLesson.join(',')}),lesson_id.is.null)`)
   }
   if (classIds.length > 0) {
     orClauses.push(`and(qb_class_id.in.(${classIds.join(',')}),qb_chapter_id.is.null,qb_lesson_id.is.null)`)
-    orClauses.push(`and(class_id.in.(${classIds.join(',')}),chapter_id.is.null,lesson_id.is.null)`)
+    if (!constantOnly) orClauses.push(`and(class_id.in.(${classIds.join(',')}),chapter_id.is.null,lesson_id.is.null)`)
   }
   if (orClauses.length === 0) {
     return await fetchAllQueryRows(() => buildQueryInstance(null))
@@ -644,7 +691,8 @@ async function handleUpdateConstantTaxonomy(serviceRoleClient: any, body: any) {
   const table = normType === 'gradeBlock' ? 'qb_grade_blocks' :
                 (normType === 'class' ? 'qb_classes' :
                 (normType === 'chapter' ? 'qb_chapters' :
-                (normType === 'lesson' ? 'qb_lessons' : null)))
+                (normType === 'lesson' ? 'qb_lessons' :
+                (normType === 'questionType' ? 'qb_question_types' : null))))
   if (!table) return errorResponse(`Loại taxonomy không hợp lệ: ${type}`, 400)
 
   const updates: Record<string, any> = { updated_at: new Date().toISOString() }
@@ -692,6 +740,15 @@ async function handleUpdateConstantTaxonomy(serviceRoleClient: any, body: any) {
       if (!chid) return errorResponse('Chương học trực thuộc không được để trống', 400)
       updates.chapter_id = chid
     }
+  } else if (normType === 'questionType') {
+    if (updates.name !== undefined && updates.name === '') {
+      return errorResponse('Tên dạng bài không được để trống', 400)
+    }
+    if (data.lessonId !== undefined || data.lesson_id !== undefined) {
+      const lsid = data.lessonId || data.lesson_id
+      if (!lsid) return errorResponse('Bài học trực thuộc không được để trống', 400)
+      updates.lesson_id = lsid
+    }
   }
 
   // Không cho lưu tham chiếu cha không tồn tại; tránh tạo node mồ côi trong cây constant.
@@ -704,6 +761,9 @@ async function handleUpdateConstantTaxonomy(serviceRoleClient: any, body: any) {
   }
   if (normType === 'lesson' && updates.chapter_id) {
     parentChecks.push({ table: 'qb_chapters', id: updates.chapter_id, label: 'Chương học' })
+  }
+  if (normType === 'questionType' && updates.lesson_id) {
+    parentChecks.push({ table: 'qb_lessons', id: updates.lesson_id, label: 'Bài học' })
   }
   for (const parent of parentChecks) {
     const { data: parentRow, error: parentError } = await serviceRoleClient
@@ -778,17 +838,27 @@ serve(async (req: Request) => {
         let lsQuery = serviceRoleClient.from('qb_lessons').select('*').order('order_index', { ascending: true })
         if (chapterId) lsQuery = lsQuery.eq('chapter_id', chapterId)
 
-        const [gbRes, clRes, chRes, lsRes] = await Promise.all([gbQuery, clQuery, chQuery, lsQuery])
+        let tyQuery = serviceRoleClient.from('qb_question_types').select('*').order('order_index', { ascending: true })
+        if (chapterId) {
+          // Lọc dạng bài theo chương: qua các bài học thuộc chương (tránh join phức tạp ở client).
+          const { data: lsIds } = await serviceRoleClient.from('qb_lessons').select('id').eq('chapter_id', chapterId)
+          const ids = (lsIds || []).map((r: any) => r.id)
+          tyQuery = ids.length > 0 ? tyQuery.in('lesson_id', ids) : tyQuery.eq('lesson_id', '00000000-0000-0000-0000-000000000000')
+        }
+
+        const [gbRes, clRes, chRes, lsRes, tyRes] = await Promise.all([gbQuery, clQuery, chQuery, lsQuery, tyQuery])
         if (gbRes.error) return errorResponse(gbRes.error.message, 500)
         if (clRes.error) return errorResponse(clRes.error.message, 500)
         if (chRes.error) return errorResponse(chRes.error.message, 500)
         if (lsRes.error) return errorResponse(lsRes.error.message, 500)
+        if (tyRes.error) return errorResponse(tyRes.error.message, 500)
 
         return jsonResponse({
           gradeBlocks: gbRes.data || [],
           classes: clRes.data || [],
           chapters: chRes.data || [],
-          lessons: lsRes.data || []
+          lessons: lsRes.data || [],
+          questionTypes: tyRes.data || []
         })
       }
 
@@ -875,6 +945,7 @@ serve(async (req: Request) => {
       const rawLessonIds = url.searchParams.get('lessonIds') || ''
       const filterLessonIds = rawLessonIds ? rawLessonIds.split(',').map(s => s.trim()).filter(Boolean) : (lessonId ? [lessonId] : [])
       const questionType = url.searchParams.get('questionType')
+      const qbQuestionTypeId = url.searchParams.get('qbQuestionTypeId')
       const difficulty = url.searchParams.get('difficulty')
       const search = url.searchParams.get('search')
       const unassigned = url.searchParams.get('unassigned') // 'no_class' | 'no_chapter' | 'no_lesson'
@@ -889,6 +960,7 @@ serve(async (req: Request) => {
         const scope = normalizeScopeInput({
           scopeType: url.searchParams.get('scopeType') || 'BLOCK',
           gradeBlock: url.searchParams.get('gradeBlock'),
+          constantOnly: url.searchParams.get('constantOnly'),
           classIds: rawClassIds ? rawClassIds.split(',').map(s => s.trim()).filter(Boolean) : [],
           chapterIds: rawChapterIds ? rawChapterIds.split(',').map(s => s.trim()).filter(Boolean) : [],
           lessonIds: rawLessonIds ? rawLessonIds.split(',').map(s => s.trim()).filter(Boolean) : []
@@ -986,6 +1058,7 @@ serve(async (req: Request) => {
           let baseQuery = serviceRoleClient.from('question_bank').select('id, question_type, difficulty')
           if (subject) baseQuery = baseQuery.eq('subject', subject)
           if (gradeLevel) baseQuery = baseQuery.eq('grade_level', parseInt(gradeLevel, 10))
+          if (qbQuestionTypeId) baseQuery = baseQuery.eq('qb_question_type_id', qbQuestionTypeId)
 
           if (unassigned === 'no_class') {
             baseQuery = baseQuery.is('class_id', null).is('qb_class_id', null)
@@ -1106,6 +1179,7 @@ serve(async (req: Request) => {
       if (subject) query = query.eq('subject', subject)
       if (gradeLevel) query = query.eq('grade_level', parseInt(gradeLevel, 10))
       if (questionType) query = query.eq('question_type', questionType)
+      if (qbQuestionTypeId) query = query.eq('qb_question_type_id', qbQuestionTypeId)
       if (difficulty) query = query.eq('difficulty', difficulty)
 
       if (unassigned === 'no_class') {
@@ -1162,8 +1236,9 @@ serve(async (req: Request) => {
           let statsQuery = serviceRoleClient
             .from('question_bank')
             .select('id, question_type, difficulty')
-          if (subject) statsQuery = statsQuery.eq('subject', subject)
-          if (gradeLevel) statsQuery = statsQuery.eq('grade_level', parseInt(gradeLevel, 10))
+           if (subject) statsQuery = statsQuery.eq('subject', subject)
+           if (gradeLevel) statsQuery = statsQuery.eq('grade_level', parseInt(gradeLevel, 10))
+           if (qbQuestionTypeId) statsQuery = statsQuery.eq('qb_question_type_id', qbQuestionTypeId)
 
           if (unassigned === 'no_class') {
             statsQuery = statsQuery.is('class_id', null).is('qb_class_id', null)
@@ -1623,6 +1698,23 @@ serve(async (req: Request) => {
           return jsonResponse({ success: true, item: created })
         }
 
+        if (normType === 'questionType') {
+          const { lessonId, name, description, orderIndex = 0 } = data
+          if (!name || !name.trim() || !lessonId) return errorResponse('Thiếu tên dạng bài hoặc ID bài học', 400)
+          const { data: created, error } = await serviceRoleClient
+            .from('qb_question_types')
+            .insert({
+              lesson_id: lessonId,
+              name: name.trim(),
+              description: description || null,
+              order_index: Number(orderIndex) || 0
+            })
+            .select()
+            .single()
+          if (error) return errorResponse(error.message, 500)
+          return jsonResponse({ success: true, item: created })
+        }
+
         return errorResponse(`Loại taxonomy không hợp lệ: ${type}`, 400)
       }
 
@@ -1644,7 +1736,8 @@ serve(async (req: Request) => {
         const table = normType === 'gradeBlock' ? 'qb_grade_blocks' :
                       (normType === 'class' ? 'qb_classes' :
                       (normType === 'chapter' ? 'qb_chapters' :
-                      (normType === 'lesson' ? 'qb_lessons' : null)))
+                      (normType === 'lesson' ? 'qb_lessons' :
+                      (normType === 'questionType' ? 'qb_question_types' : null))))
         if (!table) return errorResponse('Loại taxonomy không hợp lệ', 400)
 
         if (normType === 'gradeBlock') {
@@ -1681,6 +1774,11 @@ serve(async (req: Request) => {
           const { count: qCount } = await serviceRoleClient.from('question_bank').select('id', { count: 'exact', head: true }).eq('qb_lesson_id', id)
           if (qCount && qCount > 0) {
             return errorResponse(`Không thể xóa bài học này vì đang liên kết với ${qCount} câu hỏi trong Ngân hàng câu hỏi.`, 400)
+          }
+        } else if (normType === 'questionType') {
+          const { count: qCount } = await serviceRoleClient.from('question_bank').select('id', { count: 'exact', head: true }).eq('qb_question_type_id', id)
+          if (qCount && qCount > 0) {
+            return errorResponse(`Không thể xóa dạng bài này vì đang liên kết với ${qCount} câu hỏi trong Ngân hàng câu hỏi.`, 400)
           }
         }
 
@@ -1784,6 +1882,29 @@ serve(async (req: Request) => {
         }
         if (!effectiveGradeBlock) effectiveGradeBlock = '12-Toán'
 
+        const requestedQuestionTypeIds = Array.from(new Set(
+          questions
+            .map((q: any) => q?.qbQuestionTypeId)
+            .filter((id: any) => typeof id === 'string' && id.trim())
+        )) as string[]
+        if (requestedQuestionTypeIds.length > 0) {
+          if (!effectiveQbLessonId) {
+            return errorResponse('Muốn gắn Dạng bài, câu hỏi phải có Bài học Constant đích.', 400)
+          }
+          const { data: taxonomyTypes, error: taxonomyError } = await serviceRoleClient
+            .from('qb_question_types')
+            .select('id, lesson_id')
+            .in('id', requestedQuestionTypeIds)
+          if (taxonomyError) return errorResponse(taxonomyError.message, 500)
+          const validTypeIds = new Set((taxonomyTypes || [])
+            .filter((t: any) => t.lesson_id === effectiveQbLessonId)
+            .map((t: any) => t.id))
+          const invalidTypeIds = requestedQuestionTypeIds.filter(id => !validTypeIds.has(id))
+          if (invalidTypeIds.length > 0) {
+            return errorResponse('Có Dạng bài không thuộc Bài học Constant đã chọn.', 400)
+          }
+        }
+
         const rowsToInsert = questions.map((q: any) => {
           const promptPayload = normalizeBankPromptPayload(q.prompt, {
             promptText: q.promptText,
@@ -1836,6 +1957,7 @@ serve(async (req: Request) => {
             qb_class_id: effectiveQbClassId,
             qb_chapter_id: effectiveQbChapterId,
             qb_lesson_id: effectiveQbLessonId,
+            qb_question_type_id: q.qbQuestionTypeId || null,
             class_id: effectiveDynClassId,
             chapter_id: effectiveDynChapterId,
             lesson_id: effectiveDynLessonId,
@@ -2595,6 +2717,9 @@ serve(async (req: Request) => {
               distribution.map(async (item) => {
                 const itemScope = normalizeScopeInput(item)
                 if (!itemScope.gradeBlock && scope.gradeBlock) itemScope.gradeBlock = scope.gradeBlock
+                // Flow tạo đề từ ngân hàng là constant-only: cờ constantOnly của scope
+                // tổng phải lan xuống từng item phân bổ, nếu không item sẽ bốc cả câu động.
+                if (scope.constantOnly) itemScope.constantOnly = true
                 const { data: itemCandidates, error: itemCandErr } = await buildPoolQuery(serviceRoleClient, itemScope)
                 return { item, itemCandidates, itemCandErr }
               })
@@ -3154,7 +3279,7 @@ serve(async (req: Request) => {
       // Whitelist các trường được phép sửa để tránh ghi đè usage_count/content_hash/created_at/id
       const ALLOWED_UPDATE_FIELDS = new Set([
         'grade_block', 'class_id', 'chapter_id', 'lesson_id',
-        'qb_class_id', 'qb_chapter_id', 'qb_lesson_id', 'source_dynamic_lesson_id',
+        'qb_class_id', 'qb_chapter_id', 'qb_lesson_id', 'qb_question_type_id', 'source_dynamic_lesson_id',
         'question_type', 'difficulty', 'prompt',
         'mc_answer', 'tf_answers', 'sa_answer', 'sa_tolerance',
         'points', 'tags', 'no_shuffle_options', 'subject', 'grade_level'

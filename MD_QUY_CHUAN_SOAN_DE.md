@@ -25,7 +25,7 @@
 ## 2. Mở đầu 1 câu
 
 ```
-[Câu <số>] [mức độ] [loại]
+[Câu <số>] [mức độ] [loại] [DẠNG BÀI: Tên dạng bài Constant]
 ```
 
 | Thành phần | Giá trị cho phép |
@@ -33,8 +33,31 @@
 | Số câu | `[Câu 1]`, `[Câu 2]`, ... (hoặc `[Bài 1]`) |
 | Mức độ | `[NB]` Nhận biết · `[TH]` Thông hiểu · `[VD]` Vận dụng · `[VDC]` Vận dụng cao |
 | Loại (không bắt buộc) | `[TF]` Đúng/Sai · `[SA]` Trả lời ngắn · `[MC]` Trắc nghiệm (mặc định theo phần đang đứng) |
+| Dạng bài (không bắt buộc) | `[DẠNG BÀI: <tên đúng trong Bài học Constant>]` |
 
 Ví dụ: `[Câu 4] [TF] [VD]`
+
+Ví dụ có gắn phân dạng: `[Câu 1] [NHAN_BIET] [DẠNG BÀI: Xét tính đơn điệu bằng đạo hàm]`
+
+### 2a. Gắn Dạng bài Constant khi nhập vào Ngân hàng câu hỏi
+
+- Tag phải đặt ngay sau `[Câu N]`/`[Bài N]`, trên cùng dòng với các tag loại câu và mức độ.
+- Tên trong tag phải **trùng với tên Dạng bài thuộc Bài học Constant đang chọn**. Không dùng tên Bài học hoặc tên loại câu hỏi (`MC`, `TF`, `SA`).
+- Có thể viết các biến thể tương đương: `[DẠNG BÀI: ...]`, `[DANG BAI: ...]`, `[QB_TYPE: ...]`.
+- Không cần ghi UUID; hệ thống tự tìm đúng `qb_question_type_id` theo tên trong Bài học đã chọn.
+- Nếu không có tag, câu hỏi vẫn được nhập như trước nhưng `Dạng bài` để trống.
+- Nếu tag sai tên, sai Bài học hoặc có nhiều kết quả trùng tên, hệ thống phải báo lỗi và không lưu câu đó để tránh phân loại nhầm.
+
+Ví dụ Toán 12:
+
+```md
+[Câu 1] [NHAN_BIET] [DẠNG BÀI: Xét tính đơn điệu bằng đạo hàm]
+Cho hàm số $y=f(x)$ ...
+A. ...
+*B. ...
+C. ...
+D. ...
+```
 
 ## 3. Thân câu hỏi
 
@@ -246,6 +269,7 @@ hoặc inline: `[SMILES: c1cccccO]`
 - [ ] Khối ` ```bbt/graph/geo3d/smiles ` mở và đóng đủ dấu \`\`\`.
 - [ ] Dòng `[Ảnh: ...]` đứng riêng 1 dòng; định nghĩa `[id]: ...` nằm cuối file.
 - [ ] Phần đề nằm trước phương án đầu tiên; hình trong lời giải nằm sau `[Lời giải]`.
+- [ ] Nếu phân loại Dạng bài: tên trong `[DẠNG BÀI: ...]` phải đúng tuyệt đối theo Bài học Constant đã chọn.
 - [ ] Sau khi nhập: kiểm tra thẻ xem trước (số câu, đáp án tô sáng, hình vẽ) và mục
       **"Chẩn đoán khối hình"** (lỗi / cảnh báo) rồi mới bấm Lưu.
       Đề có **lỗi** khối hình sẽ **không cho lưu**.

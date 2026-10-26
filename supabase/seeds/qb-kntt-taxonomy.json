@@ -1,0 +1,295 @@
+{
+  "meta": {
+    "name": "qb-kntt-taxonomy",
+    "description": "Taxonomy constant theo SGK Kết nối tri thức: Khối constant -> Lớp -> Chương -> Bài học -> Dạng bài. Chỉ dùng để seed qua API CRUD constant-taxonomy (script supabase/scripts/seed-qb-kntt-taxonomy.mjs). KHÔNG tự chạy lên production khi chưa được primary review.",
+    "lookupDate": "2026-10-26",
+    "sources": [
+      "https://loigiaihay.com/sgk-toan-11-ket-noi-tri-thuc-c1370.html",
+      "https://loigiaihay.com/sgk-toan-12-ket-noi-tri-thuc-c1783.html",
+      "https://toanmath.com/2022/12/sach-giao-khoa-toan-11-tap-1-ket-noi-tri-thuc-voi-cuoc-song.html",
+      "https://loigiaihay.com/sgk-hoa-hoc-11-pdf-hoa-hoc-11-ket-noi-tri-thuc-a155387.html",
+      "https://thi247.com/sach-giao-khoa-hoa-hoc-11-ket-noi-tri-thuc-voi-cuoc-song",
+      "https://loigiaihay.com/sgk-hoa-hoc-12-pdf-hoa-hoc-12-ket-noi-tri-thuc-a155777.html",
+      "https://www.vietjack.com/hoa-hoc-12-kn/ly-thuyet-hoa-hoc-lop-12.jsp"
+    ],
+    "conventions": {
+    "blockNaming": "Khối constant dùng tên lớp cũ của hệ thống: 11 và 12; nhãn môn được thể hiện ở lớp con Toán/Hóa.",
+      "classNaming": "Mỗi khối có đúng 1 lớp constant, tên '<Môn> <lớp>' (vd Toán 11, Hóa 12).",
+      "chapterNaming": "Toán dùng số La Mã (Chương I, II...), Hóa dùng số Ả Rập (Chương 1, 2...) theo đúng SGK.",
+      "lessonNaming": "Tiêu đề dạng 'Bài N. <tên bài>' giữ nguyên số bài SGK, kể cả khi bài ôn tập bị lược.",
+      "reviewLessonsExcluded": "Các bài 'Ôn tập chương' / 'Bài tập cuối chương' KHÔNG được seed thành bài học (câu hỏi ôn tập gắn ở cấp Chương). Số bài của các bài còn lại vẫn giữ nguyên số SGK: Toán 11 có bài 1-33; Toán 12 bài 1-19; Hóa 11 bài 1-25 (trừ bài ôn tập 3, 9, 14, 18, 22, 25); Hóa 12 bài 1-30 (trừ bài ôn tập 3, 7, 11, 14, 17, 23, 26, 30).",
+      "toan12B16Note": "Một nguồn phân phối (hoatieu.vn) ghi Bài 16 là 'Công thức tính khoảng cách', nhưng đa số mục lục SGK (loigiaihay, toanmath, tailieuhoctap) ghi Bài 16 = 'Công thức tính góc trong không gian', Bài 17 = 'Phương trình mặt cầu'. Fixture theo đa số; khoảng cách được bao phủ bằng dạng bài trong Bài 14/15/16.",
+      "questionTypes": "Mỗi bài có 3-6 dạng bài cụ thể, dùng được để phân loại câu hỏi. Không dùng nhãn chung chung như 'Bài tập tổng hợp' trừ khi không tách được. Dạng bài chỉ gắn vào bài học CONSTANT, không gắn vào bài học động.",
+      "noCopyrightedText": "Fixture chỉ chứa cấu trúc mục lục và tên dạng bài do tác giả đặt, không copy nội dung SGK."
+    }
+  },
+  "blocks": [
+    {
+      "targetGradeBlock": "11",
+      "name": "11-Toán",
+      "class": "Toán 11",
+      "chapters": [
+        {
+          "title": "Chương I. Hàm số lượng giác và phương trình lượng giác",
+          "lessons": [
+            { "title": "Bài 1. Giá trị lượng giác của góc lượng giác", "types": ["Tính giá trị lượng giác của một góc", "Xác định dấu của các giá trị lượng giác", "Đổi đơn vị đo góc (độ – radian)", "Rút gọn biểu thức lượng giác", "Tìm giá trị lượng giác khi biết một giá trị cho trước"] },
+            { "title": "Bài 2. Công thức lượng giác", "types": ["Công thức cộng", "Công thức nhân đôi", "Công thức biến đổi tích thành tổng", "Công thức biến đổi tổng thành tích", "Rút gọn và chứng minh đẳng thức lượng giác"] },
+            { "title": "Bài 3. Hàm số lượng giác", "types": ["Xác định tập xác định của hàm số lượng giác", "Xét tính chẵn lẻ và tính tuần hoàn", "Tìm giá trị lớn nhất – nhỏ nhất của hàm số lượng giác", "Vẽ và đọc đồ thị hàm số lượng giác"] },
+            { "title": "Bài 4. Phương trình lượng giác cơ bản", "types": ["Phương trình sin x = a", "Phương trình cos x = a", "Phương trình tan x = a và cot x = a", "Phương trình lượng giác đưa về dạng cơ bản", "Bài toán thực tế với phương trình lượng giác"] }
+          ]
+        },
+        {
+          "title": "Chương II. Dãy số. Cấp số cộng và cấp số nhân",
+          "lessons": [
+            { "title": "Bài 5. Dãy số", "types": ["Xác định số hạng của dãy số", "Xét tính tăng, giảm của dãy số", "Xét tính bị chặn của dãy số", "Dãy số cho bởi công thức truy hồi"] },
+            { "title": "Bài 6. Cấp số cộng", "types": ["Xác định cấp số cộng và công sai", "Tìm số hạng tổng quát và số hạng thứ n", "Tính tổng n số hạng đầu", "Bài toán thực tế về cấp số cộng"] },
+            { "title": "Bài 7. Cấp số nhân", "types": ["Xác định cấp số nhân và công bội", "Tìm số hạng tổng quát và số hạng thứ n", "Tính tổng n số hạng đầu", "Bài toán thực tế về cấp số nhân"] }
+          ]
+        },
+        {
+          "title": "Chương III. Các số đặc trưng đo xu thế trung tâm của mẫu số liệu ghép nhóm",
+          "lessons": [
+            { "title": "Bài 8. Mẫu số liệu ghép nhóm", "types": ["Lập bảng tần số ghép nhóm", "Xác định nhóm chứa mốt, trung vị", "Vẽ biểu đồ tần số ghép nhóm"] },
+            { "title": "Bài 9. Các số đặc trưng đo xu thế trung tâm", "types": ["Tính số trung bình của mẫu số liệu ghép nhóm", "Tìm trung vị của mẫu số liệu ghép nhóm", "Tìm tứ phân vị của mẫu số liệu ghép nhóm", "Tìm mốt của mẫu số liệu ghép nhóm", "Lựa chọn số đặc trưng phù hợp"] }
+          ]
+        },
+        {
+          "title": "Chương IV. Quan hệ song song trong không gian",
+          "lessons": [
+            { "title": "Bài 10. Đường thẳng và mặt phẳng trong không gian", "types": ["Xác định giao tuyến của hai mặt phẳng", "Tìm giao điểm của đường thẳng và mặt phẳng", "Chứng minh ba điểm thẳng hàng, ba đường thẳng đồng quy", "Xác định thiết diện của hình chóp"] },
+            { "title": "Bài 11. Hai đường thẳng song song", "types": ["Chứng minh hai đường thẳng song song", "Xác định giao tuyến song song với đường thẳng cho trước", "Bài toán về hình chóp có đáy là hình bình hành"] },
+            { "title": "Bài 12. Đường thẳng và mặt phẳng song song", "types": ["Chứng minh đường thẳng song song với mặt phẳng", "Chứng minh hai mặt phẳng song song qua đường thẳng", "Xác định thiết diện song song"] },
+            { "title": "Bài 13. Hai mặt phẳng song song", "types": ["Chứng minh hai mặt phẳng song song", "Định lí Thalès trong không gian", "Xác định thiết diện cắt bởi mặt phẳng song song"] },
+            { "title": "Bài 14. Phép chiếu song song", "types": ["Vẽ hình biểu diễn của hình không gian", "Xác định hình chiếu song song của điểm, đoạn thẳng", "Tính chất của phép chiếu song song"] }
+          ]
+        },
+        {
+          "title": "Chương V. Giới hạn. Hàm số liên tục",
+          "lessons": [
+            { "title": "Bài 15. Giới hạn của dãy số", "types": ["Tính giới hạn của dãy số bằng định nghĩa và định lí", "Giới hạn của dãy số có chứa căn thức", "Tổng của cấp số nhân lùi vô hạn"] },
+            { "title": "Bài 16. Giới hạn của hàm số", "types": ["Tính giới hạn của hàm số tại một điểm", "Giới hạn một phía", "Giới hạn tại vô cực", "Khử dạng vô định"] },
+            { "title": "Bài 17. Hàm số liên tục", "types": ["Xét tính liên tục của hàm số tại một điểm", "Xét tính liên tục trên khoảng, đoạn", "Chứng minh phương trình có nghiệm trên khoảng"] }
+          ]
+        },
+        {
+          "title": "Chương VI. Hàm số mũ và hàm số lôgarit",
+          "lessons": [
+            { "title": "Bài 18. Lũy thừa với số mũ thực", "types": ["Rút gọn biểu thức chứa lũy thừa", "So sánh các lũy thừa", "Tính giá trị biểu thức lũy thừa"] },
+            { "title": "Bài 19. Lôgarit", "types": ["Tính lôgarit bằng định nghĩa và tính chất", "Đổi cơ số của lôgarit", "Rút gọn biểu thức chứa lôgarit"] },
+            { "title": "Bài 20. Hàm số mũ và hàm số lôgarit", "types": ["Tập xác định của hàm số mũ, lôgarit", "Khảo sát sự biến thiên và đồ thị", "So sánh giá trị hàm số mũ, lôgarit"] },
+            { "title": "Bài 21. Phương trình, bất phương trình mũ và lôgarit", "types": ["Phương trình mũ cơ bản và đưa về cùng cơ số", "Phương trình lôgarit", "Bất phương trình mũ", "Bất phương trình lôgarit", "Bài toán thực tế (tăng trưởng, lãi suất)"] }
+          ]
+        },
+        {
+          "title": "Chương VII. Quan hệ vuông góc trong không gian",
+          "lessons": [
+            { "title": "Bài 22. Hai đường thẳng vuông góc", "types": ["Chứng minh hai đường thẳng vuông góc", "Xác định góc giữa hai đường thẳng"] },
+            { "title": "Bài 23. Đường thẳng vuông góc với mặt phẳng", "types": ["Chứng minh đường thẳng vuông góc với mặt phẳng", "Chứng minh đường thẳng vuông góc bằng định lí ba đường vuông góc"] },
+            { "title": "Bài 24. Phép chiếu vuông góc. Góc giữa đường thẳng và mặt phẳng", "types": ["Xác định hình chiếu vuông góc", "Tính góc giữa đường thẳng và mặt phẳng"] },
+            { "title": "Bài 25. Hai mặt phẳng vuông góc", "types": ["Chứng minh hai mặt phẳng vuông góc", "Xác định góc giữa hai mặt phẳng"] },
+            { "title": "Bài 26. Khoảng cách", "types": ["Khoảng cách từ điểm đến mặt phẳng", "Khoảng cách giữa hai đường thẳng chéo nhau", "Khoảng cách giữa đường thẳng và mặt phẳng song song"] },
+            { "title": "Bài 27. Thể tích", "types": ["Thể tích khối chóp", "Thể tích khối lăng trụ", "Tỉ số thể tích"] }
+          ]
+        },
+        {
+          "title": "Chương VIII. Các quy tắc tính xác suất",
+          "lessons": [
+            { "title": "Bài 28. Biến cố hợp, biến cố giao, biến cố độc lập", "types": ["Xác định biến cố hợp, giao", "Xét tính độc lập của hai biến cố", "Mô tả không gian mẫu"] },
+            { "title": "Bài 29. Công thức cộng xác suất", "types": ["Tính xác suất bằng công thức cộng", "Xác suất của biến cố đối", "Bài toán chọn bi, chọn thẻ"] },
+            { "title": "Bài 30. Công thức nhân xác suất cho hai biến cố độc lập", "types": ["Tính xác suất bằng công thức nhân", "Bài toán thực tế với biến cố độc lập"] }
+          ]
+        },
+        {
+          "title": "Chương IX. Đạo hàm",
+          "lessons": [
+            { "title": "Bài 31. Định nghĩa và ý nghĩa của đạo hàm", "types": ["Tính đạo hàm bằng định nghĩa", "Viết phương trình tiếp tuyến tại một điểm", "Ý nghĩa vật lí của đạo hàm (vận tốc tức thời)"] },
+            { "title": "Bài 32. Các quy tắc tính đạo hàm", "types": ["Đạo hàm của tổng, hiệu, tích, thương", "Đạo hàm của hàm hợp", "Đạo hàm của hàm lượng giác, hàm mũ, hàm lôgarit"] },
+            { "title": "Bài 33. Đạo hàm cấp hai", "types": ["Tính đạo hàm cấp hai", "Ý nghĩa cơ học của đạo hàm cấp hai (gia tốc)", "Xét tính lồi, lõm và điểm uốn"] }
+          ]
+        }
+      ]
+    },
+    {
+      "targetGradeBlock": "12",
+      "name": "12-Toán",
+      "class": "Toán 12",
+      "chapters": [
+        {
+          "title": "Chương I. Ứng dụng đạo hàm để khảo sát và vẽ đồ thị hàm số",
+          "lessons": [
+            { "title": "Bài 1. Tính đơn điệu và cực trị của hàm số", "types": ["Xét tính đơn điệu bằng đạo hàm", "Tìm điểm cực trị", "Tìm cực trị có tham số", "Đơn điệu của hàm hợp"] },
+            { "title": "Bài 2. Giá trị lớn nhất và giá trị nhỏ nhất của hàm số", "types": ["Giá trị lớn nhất, nhỏ nhất trên đoạn", "Giá trị lớn nhất, nhỏ nhất trên khoảng", "Bài toán tối ưu thực tế"] },
+            { "title": "Bài 3. Đường tiệm cận của đồ thị hàm số", "types": ["Tiệm cận đứng", "Tiệm cận ngang", "Tiệm cận xiên", "Tìm tham số để đồ thị có tiệm cận thỏa điều kiện"] },
+            { "title": "Bài 4. Khảo sát sự biến thiên và vẽ đồ thị của hàm số", "types": ["Khảo sát hàm bậc ba", "Khảo sát hàm phân thức", "Đọc đồ thị và bảng biến thiên", "Biện luận số nghiệm bằng đồ thị"] },
+            { "title": "Bài 5. Ứng dụng đạo hàm để giải quyết một số vấn đề liên quan đến thực tiễn", "types": ["Bài toán tối ưu hình học", "Bài toán tối ưu kinh tế", "Bài toán chuyển động"] }
+          ]
+        },
+        {
+          "title": "Chương II. Vectơ và hệ trục tọa độ trong không gian",
+          "lessons": [
+            { "title": "Bài 6. Vectơ trong không gian", "types": ["Phép toán vectơ trong không gian", "Chứng minh đẳng thức vectơ", "Đồng phẳng của ba vectơ"] },
+            { "title": "Bài 7. Hệ trục tọa độ trong không gian", "types": ["Xác định tọa độ điểm, vectơ", "Tích vô hướng và ứng dụng", "Chứng minh tính chất hình học bằng tọa độ"] },
+            { "title": "Bài 8. Biểu thức tọa độ của các phép toán vectơ", "types": ["Tọa độ của tổng, hiệu, tích vô hướng", "Tích có hướng và ứng dụng tính diện tích, thể tích"] }
+          ]
+        },
+        {
+          "title": "Chương III. Các số đặc trưng đo mức độ phân tán của mẫu số liệu ghép nhóm",
+          "lessons": [
+            { "title": "Bài 9. Khoảng biến thiên và khoảng tứ phân vị", "types": ["Tính khoảng biến thiên", "Tính khoảng tứ phân vị", "So sánh mức độ phân tán"] },
+            { "title": "Bài 10. Phương sai và độ lệch chuẩn", "types": ["Tính phương sai", "Tính độ lệch chuẩn", "So sánh độ phân tán giữa các mẫu"] }
+          ]
+        },
+        {
+          "title": "Chương IV. Nguyên hàm và tích phân",
+          "lessons": [
+            { "title": "Bài 11. Nguyên hàm", "types": ["Tìm nguyên hàm bằng bảng nguyên hàm", "Nguyên hàm bằng đổi biến số", "Nguyên hàm từng phần"] },
+            { "title": "Bài 12. Tích phân", "types": ["Tính tích phân bằng định nghĩa và tính chất", "Tích phân bằng đổi biến số", "Tích phân từng phần"] },
+            { "title": "Bài 13. Ứng dụng hình học của tích phân", "types": ["Diện tích hình phẳng", "Thể tích vật thể tròn xoay", "Bài toán thực tế với tích phân"] }
+          ]
+        },
+        {
+          "title": "Chương V. Phương pháp tọa độ trong không gian",
+          "lessons": [
+            { "title": "Bài 14. Phương trình mặt phẳng", "types": ["Lập phương trình mặt phẳng", "Vị trí tương đối giữa hai mặt phẳng", "Khoảng cách từ điểm đến mặt phẳng"] },
+            { "title": "Bài 15. Phương trình đường thẳng trong không gian", "types": ["Lập phương trình đường thẳng", "Vị trí tương đối giữa hai đường thẳng", "Vị trí tương đối giữa đường thẳng và mặt phẳng"] },
+            { "title": "Bài 16. Công thức tính góc trong không gian", "types": ["Góc giữa hai đường thẳng", "Góc giữa đường thẳng và mặt phẳng", "Góc giữa hai mặt phẳng"] },
+            { "title": "Bài 17. Phương trình mặt cầu", "types": ["Lập phương trình mặt cầu", "Vị trí tương đối giữa mặt cầu và mặt phẳng", "Vị trí tương đối giữa mặt cầu và đường thẳng"] }
+          ]
+        },
+        {
+          "title": "Chương VI. Xác suất có điều kiện",
+          "lessons": [
+            { "title": "Bài 18. Xác suất có điều kiện", "types": ["Tính xác suất có điều kiện", "Công thức nhân xác suất tổng quát", "Sơ đồ cây xác suất"] },
+            { "title": "Bài 19. Công thức xác suất toàn phần và công thức Bayes", "types": ["Công thức xác suất toàn phần", "Công thức Bayes", "Bài toán chẩn đoán, kiểm tra chất lượng"] }
+          ]
+        }
+      ]
+    }
+,
+    {
+      "targetGradeBlock": "11",
+      "name": "11-Hóa",
+      "class": "Hóa 11",
+      "chapters": [
+        {
+          "title": "Chương 1. Cân bằng hóa học",
+          "lessons": [
+            { "title": "Bài 1. Khái niệm về cân bằng hóa học", "types": ["Phản ứng thuận nghịch và trạng thái cân bằng", "Hằng số cân bằng KC", "Chuyển dịch cân bằng (Le Chatelier)"] },
+            { "title": "Bài 2. Cân bằng trong dung dịch nước", "types": ["Cân bằng điện li của acid, base", "pH của dung dịch", "Cân bằng thủy phân muối", "Chuẩn độ acid – base"] }
+          ]
+        },
+        {
+          "title": "Chương 2. Nitrogen – Sulfur",
+          "lessons": [
+            { "title": "Bài 4. Nitrogen", "types": ["Tính chất vật lí và hóa học của nitrogen", "Điều chế nitrogen trong phòng thí nghiệm và công nghiệp", "Ứng dụng của nitrogen"] },
+            { "title": "Bài 5. Ammonia – Muối ammonium", "types": ["Tính chất của ammonia", "Muối ammonium và nhận biết ion ammonium", "Điều chế ammonia, hiệu suất phản ứng"] },
+            { "title": "Bài 6. Một số hợp chất của nitrogen với oxygen", "types": ["Nitrogen monoxide, nitrogen dioxide", "Nitric acid: tính oxi hóa", "Muối nitrate và phản ứng nhiệt phân"] },
+            { "title": "Bài 7. Sulfur và sulfur dioxide", "types": ["Tính chất của sulfur (oxi hóa – khử)", "Sulfur dioxide: tính chất và tác hại", "Điều chế sulfur dioxide"] },
+            { "title": "Bài 8. Sulfuric acid và muối sulfate", "types": ["Tính chất của sulfuric acid loãng và đặc", "Muối sulfate và nhận biết ion sulfate", "Bài toán với sulfuric acid đặc, nóng"] }
+          ]
+        },
+        {
+          "title": "Chương 3. Đại cương về hóa học hữu cơ",
+          "lessons": [
+            { "title": "Bài 10. Hợp chất hữu cơ và hóa học hữu cơ", "types": ["Phân loại hợp chất hữu cơ", "Nhóm chức và phân loại theo nhóm chức", "Đồng đẳng và đồng phân"] },
+            { "title": "Bài 11. Phương pháp tách biệt và tinh chế hợp chất hữu cơ", "types": ["Chưng cất, chiết, kết tinh", "Sắc kí cột", "Lựa chọn phương pháp tách hỗn hợp"] },
+            { "title": "Bài 12. Công thức phân tử hợp chất hữu cơ", "types": ["Lập công thức đơn giản nhất", "Xác định công thức phân tử từ khối lượng mol", "Bài toán đốt cháy xác định công thức"] },
+            { "title": "Bài 13. Cấu tạo hóa học hợp chất hữu cơ", "types": ["Công thức cấu tạo và đồng phân cấu tạo", "Thuyết cấu tạo hóa học", "Biểu diễn cấu tạo (công thức khung phân tử)"] }
+          ]
+        },
+        {
+          "title": "Chương 4. Hydrocarbon",
+          "lessons": [
+            { "title": "Bài 15. Alkane", "types": ["Danh pháp và đồng phân alkane", "Tính chất hóa học của alkane (phản ứng thế)", "Điều chế và ứng dụng của alkane"] },
+            { "title": "Bài 16. Hydrocarbon không no", "types": ["Alkene: danh pháp, tính chất, phản ứng cộng", "Alkyne: tính chất và phản ứng đặc trưng", "Phân biệt alkene, alkyne bằng thuốc thử"] },
+            { "title": "Bài 17. Arene (Hydrocarbon thơm)", "types": ["Benzene: cấu tạo và tính chất", "Phản ứng thế trên vòng benzene", "Đồng đẳng của benzene và ứng dụng"] }
+          ]
+        },
+        {
+          "title": "Chương 5. Dẫn xuất halogen – Alcohol – Phenol",
+          "lessons": [
+            { "title": "Bài 19. Dẫn xuất halogen", "types": ["Danh pháp dẫn xuất halogen", "Phản ứng thế nguyên tử halogen", "Phản ứng tách hydrogen halide"] },
+            { "title": "Bài 20. Alcohol", "types": ["Danh pháp và phân loại alcohol", "Tính chất hóa học của alcohol", "Điều chế ethanol và ứng dụng"] },
+            { "title": "Bài 21. Phenol", "types": ["Tính acid yếu của phenol", "Phản ứng thế trên vòng benzene của phenol", "Nhận biết phenol và ứng dụng"] }
+          ]
+        },
+        {
+          "title": "Chương 6. Hợp chất carbonyl – Carboxylic acid",
+          "lessons": [
+            { "title": "Bài 23. Hợp chất carbonyl", "types": ["Aldehyde và ketone: danh pháp, tính chất", "Phản ứng tráng bạc", "Phản ứng cộng hydrogen cyanide và khử"] },
+            { "title": "Bài 24. Carboxylic acid", "types": ["Danh pháp và tính acid của carboxylic acid", "Phản ứng tạo ester", "Điều chế và ứng dụng của acetic acid"] }
+          ]
+        }
+      ]
+    },
+    {
+      "targetGradeBlock": "12",
+      "name": "12-Hóa",
+      "class": "Hóa 12",
+      "chapters": [
+        {
+          "title": "Chương 1. Ester – Lipid",
+          "lessons": [
+            { "title": "Bài 1. Ester – Lipid", "types": ["Danh pháp và đồng phân ester", "Tính chất hóa học của ester (thủy phân)", "Chất béo: thành phần, phản ứng xà phòng hóa", "Bài toán thủy phân ester, chất béo"] },
+            { "title": "Bài 2. Xà phòng và chất giặt rửa", "types": ["Cơ chế tẩy rửa của xà phòng", "Phân biệt xà phòng và chất giặt rửa tổng hợp", "Sản xuất xà phòng"] }
+          ]
+        },
+        {
+          "title": "Chương 2. Carbohydrate",
+          "lessons": [
+            { "title": "Bài 4. Giới thiệu về carbohydrate. Glucose và fructose", "types": ["Cấu tạo dạng mạch hở và mạch vòng của glucose", "Tính chất hóa học của glucose", "Fructose và so sánh với glucose"] },
+            { "title": "Bài 5. Saccharose và maltose", "types": ["Cấu tạo và tính chất của saccharose", "Phản ứng thủy phân disaccharide", "Maltose và ứng dụng"] },
+            { "title": "Bài 6. Tinh bột và cellulose", "types": ["Cấu tạo và tính chất của tinh bột", "Cellulose và ứng dụng", "Phản ứng thủy phân polysaccharide"] }
+          ]
+        },
+        {
+          "title": "Chương 3. Hợp chất chứa nitrogen",
+          "lessons": [
+            { "title": "Bài 8. Amine", "types": ["Danh pháp và phân loại amine", "Tính base của amine", "Phản ứng với acid và alkyl hóa"] },
+            { "title": "Bài 9. Amino acid và peptide", "types": ["Cấu tạo và tính lưỡng tính của amino acid", "Liên kết peptide và peptide", "Phản ứng thủy phân peptide"] },
+            { "title": "Bài 10. Protein và enzyme", "types": ["Cấu trúc và tính chất của protein", "Phản ứng đông tụ và thủy phân protein", "Enzyme và vai trò xúc tác"] }
+          ]
+        },
+        {
+          "title": "Chương 4. Polymer",
+          "lessons": [
+            { "title": "Bài 12. Đại cương về polymer", "types": ["Khái niệm và phân loại polymer", "Phản ứng trùng hợp", "Phản ứng trùng ngưng"] },
+            { "title": "Bài 13. Vật liệu polymer", "types": ["Chất dẻo", "Cao su", "Tơ và keo dán"] }
+          ]
+        },
+        {
+          "title": "Chương 5. Pin điện và điện phân",
+          "lessons": [
+            { "title": "Bài 15. Thế điện cực và nguồn điện hóa học", "types": ["Thế điện cực chuẩn", "Pin Galvani và sức điện động", "Dãy điện hóa và chiều phản ứng oxi hóa – khử"] },
+            { "title": "Bài 16. Điện phân", "types": ["Điện phân dung dịch", "Điện phân nóng chảy", "Bài toán định lượng điện phân (Faraday)"] }
+          ]
+        },
+        {
+          "title": "Chương 6. Đại cương về kim loại",
+          "lessons": [
+            { "title": "Bài 18. Cấu tạo và liên kết trong tinh thể kim loại", "types": ["Liên kết kim loại", "Cấu trúc tinh thể kim loại", "Ảnh hưởng của cấu trúc đến tính chất"] },
+            { "title": "Bài 19. Tính chất vật lí và tính chất hóa học của kim loại", "types": ["Tính chất vật lí chung của kim loại", "Tính khử của kim loại", "Phản ứng với phi kim, acid, muối"] },
+            { "title": "Bài 20. Kim loại trong tự nhiên và phương pháp tách kim loại", "types": ["Quặng và phương pháp tách kim loại", "Nhiệt luyện, thủy luyện, điện phân", "Bài toán tách kim loại"] },
+            { "title": "Bài 21. Hợp kim", "types": ["Khái niệm và tính chất của hợp kim", "Gang và thép", "Ứng dụng của hợp kim"] },
+            { "title": "Bài 22. Sự ăn mòn kim loại", "types": ["Ăn mòn hóa học", "Ăn mòn điện hóa", "Biện pháp chống ăn mòn"] }
+          ]
+        },
+        {
+          "title": "Chương 7. Nguyên tố nhóm IA và nhóm IIA",
+          "lessons": [
+            { "title": "Bài 24. Nguyên tố nhóm IA", "types": ["Tính chất của kim loại kiềm", "Hợp chất của kim loại kiềm", "Ứng dụng và điều chế"] },
+            { "title": "Bài 25. Nguyên tố nhóm IIA", "types": ["Tính chất của kim loại kiềm thổ", "Hợp chất của kim loại kiềm thổ", "Nước cứng và làm mềm nước cứng"] }
+          ]
+        },
+        {
+          "title": "Chương 8. Sơ lược về dãy kim loại chuyển tiếp thứ nhất và phức chất",
+          "lessons": [
+            { "title": "Bài 27. Đại cương về kim loại chuyển tiếp dãy thứ nhất", "types": ["Cấu hình electron và tính chất chung", "Trạng thái oxi hóa đặc trưng", "Ứng dụng của kim loại chuyển tiếp"] },
+            { "title": "Bài 28. Sơ lược về phức chất", "types": ["Khái niệm phức chất", "Liên kết trong phức chất", "Danh pháp phức chất"] },
+            { "title": "Bài 29. Một số tính chất và ứng dụng của phức chất", "types": ["Màu sắc và tính chất từ của phức chất", "Phản ứng trao đổi phối tử", "Ứng dụng của phức chất"] }
+          ]
+        }
+      ]
+    }
+  ]
+}

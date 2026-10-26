@@ -75,6 +75,7 @@ flowchart TD
   - Hỗ trợ công thức Toán $\LaTeX$ (`$...$`, `$$...$$`), Hóa học `\ce{...}`.
   - Hỗ trợ dán ảnh trực tiếp từ clipboard (`Ctrl + V`), tự động nén ảnh `compressImage` giảm tải lưu trữ.
   - Hỗ trợ thẻ `[Lời giải]` để hiển thị sau khi học sinh nộp bài.
+  - Hỗ trợ tag Dạng bài Constant trên đầu câu hỏi: `[DẠNG BÀI: Tên dạng bài]`.
 * **Quy chuẩn thẻ phân loại Mức độ nhận thức (Difficulty Tags)**:
   - Cho phép gắn trực tiếp mức độ nhận thức vào tiêu đề câu hỏi:
     * `[NHAN_BIET]` / `[NB]`: Nhận biết
@@ -107,6 +108,7 @@ flowchart TD
       [Đáp án: 7.2]
       ```
 * **Gán phạm vi & Ghi đè**: Tự động nhận diện mức độ của từng câu từ file. Nếu câu nào không có thẻ, hệ thống áp dụng mức độ mặc định do giáo viên chọn trên modal. Giáo viên có thể chỉnh sửa lại độ khó của từng câu ngay trên bảng xem trước.
+* **Gán Dạng bài Constant**: Tên trong tag được đối chiếu với các Dạng bài thuộc Bài học Constant đang chọn. Khớp duy nhất sẽ tự ghi `qb_question_type_id`; tag sai hoặc không thuộc Bài học sẽ bị chặn khi lưu. Câu không có tag vẫn tương thích và được nhập với Dạng bài trống.
 
 ### 2. Trích xuất câu hỏi từ bài tập cũ (`action=import-from-homework`)
 * Cho phép chọn một bài tập đã giao trước đó để chuyển toàn bộ câu hỏi vào kho chung.

@@ -4,6 +4,7 @@
  * - Part I: Multiple Choice ABCD (1 correct option with *)
  * - Part II: True / False (4 statements a, b, c, d with * for true)
  * - Part III: Short Answer (numeric fill-in with tolerance)
+ * - Optional Constant taxonomy tag: [DẠNG BÀI: Tên dạng bài]
  */
 
 export const MATH_TEMPLATE = `# TEMPLATE ĐỀ THI MÔN TOÁN HỌC (CHUẨN BỘ GD&ĐT)
@@ -642,14 +643,20 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
 
       let qType = currentSectionType
       let qDiff = null
+      let qQuestionTypeTag = null
 
-      // Extract all bracketed tags after question number: [TF], [SA], [MC], [NHAN_BIET], [NB], etc.
+      // Extract all bracketed tags after question number: [TF], [SA], [MC], [NHAN_BIET],
+      // [NB], [DẠNG BÀI: Tên dạng bài], etc.
       while (rest) {
-        const tagMatch = rest.match(/^\[([a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF\s]+)\]\s*(.*)$/)
+        const tagMatch = rest.match(/^\[([^\]]+)\]\s*(.*)$/)
         if (!tagMatch) break
 
         const rawTag = tagMatch[1].trim().toUpperCase()
-        if (rawTag === 'TF' || rawTag === 'ĐS' || rawTag === 'TRUE_FALSE') {
+        const taxonomyMatch = tagMatch[1].trim().match(/^(?:DẠNG\s+BÀI|DANG\s+BAI|QB_TYPE|QUESTION_TYPE)\s*[:=]\s*(.+)$/i)
+        if (taxonomyMatch) {
+          qQuestionTypeTag = taxonomyMatch[1].trim()
+          rest = tagMatch[2].trim()
+        } else if (rawTag === 'TF' || rawTag === 'ĐS' || rawTag === 'TRUE_FALSE') {
           qType = 'TRUE_FALSE'
           rest = tagMatch[2].trim()
         } else if (rawTag === 'SA' || rawTag === 'TLN' || rawTag === 'SHORT_ANSWER') {
@@ -682,6 +689,8 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       currentQ = {
         questionNumber: qNum,
         questionType: qType,
+        questionTypeTag: qQuestionTypeTag,
+        qbQuestionTypeId: null,
         difficulty: qDiff,
         promptLines: sameLinePrompt ? [sameLinePrompt] : [],
         options: [],
@@ -865,6 +874,9 @@ export function formatQuestionToMarkdown(q) {
   if (isTf) headerTag = `[Câu ${qNum}] [TF]${diffTag}`
   else if (isSa) headerTag = `[Câu ${qNum}] [SA]${diffTag}`
   else headerTag = `[Câu ${qNum}]${diffTag}`
+
+  const questionTypeTag = q.questionTypeTag || q.qbQuestionTypeName || q.qb_question_type_name
+  if (questionTypeTag) headerTag += ` [DẠNG BÀI: ${String(questionTypeTag).trim()}]`
 
   const lines = [headerTag]
 

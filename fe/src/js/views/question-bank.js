@@ -31,7 +31,8 @@ let constantTaxonomyState = {
   gradeBlocks: [],
   classes: [],
   chapters: [],
-  lessons: []
+  lessons: [],
+  questionTypes: []
 }
 
 let selectedQuestionIds = new Set()
@@ -42,6 +43,7 @@ let filterState = {
   chapterId: '',
   lessonId: '',
   lessonIds: [], // Hỗ trợ chọn nhiều bài học trong 1 chương
+  questionTypeId: '', // Dạng bài Constant (khác questionType = loại câu hỏi)
   questionType: '',
   difficulty: '',
   unassigned: '', // '' | 'no_class' | 'no_chapter' | 'no_lesson'
@@ -290,6 +292,16 @@ export function renderQuestionBankView() {
 
             <!-- Hàng 2: Thuộc tính & Trạng thái phân loại -->
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:14px; margin-bottom:16px;">
+              <!-- Filter: Dạng bài Constant -->
+              <div>
+                <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">
+                  <i class="fa-solid fa-diagram-project" style="color:#db2777; font-size:11px;"></i> Dạng bài Constant
+                </label>
+                <select id="qb-filter-question-type-id" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#f8fafc; color:#1e293b; outline:none; transition:border-color 0.15s;">
+                  <option value="">-- Tất cả Dạng bài --</option>
+                </select>
+              </div>
+
               <!-- Filter: Question Type -->
               <div>
                 <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">
@@ -433,7 +445,8 @@ async function loadConstantTaxonomyData(params = '') {
         gradeBlocks: Array.isArray(res.gradeBlocks) ? res.gradeBlocks : [],
         classes: Array.isArray(res.classes) ? res.classes : [],
         chapters: Array.isArray(res.chapters) ? res.chapters : [],
-        lessons: Array.isArray(res.lessons) ? res.lessons : []
+        lessons: Array.isArray(res.lessons) ? res.lessons : [],
+        questionTypes: Array.isArray(res.questionTypes) ? res.questionTypes : []
       }
     }
   } catch (err) {
@@ -524,6 +537,7 @@ function populateGradeBlockDropdowns() {
   if (chapterSelect) {
     loadConstantChaptersForGradeBlockOrClass(filterState.gradeBlock, filterState.classId, chapterSelect)
   }
+  populateQuestionTypeFilter()
 }
 
 async function refreshStats() {
@@ -537,6 +551,7 @@ async function refreshStats() {
     } else if (filterState.lessonId) {
       params += `lessonId=${filterState.lessonId}&`
     }
+    if (filterState.questionTypeId) params += `qbQuestionTypeId=${encodeURIComponent(filterState.questionTypeId)}&`
     if (filterState.unassigned) params += `unassigned=${filterState.unassigned}&`
 
     const res = await api.getQuestionBankStats(params)
@@ -569,6 +584,7 @@ function setupFilterListeners() {
   const lessonDropdown = document.getElementById('qb-filter-lesson-dropdown')
   const lessonChevron = document.getElementById('qb-filter-lesson-chevron')
   const typeSelect = document.getElementById('qb-filter-type')
+  const questionTypeIdSelect = document.getElementById('qb-filter-question-type-id')
   const diffSelect = document.getElementById('qb-filter-difficulty')
   const unassignedSelect = document.getElementById('qb-filter-unassigned')
   const searchInput = document.getElementById('qb-search-input')
@@ -588,8 +604,10 @@ function setupFilterListeners() {
     if (mainFilterLessonsCache.length === 0) return
     filterState.lessonIds = mainFilterLessonsCache.map(l => l.id)
     filterState.lessonId = ''
+    filterState.questionTypeId = ''
     renderMainFilterLessonCheckboxes()
     updateMainFilterLessonDisplay()
+    populateQuestionTypeFilter()
     filterState.page = 1
     await fetchAndRenderQuestions({ includeStats: true })
     await refreshStats()
@@ -600,8 +618,10 @@ function setupFilterListeners() {
     e.stopPropagation()
     filterState.lessonIds = []
     filterState.lessonId = ''
+    filterState.questionTypeId = ''
     renderMainFilterLessonCheckboxes()
     updateMainFilterLessonDisplay()
+    populateQuestionTypeFilter()
     filterState.page = 1
     await fetchAndRenderQuestions({ includeStats: true })
     await refreshStats()
@@ -622,6 +642,7 @@ function setupFilterListeners() {
     filterState.chapterId = ''
     filterState.lessonId = ''
     filterState.lessonIds = []
+    filterState.questionTypeId = ''
     filterState.page = 1
     selectedQuestionIds.clear()
 
@@ -630,6 +651,7 @@ function setupFilterListeners() {
 
     loadConstantChaptersForGradeBlockOrClass(filterState.gradeBlock, '', chapterSelect)
     populateMainFilterLessons('')
+    populateQuestionTypeFilter()
 
     await fetchAndRenderQuestions({ includeStats: true })
   })
@@ -640,11 +662,13 @@ function setupFilterListeners() {
     filterState.chapterId = ''
     filterState.lessonId = ''
     filterState.lessonIds = []
+    filterState.questionTypeId = ''
     filterState.page = 1
     selectedQuestionIds.clear()
 
     loadConstantChaptersForGradeBlockOrClass(filterState.gradeBlock, filterState.classId, chapterSelect)
     populateMainFilterLessons('')
+    populateQuestionTypeFilter()
     await fetchAndRenderQuestions({ includeStats: true })
   })
 
@@ -653,10 +677,19 @@ function setupFilterListeners() {
     filterState.chapterId = e.target.value
     filterState.lessonId = ''
     filterState.lessonIds = []
+    filterState.questionTypeId = ''
     filterState.page = 1
     selectedQuestionIds.clear()
 
     populateMainFilterLessons(filterState.chapterId)
+    populateQuestionTypeFilter()
+    await fetchAndRenderQuestions({ includeStats: true })
+  })
+
+  questionTypeIdSelect?.addEventListener('change', async (e) => {
+    filterState.questionTypeId = e.target.value
+    filterState.page = 1
+    selectedQuestionIds.clear()
     await fetchAndRenderQuestions({ includeStats: true })
   })
 
@@ -704,6 +737,7 @@ function setupFilterListeners() {
       chapterId: '',
       lessonId: '',
       lessonIds: [],
+      questionTypeId: '',
       questionType: '',
       difficulty: '',
       unassigned: '',
@@ -723,6 +757,7 @@ function setupFilterListeners() {
     if (typeSelect) typeSelect.value = ''
     if (diffSelect) diffSelect.value = ''
     if (unassignedSelect) unassignedSelect.value = ''
+    if (questionTypeIdSelect) questionTypeIdSelect.value = ''
     if (searchInput) searchInput.value = ''
 
     await fetchAndRenderQuestions({ includeStats: true })
@@ -755,6 +790,41 @@ function populateMainFilterLessons(chapterId) {
   renderMainFilterLessonCheckboxes()
 }
 
+function populateQuestionTypeFilter() {
+  const select = document.getElementById('qb-filter-question-type-id')
+  if (!select) return
+
+  const lessonIds = new Set(filterState.lessonIds || [])
+  if (filterState.lessonId) lessonIds.add(filterState.lessonId)
+  let types = constantTaxonomyState.questionTypes || []
+
+  if (lessonIds.size > 0) {
+    types = types.filter(t => lessonIds.has(t.lesson_id))
+  } else if (filterState.chapterId) {
+    const chapterLessonIds = new Set((constantTaxonomyState.lessons || [])
+      .filter(l => l.chapter_id === filterState.chapterId).map(l => l.id))
+    types = types.filter(t => chapterLessonIds.has(t.lesson_id))
+  } else if (filterState.classId || filterState.gradeBlock) {
+    const classIds = new Set((constantTaxonomyState.classes || [])
+      .filter(c => filterState.classId
+        ? c.id === filterState.classId
+        : (c.grade_block || c.gradeBlock) === filterState.gradeBlock)
+      .map(c => c.id))
+    const chapterIds = new Set((constantTaxonomyState.chapters || [])
+      .filter(ch => classIds.has(ch.class_id)).map(ch => ch.id))
+    const classLessonIds = new Set((constantTaxonomyState.lessons || [])
+      .filter(l => chapterIds.has(l.chapter_id)).map(l => l.id))
+    types = types.filter(t => classLessonIds.has(t.lesson_id))
+  }
+
+  types = [...types].sort((a, b) => (a.order_index || 0) - (b.order_index || 0)
+    || String(a.name).localeCompare(String(b.name), 'vi'))
+  if (!types.some(t => t.id === filterState.questionTypeId)) filterState.questionTypeId = ''
+  select.innerHTML = '<option value="">-- Tất cả Dạng bài --</option>' + types
+    .map(t => `<option value="${escapeHtmlAttr(t.id)}" ${t.id === filterState.questionTypeId ? 'selected' : ''}>${escapeHtml(t.name)}</option>`)
+    .join('')
+}
+
 function renderMainFilterLessonCheckboxes() {
   const listContainer = document.getElementById('qb-filter-lesson-list')
   if (!listContainer) return
@@ -781,6 +851,7 @@ function renderMainFilterLessonCheckboxes() {
         filterState.lessonIds = filterState.lessonIds.filter(id => id !== lId)
       }
       updateMainFilterLessonDisplay()
+      populateQuestionTypeFilter()
       filterState.page = 1
       await fetchAndRenderQuestions({ includeStats: true })
       await refreshStats()
@@ -922,6 +993,7 @@ async function fetchAndRenderQuestions(options = {}) {
       paramsObj.set('lessonId', filterState.lessonId)
     }
     if (filterState.questionType) paramsObj.set('questionType', filterState.questionType)
+    if (filterState.questionTypeId) paramsObj.set('qbQuestionTypeId', filterState.questionTypeId)
     if (filterState.difficulty) paramsObj.set('difficulty', filterState.difficulty)
     if (filterState.unassigned) paramsObj.set('unassigned', filterState.unassigned)
     if (filterState.search) paramsObj.set('search', filterState.search)
@@ -1985,6 +2057,7 @@ async function openTaxonomyManagementModal() {
                   <option value="class" selected>2. Lớp học (Cấp 2 - Thuộc Khối)</option>
                   <option value="chapter">3. Chương học (Cấp 3 - Thuộc Lớp)</option>
                   <option value="lesson">4. Bài học (Cấp 4 - Thuộc Chương)</option>
+                  <option value="questionType">5. Dạng bài (Cấp 5 - Thuộc Bài học)</option>
                 </select>
                 <div id="taxo-type-lock-hint" style="display:none; font-size:11px; color:#64748b; margin-top:3px;">
                   <i class="fa-solid fa-lock" style="font-size:10px;"></i> Cấp độ cố định khi đang sửa node.
@@ -2168,6 +2241,8 @@ async function openTaxonomyManagementModal() {
         nextOrder = (constantTaxonomyState.chapters || []).length + 1
       } else if (currentType === 'lesson') {
         nextOrder = (constantTaxonomyState.lessons || []).length + 1
+      } else if (currentType === 'questionType') {
+        nextOrder = (constantTaxonomyState.questionTypes || []).length + 1
       }
       if (orderInput) orderInput.value = nextOrder
 
@@ -2261,6 +2336,34 @@ async function openTaxonomyManagementModal() {
           </select>
         `}
       `
+    } else if (type === 'questionType') {
+      if (nameLabel) nameLabel.innerHTML = 'Tên Dạng bài Constant <span style="color:#ef4444;">*</span>'
+      if (titleInput) titleInput.placeholder = 'VD: Xét tính đơn điệu bằng đạo hàm...'
+      const lessons = constantTaxonomyState.lessons || []
+      const chapters = constantTaxonomyState.chapters || []
+      const chapterMap = new Map(chapters.map(ch => [ch.id, ch.title]))
+      const selectedLsId = editingItem?.lesson_id || presetPayload?.presetParentId || ''
+      parentFieldContainer.innerHTML = `
+        <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">
+          Bài học trực thuộc <span style="color:#ef4444;">*</span>
+        </label>
+        ${lessons.length === 0 ? `
+          <div style="font-size:12px; color:#ef4444; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:8px 12px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Chưa có Bài học Constant nào. Vui lòng tạo Bài học trước khi tạo Dạng bài!
+          </div>
+        ` : `
+          <select id="taxo-form-lesson-id" style="width:100%; height:36px; border:1px solid #cbd5e1; border-radius:8px; padding:0 8px; font-size:13px; background:#ffffff; color:#1e293b;">
+            ${lessons.map(l => {
+              const chTitle = chapterMap.get(l.chapter_id) || 'Chương'
+              return `
+                <option value="${l.id}" ${l.id === selectedLsId ? 'selected' : ''}>
+                  ${escapeHtml(l.title)} &mdash; [${escapeHtml(chTitle)}]
+                </option>
+              `
+            }).join('')}
+          </select>
+        `}
+      `
     }
   }
 
@@ -2270,10 +2373,11 @@ async function openTaxonomyManagementModal() {
     const classes = constantTaxonomyState.classes || []
     const chapters = constantTaxonomyState.chapters || []
     const lessons = constantTaxonomyState.lessons || []
+    const questionTypes = constantTaxonomyState.questionTypes || []
 
     const summaryBadge = document.getElementById('taxo-tree-summary-badge')
     if (summaryBadge) {
-      summaryBadge.textContent = `${gradeBlocks.length} Khối • ${classes.length} Lớp • ${chapters.length} Chương • ${lessons.length} Bài`
+      summaryBadge.textContent = `${gradeBlocks.length} Khối • ${classes.length} Lớp • ${chapters.length} Chương • ${lessons.length} Bài • ${questionTypes.length} Dạng bài`
     }
 
     if (gradeBlocks.length === 0 && classes.length === 0) {
@@ -2288,6 +2392,10 @@ async function openTaxonomyManagementModal() {
     }
 
     const query = treeSearchQuery.trim().toLowerCase()
+
+    // Bài học khớp tìm kiếm khi tiêu đề khớp HOẶC có dạng bài con khớp tên.
+    const lessonMatchesQuery = (l) => !query || l.title.toLowerCase().includes(query) ||
+      questionTypes.some(t => t.lesson_id === l.id && t.name.toLowerCase().includes(query))
 
     let html = '<div style="display:flex; flex-direction:column; gap:10px;">'
 
@@ -2304,7 +2412,7 @@ async function openTaxonomyManagementModal() {
         return chList.some(ch => {
           if (ch.title.toLowerCase().includes(query)) return true
           const lList = lessons.filter(l => l.chapter_id === ch.id)
-          return lList.some(l => l.title.toLowerCase().includes(query))
+          return lList.some(l => lessonMatchesQuery(l))
         })
       })
 
@@ -2371,7 +2479,7 @@ async function openTaxonomyManagementModal() {
                   if (!query) return true
                   if (ch.title.toLowerCase().includes(query)) return true
                   const lList = lessons.filter(l => l.chapter_id === ch.id)
-                  return lList.some(l => l.title.toLowerCase().includes(query))
+                  return lList.some(l => lessonMatchesQuery(l))
                 })
 
                 if (!cMatch && !cHasMatchingChild) return ''
@@ -2426,7 +2534,7 @@ async function openTaxonomyManagementModal() {
                           const isChEditing = editingItem && editingItem.type === 'chapter' && editingItem.id === ch.id
 
                           const chMatch = !query || ch.title.toLowerCase().includes(query)
-                          const chHasMatchingChild = chLessons.some(l => !query || l.title.toLowerCase().includes(query))
+                          const chHasMatchingChild = chLessons.some(l => lessonMatchesQuery(l))
 
                           if (!chMatch && !chHasMatchingChild) return ''
 
@@ -2474,28 +2582,75 @@ async function openTaxonomyManagementModal() {
                                       (Chưa có Bài học nào &mdash; bấm "+ Bài" để thêm)
                                     </div>
                                   ` : chLessons.map(l => {
-                                    if (query && !l.title.toLowerCase().includes(query)) return ''
+                                    if (!lessonMatchesQuery(l)) return ''
                                     const isLEditing = editingItem && editingItem.type === 'lesson' && editingItem.id === l.id
+                                    const lsKey = 'ls_' + l.id
+                                    const isLCollapsed = collapsedKeys.has(lsKey)
+                                    const lTypes = questionTypes.filter(t => t.lesson_id === l.id)
+                                    const isTyEditing = (t) => editingItem && editingItem.type === 'questionType' && editingItem.id === t.id
+                                    // Khi tìm kiếm khớp tên bài thì hiện đủ dạng bài; khi chỉ khớp
+                                    // tên dạng bài thì chỉ hiện các dạng bài khớp.
+                                    const shownTypes = lTypes.filter(t => !query || l.title.toLowerCase().includes(query) || t.name.toLowerCase().includes(query))
 
                                     return `
-                                      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#334155; padding:3px 6px; background:${isLEditing ? '#ede9fe' : '#ffffff'}; border:1px solid ${isLEditing ? '#7c3aed' : '#f1f5f9'}; border-radius:4px; transition:background 0.15s;">
-                                        <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">
-                                          <i class="fa-solid fa-file-lines" style="font-size:10.5px; color:#7c3aed;"></i>
-                                          <span style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                            ${escapeHtml(l.title)}
-                                          </span>
-                                          ${l.order_index !== undefined ? `<span style="font-size:9.5px; color:#94a3b8;">#${l.order_index}</span>` : ''}
+                                      <div style="background:${isLEditing ? '#ede9fe' : '#ffffff'}; border:1px solid ${isLEditing ? '#7c3aed' : '#f1f5f9'}; border-radius:4px; transition:background 0.15s; overflow:hidden;">
+                                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#334155; padding:3px 6px;">
+                                          <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">
+                                            <span class="taxo-toggle-collapse" data-key="${lsKey}" style="cursor:pointer; width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; color:#7c3aed; font-size:9px;" title="Bấm để đóng/mở dạng bài">
+                                              <i class="fa-solid fa-chevron-${isLCollapsed ? 'right' : 'down'}"></i>
+                                            </span>
+                                            <i class="fa-solid fa-file-lines" style="font-size:10.5px; color:#7c3aed;"></i>
+                                            <span style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                              ${escapeHtml(l.title)}
+                                            </span>
+                                            <span style="font-size:10px; color:#64748b;">
+                                              (${lTypes.length} dạng bài)
+                                            </span>
+                                            ${l.order_index !== undefined ? `<span style="font-size:9.5px; color:#94a3b8;">#${l.order_index}</span>` : ''}
+                                          </div>
+
+                                          <!-- Action buttons Bài học -->
+                                          <div style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
+                                            <button type="button" class="btn-taxo-add-child" data-type="questionType" data-parent-id="${l.id}" title="Thêm Dạng bài mới vào Bài học này" style="font-size:10px; font-weight:600; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:4px; padding:1px 5px; cursor:pointer; display:inline-flex; align-items:center; gap:2px;">
+                                              <i class="fa-solid fa-plus" style="font-size:8px;"></i> Dạng bài
+                                            </button>
+                                            <button type="button" class="btn-taxo-edit" data-type="lesson" data-id="${l.id}" data-title="${escapeHtmlAttr(l.title)}" data-order="${l.order_index || 0}" data-chapter-id="${l.chapter_id}" data-desc="${escapeHtmlAttr(l.description || '')}" title="Chỉnh sửa Bài học này" style="background:none; border:none; color:#2563eb; cursor:pointer; font-size:10.5px; padding:1px 4px;">
+                                              <i class="fa-solid fa-pen-to-square"></i>
+                                            </button>
+                                            <button type="button" class="btn-taxo-delete" data-type="lesson" data-id="${l.id}" data-title="${escapeHtmlAttr(l.title)}" title="Xóa Bài học này" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:10.5px; padding:1px 4px;">
+                                              <i class="fa-solid fa-trash-can"></i>
+                                            </button>
+                                          </div>
                                         </div>
 
-                                        <!-- Action buttons Bài học -->
-                                        <div style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
-                                          <button type="button" class="btn-taxo-edit" data-type="lesson" data-id="${l.id}" data-title="${escapeHtmlAttr(l.title)}" data-order="${l.order_index || 0}" data-chapter-id="${l.chapter_id}" data-desc="${escapeHtmlAttr(l.description || '')}" title="Chỉnh sửa Bài học này" style="background:none; border:none; color:#2563eb; cursor:pointer; font-size:10.5px; padding:1px 4px;">
-                                            <i class="fa-solid fa-pen-to-square"></i>
-                                          </button>
-                                          <button type="button" class="btn-taxo-delete" data-type="lesson" data-id="${l.id}" data-title="${escapeHtmlAttr(l.title)}" title="Xóa Bài học này" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:10.5px; padding:1px 4px;">
-                                            <i class="fa-solid fa-trash-can"></i>
-                                          </button>
-                                        </div>
+                                        <!-- Body Bài học: Danh sách các Dạng bài -->
+                                        ${!isLCollapsed ? `
+                                          <div style="padding-left:20px; padding-bottom:3px; display:flex; flex-direction:column; gap:2px;">
+                                            ${shownTypes.length === 0 ? `
+                                              <div style="font-size:11px; color:#94a3b8; padding:2px 0 2px 6px; font-style:italic;">
+                                                (Chưa có Dạng bài nào &mdash; bấm \"+ Dạng bài\" để thêm)
+                                              </div>
+                                            ` : shownTypes.map(t => `
+                                              <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:#475569; padding:2px 6px; background:${isTyEditing(t) ? '#fffbeb' : '#fbfbfd'}; border:1px solid ${isTyEditing(t) ? '#f59e0b' : '#f1f5f9'}; border-radius:4px;">
+                                                <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">
+                                                  <i class="fa-solid fa-tag" style="font-size:9.5px; color:#b45309;"></i>
+                                                  <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                    ${escapeHtml(t.name)}
+                                                  </span>
+                                                  ${t.order_index !== undefined ? `<span style="font-size:9.5px; color:#94a3b8;">#${t.order_index}</span>` : ''}
+                                                </div>
+                                                <div style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
+                                                  <button type="button" class="btn-taxo-edit" data-type="questionType" data-id="${t.id}" data-name="${escapeHtmlAttr(t.name)}" data-order="${t.order_index || 0}" data-lesson-id="${t.lesson_id}" data-desc="${escapeHtmlAttr(t.description || '')}" title="Chỉnh sửa Dạng bài này" style="background:none; border:none; color:#2563eb; cursor:pointer; font-size:10px; padding:1px 4px;">
+                                                    <i class="fa-solid fa-pen-to-square"></i>
+                                                  </button>
+                                                  <button type="button" class="btn-taxo-delete" data-type="questionType" data-id="${t.id}" data-name="${escapeHtmlAttr(t.name)}" title="Xóa Dạng bài này" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:10px; padding:1px 4px;">
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            `).join('')}
+                                          </div>
+                                        ` : ''}
                                       </div>
                                     `
                                   }).join('')}
@@ -2571,6 +2726,11 @@ async function openTaxonomyManagementModal() {
           itemData.chapter_id = btn.getAttribute('data-chapter-id') || ''
           itemData.order_index = parseInt(btn.getAttribute('data-order') || '0', 10)
           itemData.description = btn.getAttribute('data-desc') || ''
+        } else if (type === 'questionType') {
+          itemData.name = btn.getAttribute('data-name') || ''
+          itemData.lesson_id = btn.getAttribute('data-lesson-id') || ''
+          itemData.order_index = parseInt(btn.getAttribute('data-order') || '0', 10)
+          itemData.description = btn.getAttribute('data-desc') || ''
         }
 
         setFormMode('edit', itemData)
@@ -2590,7 +2750,8 @@ async function openTaxonomyManagementModal() {
           gradeBlock: 'Khối học',
           class: 'Lớp học',
           chapter: 'Chương học',
-          lesson: 'Bài học'
+          lesson: 'Bài học',
+          questionType: 'Dạng bài'
         }
         const label = typeLabels[type] || 'mục'
 
@@ -2650,6 +2811,8 @@ async function openTaxonomyManagementModal() {
       nextOrder = (constantTaxonomyState.chapters || []).length + 1
     } else if (currentType === 'lesson') {
       nextOrder = (constantTaxonomyState.lessons || []).length + 1
+    } else if (currentType === 'questionType') {
+      nextOrder = (constantTaxonomyState.questionTypes || []).length + 1
     }
     if (orderInput) orderInput.value = nextOrder
   })
@@ -2680,6 +2843,9 @@ async function openTaxonomyManagementModal() {
     })
     ;(constantTaxonomyState.chapters || []).forEach(ch => {
       collapsedKeys.add('ch_' + ch.id)
+    })
+    ;(constantTaxonomyState.lessons || []).forEach(l => {
+      collapsedKeys.add('ls_' + l.id)
     })
     renderTaxonomyTree()
   })
@@ -2760,6 +2926,16 @@ async function openTaxonomyManagementModal() {
       }
       payload.data.chapterId = chId
       payload.data.title = title
+    } else if (type === 'questionType') {
+      const lsSelect = document.getElementById('taxo-form-lesson-id')
+      const lsId = lsSelect?.value
+      if (!lsId) {
+        showToast('Vui lòng chọn bài học trực thuộc!', 'warning')
+        lsSelect?.focus()
+        return
+      }
+      payload.data.lessonId = lsId
+      payload.data.name = title
     }
 
     // Double submit protection
@@ -3106,6 +3282,7 @@ function openImportMarkdownModal() {
               <span id="md-cnt-tf" style="font-weight:600; color:#d97706; background:#fffbeb; padding:2px 8px; border-radius:6px; border:1px solid #fde68a;">0 Đúng/Sai</span>
               <span id="md-cnt-sa" style="font-weight:600; color:#9333ea; background:#faf5ff; padding:2px 8px; border-radius:6px; border:1px solid #e9d5ff;">0 Trả lời ngắn</span>
               <span id="md-diag-summary" style="display:none; font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px;"></span>
+              <span id="md-taxonomy-summary" style="display:none; font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px;"></span>
               <span style="margin-left:auto; font-size:13px; font-weight:700; color:#0284c7;" id="md-cnt-total">Tổng: 0 câu</span>
             </div>
 
@@ -3219,6 +3396,11 @@ function openImportMarkdownModal() {
     }
   })
 
+  lessonSel?.addEventListener('change', () => {
+    resolveParsedQuestionTypes()
+    renderParsedSummaryAndList()
+  })
+
   // Template button math
   document.getElementById('md-btn-template-math')?.addEventListener('click', () => {
     if (editor) {
@@ -3300,7 +3482,50 @@ function openImportMarkdownModal() {
       if (!q.difficulty) q.difficulty = defaultDiff
     })
 
+    resolveParsedQuestionTypes()
+
     renderParsedSummaryAndList()
+  }
+
+  function normalizeQuestionTypeName(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[–—−]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  function resolveParsedQuestionTypes() {
+    const lessonId = lessonSel?.value || ''
+    const lessonTypes = (constantTaxonomyState.questionTypes || []).filter(t => t.lesson_id === lessonId)
+    const byName = new Map()
+    lessonTypes.forEach(t => {
+      const key = normalizeQuestionTypeName(t.name)
+      const list = byName.get(key) || []
+      list.push(t)
+      byName.set(key, list)
+    })
+
+    parsedQuestions.forEach(q => {
+      q.qbQuestionTypeId = null
+      q.questionTypeError = ''
+      const tag = String(q.questionTypeTag || '').trim()
+      if (!tag) return
+      if (!lessonId) {
+        q.questionTypeError = 'Chưa chọn Bài học Constant'
+        return
+      }
+      const matches = byName.get(normalizeQuestionTypeName(tag)) || []
+      if (matches.length === 1) {
+        q.qbQuestionTypeId = matches[0].id
+      } else if (matches.length === 0) {
+        q.questionTypeError = `Không tìm thấy Dạng bài "${tag}" trong Bài học đã chọn`
+      } else {
+        q.questionTypeError = `Dạng bài "${tag}" bị trùng trong Bài học đã chọn`
+      }
+    })
   }
 
   function renderParsedSummaryAndList() {
@@ -3312,6 +3537,7 @@ function openImportMarkdownModal() {
     const th = parsedQuestions.filter(q => q.difficulty === 'THONG_HIEU').length
     const vd = parsedQuestions.filter(q => q.difficulty === 'VAN_DUNG').length
     const vdc = parsedQuestions.filter(q => q.difficulty === 'VAN_DUNG_CAO').length
+    const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError).length
 
     document.getElementById('md-cnt-mc').textContent = `${mc} Trắc nghiệm`
     document.getElementById('md-cnt-tf').textContent = `${tf} Đúng/Sai`
@@ -3339,6 +3565,19 @@ function openImportMarkdownModal() {
       } else {
         diagBadge.style.display = 'none'
         diagBadge.textContent = ''
+      }
+    }
+    const taxonomyBadge = document.getElementById('md-taxonomy-summary')
+    if (taxonomyBadge) {
+      if (taxonomyErrors > 0) {
+        taxonomyBadge.style.display = 'inline-flex'
+        taxonomyBadge.style.background = '#fef2f2'
+        taxonomyBadge.style.color = '#b91c1c'
+        taxonomyBadge.style.border = '1px solid #fecaca'
+        taxonomyBadge.textContent = `⚠ ${taxonomyErrors} câu chưa nhận diện Dạng bài`
+      } else {
+        taxonomyBadge.style.display = 'none'
+        taxonomyBadge.textContent = ''
       }
     }
 
@@ -3381,6 +3620,7 @@ function openImportMarkdownModal() {
               ${q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : 'Trắc nghiệm')}
             </span>
             ${diagBadge}
+            ${q.questionTypeTag ? `<span title="${escapeHtmlAttr(q.questionTypeError || q.questionTypeTag)}" style="font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:${q.questionTypeError ? '#fef2f2' : '#fdf2f8'}; color:${q.questionTypeError ? '#b91c1c' : '#be185d'}; border:1px solid ${q.questionTypeError ? '#fecaca' : '#fbcfe8'}; white-space:nowrap;">${q.questionTypeError ? '⚠ ' : ''}Dạng bài</span>` : ''}
             <span style="color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px;">
               ${promptSnippet}
             </span>
@@ -3431,6 +3671,13 @@ function openImportMarkdownModal() {
 
     if (parsedQuestions.length === 0) {
       return showToast('Không tìm thấy câu hỏi hợp lệ nào trong văn bản Markdown!', 'error')
+    }
+
+    resolveParsedQuestionTypes()
+    const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError)
+    if (taxonomyErrors.length > 0) {
+      const first = taxonomyErrors[0]
+      return showToast(`Câu ${first.questionNumber}: ${first.questionTypeError}. Vui lòng chọn đúng Bài học và sửa tag Dạng bài!`, 'error')
     }
 
     // Chặn lưu khi còn lỗi khối hình (bbt/graph/geo3d)
@@ -3730,10 +3977,16 @@ async function openMatrixGeneratorModal() {
   generatorState.chapterId = ''
   generatorState.lessonId = ''
 
-  const customBlocks = (allClasses || []).map(c => c.gradeBlock || c.grade_block).filter(Boolean)
-  const uniqueBlocks = Array.from(new Set([...(cachedGradeBlocksList || []), ...customBlocks])).filter(Boolean)
-  if (!generatorState.gradeBlock) {
-    generatorState.gradeBlock = filterState.gradeBlock || uniqueBlocks[0] || ''
+  // MỤC TIÊU A — Modal tạo đề từ ngân hàng CHỈ dùng danh mục CONSTANT. Khối động
+  // (gradeBlock của lớp động) không còn xuất hiện ở dropdown, cây scope, hay payload:
+  // uniqueBlocks chỉ lấy từ cachedGradeBlocksList (constant). allClasses vẫn được preload
+  // ở trên cho filter chính, nhưng không còn dùng trong modal này.
+  const uniqueBlocks = Array.from(new Set([...(cachedGradeBlocksList || [])])).filter(Boolean)
+  if (!generatorState.gradeBlock || (generatorState.gradeBlock !== 'ALL' && !uniqueBlocks.includes(generatorState.gradeBlock))) {
+    // Reset khối stale (vd khối động còn sót từ lần mở trước) về khối constant hợp lệ.
+    generatorState.gradeBlock = (filterState.gradeBlock && uniqueBlocks.includes(filterState.gradeBlock))
+      ? filterState.gradeBlock
+      : (uniqueBlocks[0] || '')
   }
 
   // Cache for dynamically loaded tree nodes (chapters & lessons)
@@ -3779,7 +4032,7 @@ async function openMatrixGeneratorModal() {
                   <i class="fa-solid fa-bullseye" style="color:#0284c7;"></i> 1. Phạm vi nguồn bốc câu hỏi từ Ngân hàng
                 </div>
                 <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                  Chọn Khối và đánh dấu các Lớp, Chương hoặc Bài học làm kho câu hỏi nguồn (chọn 1 mục bất kỳ để bốc nhanh hoặc chọn nhiều mục linh hoạt)
+                  Chọn Khối và đánh dấu các Lớp, Chương hoặc Bài học làm kho câu hỏi nguồn (chỉ danh mục Constant; câu hỏi nguồn động không được bốc ở đây — chọn 1 mục bất kỳ để bốc nhanh hoặc chọn nhiều mục linh hoạt)
                 </div>
               </div>
             </div>
@@ -4553,17 +4806,15 @@ async function openMatrixGeneratorModal() {
     const treeContainer = document.getElementById('gen-scope-tree-container')
     if (!treeContainer) return
 
+    // MỤC TIÊU A — cây scope chỉ gồm lớp CONSTANT. Trước đây cây trộn cả lớp động
+    // (dynClasses từ allClasses) nên giáo viên có thể bốc nhầm câu hỏi động.
     const constClasses = (constantTaxonomyState.classes || []).map(c => ({
       id: c.id,
-      name: `[Constant] ${c.name}`,
+      name: c.name,
       gradeBlock: c.grade_block || '12-Toán',
       isConstant: true
     }))
-    const dynClasses = (allClasses || []).map(c => ({
-      ...c,
-      isConstant: false
-    }))
-    const combinedClasses = [...constClasses, ...dynClasses]
+    const combinedClasses = constClasses
 
     const blockClasses = (!block || block === 'ALL')
       ? combinedClasses
@@ -4663,9 +4914,12 @@ async function openMatrixGeneratorModal() {
   // Unified Scope Toolbar Actions
   scopeSelectBlockBtn?.addEventListener('click', () => {
     const curBlock = generatorState.gradeBlock
+    // MỤC TIÊU A — "Chọn cả khối" chỉ chọn lớp CONSTANT của khối (trước đây dùng
+    // allClasses nên nhét cả id lớp động vào selectedClassIds dù cây không hiển thị chúng).
+    const constClasses = (constantTaxonomyState.classes || [])
     const blockClasses = (!curBlock || curBlock === 'ALL')
-      ? (allClasses || [])
-      : (allClasses || []).filter(c => (c.gradeBlock || c.grade_block || '').trim() === curBlock.trim())
+      ? constClasses
+      : constClasses.filter(c => (c.grade_block || c.gradeBlock || '').trim() === curBlock.trim())
 
     blockClasses.forEach(c => {
       if (!generatorState.selectedClassIds.includes(c.id)) {
@@ -4705,9 +4959,11 @@ async function openMatrixGeneratorModal() {
 
   scopeExpandAllBtn?.addEventListener('click', async () => {
     const curBlock = generatorState.gradeBlock
+    // MỤC TIÊU A — mở rộng tất cả cũng chỉ duyệt lớp CONSTANT (đồng bộ với cây scope).
+    const constClasses = (constantTaxonomyState.classes || [])
     const blockClasses = (!curBlock || curBlock === 'ALL')
-      ? (allClasses || [])
-      : (allClasses || []).filter(c => (c.gradeBlock || c.grade_block || '').trim() === curBlock.trim())
+      ? constClasses
+      : constClasses.filter(c => (c.grade_block || c.gradeBlock || '').trim() === curBlock.trim())
 
     for (const c of blockClasses) {
       treeDataCache.expandedClasses.add(c.id)
@@ -5159,7 +5415,7 @@ async function openMatrixGeneratorModal() {
         return
       }
 
-      let params = 'scopeType=MULTI&'
+      let params = 'scopeType=MULTI&constantOnly=true&'
       if (generatorState.gradeBlock && generatorState.gradeBlock !== 'ALL') {
         params += `gradeBlock=${encodeURIComponent(generatorState.gradeBlock)}&`
       }
@@ -5241,8 +5497,11 @@ async function openMatrixGeneratorModal() {
     generatorState.rejectedIds = []
 
     // Construct structured scope object with MULTI scopeType
+    // MỤC TIÊU A — scope này luôn constantOnly: backend chỉ bốc câu hỏi gắn danh mục
+    // constant, kể cả khi distribution/swap kế thừa currentScope này.
     const scopePayload = {
       scopeType: 'MULTI',
+      constantOnly: true,
       gradeBlock: generatorState.gradeBlock && generatorState.gradeBlock !== 'ALL' ? generatorState.gradeBlock : null,
       classIds: [...new Set(generatorState.selectedClassIds || [])],
       chapterIds: [...new Set(generatorState.selectedChapterIds || [])],
