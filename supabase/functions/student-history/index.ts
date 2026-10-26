@@ -3,6 +3,114 @@ import { handleCors, jsonResponse, errorResponse } from '../../shared/response-h
 import { requireAuth } from '../../shared/auth-middleware.ts'
 import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 
+/* ---------------------------------------------------------------------------
+ * Public shared progress report (scope=shared-report)
+ *
+ * Token công khai có dạng `<shareId>.<secret>`:
+ * - shareId là UUID của row student_report_shares.
+ * - secret là 32 byte ngẫu nhiên (256-bit), base64url không padding (43 ký tự).
+ * - DB chỉ lưu SHA-256(secret) dạng hex; raw token không bao giờ được lưu/log.
+ *
+ * Nhánh này là nhánh DUY NHẤT của student-history được phép không Authorization.
+ * Mọi tham số studentId/classId/fromDate/toDate do client gửi đều bị bỏ qua:
+ * học sinh/lớp/kỳ báo cáo lấy hoàn toàn từ row share trong DB.
+ * ------------------------------------------------------------------------- */
+const SHARE_TOKEN_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/
+
+type SharedReportShare = {
+  id: string
+  student_id: string
+  class_id: string
+  from_date: string
+  to_date: string
+  created_by: string
+  expires_at: string
+  revoked_at: string | null
+  token_secret_hash: string
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+/** So sánh hash dạng hex theo thời gian hằng số (không dùng === cho secret). */
+function constantTimeEqualHex(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return diff === 0
+}
+
+async function resolveSharedReport(
+  client: any,
+  rawToken: string
+): Promise<{ ok: true; share: SharedReportShare } | { ok: false; status: number; message: string }> {
+  const token = (rawToken || '').trim()
+  if (!token) {
+    return { ok: false, status: 400, message: 'Missing shareToken' }
+  }
+
+  // Parse chặt: đúng 1 dấu chấm, shareId UUID, secret đúng 43 ký tự base64url.
+  const match = SHARE_TOKEN_RE.exec(token)
+  if (!match) {
+    return { ok: false, status: 400, message: 'Invalid share token format' }
+  }
+
+  const shareId = match[1].toLowerCase()
+  const secret = match[2]
+
+  const { data, error } = await client
+    .from('student_report_shares')
+    .select('id, student_id, class_id, from_date, to_date, created_by, expires_at, revoked_at, token_secret_hash')
+    .eq('id', shareId)
+    .maybeSingle()
+
+  if (error) {
+    // Fail closed + generic: ke ca khi loi la thieu bang (migration chua apply,
+    // PostgREST báo thiếu bảng (schema cache)), public KHONG duoc biet trang thai setup hay ten relation.
+    // Khac voi function admin (503 SETUP_REQUIRED), nhanh public co y khong phan biet.
+    return { ok: false, status: 500, message: 'Failed to resolve report share' }
+  }
+  if (!data || !data.token_secret_hash) {
+    return { ok: false, status: 404, message: 'Report link is invalid or no longer available' }
+  }
+
+  const providedHash = await sha256Hex(secret)
+  if (!constantTimeEqualHex(providedHash, String(data.token_secret_hash))) {
+    // Không phân biệt "share không tồn tại" và "secret sai" để tránh dò token.
+    return { ok: false, status: 404, message: 'Report link is invalid or no longer available' }
+  }
+
+  if (data.revoked_at) {
+    return { ok: false, status: 410, message: 'Report link has been revoked' }
+  }
+  const expiresMs = new Date(data.expires_at).getTime()
+  if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) {
+    return { ok: false, status: 410, message: 'Report link has expired' }
+  }
+
+  // Fail closed: ghi danh bị xóa sau khi tạo share thì link ngừng hoạt động.
+  const { data: enrollment, error: enrollErr } = await client
+    .from('student_classes')
+    .select('student_id, class_id')
+    .eq('student_id', data.student_id)
+    .eq('class_id', data.class_id)
+    .maybeSingle()
+  if (enrollErr) {
+    return { ok: false, status: 500, message: 'Failed to verify enrollment' }
+  }
+  if (!enrollment) {
+    return { ok: false, status: 404, message: 'Report link is invalid or no longer available' }
+  }
+
+  return { ok: true, share: data as SharedReportShare }
+}
+
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
   if (corsRes) return corsRes
@@ -17,26 +125,69 @@ serve(async (req: Request) => {
     const classId = url.searchParams.get('classId')
     const submissionId = url.searchParams.get('submissionId')
     const homeworkId = url.searchParams.get('homeworkId')
-    const scope = url.searchParams.get('scope') // 'CLASS' | 'TRIAL'
-    const isTrialQuery = scope === 'TRIAL' || url.searchParams.get('isTrial') === 'true' || classId === 'TRIAL'
+    const scope = url.searchParams.get('scope') // 'CLASS' | 'TRIAL' | 'REPORT' | 'SHARED-REPORT'
+    const normalizedScope = (scope || '').trim().toUpperCase()
+    const isReportQuery = normalizedScope === 'REPORT'
+    const isSharedReportQuery = normalizedScope === 'SHARED-REPORT'
+    // Nhánh public không dùng chút nào tới trial/submission/query ids.
+    const isTrialQuery = !isSharedReportQuery &&
+      (scope === 'TRIAL' || url.searchParams.get('isTrial') === 'true' || classId === 'TRIAL')
     const guestPhone = url.searchParams.get('phone') || url.searchParams.get('guestPhone')
 
     const authHeader = req.headers.get('Authorization')
     let user: any = null
     let serviceRoleClient = createServiceRoleClient()
+    let sharedReportContext: SharedReportShare | null = null
+    let sharedStudentName = ''
+    let sharedClassName = ''
 
-    if (authHeader) {
-      try {
-        const authRes = await requireAuth(req)
-        user = authRes.user
-        serviceRoleClient = authRes.serviceRoleClient
-      } catch (e) {
-        if (!isTrialQuery && !submissionId) {
-          throw e
-        }
+    // Public shared report: xử lý TRƯỚC auth. Chỉ nhánh này được phép không Authorization.
+    // Token/query không hợp lệ đều fail closed, không đọc dữ liệu báo cáo.
+    if (isSharedReportQuery) {
+      const resolved = await resolveSharedReport(serviceRoleClient, url.searchParams.get('shareToken') || '')
+      if (resolved.ok === false) {
+        return errorResponse(resolved.message, resolved.status)
       }
-    } else if (!isTrialQuery && !submissionId) {
-      return errorResponse('Unauthorized: Missing token', 401)
+      sharedReportContext = resolved.share
+
+      const [profileRes, classRes] = await Promise.all([
+        serviceRoleClient
+          .from('profiles')
+          .select('full_name')
+          .eq('id', resolved.share.student_id)
+          .maybeSingle(),
+        serviceRoleClient
+          .from('classes')
+          .select('name')
+          .eq('id', resolved.share.class_id)
+          .maybeSingle(),
+      ])
+      if (profileRes.error || classRes.error) {
+        return errorResponse('Failed to load shared report metadata', 500)
+      }
+      if (!profileRes.data || !classRes.data) {
+        // FK đã cascade khi xóa học sinh/lớp; đây là lớp phòng thủ cuối.
+        return errorResponse('Report link is invalid or no longer available', 404)
+      }
+      sharedStudentName = String(profileRes.data.full_name || '').trim()
+      sharedClassName = String(classRes.data.name || '').trim()
+    }
+
+    // Authenticated scopes giữ nguyên hành vi cũ. Public shared report bỏ qua hoàn toàn auth.
+    if (!isSharedReportQuery) {
+      if (authHeader) {
+        try {
+          const authRes = await requireAuth(req)
+          user = authRes.user
+          serviceRoleClient = authRes.serviceRoleClient
+        } catch (e) {
+          if (!isTrialQuery && !submissionId) {
+            throw e
+          }
+        }
+      } else if (!isTrialQuery && !submissionId) {
+        return errorResponse('Unauthorized: Missing token', 401)
+      }
     }
 
     if (user?.role === 'ADMIN') {
@@ -48,6 +199,471 @@ serve(async (req: Request) => {
         .eq('is_trial', true)
         .then(() => {})
         .catch(() => {})
+    }
+
+    // 0.5 Progress Report (scope=report | shared-report)
+    // Cả hai scope dùng CHUNG logic bên dưới để KPI không bị lệch.
+    if (isReportQuery || isSharedReportQuery) {
+      const shared = isSharedReportQuery ? sharedReportContext : null
+      if (isSharedReportQuery && !shared) {
+        return errorResponse('Report link is invalid or no longer available', 404)
+      }
+
+      // Public scope: ngày lấy từ row share, BỎ QUA fromDate/toDate client gửi.
+      const fromDate = shared ? shared.from_date : url.searchParams.get('fromDate')
+      const toDate = shared ? shared.to_date : url.searchParams.get('toDate')
+
+      if (!fromDate || !toDate) {
+        return errorResponse('Missing report period: fromDate and toDate are required (format: YYYY-MM-DD)', 400)
+      }
+
+      // Kiểm tra ngày theo lịch thật: Date.UTC() tự "lăn" 2026-02-30 -> 01/03,
+      // nên phải so sánh round-trip để chặn ngày không tồn tại
+      const isValidCalendarDate = (raw: string): boolean => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false
+        const [y, m, d] = raw.split('-').map((v: string) => Number(v))
+        if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return false
+        const dt = new Date(Date.UTC(y, m - 1, d))
+        return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+      }
+      if (!isValidCalendarDate(fromDate) || !isValidCalendarDate(toDate)) {
+        return errorResponse('Invalid report period: fromDate/toDate must be valid dates formatted as YYYY-MM-DD', 400)
+      }
+
+      const periodFromDate = new Date(`${fromDate}T00:00:00.000Z`)
+      const periodToDate = new Date(`${toDate}T23:59:59.999Z`)
+      if (periodFromDate.getTime() > periodToDate.getTime()) {
+        return errorResponse('Invalid report period: fromDate must be earlier than or equal to toDate', 400)
+      }
+
+      const periodFromIso = periodFromDate.toISOString()
+      const periodToIso = periodToDate.toISOString()
+
+      // ----- Authorization & student scope for progress report -----
+      let reportStudentId: string | null = null
+      let reportClassId: string | null = null
+
+      if (shared) {
+        // Public share: student/class/period lấy từ DB share, không từ query client.
+        reportStudentId = shared.student_id
+        reportClassId = shared.class_id
+      } else if (user?.role === 'STUDENT') {
+        if (studentId && studentId !== user.id) {
+          return errorResponse('Forbidden: You can only view your own progress report', 403)
+        }
+        reportStudentId = user.id
+        const studentClassIds: string[] = user.classIds && user.classIds.length > 0 ? user.classIds : (user.classId ? [user.classId] : [])
+        if (classId && classId !== 'TRIAL') {
+          if (studentClassIds.length === 0 || !studentClassIds.includes(classId)) {
+            return errorResponse('Forbidden: Student is not enrolled in this class', 403)
+          }
+          reportClassId = classId
+        }
+      } else if (user?.role === 'ADMIN') {
+        if (!studentId) {
+          return errorResponse('Bad request: studentId is required for scope=report', 400)
+        }
+        reportStudentId = studentId
+        if (classId && classId !== 'TRIAL') {
+          reportClassId = classId
+          const { data: enrollment, error: enrollErr } = await serviceRoleClient
+            .from('student_classes')
+            .select('student_id, class_id')
+            .eq('student_id', studentId)
+            .eq('class_id', classId)
+            .maybeSingle()
+          if (enrollErr) {
+            return errorResponse(enrollErr.message, 500)
+          }
+          if (!enrollment) {
+            return errorResponse('Forbidden: Student is not enrolled in this class', 403)
+          }
+        }
+      } else {
+        return errorResponse('Forbidden: Progress report requires an authenticated student or admin account', 403)
+      }
+
+      // ----- Resolve homework scope via class chain (Class -> Chapter -> Lesson -> Homework) -----
+      const reportClassIds: string[] = []
+      if (reportStudentId) {
+        if (user?.role === 'STUDENT') {
+          // Học sinh đã chọn lớp: reportClassId đã qua kiểm tra ghi danh ở trên,
+          // nên báo cáo chỉ đúng lớp đó, KHÔNG tổng hợp mọi lớp đang tham gia.
+          if (reportClassId) {
+            reportClassIds.push(reportClassId)
+          } else {
+            reportClassIds.push(...(user.classIds && user.classIds.length > 0 ? user.classIds : (user.classId ? [user.classId] : [])))
+          }
+        } else if (reportClassId) {
+          reportClassIds.push(reportClassId)
+        } else {
+          const { data: studentClasses, error: scErr } = await serviceRoleClient
+            .from('student_classes')
+            .select('class_id')
+            .eq('student_id', reportStudentId)
+          if (scErr) {
+            return errorResponse(scErr.message, 500)
+          }
+          ;((studentClasses as any) || []).forEach((c: any) => { if (c?.class_id) reportClassIds.push(c.class_id) })
+        }
+      }
+
+      const buildReportHomeworkQuery = () => serviceRoleClient
+        .from('homeworks')
+        .select(`
+          id, title, type, duration_minutes, max_score, pass_score, deadline, is_published,
+          lessons!inner (id, title, is_trial, chapters!inner (id, title, class_id, classes (id, name)) )
+        `)
+        .eq('is_published', true)
+
+      const reportHomeworks: any[] = []
+      if (reportClassIds.length > 0) {
+        // Truy vấn riêng từng lớp thay vì or() trên relation nhúng (tránh filter embedded của Supabase sai)
+        const hwResults = await Promise.all(
+          reportClassIds.map((cid: string) => buildReportHomeworkQuery().eq('lessons.chapters.class_id', cid))
+        )
+        for (const hwRes of hwResults) {
+          const err = (hwRes as any).error
+          if (err) {
+            return errorResponse(err.message, 500)
+          }
+        }
+        const seenHwIds = new Set<string>()
+        hwResults.forEach((hwRes: any) => {
+          (hwRes.data || []).forEach((h: any) => {
+            if (!h?.id || seenHwIds.has(h.id)) return
+            // Bỏ bài thuộc lesson học thử: report chỉ phản ánh bài thật của lớp
+            if (h.lessons?.is_trial === true) return
+            seenHwIds.add(h.id)
+            reportHomeworks.push(h)
+          })
+        })
+      }
+      const reportHwIds: string[] = reportHomeworks.map((h: any) => h.id).filter(Boolean)
+
+      // ----- Fetch submissions of the student within the reporting period (toDate inclusive) -----
+      const reportSubmissionQuery = serviceRoleClient
+        .from('submissions')
+        .select(`
+          id, homework_id, student_id, total_score, max_score, bonus_score, correct_count, wrong_count, duration_seconds_taken, is_late, is_trial, guest_name, guest_phone, submitted_at, attempt_no,
+          homeworks (id, title, type, max_score, pass_score, deadline, pdf_path, lessons (id, title, is_trial, chapters (id, title, class_id, classes (id, name))) )
+        `)
+        .eq('status', 'SUBMITTED')
+        .eq('student_id', reportStudentId as string)
+        .gte('submitted_at', periodFromIso)
+        .lte('submitted_at', periodToIso)
+
+      const { data: periodSubmissions, error: periodSubsErr } = await reportSubmissionQuery.order('submitted_at', { ascending: true })
+      if (periodSubsErr) {
+        return errorResponse(periodSubsErr.message, 500)
+      }
+      const allPeriodSubs: any[] = periodSubmissions || []
+      // Submission chỉ hợp lệ khi homework thuộc đúng phạm vi lớp truy vấn.
+      // Lớp không có homework published/lesson thật -> rỗng tuyệt đối, KHÔNG fallback sang mọi bài
+      const classHwIdSet = new Set<string>(reportHwIds)
+      const periodAttemptRows: any[] = classHwIdSet.size > 0
+        ? allPeriodSubs.filter((s: any) => classHwIdSet.has(s.homework_id))
+        : []
+
+      const toNum = (v: any, dflt: number = 0): number => {
+        const n = Number(v)
+        return Number.isFinite(n) ? n : dflt
+      }
+      const round2 = (n: number): number => Math.round(n * 100) / 100
+
+      // ----- Build attempt records (each submission = one attempt; summary uses best score per homework) -----
+      const attempts: any[] = periodAttemptRows.map((s: any) => {
+        const hw = s.homeworks || {}
+        const lesson = hw.lessons || {}
+        const chapter = lesson.chapters || {}
+        const cls = chapter.classes || {}
+        const score = toNum(s.total_score)
+        const maxScore = toNum(s.max_score || hw.max_score || 10)
+        const scaledScore = maxScore > 0 ? Math.min(10, Math.max(0, (score / maxScore) * 10)) : 0
+        const passScore = toNum(hw.pass_score ?? 5)
+        const isLate = !!s.is_late || (!!hw.deadline && !!s.submitted_at && new Date(s.submitted_at).getTime() > new Date(hw.deadline).getTime())
+        const submittedAtMs = s.submitted_at ? new Date(s.submitted_at).getTime() : NaN
+        const dateKey = s.submitted_at ? String(s.submitted_at).substring(0, 10) : ''
+        return {
+          submissionId: s.id,
+          homeworkId: s.homework_id,
+          homeworkTitle: hw.title || 'Bài tập',
+          homeworkType: hw.type || 'PRACTICE',
+          maxScore,
+          passScore,
+          score,
+          scaledScore,
+          bonusScore: toNum(s.bonus_score),
+          correctCount: s.correct_count,
+          wrongCount: s.wrong_count,
+          durationSecondsTaken: s.duration_seconds_taken || 0,
+          isLate,
+          isTrial: s.is_trial || false,
+          submittedAt: s.submitted_at,
+          submittedAtMs,
+          dateKey,
+          attemptNo: toNum(s.attempt_no, 1),
+          isBest: false,
+          lessonId: lesson.id || null,
+          lessonTitle: lesson.title || null,
+          chapterId: chapter.id || null,
+          chapterTitle: chapter.title || null,
+          classId: cls.id || null,
+          className: cls.name || null,
+        }
+      }).sort((a: any, b: any) => (a.submittedAtMs || 0) - (b.submittedAtMs || 0) || (a.attemptNo || 0) - (b.attemptNo || 0))
+
+      const bestByHomework = new Map<string, any>()
+      attempts.forEach((a: any) => {
+        const cur = bestByHomework.get(a.homeworkId)
+        if (!cur || a.scaledScore > cur.scaledScore) {
+          bestByHomework.set(a.homeworkId, a)
+        }
+      })
+      bestByHomework.forEach((a: any) => {
+        a.isBest = true
+      })
+
+      // Bài giao trong khoảng xác định theo deadline (ngày đến hạn thuộc kỳ).
+      // Bài KHÔNG deadline coi như luôn mở: tính là bài giao của cả kỳ gốc và của cả hai nửa so sánh
+      const deadlineInRange = (h: any, fromMs: number, toMs: number): boolean => {
+        if (!h) return false
+        if (!h.deadline) return true
+        const t = new Date(h.deadline).getTime()
+        return Number.isFinite(t) && t >= fromMs && t <= toMs
+      }
+
+      const assignedHomeworks = (reportHomeworks || []).filter((h: any) => deadlineInRange(h, periodFromDate.getTime(), periodToDate.getTime()))
+
+      const buildPeriodStats = (atts: any[], assigned: any[]) => {
+        const bestMap = new Map<string, any>()
+        atts.forEach((a: any) => {
+          const cur = bestMap.get(a.homeworkId)
+          if (!cur || a.scaledScore > cur.scaledScore) {
+            bestMap.set(a.homeworkId, a)
+          }
+        })
+        const bestScores = Array.from(bestMap.values()).map((a: any) => a.scaledScore)
+        const submittedHws = bestMap.size
+        // completionRate chỉ đếm bài có submission thuộc phạm vi được giao của kỳ này
+        const assignedHwIdSet = new Set<string>((assigned || []).map((h: any) => h.id))
+        const submittedAssignedCount = Array.from(bestMap.keys()).filter((id: string) => assignedHwIdSet.has(id)).length
+        const completionRate = assigned.length > 0 ? Math.min(100, round2((submittedAssignedCount / assigned.length) * 100)) : 0
+        const onTimeCount = atts.filter((a: any) => !a.isLate).length
+        const attemptCount = atts.length
+        const averageScore = bestScores.length > 0 ? round2(bestScores.reduce((acc: number, v: number) => acc + v, 0) / bestScores.length) : 0
+        const activeDaysSet = new Set<string>()
+        atts.forEach((a: any) => { if (a.dateKey) activeDaysSet.add(a.dateKey) })
+        return {
+          assignedCount: assigned.length,
+          submittedCount: submittedHws,
+          completionRate,
+          onTimeRate: attemptCount > 0 ? round2((onTimeCount / attemptCount) * 100) : 100,
+          averageScore,
+          highestScore: bestScores.length > 0 ? Math.max(...bestScores) : 0,
+          lowestScore: bestScores.length > 0 ? Math.min(...bestScores) : 0,
+          activeDays: activeDaysSet.size,
+          attemptCount,
+        }
+      }
+
+      const summaryStats = buildPeriodStats(attempts, assignedHomeworks)
+
+      const periodMidMs = periodFromDate.getTime() + (periodToDate.getTime() - periodFromDate.getTime()) / 2
+      // Guard: lượt nộp thiếu timestamp hợp lệ (không thể xảy ra với NOT NULL, nhưng chặn mọi trường hợp)
+      const firstHalfAttempts = attempts.filter((a: any) => !Number.isFinite(a.submittedAtMs) || a.submittedAtMs <= periodMidMs)
+      const secondHalfAttempts = attempts.filter((a: any) => Number.isFinite(a.submittedAtMs) && a.submittedAtMs > periodMidMs)
+      const firstHalfAssigned = assignedHomeworks.filter((h: any) => deadlineInRange(h, periodFromDate.getTime(), periodMidMs))
+      const secondHalfAssigned = assignedHomeworks.filter((h: any) => deadlineInRange(h, periodMidMs, periodToDate.getTime()))
+
+      const firstHalfStats = buildPeriodStats(firstHalfAttempts, firstHalfAssigned)
+      const secondHalfStats = buildPeriodStats(secondHalfAttempts, secondHalfAssigned)
+
+      const averageScoreDelta = round2(secondHalfStats.averageScore - firstHalfStats.averageScore)
+      const completionRateDelta = round2(secondHalfStats.completionRate - firstHalfStats.completionRate)
+      const trend = averageScoreDelta > 0.005 ? 'IMPROVING' : (averageScoreDelta < -0.005 ? 'DECLINING' : 'STABLE')
+
+      const scoreTrend = attempts.map((a: any) => ({
+        submissionId: a.submissionId,
+        homeworkId: a.homeworkId,
+        homeworkTitle: a.homeworkTitle,
+        homeworkType: a.homeworkType,
+        attemptNo: a.attemptNo,
+        score: a.score,
+        maxScore: a.maxScore,
+        scaledScore: a.scaledScore,
+        passScore: a.passScore,
+        isPassed: a.score >= a.passScore,
+        isLate: a.isLate,
+        isBest: a.isBest,
+        submittedAt: a.submittedAt,
+        date: a.dateKey,
+      }))
+
+      // ----- Topic breakdown: chỉ nhóm theo chapter có metadata thật từ join,
+      // không tạo nhóm "unknown" ảo gây kết luận sai -----
+      const topicGroups = new Map<string, any[]>()
+      attempts.forEach((a: any) => {
+        if (!a.chapterId) return
+        const group = topicGroups.get(a.chapterId) || []
+        group.push(a)
+        topicGroups.set(a.chapterId, group)
+      })
+      const topicBreakdown = Array.from(topicGroups.entries()).map(([chapterKey, groupAttempts]: [string, any[]]) => {
+        const bestMap = new Map<string, any>()
+        groupAttempts.forEach((a: any) => {
+          const cur = bestMap.get(a.homeworkId)
+          if (!cur || a.scaledScore > cur.scaledScore) {
+            bestMap.set(a.homeworkId, a)
+          }
+        })
+        const topicScores = Array.from(bestMap.values()).map((a: any) => a.scaledScore)
+        const topicAvg = topicScores.length > 0 ? round2(topicScores.reduce((acc: number, v: number) => acc + v, 0) / topicScores.length) : 0
+        const firstAttempt = groupAttempts[0]
+        const topicAssigned = assignedHomeworks.filter((h: any) => h.lessons?.chapters?.id === chapterKey)
+        return {
+          topicId: firstAttempt.chapterId,
+          topicKey: chapterKey,
+          topicTitle: firstAttempt.chapterTitle || 'Chương',
+          chapterId: firstAttempt.chapterId,
+          chapterTitle: firstAttempt.chapterTitle || null,
+          lessonId: firstAttempt.lessonId,
+          lessonTitle: firstAttempt.lessonTitle || null,
+          assignedCount: topicAssigned.length,
+          submittedCount: bestMap.size,
+          completionRate: topicAssigned.length > 0 ? Math.min(100, round2((bestMap.size / topicAssigned.length) * 100)) : 0,
+          averageScore: topicAvg,
+          highestScore: topicScores.length > 0 ? Math.max(...topicScores) : 0,
+          lowestScore: topicScores.length > 0 ? Math.min(...topicScores) : 0,
+          attemptCount: groupAttempts.length,
+        }
+      }).sort((a: any, b: any) => String(a.topicTitle).localeCompare(String(b.topicTitle)))
+
+      // ----- Report-friendly submissions list for the report page -----
+      const reportSubmissions = attempts.map((a: any) => ({
+        submissionId: a.submissionId,
+        homeworkId: a.homeworkId,
+        homeworkTitle: a.homeworkTitle,
+        homeworkType: a.homeworkType,
+        attemptNo: a.attemptNo,
+        score: a.score,
+        maxScore: a.maxScore,
+        passScore: a.passScore,
+        isPassed: a.score >= a.passScore,
+        bonusScore: a.bonusScore,
+        correctCount: a.correctCount,
+        wrongCount: a.wrongCount,
+        durationSecondsTaken: a.durationSecondsTaken,
+        isLate: a.isLate,
+        isTrial: a.isTrial,
+        isBest: a.isBest,
+        submittedAt: a.submittedAt,
+        lessonId: a.lessonId,
+        lessonTitle: a.lessonTitle,
+        chapterId: a.chapterId,
+        chapterTitle: a.chapterTitle,
+        classId: a.classId,
+        className: a.className,
+        studentId: reportStudentId,
+      }))
+
+      const reportPeriod = {
+        fromDate,
+        toDate,
+        from: periodFromIso,
+        to: periodToIso,
+        days: Math.round((periodToDate.getTime() - periodFromDate.getTime()) / 86400000) + 1,
+      }
+      const reportComparison = {
+        firstHalf: firstHalfStats,
+        secondHalf: secondHalfStats,
+        averageScoreDelta,
+        completionRateDelta,
+        trend,
+      }
+
+      // Public payload: giữ đủ dữ liệu render + tên học sinh/lớp + hạn share,
+      // nhưng bỏ toàn bộ id nội bộ (studentId/submissionId/homeworkId/classId/
+      // lessonId/chapterId...) và không bao giờ trả token/hash/phone/username.
+      if (shared) {
+        const publicScoreTrend = scoreTrend.map((a: any) => ({
+          homeworkTitle: a.homeworkTitle,
+          homeworkType: a.homeworkType,
+          attemptNo: a.attemptNo,
+          score: a.score,
+          maxScore: a.maxScore,
+          scaledScore: a.scaledScore,
+          passScore: a.passScore,
+          isPassed: a.isPassed,
+          isLate: a.isLate,
+          isBest: a.isBest,
+          submittedAt: a.submittedAt,
+          date: a.date,
+        }))
+        const publicTopicBreakdown = topicBreakdown.map((t: any) => ({
+          topicTitle: t.topicTitle,
+          chapterTitle: t.chapterTitle,
+          lessonTitle: t.lessonTitle,
+          assignedCount: t.assignedCount,
+          submittedCount: t.submittedCount,
+          completionRate: t.completionRate,
+          averageScore: t.averageScore,
+          highestScore: t.highestScore,
+          lowestScore: t.lowestScore,
+          attemptCount: t.attemptCount,
+        }))
+        const publicSubmissions = reportSubmissions.map((s: any) => ({
+          homeworkTitle: s.homeworkTitle,
+          homeworkType: s.homeworkType,
+          attemptNo: s.attemptNo,
+          score: s.score,
+          maxScore: s.maxScore,
+          passScore: s.passScore,
+          isPassed: s.isPassed,
+          bonusScore: s.bonusScore,
+          correctCount: s.correctCount,
+          wrongCount: s.wrongCount,
+          durationSecondsTaken: s.durationSecondsTaken,
+          isLate: s.isLate,
+          isTrial: s.isTrial,
+          isBest: s.isBest,
+          submittedAt: s.submittedAt,
+          lessonTitle: s.lessonTitle,
+          chapterTitle: s.chapterTitle,
+          className: s.className,
+        }))
+
+        return jsonResponse({
+          scope: 'SHARED_REPORT',
+          shareId: shared.id,
+          expiresAt: shared.expires_at,
+          studentName: sharedStudentName || 'Học sinh',
+          className: sharedClassName || 'Lớp học',
+          period: {
+            fromDate: reportPeriod.fromDate,
+            toDate: reportPeriod.toDate,
+            days: reportPeriod.days,
+          },
+          summary: summaryStats,
+          comparison: reportComparison,
+          scoreTrend: publicScoreTrend,
+          topicBreakdown: publicTopicBreakdown,
+          submissions: publicSubmissions,
+        })
+      }
+
+      // Legacy authenticated report shape giữ nguyên (frontend hiện tại phụ thuộc).
+      return jsonResponse({
+        scope: 'REPORT',
+        studentId: reportStudentId,
+        classId: reportClassId,
+        period: reportPeriod,
+        summary: summaryStats,
+        comparison: reportComparison,
+        scoreTrend,
+        topicBreakdown,
+        submissions: reportSubmissions,
+      })
     }
 
     // 1. Single Submission Details (for assignment review)

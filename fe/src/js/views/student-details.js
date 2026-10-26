@@ -71,6 +71,11 @@ export function renderStudentDetailsView() {
   const now = new Date()
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
+  // Kỳ mặc định cho báo cáo tiến bộ: từ ngày 1 tháng hiện tại đến hôm nay (local date)
+  const pad = (n) => String(n).padStart(2, '0')
+  const defaultReportTo = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const defaultReportFrom = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+
   return `
     <div class="app-layout">
       ${renderSidebar('students')}
@@ -158,6 +163,32 @@ export function renderStudentDetailsView() {
             </div>
           </div>
 
+          <!-- Progress Report launcher -->
+          <div class="card" style="padding:20px; margin-top:24px;">
+            <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; color:#0f172a; margin:0 0 4px 0; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-file-lines" style="color:#0066cc;"></i> Báo cáo tiến bộ học tập
+            </h3>
+            <p style="font-size:12px; color:#64748b; margin:0 0 12px 0;">
+              Tổng hợp KPI, xu hướng điểm và phân tích theo chương trong một khoảng ngày. Báo cáo mở ở tab mới.
+            </p>
+            <div class="report-launch-bar">
+              <div class="report-launch-fields">
+                <div class="report-launch-field">
+                  <label for="report-from-date">Từ ngày</label>
+                  <input type="date" id="report-from-date" class="form-input" value="${defaultReportFrom}">
+                </div>
+                <div class="report-launch-field">
+                  <label for="report-to-date">Đến ngày</label>
+                  <input type="date" id="report-to-date" class="form-input" value="${defaultReportTo}">
+                </div>
+                <button id="open-progress-report-btn" class="btn-primary" style="width:auto; cursor:pointer; padding:7px 16px; font-size:13px; font-weight:600; border-radius:8px; display:inline-flex; align-items:center; gap:6px;">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Báo cáo
+                </button>
+              </div>
+              <p id="report-input-error" class="report-inline-error" role="alert" style="display:none;"></p>
+            </div>
+          </div>
+
           <!-- Weak Topics -->
           <div class="card" style="padding:20px; margin-top:24px; border:1px solid #fecaca;">
             <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; color:#0f172a; margin:0 0 4px 0; display:flex; align-items:center; gap:8px;">
@@ -218,6 +249,43 @@ export function bindStudentDetailsEvents() {
       } catch (e) {
         showToast(`Lưu lịch học thất bại: ${e.message}`, 'error')
       }
+    }
+  }
+
+  // Progress report launcher: validate dates then open report in a new tab
+  const openReportBtn = document.getElementById('open-progress-report-btn')
+  if (openReportBtn && studentId && classId) {
+    openReportBtn.onclick = () => {
+      const errorEl = document.getElementById('report-input-error')
+      const fromVal = document.getElementById('report-from-date')?.value?.trim() || ''
+      const toVal = document.getElementById('report-to-date')?.value?.trim() || ''
+      const showReportError = (msg) => {
+        if (errorEl) {
+          errorEl.textContent = msg
+          errorEl.style.display = 'block'
+        }
+        showToast(msg, 'error')
+      }
+
+      if (errorEl) errorEl.style.display = 'none'
+      const dateRe = /^\d{4}-\d{2}-\d{2}$/
+      if (!fromVal || !toVal) {
+        showReportError('Vui lòng chọn đủ Từ ngày và Đến ngày trước khi mở báo cáo.')
+        return
+      }
+      if (!dateRe.test(fromVal) || !dateRe.test(toVal)) {
+        showReportError('Ngày không hợp lệ. Định dạng yêu cầu là YYYY-MM-DD.')
+        return
+      }
+      if (fromVal > toVal) {
+        showReportError('Từ ngày không được sau Đến ngày. Vui lòng kiểm tra lại khoảng báo cáo.')
+        return
+      }
+
+      const reportUrl = `${window.location.origin}${window.location.pathname}${window.location.search}` +
+        `#student-report?studentId=${encodeURIComponent(studentId)}&classId=${encodeURIComponent(classId)}` +
+        `&fromDate=${encodeURIComponent(fromVal)}&toDate=${encodeURIComponent(toVal)}`
+      window.open(reportUrl, '_blank', 'noopener,noreferrer')
     }
   }
 

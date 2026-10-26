@@ -80,7 +80,9 @@ export const createLessonSchema = z.object({
   chapterId: z.string().uuid('Invalid Chapter ID'),
   title: z.string().min(1, 'Lesson title is required'),
   orderIndex: z.number().int().optional().default(0),
-  content: z.string().optional(),
+  // Nội dung là trường tùy chọn; form tạo nhanh gửi null khi để trống và cột DB
+  // cũng nullable. Chấp nhận null để contract API nhất quán với videoUrl/theoryFiles.
+  content: z.string().optional().nullable(),
   videoUrl: z.string().optional().nullable(),
   theoryFiles: z.array(z.string()).optional().nullable(),
   isTrial: z.boolean().optional().default(false),
@@ -90,7 +92,7 @@ export const updateLessonSchema = z.object({
   lessonId: z.string().uuid('Invalid Lesson ID'),
   title: z.string().min(1).optional(),
   orderIndex: z.number().int().optional(),
-  content: z.string().optional(),
+  content: z.string().optional().nullable(),
   videoUrl: z.string().optional().nullable(),
   theoryFiles: z.array(z.string()).optional().nullable(),
   isTrial: z.boolean().optional(),

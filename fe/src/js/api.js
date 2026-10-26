@@ -1,4 +1,5 @@
 import { state, logout, setSession } from './state.js'
+import { redactQueryFromEndpoint } from './utils/report-share.js'
 
 // Supabase URL from Vite environment variables (falls back to local dev URL)
 // Dùng `?.` để module này import được trong môi trường Node (unit test) khi
@@ -54,7 +55,7 @@ function hideLoading() {
 async function request(endpoint, options = {}) {
   // Mock mode interceptor for demo student account
   if (state.token === 'mock_student_token') {
-    console.log(`[API Mock] Intercepting endpoint: ${endpoint}`)
+    console.log(`[API Mock] Intercepting endpoint: ${redactQueryFromEndpoint(endpoint)}`)
     if (endpoint.startsWith('create-homework?todoOnly=true')) {
       return Promise.resolve([
         {
@@ -298,8 +299,13 @@ async function request(endpoint, options = {}) {
     (endpoint.startsWith('submit-homework') && !state.token) ||
     (endpoint.startsWith('student-history') && !state.token)
 
+  // Option nội bộ (chỉ gọi bởi api.getSharedReport): TUYỆT ĐỐI không gửi header
+  // Authorization nào (cả token user lẫn anon bearer) theo contract verify_jwt=false
+  // của function public. `apikey` vẫn giữ nếu env có (chuẩn Supabase client).
+  const omitAuthorization = options.omitAuthorization === true
+
   // If access token is missing but refresh token exists, attempt refresh before sending request
-  if (!state.token && !isPublicEndpoint && state.refreshToken && !isRefreshing) {
+  if (!state.token && !isPublicEndpoint && !omitAuthorization && state.refreshToken && !isRefreshing) {
     isRefreshing = true
     try {
       console.log('[API] Access Token missing. Attempting silent token refresh before request...')
@@ -336,9 +342,9 @@ async function request(endpoint, options = {}) {
     ...(options.headers || {})
   }
 
-  if (state.token) {
+  if (state.token && !isPublicEndpoint && !omitAuthorization) {
     headers['Authorization'] = `Bearer ${state.token}`
-  } else if (import.meta.env.VITE_SUPABASE_ANON_KEY) {
+  } else if (!omitAuthorization && import.meta.env.VITE_SUPABASE_ANON_KEY) {
     headers['Authorization'] = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
   }
 
@@ -347,7 +353,7 @@ async function request(endpoint, options = {}) {
   delete fetchOptions.silent
   delete fetchOptions.skipLoading
   delete fetchOptions.isPublic
-
+  delete fetchOptions.omitAuthorization
   if (!isSilent) {
     showLoading()
   }
@@ -359,7 +365,8 @@ async function request(endpoint, options = {}) {
 
     if (response.status === 401) {
       // If we have a refresh token and we're not currently refreshing, try to refresh
-      if (state.refreshToken && !isRefreshing && endpoint !== 'refresh-token') {
+      // (endpoint public omitAuthorization KHÔNG refresh/retry vì không coi như đã auth)
+      if (state.refreshToken && !isRefreshing && !omitAuthorization && endpoint !== 'refresh-token') {
         isRefreshing = true
         try {
           console.log('[API] Access Token expired. Attempting silent token refresh...')
@@ -406,18 +413,24 @@ async function request(endpoint, options = {}) {
         result.message ||
         (typeof result.data === 'object' && (result.data?.message || result.data?.error)) ||
         `HTTP ${response.status}`
+      // Giữ status/code để caller mới phân loại được lỗi (vd SETUP_REQUIRED 503);
+      // caller cũ chỉ đọc err.message nên hành vi cũ không đổi.
+      const errWithMeta = new Error(errMsg)
+      errWithMeta.status = response.status
+      if (typeof result.code === 'string' && result.code) errWithMeta.code = result.code
       if (response.status === 401 || errMsg.includes('Authorization') || errMsg.includes('Unauthorized')) {
         if (!isPublicEndpoint) {
           logout()
           throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.')
         }
       }
-      throw new Error(errMsg)
+      throw errWithMeta
     }
 
     return result.data
   } catch (err) {
-    console.warn(`[API] Edge Function call ${endpoint} failed:`, err.message)
+    // REDACT query: endpoint public chứa shareToken raw trong query -> tuyệt đối không log cả query.
+    console.warn(`[API] Edge Function call ${redactQueryFromEndpoint(endpoint)} failed:`, err.message)
     throw err
   } finally {
     if (!isSilent) {
@@ -599,6 +612,39 @@ export const api = {
       qs = str ? `?${str}` : ''
     }
     return request(`student-history${qs}`, { method: 'GET', ...options })
+  },
+  // Báo cáo tiến độ học sinh (scope=report) — GET student-history?scope=report...
+  // Respone: { scope, studentId, classId, period, summary, comparison, scoreTrend, topicBreakdown, submissions }
+  // Wrapper riêng thay vì gọi getStudentHistory để caller cũ (params string) giữ nguyên hành vi.
+  getStudentProgressReport: (params = {}, options = {}) => {
+    const sp = new URLSearchParams({ scope: 'report' })
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') sp.set(k, String(v))
+    })
+    return request(`student-history?${sp.toString()}`, { method: 'GET', ...options })
+  },
+  // Quản lý link chia sẻ báo cáo tiến độ công khai (student-report-shares).
+  // - createStudentReportShare POST /student-report-shares: { studentId, classId, fromDate, toDate, expiresInDays? }
+  //   -> 201 { shareId, shareToken, expiresAt, createdAt, ..., status, period } (raw token chỉ 1 lần).
+  // - listStudentReportShares GET /student-report-shares?studentId=..&classId=.. -> { studentId, classId, shares: [...] }
+  //   (mỗi share: { shareId, studentId, classId, fromDate, toDate, createdBy, createdAt, expiresAt, revokedAt, status }).
+  // - revokeStudentReportShare DELETE /student-report-shares?shareId=.. -> soft revoke idempotent.
+  // KHÔNG có endpoint nào trả raw token/hash ở GET/DELETE nên client chỉ giữ token tạm thời sau khi create.
+  createStudentReportShare: (data = {}) => request('student-report-shares', { method: 'POST', body: JSON.stringify(data) }),
+  listStudentReportShares: (params = {}) => {
+    const sp = new URLSearchParams()
+    if (params.studentId) sp.set('studentId', params.studentId)
+    if (params.classId) sp.set('classId', params.classId)
+    const qs = sp.toString()
+    return request(`student-report-shares${qs ? `?${qs}` : ''}`, { method: 'GET', ...(params.options || {}) })
+  },
+  revokeStudentReportShare: (shareId) => request(`student-report-shares?shareId=${encodeURIComponent(shareId || '')}`, { method: 'DELETE' }),
+  // Báo cáo tiến độ đã chia sẻ công khai (scope=shared-report): KHÔNG Authorization (public).
+  // Response: { scope:'SHARED_REPORT', shareId, expiresAt, studentName, className, period, summary, comparison, scoreTrend, topicBreakdown, submissions }
+  // Payload không chứa internal IDs nhạy cảm (studentId/submissionId/homeworkId/...).
+  getSharedReport: (params = {}, options = {}) => {
+    const sp = new URLSearchParams({ scope: 'shared-report', shareToken: params.shareToken || '' })
+    return request(`student-history?${sp.toString()}`, { method: 'GET', isPublic: true, omitAuthorization: true, ...options })
   },
   getStudents: (params = '', options = {}) => {
     let qs = ''

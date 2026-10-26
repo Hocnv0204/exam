@@ -14,9 +14,13 @@
     "test:constant-sync": "node scripts/test-constant-taxonomy-sync.mjs",
     "test:curriculum-search": "node scripts/test-curriculum-search.mjs",
     "test:admin-history": "node scripts/test-admin-history-filter.mjs",
-    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && node scripts/test-constant-taxonomy-sync.mjs && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs"
+    "test:student-report-share": "node scripts/test-student-report-share.mjs",
+    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && npm run test:constant-sync && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs && node scripts/test-student-report-share.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
   }
 }

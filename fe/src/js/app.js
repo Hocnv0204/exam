@@ -13,6 +13,7 @@ import { renderAdminDashboardView, bindAdminDashboardEvents } from './views/admi
 import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData } from './views/admin-history.js'
 import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
+import { renderSharedReportView, renderStudentReportView, bindSharedReportEvents, bindStudentReportEvents } from './views/student-report.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
 import { renderTrialView, bindTrialEvents } from './views/trial.js'
 import { renderMyHomeworksView, bindMyHomeworksEvents } from './views/my-homeworks.js'
@@ -43,6 +44,8 @@ const routes = {
   'admin-history': { render: renderAdminHistoryView, bind: bindAdminHistoryEvents },
   'class-details': { render: renderClassDetailsView, bind: bindClassDetailsEvents },
   'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents },
+  'student-report': { render: renderStudentReportView, bind: bindStudentReportEvents },
+  'shared-report': { render: renderSharedReportView, bind: bindSharedReportEvents },
   'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents },
   'question-bank': { render: renderQuestionBankView, bind: bindQuestionBankEvents },
   'grade-blocks': { render: renderGradeBlocksView, bind: bindGradeBlocksEvents },
@@ -60,8 +63,12 @@ async function router() {
   const defaultPage = state.token ? (state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes') : 'roadmap'
   let hash = routePath || defaultPage
 
+  // Public shared report route (#shared-report?token=...): route DUY NHAT duoc phep khong can Authorization.
+  // Chi route nay duoc phep open khi chua dang nhap; token co gioi han duoc validate o backend (fail closed).
+  const isPublicSharedReport = routePath === 'shared-report'
+
   // Guest & Unauthenticated Access Guard
-  if (!state.token) {
+  if (!state.token && !isPublicSharedReport) {
     // Regular shared homework links require login; explicit trial links stay public.
     if ((hash === 'homework-attempt' && params.get('trial') !== 'true') || hash === 'exam-room') {
       const next = `#${hash}${queryString ? `?${queryString}` : ''}`
@@ -123,7 +130,7 @@ async function router() {
   }
 
   // Route Guard: Access Control based on Role
-  if (state.token && state.user) {
+  if (state.token && state.user && !isPublicSharedReport) {
     const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring', 'tuition-ledger', 'activity-logs']
     const studentOnlyRoutes = ['my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
     
@@ -149,7 +156,8 @@ async function router() {
   const route = routes[hash] || routes['login']
 
   // Pre-fetch state data if user is logged in
-  if (state.token) {
+  // (bo qua khi route public #shared-report -> public view se tu goi student-history?scope=shared-report)
+  if (state.token && !isPublicSharedReport) {
     try {
       // Fetch Exam Room Details dynamically
       if (hash === 'exam-room') {
@@ -196,13 +204,16 @@ async function router() {
 
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
       // 1 & 2. Unified Parallel Pre-fetch for Classes, Chapters, and Students
-      if (['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank', 'tuition-ledger', 'activity-logs'].includes(hash)) {
+      // student-report: chỉ ADMIN cần tên học sinh/lớp từ state; STUDENT tự render từ state.user + response.
+      const prefetchableRoutes = ['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank', 'tuition-ledger', 'activity-logs']
+      const reportPrefetch = hash === 'student-report' && state.user?.role === 'ADMIN'
+      if (reportPrefetch || prefetchableRoutes.includes(hash)) {
         const classId = hash === 'my-classes' ? params.get('classId') : null
         const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
 
         const needClasses = true
         const needChapters = Boolean(classId)
-        const needStudents = ['students', 'classes-admin', 'class-details', 'student-details'].includes(hash)
+        const needStudents = reportPrefetch || ['students', 'classes-admin', 'class-details', 'student-details'].includes(hash)
 
         const prefetchTasks = []
         const taskTypes = []
