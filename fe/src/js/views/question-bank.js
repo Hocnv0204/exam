@@ -3342,11 +3342,11 @@ async function openImportMarkdownModal() {
         </div>
 
         <!-- Modal Footer -->
-        <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:flex-end; gap:12px;">
-          <button id="import-md-cancel-btn" class="btn-secondary" style="padding:9px 18px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer;">
+        <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#ffffff; display:flex; justify-content:flex-end; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button id="import-md-cancel-btn" class="btn-secondary" style="width:auto !important; min-width:108px; padding:10px 18px; font-size:13px; font-weight:700; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer;">
             Hủy bỏ
           </button>
-          <button id="import-md-submit-btn" class="btn-primary" style="padding:9px 24px; font-size:13px; font-weight:600; border-radius:8px; background:linear-gradient(135deg, #0066cc, #0284c7); color:#ffffff; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+          <button id="import-md-submit-btn" class="btn-primary" style="width:auto !important; min-width:230px; padding:10px 22px; font-size:13px; font-weight:700; border-radius:8px; background:linear-gradient(135deg, #0066cc, #0284c7); color:#ffffff; border:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 3px 8px rgba(2,132,199,.2);">
             <i class="fa-solid fa-cloud-arrow-up"></i> Lưu vào Ngân hàng câu hỏi
           </button>
         </div>
