@@ -3193,10 +3193,10 @@ async function openImportMarkdownModal() {
 
   modalContainer.innerHTML = `
     <div class="modal-backdrop" id="import-md-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="modal-content" onclick="event.stopPropagation()" style="width:100%; max-width:980px; max-height:92vh; background:#ffffff; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); display:flex; flex-direction:column; overflow:hidden;">
+      <div class="modal-content" onclick="event.stopPropagation()" style="width:100%; max-width:1180px; max-height:94vh; background:#ffffff; border-radius:18px; box-shadow:0 24px 60px rgba(15,23,42,.24); display:flex; flex-direction:column; overflow:hidden;">
         
         <!-- Modal Header -->
-        <div style="padding:18px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
+        <div style="padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,#f8fbff,#ffffff);">
           <div style="display:flex; align-items:center; gap:10px;">
             <div style="width:36px; height:36px; border-radius:10px; background:#eff6ff; color:#0284c7; display:flex; align-items:center; justify-content:center; font-size:18px;">
               <i class="fa-solid fa-file-arrow-up"></i>
@@ -3216,10 +3216,10 @@ async function openImportMarkdownModal() {
         </div>
 
         <!-- Modal Body (Scrollable) -->
-        <div style="padding:20px 24px; overflow-y:auto; flex:1;">
+        <div style="padding:18px 24px; overflow-y:auto; flex:1; background:#f8fafc;">
           
           <!-- Categorization: Class > Chapter > Lesson -->
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:18px;">
+          <div style="background:#ffffff; border:1px solid #dbe5f0; border-radius:12px; padding:14px 16px; margin-bottom:14px; box-shadow:0 1px 2px rgba(15,23,42,.03);">
             <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
               <i class="fa-solid fa-folder-tree" style="color:#0284c7;"></i> Phân loại thư mục lưu trữ câu hỏi
             </div>
@@ -3257,7 +3257,7 @@ async function openImportMarkdownModal() {
 
           <!-- Quick Templates Bar -->
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <button id="md-btn-template-math" type="button" class="btn-secondary" style="padding:5px 12px; font-size:12px; font-weight:600; border-radius:6px; border:1px solid #cbd5e1; background:#f1f5f9; cursor:pointer;">
                 <i class="fa-solid fa-square-root-variable" style="color:#0284c7;"></i> Chèn Mẫu Toán MOET
               </button>
@@ -3265,20 +3265,21 @@ async function openImportMarkdownModal() {
                 <i class="fa-solid fa-flask" style="color:#16a34a;"></i> Chèn Mẫu Hóa mhchem
               </button>
             </div>
-            <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
               <label for="md-file-input" style="padding:5px 12px; font-size:12px; font-weight:600; border-radius:6px; border:1px solid #0284c7; background:#eff6ff; color:#0284c7; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fa-solid fa-folder-open"></i> Tải file .md từ máy
               </label>
               <input type="file" id="md-file-input" accept=".md,.txt" style="display:none;" />
             </div>
-            <button id="md-analyze-btn" type="button" class="btn-secondary" style="padding:5px 12px; font-size:12px; font-weight:700; border-radius:6px; border:1px solid #0284c7; background:#eff6ff; color:#0369a1; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+            <button id="md-analyze-btn" type="button" class="btn-secondary" style="padding:8px 14px; font-size:12px; font-weight:700; border-radius:7px; border:1px solid #0284c7; background:#0284c7; color:#ffffff; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(2,132,199,.18);">
               <i class="fa-solid fa-magnifying-glass-chart"></i> Phân tích & xem trước
             </button>
           </div>
 
           <!-- Markdown Editor Textarea -->
-          <div style="position:relative; margin-bottom:14px;">
-            <textarea id="md-editor-textarea" placeholder="Dán nội dung Markdown câu hỏi vào đây hoặc nhấn vào nút Chèn Mẫu ở trên..." style="width:100%; height:260px; font-family:'Fira Code', monospace, sans-serif; font-size:13px; line-height:1.6; padding:12px; border:1px solid #cbd5e1; border-radius:10px; resize:vertical; background:#f8fafc; color:#1e293b; outline:none;"></textarea>
+          <div style="position:relative; margin-bottom:14px; background:#ffffff; border:1px solid #dbe5f0; border-radius:12px; padding:10px; box-shadow:0 1px 2px rgba(15,23,42,.03);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:0 2px 7px; gap:8px;"><label for="md-editor-textarea" style="font-size:12px; font-weight:700; color:#334155;">Nội dung Markdown nguồn</label><span style="font-size:11px; color:#64748b;">Phân tích sau khi dán hoặc tải file</span></div>
+            <textarea id="md-editor-textarea" placeholder="Dán nội dung Markdown câu hỏi vào đây hoặc nhấn vào nút Chèn Mẫu ở trên..." style="width:100%; height:220px; box-sizing:border-box; font-family:'Fira Code', monospace, sans-serif; font-size:13px; line-height:1.6; padding:12px; border:1px solid #cbd5e1; border-radius:9px; resize:vertical; background:#f8fafc; color:#1e293b; outline:none;"></textarea>
             <div style="position:absolute; right:12px; bottom:12px; font-size:11px; color:#94a3b8; pointer-events:none;">
               Mẹo: Kéo thả ảnh hoặc dán (Ctrl+V) ảnh trực tiếp vào đây
             </div>
@@ -3314,10 +3315,9 @@ async function openImportMarkdownModal() {
           </div>
 
           <!-- Preview & Difficulty Adjustment Pane -->
-          <div id="md-preview-pane" style="display:none; margin-bottom:14px; border:1px solid #e2e8f0; border-radius:12px; background:#ffffff; overflow:hidden;">
-            <div style="padding:10px 14px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-              <span style="font-size:13px; font-weight:700; color:#334155;">
-                <i class="fa-solid fa-sliders" style="color:#0284c7;"></i> Chỉnh sửa mức độ từng câu trước khi lưu
+          <div id="md-preview-pane" style="display:none; margin-bottom:14px; border:1px solid #cbdceb; border-radius:12px; background:#ffffff; overflow:hidden; box-shadow:0 2px 5px rgba(15,23,42,.04);">
+            <div style="padding:12px 16px; background:linear-gradient(135deg,#eff6ff,#ffffff); border-bottom:1px solid #dbe5f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div><div style="font-size:14px; font-weight:800; color:#1e3a5f;"><i class="fa-solid fa-eye" style="color:#0284c7;"></i> Preview câu hỏi đã render</div><div style="font-size:11px; color:#64748b; margin-top:2px;">Bấm vào câu hỏi hoặc nút Chi tiết để xem đầy đủ nội dung.</div></div>
               </span>
               <!-- Fast apply for all in modal -->
               <div style="display:flex; align-items:center; gap:8px;">
@@ -3333,8 +3333,8 @@ async function openImportMarkdownModal() {
                 </button>
               </div>
             </div>
-            <div id="md-preview-questions-list" style="max-height:480px; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px;">
-              <!-- Question rows render here -->
+            <div id="md-preview-questions-list" style="max-height:560px; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
+              <!-- Rendered question cards -->
             </div>
             <div id="md-question-detail" style="display:none; margin:0 12px 12px; border:1px solid #bfdbfe; border-radius:10px; background:#ffffff; overflow:hidden;"></div>
           </div>
@@ -3712,13 +3712,15 @@ async function openImportMarkdownModal() {
       const status = q.questionTypeError
         ? `<span style="color:#b91c1c; font-size:11px; font-weight:700;">⚠ ${escapeHtml(q.questionTypeError)}</span>`
         : (q.questionTypeTag ? `<span style="color:#be185d; font-size:11px; font-weight:700;">✓ ${escapeHtml(q.questionTypeTag)}</span>` : '<span style="color:#94a3b8; font-size:11px;">Chưa gắn Dạng bài</span>')
+      const displayNumber = q.questionNumber || idx + 1
       html += `
-        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:12px 14px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.04);">
+        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${q.questionTypeError ? '#fecaca' : '#dbeafe'}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;"><strong style="color:#334155;">Câu ${idx + 1}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span>${status}</div>
+            <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;"><strong style="color:#334155;">Câu ${displayNumber}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span></div>
             <div style="display:flex; gap:5px;"><button type="button" class="md-view-detail-btn" data-index="${idx}" style="border:1px solid #93c5fd; color:#0369a1; background:#eff6ff; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-eye"></i> Chi tiết</button><button type="button" class="md-delete-question-btn" data-index="${idx}" title="Loại câu này khỏi danh sách nhập" style="border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash"></i> Xóa</button></div>
           </div>
-          <div style="max-height:190px; overflow:hidden; position:relative;">${renderQuestionBody(q)}</div>
+          <div style="border-top:1px solid #f1f5f9; padding-top:10px;">${renderQuestionBody(q)}</div>
+          <div style="margin-top:8px; font-size:11px;">${status}</div>
           <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:10px; padding-top:8px; border-top:1px dashed #e2e8f0;">
             <select class="md-item-diff-select" data-index="${idx}" style="height:30px; font-size:12px; font-weight:600; padding:0 8px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
               <option value="NHAN_BIET" ${q.difficulty === 'NHAN_BIET' ? 'selected' : ''}>Nhận biết</option><option value="THONG_HIEU" ${q.difficulty === 'THONG_HIEU' ? 'selected' : ''}>Thông hiểu</option><option value="VAN_DUNG" ${q.difficulty === 'VAN_DUNG' ? 'selected' : ''}>Vận dụng</option><option value="VAN_DUNG_CAO" ${q.difficulty === 'VAN_DUNG_CAO' ? 'selected' : ''}>Vận dụng cao</option>
@@ -3790,7 +3792,8 @@ async function openImportMarkdownModal() {
     if (!q || !detail) return
     const options = (q.options || []).map(o => `<div style="padding:5px 0;">${escapeHtml(String(o.id || '').toUpperCase())}. ${renderMarkdown(o.text || '')}</div>`).join('')
     detail.style.display = 'block'
-    detail.innerHTML = `<div style="padding:12px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; gap:8px;"><strong>Chi tiết Câu ${index + 1}</strong><div style="display:flex; gap:6px;"><button type="button" id="md-edit-question-btn" class="btn-secondary" style="padding:5px 9px; font-size:11px; border:1px solid #f59e0b; color:#b45309; background:#fffbeb; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-pen"></i> Sửa Markdown câu này</button><button type="button" id="md-delete-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-trash"></i> Xóa câu</button><button type="button" id="md-close-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer;">Đóng</button></div></div><div style="padding:14px; max-height:420px; overflow:auto;">${renderQuestionBodyForDetail(q, options)}</div>`
+    const detailNumber = q.questionNumber || index + 1
+    detail.innerHTML = `<div style="padding:12px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; gap:8px;"><strong>Chi tiết Câu ${detailNumber}</strong><div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;"><button type="button" id="md-edit-question-btn" class="btn-secondary" style="padding:5px 9px; font-size:11px; border:1px solid #f59e0b; color:#b45309; background:#fffbeb; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-pen"></i> Sửa Markdown câu này</button><button type="button" id="md-delete-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-trash"></i> Xóa câu</button><button type="button" id="md-close-detail-btn" style="padding:5px 9px; font-size:11px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer;">Đóng</button></div></div><div style="padding:14px; max-height:520px; overflow:auto;">${renderQuestionBodyForDetail(q, options)}</div>`
     document.getElementById('md-close-detail-btn')?.addEventListener('click', () => { detail.style.display = 'none'; detail.innerHTML = '' })
     document.getElementById('md-edit-question-btn')?.addEventListener('click', () => editQuestionMarkdown(index))
     document.getElementById('md-delete-detail-btn')?.addEventListener('click', () => deleteParsedQuestion(index))
