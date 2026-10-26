@@ -1503,37 +1503,26 @@ export function bindAdminHistoryEvents() {
             </label>
           </div>
         </div>
-        <div style="display:flex; justify-content:flex-end; gap:10px;">
-          <button class="btn-secondary close-modal-btn" style="padding:8px 16px; cursor:pointer;">Hủy bỏ</button>
-          <button class="btn-primary" id="confirm-reopen-btn" style="padding:8px 16px; cursor:pointer; background:#0066cc;">
-            <i class="fa-solid fa-rotate-left"></i> Xác nhận khôi phục
-          </button>
-        </div>
-      `)
-
-      document.querySelector('#modal-container .close-modal-btn')?.addEventListener('click', () => closeModal())
-
-      document.getElementById('confirm-reopen-btn')?.addEventListener('click', async (e) => {
-        const confirmBtn = e.currentTarget
+      `, async () => {
         const resetTimer = document.getElementById('reopen-reset-timer')?.checked || false
         const resetAnswers = document.getElementById('reopen-reset-answers')?.checked || false
-        confirmBtn.disabled = true
-        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xử lý...'
         try {
           const res = await api.reopenSubmission(hwId, stuId, resetTimer, resetAnswers)
           showToast(res?.newAttempt ? `Đã tạo lần thi mới (lần ${res.attemptNo}) cho ${name}, giữ nguyên lịch sử cũ!` : `Đã cho phép ${name} làm lại bài tập thành công!`, 'success')
-          closeModal()
           await loadAdminHistoryData(selectedClassId, selectedHomeworkId, currentMode)
           const app = document.getElementById('app')
           if (app) {
             app.innerHTML = renderAdminHistoryView()
             bindAdminHistoryEvents()
           }
+          // openModal tự đóng sau khi callback thành công.
         } catch (err) {
           showToast(`Khôi phục thất bại: ${err.message}`, 'error')
-          confirmBtn.disabled = false
-          confirmBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> Xác nhận khôi phục'
+          return false
         }
+      }, {
+        cancelLabel: 'Hủy bỏ',
+        confirmLabel: '<i class="fa-solid fa-rotate-left"></i> Xác nhận khôi phục'
       })
     })
   })
