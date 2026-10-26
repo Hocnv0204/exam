@@ -4946,3 +4946,599 @@ body.review-split-mode .page-header {
     display: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Quản lý học thử (Admin, #trial-management)                          */
+/* ------------------------------------------------------------------ */
+
+/* Dòng bài học được highlight khi mở từ link curriculum (?lessonId=...). */
+.trial-row-highlight {
+  outline: 2px solid #16a34a;
+  outline-offset: -2px;
+  background: #f0fdf4 !important;
+}
+
+/* Mobile: thanh lọc xếp dọc thay vì dàn ngang. */
+@media (max-width: 768px) {
+  .trial-filter-bar > * {
+    flex-basis: 100% !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Lesson Workspace — chi tiết bài học (views/curriculum.js)           */
+/* Hệ thống card đồng nhất cho header/video/Meet/tài liệu/bài tập.     */
+/* Lưu ý: global .btn-primary là width:100% nên mọi nút trong workspace */
+/* đều cần width:auto (quy tắc .lw-workspace bên dưới).                */
+/* ------------------------------------------------------------------ */
+
+.lw-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.lw-workspace .btn-primary,
+.lw-workspace .btn-secondary {
+  width: auto;
+  text-decoration: none;
+}
+
+.lw-workspace button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Topbar: breadcrumb + nút quay lại. */
+.lw-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+/* Card section đồng nhất. */
+.lw-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.lw-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.lw-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lw-card-title .fa-video { color: #0066cc; }
+.lw-card-title .fa-file-pdf { color: #ef4444; }
+.lw-card-title .fa-list-check { color: #10b981; }
+
+/* Card Meet chờ đồng bộ: cùng radius/padding, chỉ khác tông xanh. */
+.lw-card--meet {
+  border-color: #bfdbfe;
+  background: linear-gradient(180deg, #f5faff 0%, #eff6ff 100%);
+  box-shadow: 0 1px 3px rgba(0, 102, 204, 0.08);
+}
+
+/* Header bài học. */
+.lw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap:wrap;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.lw-chapter-chip {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0066cc;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.lw-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 4px 0 8px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.lw-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lw-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid;
+}
+
+.lw-badge--trial {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.lw-badge--internal {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+  font-weight: 600;
+}
+
+.lw-date {
+  font-size: 12px;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lw-date .fa-calendar { color: #94a3b8; }
+
+/* Nhóm action + cỡ nút thống nhất (ghi đè padding/radius global). */
+.lw-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lw-btn-md {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.lw-btn-sm {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.lw-btn-xs {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.lw-btn-lg {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 13.5px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.lw-btn-green {
+  color: #15803d;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.lw-workspace .lw-btn-green:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.lw-btn-danger {
+  color: #ef4444;
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.lw-workspace .lw-btn-danger:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.lw-btn-meet {
+  border: none;
+  color: #ffffff;
+  background: linear-gradient(135deg, #00832d, #0066cc);
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.35);
+}
+
+.lw-btn-meet:hover { filter: brightness(1.06); }
+
+/* Video. */
+.lw-video-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  min-width: 0;
+}
+
+.lw-video-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.lw-video-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.lw-video-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.lw-video-url {
+  font-size: 12px;
+  color: #64748b;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Khung preview video 16:9 trong modal (chỉ nhận URL từ getSafeEmbedUrl). */
+.lw-video-preview {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #000;
+}
+
+.lw-video-preview iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Google Meet. */
+.lw-meet-id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.lw-meet-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #0066cc;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.lw-meet-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.lw-meet-code {
+  font-size: 12.5px;
+  color: #475569;
+  margin-top: 3px;
+}
+
+.lw-meet-code code {
+  font-family: monospace;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #dbeafe;
+  padding: 1px 7px;
+  border-radius: 6px;
+}
+
+.lw-meet-waiting {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #bfdbfe;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lw-meet-waiting-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  background: #fef9c3;
+  border: 1px solid #fde047;
+  color: #854d0e;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 9px;
+}
+
+.lw-meet-waiting-text {
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+/* Dải ghi chú video tự động từ Meet (dưới card video). */
+.lw-origin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  margin-top: 10px;
+}
+
+.lw-origin-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #15803d;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lw-origin-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0066cc;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Empty state dùng chung. */
+.lw-empty {
+  padding: 20px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  text-align: center;
+  color: #64748b;
+}
+
+.lw-empty--lg { padding: 24px; }
+
+.lw-empty-icon {
+  font-size: 24px;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.lw-empty-icon--sm {
+  font-size: 20px;
+  color: #0066cc;
+}
+
+.lw-empty-text { font-size: 13px; }
+
+.lw-empty-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Tài liệu lý thuyết. */
+.lw-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.lw-doc-card {
+  display: flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.lw-doc-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.lw-doc-icon {
+  color: #ef4444;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.lw-doc-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.lw-doc-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Bài tập. */
+.lw-hw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lw-hw-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  min-width: 0;
+}
+
+.lw-hw-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.lw-hw-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #16a34a;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.lw-hw-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.lw-hw-meta {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lw-hw-loading {
+  text-align: center;
+  padding: 24px;
+  color: #64748b;
+}
+
+.lw-hw-loading .fa-circle-notch {
+  color: #0066cc;
+  margin-right: 6px;
+}
+
+/* Responsive: card gọn lại, lưới tài liệu 1 cột, nút wrap thành hàng đều. */
+@media (max-width: 768px) {
+  .lw-card { padding: 14px; }
+  .lw-title { font-size: 18px; }
+  .lw-docs-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .lw-workspace { gap: 16px; }
+  .lw-actions { width: 100%; }
+  .lw-actions .btn-primary,
+  .lw-actions .btn-secondary {
+    flex: 1 1 120px;
+  }
+  .lw-video-card { padding: 12px; }
+  .lw-hw-card { padding: 12px; }
+}

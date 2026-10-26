@@ -544,6 +544,16 @@ export const api = {
   },
   getClassCurriculumSummary: (classId, options = {}) => request(`create-lesson?action=search&classId=${encodeURIComponent(classId)}`, { method: 'GET', ...options }),
   getTrialLessons: () => request('create-lesson?isTrial=true', { method: 'GET', isPublic: true }),
+  // Quản lý học thử (ADMIN) qua Edge Function trial-management.
+  // - getTrialCatalog: GET toàn bộ catalog + KPI + metadata lớp/chương.
+  // - saveTrialVideo: PATCH save-video (lưu nháp, giữ is_trial).
+  // - publishTrialLesson: PATCH publish (URL + is_trial=true, bắt buộc video hợp lệ).
+  // - revokeTrialLesson: PATCH revoke (chỉ is_trial=false, giữ video_url, idempotent).
+  // Tất cả silent: view tự quản lý trạng thái loading/error, tránh overlay toàn cục.
+  getTrialCatalog: (options = {}) => request('trial-management', { method: 'GET', silent: true, ...options }),
+  saveTrialVideo: (lessonId, videoUrl) => request('trial-management', { method: 'PATCH', body: JSON.stringify({ lessonId, action: 'save-video', videoUrl }), silent: true }),
+  publishTrialLesson: (lessonId, videoUrl) => request('trial-management', { method: 'PATCH', body: JSON.stringify({ lessonId, action: 'publish', videoUrl }), silent: true }),
+  revokeTrialLesson: (lessonId) => request('trial-management', { method: 'PATCH', body: JSON.stringify({ lessonId, action: 'revoke' }), silent: true }),
   deleteLesson: (lessonId) => request(`create-lesson?lessonId=${lessonId}`, { method: 'DELETE' }),
   createMeetSession: (lessonId, title) => request('meet-create', { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, title }) }),
   getMeetSession: (lessonId) => request(`meet-create?lessonId=${lessonId}`, { method: 'GET', silent: true }),

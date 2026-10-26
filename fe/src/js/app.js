@@ -16,6 +16,7 @@ import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/stud
 import { renderSharedReportView, renderStudentReportView, bindSharedReportEvents, bindStudentReportEvents } from './views/student-report.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
 import { renderTrialView, bindTrialEvents } from './views/trial.js'
+import { renderTrialManagementView, bindTrialManagementEvents } from './views/trial-management.js'
 import { renderMyHomeworksView, bindMyHomeworksEvents } from './views/my-homeworks.js'
 import { renderQuestionBankView, bindQuestionBankEvents } from './views/question-bank.js'
 import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } from './views/grade-blocks.js'
@@ -28,6 +29,7 @@ import { showTrialRegistrationModal } from './components/modal.js'
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
   trial: { render: renderTrialView, bind: bindTrialEvents },
+  'trial-management': { render: renderTrialManagementView, bind: bindTrialManagementEvents },
   roadmap: { render: renderTrialView, bind: bindTrialEvents },
   'roadmap-12': { render: renderTrialView, bind: bindTrialEvents },
   'roadmap-11': { render: renderTrialView, bind: bindTrialEvents },
@@ -131,7 +133,7 @@ async function router() {
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user && !isPublicSharedReport) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring', 'tuition-ledger', 'activity-logs']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management']
     const studentOnlyRoutes = ['my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {

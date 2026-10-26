@@ -7,6 +7,7 @@ import { showToast } from '../components/toast.js'
 import { renderRoadmap, bindRoadmapEvents, ENTRANCE_TEST_HOMEWORK_ID } from '../components/roadmap.js'
 import { renderRoadmap11, bindRoadmap11Events } from '../components/roadmap-11.js'
 import { downloadHomeworkPdf, escapeHtml } from '../utils/download-helper.js'
+import { resolveTrialLessonDeepLink } from '../utils/trial-management.js'
 
 let cachedTrialLessons = []
 let isLoadingTrial = false
@@ -231,6 +232,36 @@ export function renderTrialView() {
               <div style="display: inline-block; width: 44px; height: 44px; border: 3px solid #e2e8f0; border-top-color: #16a34a; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;"></div>
               <h3 style="font-family: var(--font-heading); color: #0f172a; font-size: 18px; margin: 0 0 8px 0;">Đang tải danh sách bài học thử...</h3>
               <p style="color: #64748b; font-size: 14px; margin: 0;">Vui lòng đợi trong giây lát</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  // Deep link tới bài học thử đã thu hồi / không còn khả dụng: chỉ hiện khi
+  // đã tải xong và không tìm thấy bài (tránh flash lúc đang load). Không âm
+  // thầm rơi về danh sách chung.
+  const deepLink = resolveTrialLessonDeepLink({
+    lessonId: lessonId || null,
+    lessons: cachedTrialLessons,
+    loaded: trialLoaded && !isLoadingTrial,
+  })
+  if (deepLink.status === 'revoked' && activeTab === 'lessons') {
+    return `
+      <div class="app-layout">
+        ${renderSidebar('trial')}
+        <div class="main-content">
+          ${renderNavbar('Học thử / Bài học không khả dụng')}
+          <div class="content-body" style="padding-top:16px;">
+            ${renderTrialTabSwitcher('lessons', historyList.length)}
+            <div class="card" style="text-align:center; padding:60px 20px;">
+              <i class="fa-solid fa-circle-exclamation" style="font-size:44px; color:#f59e0b; margin-bottom:16px;"></i>
+              <h3 style="font-family:var(--font-heading); font-size:19px; color:#0f172a; margin:0 0 8px 0;">Bài học thử này đã được thu hồi hoặc không còn khả dụng</h3>
+              <p style="font-size:14px; color:#64748b; margin:0 0 20px 0; line-height:1.6;">Link bạn mở có thể đã được quản trị viên thu hồi, hoặc bài học không còn nằm trong danh sách học thử.</p>
+              <button class="btn-primary" onclick="window.location.hash='#trial?tab=lessons'" style="width:auto; padding:10px 22px; font-size:14px; font-weight:700; cursor:pointer; border-radius:8px; background:#16a34a; border-color:#16a34a;">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Xem danh sách bài học thử
+              </button>
             </div>
           </div>
         </div>

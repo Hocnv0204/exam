@@ -16,6 +16,7 @@ import {
   createSearchController,
   escapeHtml
 } from '../utils/curriculum-search.js'
+import { getSafeEmbedUrl } from '../utils/trial-management.js'
 
 function formatTheoryFileName(file) {
   if (!file) return ''
@@ -61,6 +62,44 @@ function bindCopyMeetLinkButtons(root) {
       } else {
         showToast('Không copy được tự động. Hãy bôi đen link để copy thủ công.', 'error')
       }
+    })
+  })
+}
+
+function bindCopyVideoLinkButtons(root) {
+  root.querySelectorAll('.btn-copy-video-link').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const url = btn.getAttribute('data-url') || ''
+      if (!url) return
+      const ok = await copyTextToClipboard(url)
+      if (ok) {
+        showToast('Đã copy link video!', 'success')
+        const original = btn.innerHTML
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Đã copy'
+        setTimeout(() => { btn.innerHTML = original }, 2000)
+      } else {
+        showToast('Không copy được tự động. Hãy mở video và copy link thủ công.', 'error')
+      }
+    })
+  })
+}
+
+function bindPreviewVideoButtons(root) {
+  root.querySelectorAll('.btn-preview-video').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const url = btn.getAttribute('data-url') || ''
+      const embedUrl = getSafeEmbedUrl(url)
+      if (!embedUrl) {
+        showToast('Link video không thuộc YouTube hoặc Google Drive được hỗ trợ.', 'error')
+        return
+      }
+      openModal('Xem trước video bài giảng', `
+        <div class="lw-video-preview">
+          <iframe src="${embedUrl}" title="Video bài giảng" allowfullscreen allow="autoplay; encrypted-media; fullscreen" referrerpolicy="no-referrer"></iframe>
+        </div>
+      `)
+      const content = document.querySelector('#modal-container .modal-content')
+      if (content) content.style.maxWidth = '900px'
     })
   })
 }
@@ -243,7 +282,9 @@ export function renderCurriculumTabHTML(currentClass) {
     selectedLessonId = null
     currentSearchQuery = ''
     selectedChapterFilter = 'all'
-    selectedSortOrder = 'order'
+    // Mặc định hiển thị bài học mới tạo trước; không reset về thứ tự chương/STT
+    // khi người dùng chuyển lớp, nếu không lựa chọn "Mới tạo gần nhất" sẽ mất tác dụng.
+    selectedSortOrder = 'newest'
     curriculumCurrentPage = 1
     curriculumError = null
   }
@@ -559,7 +600,7 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
 // Level 2: Chi tiết bài học đã chọn (Lesson Workspace)
 function renderLessonDetail(selectedChapter, selectedLesson) {
   return `
-    <div style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div class="lw-topbar">
       <nav class="curriculum-breadcrumb" style="margin-bottom:0;">
         <a href="javascript:void(0)" class="curriculum-bc-link btn-back-to-curriculum">
           <i class="fa-solid fa-book-open"></i> Danh sách bài học
@@ -573,7 +614,7 @@ function renderLessonDetail(selectedChapter, selectedLesson) {
           Bài ${escapeHtml(selectedLesson?.code || '')}: ${escapeHtml(selectedLesson?.title || '')}
         </span>
       </nav>
-      <button class="btn-secondary btn-back-to-curriculum" style="padding:6px 14px; font-size:12.5px; font-weight:600; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+      <button class="btn-secondary lw-btn lw-btn-sm btn-back-to-curriculum">
         <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách bài học
       </button>
     </div>
@@ -589,119 +630,125 @@ function renderLessonWorkspace(ch, l) {
   const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
 
   return `
+  <div class="lw-workspace">
     <!-- Lesson Header -->
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; padding-bottom:16px; border-bottom:1px solid #f1f5f9;">
-      <div>
-        <div style="font-size:12px; font-weight:600; color:#0066cc; margin-bottom:4px; display:inline-flex; align-items:center; gap:6px; background:#eff6ff; padding:2px 8px; border-radius:6px;">
+    <div class="lw-header">
+      <div style="min-width:0;">
+        <div class="lw-chapter-chip">
           <i class="fa-solid fa-folder-open"></i> ${escapeHtml(ch?.title || 'Chương')}
         </div>
-        <h2 style="font-size:20px; font-weight:700; color:#0f172a; margin:4px 0 8px 0; line-height:1.3;">
+        <h2 class="lw-title">
           Bài ${escapeHtml(l.code || '')}: ${escapeHtml(l.title)}
         </h2>
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="lw-meta">
           ${(l.isTrial || l.is_trial) ? `
-            <span style="font-size:11px; font-weight:700; background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+            <span class="lw-badge lw-badge--trial">
               <i class="fa-solid fa-sparkles"></i> Cho phép học thử (Công khai)
             </span>
           ` : `
-            <span style="font-size:11px; font-weight:600; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+            <span class="lw-badge lw-badge--internal">
               <i class="fa-solid fa-lock"></i> Lớp học nội bộ
             </span>
           `}
           ${createdDateStr ? `
-            <span style="font-size:12px; color:#64748b; display:inline-flex; align-items:center; gap:4px;">
-              <i class="fa-regular fa-calendar" style="color:#94a3b8;"></i> Tạo ngày: ${createdDateStr}
+            <span class="lw-date">
+              <i class="fa-regular fa-calendar"></i> Tạo ngày: ${createdDateStr}
             </span>
           ` : ''}
         </div>
       </div>
-      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-        <label style="display:inline-flex; align-items:center; gap:7px; padding:8px 14px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; background:${(l.isTrial || l.is_trial) ? '#f0fdf4' : '#f8fafc'}; border:1px solid ${(l.isTrial || l.is_trial) ? '#bbf7d0' : '#e2e8f0'}; color:${(l.isTrial || l.is_trial) ? '#15803d' : '#64748b'};" title="Cho phép khách xem bài này mà không cần đăng nhập">
-          <input type="checkbox" class="lesson-trial-toggle" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" ${(l.isTrial || l.is_trial) ? 'checked' : ''} style="width:15px; height:15px; accent-color:#16a34a; cursor:pointer;">
-          <i class="fa-solid fa-sparkles"></i> Học thử
-        </label>
-        <button class="btn-secondary btn-edit-selected-lesson" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" style="padding:8px 16px; font-size:13px; font-weight:600; border-radius:10px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+      <div class="lw-actions">
+        <a href="#trial-management?lessonId=${l.id}" class="btn-secondary lw-btn lw-btn-md lw-btn-green" title="Quản lý video và trạng thái công khai của bài này trong module Quản lý học thử">
+          <i class="fa-solid fa-sparkles"></i> Quản lý học thử
+        </a>
+        <button class="btn-secondary lw-btn lw-btn-md btn-edit-selected-lesson" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}">
           <i class="fa-solid fa-pen-to-square" style="color:#0066cc;"></i> Sửa bài học
         </button>
-        <button class="btn-secondary btn-delete-selected-lesson" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" style="padding:8px 14px; font-size:13px; font-weight:600; border-radius:10px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:#ef4444; border-color:#fecaca; background:#fff5f5;">
+        <button class="btn-secondary lw-btn lw-btn-md lw-btn-danger btn-delete-selected-lesson" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}">
           <i class="fa-solid fa-trash"></i> Xóa bài
         </button>
       </div>
     </div>
 
     <!-- Section 1: Video bài giảng -->
-    <div>
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-        <h3 style="font-size:15px; font-weight:700; color:#0f172a; margin:0; display:flex; align-items:center; gap:8px;">
-          <i class="fa-solid fa-video" style="color:#0066cc;"></i> Video bài giảng
+    <div class="lw-card">
+      <div class="lw-card-head">
+        <h3 class="lw-card-title">
+          <i class="fa-solid fa-video"></i> Video bài giảng
         </h3>
       </div>
       ${l.videoUrl ? `
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; gap:16px; flex-wrap:wrap;">
-          <div style="display:flex; align-items:center; gap:12px; min-width:240px; flex:1;">
-            <div style="width:42px; height:42px; border-radius:10px; background:#ffffff; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; font-size:20px; color:${platform.color}; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+        <div class="lw-video-card">
+          <div class="lw-video-meta">
+            <div class="lw-video-icon" style="color:${platform.color};">
               <i class="${platform.icon}"></i>
             </div>
-            <div style="overflow:hidden; flex:1;">
-              <div style="font-weight:700; font-size:14px; color:#0f172a;">${platform.name}</div>
-              <div style="font-size:12px; color:#64748b; font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:480px; margin-top:2px;" title="${escapeHtml(l.videoUrl)}">
+            <div style="overflow:hidden; flex:1; min-width:0;">
+              <div class="lw-video-name">${platform.name}</div>
+              <div class="lw-video-url" title="${escapeHtml(l.videoUrl)}">
                 ${escapeHtml(l.videoUrl)}
               </div>
             </div>
           </div>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <a href="${l.videoUrl}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="padding:8px 16px; font-size:13px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
-              <i class="fa-solid fa-play"></i> Mở xem video <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:11px;"></i>
-            </a>
-            <button class="btn-secondary btn-video-url" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" style="padding:8px 12px; font-size:13px; border-radius:8px; cursor:pointer;" title="Chỉnh sửa liên kết">
+          <div class="lw-actions">
+             <button class="btn-primary lw-btn lw-btn-md btn-preview-video" data-url="${escapeHtml(l.videoUrl)}">
+               <i class="fa-solid fa-play"></i> Xem trước
+             </button>
+             <button class="btn-secondary lw-btn lw-btn-md btn-copy-video-link" data-url="${escapeHtml(l.videoUrl)}" title="Copy link video">
+               <i class="fa-regular fa-copy"></i> Copy link
+             </button>
+             <a href="${l.videoUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary lw-btn lw-btn-md">
+               <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở tab mới
+             </a>
+            <button class="btn-secondary lw-btn lw-btn-md btn-video-url" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" title="Chỉnh sửa liên kết">
               <i class="fa-solid fa-pen"></i> Đổi link
             </button>
           </div>
         </div>
-        <div id="meet-origin" data-lesson-id="${l.id}" style="margin-top:10px;"></div>
+        <div id="meet-origin" data-lesson-id="${l.id}"></div>
       ` : `
         <div id="meet-section" data-lesson-id="${l.id}" data-lesson-title="${escapeHtml(l.title)}">
-          <div style="padding:20px; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; text-align:center; color:#64748b;">
-            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:20px; color:#0066cc; margin-bottom:8px; display:block;"></i>
-            <span style="font-size:13px;">Đang kiểm tra buổi học Google Meet...</span>
+          <div class="lw-empty">
+            <i class="fa-solid fa-circle-notch fa-spin lw-empty-icon lw-empty-icon--sm"></i>
+            <span class="lw-empty-text">Đang kiểm tra buổi học Google Meet...</span>
           </div>
         </div>
       `}
     </div>
 
     <!-- Section 2: Tài liệu lý thuyết -->
-    <div>
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-        <h3 style="font-size:15px; font-weight:700; color:#0f172a; margin:0; display:flex; align-items:center; gap:8px;">
-          <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Tài liệu lý thuyết (${theoryFiles.length})
+    <div class="lw-card">
+      <div class="lw-card-head">
+        <h3 class="lw-card-title">
+          <i class="fa-solid fa-file-pdf"></i> Tài liệu lý thuyết (${theoryFiles.length})
         </h3>
         <input type="file" id="theory-upload-input" accept=".pdf" style="display:none;" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}">
-        <button class="btn-secondary" id="btn-upload-theory-file" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" style="padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Tải file PDF lý thuyết lên">
+        <button class="btn-secondary lw-btn lw-btn-xs" id="btn-upload-theory-file" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" title="Tải file PDF lý thuyết lên">
           <i class="fa-solid fa-upload"></i> Tải file lên
         </button>
       </div>
       ${theoryFiles.length > 0 ? `
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:10px;">
+        <div class="lw-docs-grid">
           ${theoryFiles.map(file => {
             const cleanName = formatTheoryFileName(file)
             const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
             const mappedUrl = file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
             return `
-              <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; gap:10px;">
-                <div style="display:flex; align-items:center; gap:10px; overflow:hidden; flex:1; min-width:0;">
-                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:20px; flex-shrink:0;"></i>
-                  <span style="font-size:13px; font-weight:600; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(cleanName)}">
+              <div class="lw-doc-card">
+                <div class="lw-doc-main">
+                  <i class="fa-solid fa-file-pdf lw-doc-icon"></i>
+                  <span class="lw-doc-name" title="${escapeHtml(cleanName)}">
                     ${escapeHtml(cleanName)}
                   </span>
                 </div>
-                <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                  <button class="btn-secondary" style="padding:4px 8px; font-size:12px; border-radius:6px; cursor:pointer;" onclick="window.previewTheoryPdf('${escapeHtml(cleanName)}', '${mappedUrl}')" title="Xem trước tài liệu">
+                <div class="lw-doc-actions">
+                  <button class="btn-secondary lw-btn lw-btn-xs" onclick="window.previewTheoryPdf('${escapeHtml(cleanName)}', '${mappedUrl}')" title="Xem trước tài liệu">
                     <i class="fa-solid fa-eye"></i> Xem
                   </button>
-                  <a href="${mappedUrl}" target="_blank" download class="btn-secondary" style="padding:4px 8px; font-size:12px; border-radius:6px; text-decoration:none; color:#475569;" title="Tải xuống">
+                  <a href="${mappedUrl}" target="_blank" download class="btn-secondary lw-btn lw-btn-xs" title="Tải xuống">
                     <i class="fa-solid fa-download"></i>
                   </a>
-                  <button class="btn-secondary btn-delete-theory-file" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" data-file="${escapeHtml(file)}" data-name="${escapeHtml(cleanName)}" style="padding:4px 8px; font-size:12px; border-radius:6px; cursor:pointer; color:#ef4444; border-color:#fecaca; background:#fff5f5;" title="Xóa file này">
+                  <button class="btn-secondary lw-btn lw-btn-xs lw-btn-danger btn-delete-theory-file" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" data-file="${escapeHtml(file)}" data-name="${escapeHtml(cleanName)}" title="Xóa file này">
                     <i class="fa-solid fa-trash"></i>
                   </button>
                 </div>
@@ -710,52 +757,52 @@ function renderLessonWorkspace(ch, l) {
           }).join('')}
         </div>
       ` : `
-        <div style="padding:20px; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; text-align:center; color:#64748b;">
-          <i class="fa-solid fa-file-arrow-up" style="font-size:24px; color:#cbd5e1; margin-bottom:8px; display:block;"></i>
-          <span style="font-size:13px;">Chưa có tài liệu lý thuyết nào đính kèm.</span>
+        <div class="lw-empty">
+          <i class="fa-solid fa-file-arrow-up lw-empty-icon"></i>
+          <span class="lw-empty-text">Chưa có tài liệu lý thuyết nào đính kèm.</span>
         </div>
       `}
     </div>
 
     <!-- Section 3: Bài tập thực hành & BTVN -->
-    <div>
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
-        <h3 style="font-size:15px; font-weight:700; color:#0f172a; margin:0; display:flex; align-items:center; gap:8px;">
-          <i class="fa-solid fa-list-check" style="color:#10b981;"></i> Danh sách bài tập & Đề thi (${homeworks.length})
+    <div class="lw-card">
+      <div class="lw-card-head">
+        <h3 class="lw-card-title">
+          <i class="fa-solid fa-list-check"></i> Danh sách bài tập & Đề thi (${homeworks.length})
         </h3>
-        <a href="#create-homework?classId=${activeClassId}&chapterId=${ch?.id}&lessonId=${l.id}" class="btn-primary" style="padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+        <a href="#create-homework?classId=${activeClassId}&chapterId=${ch?.id}&lessonId=${l.id}" class="btn-primary lw-btn lw-btn-sm">
           <i class="fa-solid fa-plus"></i> Tạo bài tập mới
         </a>
       </div>
 
       ${isHwLoading ? `
-        <div style="text-align:center; padding:24px; color:#64748b;">
-          <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc; margin-right:6px;"></i> Đang tải danh sách bài tập...
+        <div class="lw-hw-loading">
+          <i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải danh sách bài tập...
         </div>
       ` : (homeworks.length > 0 ? `
-        <div style="display:flex; flex-direction:column; gap:10px;">
+        <div class="lw-hw-list">
           ${homeworks.map(hw => `
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; gap:12px; flex-wrap:wrap;">
-              <div style="display:flex; align-items:center; gap:12px;">
-                <div style="width:38px; height:38px; border-radius:10px; background:#f0fdf4; border:1px solid #bbf7d0; display:flex; align-items:center; justify-content:center; color:#16a34a; font-size:16px;">
+            <div class="lw-hw-card">
+              <div class="lw-hw-main">
+                <div class="lw-hw-icon">
                   <i class="fa-solid fa-file-signature"></i>
                 </div>
-                <div>
-                  <div style="font-weight:700; font-size:14px; color:#0f172a;">
+                <div style="min-width:0;">
+                  <div class="lw-hw-title">
                     ${escapeHtml(hw.title)}
                   </div>
-                  <div style="font-size:12px; color:#64748b; margin-top:2px; display:flex; align-items:center; gap:8px;">
+                  <div class="lw-hw-meta">
                     <span><i class="fa-regular fa-clock"></i> ${hw.durationMinutes || 45} phút</span>
                     <span>•</span>
                     <span><i class="fa-solid fa-bullseye"></i> Điểm đạt: ${hw.passScore || 5}/${hw.maxScore || 10}</span>
                   </div>
                 </div>
               </div>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <button class="btn-secondary btn-assign-homework" data-id="${hw.id}" data-title="${escapeHtml(hw.title)}" data-duration="${hw.durationMinutes || 45}" data-type="${hw.type || 'PRACTICE'}" data-chapter-title="${escapeHtml(ch?.title || '')}" data-lesson-title="${escapeHtml(l.title)}" style="padding:6px 12px; font-size:12px; font-weight:600; background:#f0fdf4; border-color:#bbf7d0; color:#16a34a; border-radius:8px; cursor:pointer;" title="Gán bài tập sang lớp khác">
+              <div class="lw-actions">
+                <button class="btn-secondary lw-btn lw-btn-sm lw-btn-green btn-assign-homework" data-id="${hw.id}" data-title="${escapeHtml(hw.title)}" data-duration="${hw.durationMinutes || 45}" data-type="${hw.type || 'PRACTICE'}" data-chapter-title="${escapeHtml(ch?.title || '')}" data-lesson-title="${escapeHtml(l.title)}" title="Gán bài tập sang lớp khác">
                   <i class="fa-solid fa-share-nodes"></i> Gán lớp khác
                 </button>
-                <button class="btn-secondary btn-edit-homework" data-id="${hw.id}" style="padding:6px 12px; font-size:12px; font-weight:600; border-radius:8px; cursor:pointer;" title="Chỉnh sửa nội dung đề">
+                <button class="btn-secondary lw-btn lw-btn-sm btn-edit-homework" data-id="${hw.id}" title="Chỉnh sửa nội dung đề">
                   <i class="fa-solid fa-wrench"></i> Sửa đề
                 </button>
               </div>
@@ -763,17 +810,18 @@ function renderLessonWorkspace(ch, l) {
           `).join('')}
         </div>
       ` : `
-        <div style="padding:24px; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; text-align:center; color:#64748b;">
-          <i class="fa-solid fa-clipboard-question" style="font-size:24px; color:#cbd5e1; margin-bottom:8px; display:block;"></i>
-          <span style="font-size:13px;">Chưa có bài tập nào được tạo cho bài học này.</span>
-          <div style="margin-top:10px;">
-            <a href="#create-homework?classId=${activeClassId}&chapterId=${ch?.id}&lessonId=${l.id}" class="btn-secondary" style="font-size:12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;">
+        <div class="lw-empty lw-empty--lg">
+          <i class="fa-solid fa-clipboard-question lw-empty-icon"></i>
+          <span class="lw-empty-text">Chưa có bài tập nào được tạo cho bài học này.</span>
+          <div class="lw-empty-actions">
+            <a href="#create-homework?classId=${activeClassId}&chapterId=${ch?.id}&lessonId=${l.id}" class="btn-secondary lw-btn lw-btn-sm">
               <i class="fa-solid fa-plus"></i> Tạo bài tập ngay
             </a>
           </div>
         </div>
       `)}
     </div>
+  </div>
   `
 }
 
@@ -798,6 +846,9 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
       refreshUI()
     }
   }
+
+  bindCopyVideoLinkButtons(document)
+  bindPreviewVideoButtons(document)
 
   // Nút Thử lại khi có lỗi tải dữ liệu
   document.getElementById('btn-retry-curriculum')?.addEventListener('click', () => {
@@ -1097,30 +1148,6 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
     })
   })
 
-  // Tickbox Học thử ở header chi tiết bài học
-  document.querySelectorAll('.lesson-trial-toggle').forEach(toggle => {
-    toggle.addEventListener('change', async () => {
-      const chId = toggle.getAttribute('data-chapter-id')
-      const lessonId = toggle.getAttribute('data-lesson-id')
-      const isTrial = toggle.checked
-      const currObj = state.curriculums.find(c => c.classId === activeClassId)
-      const lesson = currObj?.chapters.find(c => c.id === chId)?.lessons?.find(l => l.id === lessonId)
-      if (!lesson) return
-      toggle.disabled = true
-      try {
-        await api.updateLesson({ lessonId, isTrial })
-        lesson.isTrial = isTrial
-        lesson.is_trial = isTrial
-        showToast(isTrial ? 'Đã bật chế độ học thử cho bài này!' : 'Đã tắt chế độ học thử.', 'success')
-        refreshUI()
-      } catch (err) {
-        showToast(`Đổi chế độ học thử thất bại: ${err.message}`, 'error')
-        toggle.checked = !isTrial
-        toggle.disabled = false
-      }
-    })
-  })
-
   // Upload theory file directly (replaces "Quản lý file" modal flow)
   const uploadBtn = document.getElementById('btn-upload-theory-file')
   const uploadInput = document.getElementById('theory-upload-input')
@@ -1359,14 +1386,14 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
     const renderNoMeet = () => {
       meetBox.innerHTML = `
-        <div style="padding:20px; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; text-align:center; color:#64748b;">
-          <i class="fa-solid fa-film" style="font-size:24px; color:#cbd5e1; margin-bottom:8px; display:block;"></i>
-          <span style="font-size:13px;">Chưa gắn video bài giảng cho bài học này.</span>
-          <div style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">
-            <button class="btn-secondary btn-video-url" data-chapter-id="${chIdForMeet || ''}" data-lesson-id="${lessonId}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer;">
+        <div class="lw-empty">
+          <i class="fa-solid fa-film lw-empty-icon"></i>
+          <span class="lw-empty-text">Chưa gắn video bài giảng cho bài học này.</span>
+          <div class="lw-empty-actions">
+            <button class="btn-secondary lw-btn lw-btn-sm btn-video-url" data-chapter-id="${chIdForMeet || ''}" data-lesson-id="${lessonId}">
               <i class="fa-solid fa-plus"></i> Thêm link video
             </button>
-            <button id="btn-create-meet" style="padding:8px 18px; font-size:13px; font-weight:700; border-radius:10px; cursor:pointer; border:none; color:#ffffff; background:linear-gradient(135deg,#00832d,#0066cc); display:inline-flex; align-items:center; gap:8px; box-shadow:0 2px 8px rgba(0,102,204,0.35);">
+            <button id="btn-create-meet" class="lw-btn lw-btn-md lw-btn-meet">
               <i class="fa-solid fa-video"></i> 📹 Tạo buổi học Google Meet
             </button>
           </div>
@@ -1398,37 +1425,37 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
     const renderWaitingMeet = (session) => {
       meetBox.innerHTML = `
-        <div style="border:1px solid #bfdbfe; border-radius:14px; background:linear-gradient(180deg,#f5faff 0%,#eff6ff 100%); padding:16px 18px; box-shadow:0 1px 3px rgba(0,102,204,0.08);">
+        <div class="lw-card lw-card--meet">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
-            <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 240px;">
-              <div style="width:44px; height:44px; border-radius:12px; background:#ffffff; border:1px solid #dbeafe; display:flex; align-items:center; justify-content:center; font-size:22px; color:#0066cc; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+            <div class="lw-meet-id">
+              <div class="lw-meet-icon">
                 <i class="fa-brands fa-google"></i>
               </div>
               <div style="min-width:0;">
-                <div style="font-weight:700; font-size:15px; color:#0f172a; line-height:1.35;">Buổi học Google Meet đã sẵn sàng</div>
-                ${session.meeting_code ? `<div style="font-size:12.5px; color:#475569; margin-top:3px;">Mã phòng: <code style="font-family:monospace; font-weight:700; color:#1d4ed8; background:#dbeafe; padding:1px 7px; border-radius:6px;">${escapeHtml(session.meeting_code)}</code></div>` : ''}
+                <div class="lw-meet-title">Buổi học Google Meet đã sẵn sàng</div>
+                ${session.meeting_code ? `<div class="lw-meet-code">Mã phòng: <code>${escapeHtml(session.meeting_code)}</code></div>` : ''}
               </div>
             </div>
-            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-              <a href="${session.meeting_uri}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="height:40px; padding:0 20px; font-size:13.5px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; border-radius:10px; white-space:nowrap;">
+            <div class="lw-actions">
+              <a href="${session.meeting_uri}" target="_blank" rel="noopener noreferrer" class="btn-primary lw-btn lw-btn-lg">
                 <i class="fa-solid fa-video"></i> Tham gia Meet <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:11px; opacity:0.85;"></i>
               </a>
-              <button class="btn-secondary btn-copy-meet-link" data-uri="${escapeHtml(session.meeting_uri)}" style="height:40px; padding:0 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; background:#ffffff; white-space:nowrap;" title="Copy link Meet để gửi cho học sinh">
+              <button class="btn-secondary lw-btn lw-btn-lg btn-copy-meet-link" data-uri="${escapeHtml(session.meeting_uri)}" title="Copy link Meet để gửi cho học sinh">
                 <i class="fa-regular fa-copy"></i> Copy link
               </button>
-              <button class="btn-secondary btn-manual-video-link" style="height:40px; padding:0 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; background:#ffffff; white-space:nowrap;" title="Tự dán link video nếu bản ghi chưa về kịp">
+              <button class="btn-secondary lw-btn lw-btn-lg btn-manual-video-link" title="Tự dán link video nếu bản ghi chưa về kịp">
                 <i class="fa-solid fa-link"></i> Nhập link thủ công
               </button>
-              <button class="btn-secondary btn-sync-meet-now" style="height:40px; padding:0 16px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; background:#ffffff; white-space:nowrap;" title="Quét bản ghi ngay, không cần đợi cron đêm">
+              <button class="btn-secondary lw-btn lw-btn-lg btn-sync-meet-now" title="Quét bản ghi ngay, không cần đợi cron đêm">
                 <i class="fa-solid fa-arrows-rotate"></i> Đồng bộ ngay
               </button>
             </div>
           </div>
-          <div style="margin-top:14px; padding-top:12px; border-top:1px dashed #bfdbfe; display:flex; flex-direction:column; gap:6px;">
-            <div style="display:inline-flex; align-items:center; gap:8px; align-self:flex-start; background:#fef9c3; border:1px solid #fde047; color:#854d0e; font-size:12.5px; font-weight:600; padding:7px 13px; border-radius:9px;">
+          <div class="lw-meet-waiting">
+            <div class="lw-meet-waiting-note">
               <i class="fa-solid fa-hourglass-half"></i> Đang đợi đồng bộ bản ghi từ Google Drive...
             </div>
-            <div style="font-size:12.5px; color:#64748b; line-height:1.5;">
+            <div class="lw-meet-waiting-text">
               Sau khi kết thúc buổi học và bản ghi được xử lý xong, video sẽ tự động gắn vào bài học này (đồng bộ rạng sáng hàng ngày, tự thử lại nếu lỗi).
             </div>
           </div>
@@ -1454,12 +1481,25 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
             try {
               const meet = await api.getMeetSession(lessonId)
               const driveUrl = meet?.recordings?.find(r => r.drive_url)?.drive_url
-              if (driveUrl) {
+               if (driveUrl) {
+                 // Cập nhật cả nguồn render hiện tại và cache curriculum. Trước đây chỉ
+                 // patch state.curriculums nên selectedLesson vẫn lấy bản cũ từ
+                 // serverLessonsResult, khiến video chỉ hiện sau khi reload trang.
+                 const currentItem = serverLessonsResult.items?.find(item => item.id === lessonId)
+                 if (currentItem) {
+                   currentItem.videoUrl = driveUrl
+                   currentItem.video_url = driveUrl
+                   currentItem.hasVideo = true
+                 }
                 const currObj = state.curriculums.find(c => c.classId === activeClassId)
                 const lesson = currObj?.chapters
                   ?.find(c => c.id === chIdForMeet)?.lessons
                   ?.find(l => l.id === lessonId)
-                if (lesson) lesson.videoUrl = driveUrl
+                if (lesson) {
+                  lesson.videoUrl = driveUrl
+                  lesson.video_url = driveUrl
+                  lesson.hasVideo = true
+                }
               }
             } catch (e) {
               console.warn('Renew lesson video_url failed:', e)
@@ -1502,15 +1542,15 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         const driveUrl = rec?.drive_url
         if (res?.session && driveUrl) {
           originBox.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;">
-              <span style="font-size:12px; font-weight:700; color:#15803d; display:inline-flex; align-items:center; gap:6px;">
+            <div class="lw-origin">
+              <span class="lw-origin-label">
                 <i class="fa-solid fa-circle-check"></i> Video tự động từ Google Meet
               </span>
-              <a href="${driveUrl}" target="_blank" rel="noopener noreferrer" style="font-size:12px; font-weight:600; color:#0066cc; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+              <a href="${driveUrl}" target="_blank" rel="noopener noreferrer" class="lw-origin-link">
                 <i class="fa-solid fa-clock-rotate-left"></i> Xem bản gốc trên Google Drive
               </a>
               ${res.session.meeting_uri ? `
-              <button class="btn-secondary btn-copy-meet-link" data-uri="${escapeHtml(res.session.meeting_uri)}" style="padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Copy link Meet để gửi cho học sinh">
+              <button class="btn-secondary lw-btn lw-btn-xs btn-copy-meet-link" data-uri="${escapeHtml(res.session.meeting_uri)}" title="Copy link Meet để gửi cho học sinh">
                 <i class="fa-solid fa-copy"></i> Copy link Meet
               </button>` : ''}
             </div>`

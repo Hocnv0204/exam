@@ -51,6 +51,9 @@ verify_jwt = false
 [functions.student-report-shares]
 verify_jwt = true
 
+[functions.trial-management]
+verify_jwt = true
+
 [functions.homework-detail]
 verify_jwt = false
 

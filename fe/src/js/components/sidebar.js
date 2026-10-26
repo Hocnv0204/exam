@@ -42,6 +42,9 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'homework-mgmt' || currentRoute === 'create-homework' ? 'active' : ''}" onclick="window.location.hash='#homework-mgmt'">
           <i class="fa-solid fa-list-check"></i> Quản lý bài tập
         </div>
+        <div class="nav-item ${currentRoute === 'trial-management' ? 'active' : ''}" onclick="window.location.hash='#trial-management'">
+          <i class="fa-solid fa-wand-magic-sparkles" style="color:#16a34a;"></i> Quản lý học thử
+        </div>
         <div class="nav-item ${currentRoute === 'question-bank' ? 'active' : ''}" onclick="window.location.hash='#question-bank'">
           <i class="fa-solid fa-boxes-stacked"></i> Ngân hàng câu hỏi
         </div>
