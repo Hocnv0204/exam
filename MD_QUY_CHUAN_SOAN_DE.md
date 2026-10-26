@@ -45,6 +45,7 @@ Ví dụ có gắn phân dạng: `[Câu 1] [NHAN_BIET] [DẠNG BÀI: Xét tính 
 - Tên trong tag phải **trùng với tên Dạng bài thuộc Bài học Constant đang chọn**. Không dùng tên Bài học hoặc tên loại câu hỏi (`MC`, `TF`, `SA`).
 - Có thể viết các biến thể tương đương: `[DẠNG BÀI: ...]`, `[DANG BAI: ...]`, `[QB_TYPE: ...]`.
 - Không cần ghi UUID; hệ thống tự tìm đúng `qb_question_type_id` theo tên trong Bài học đã chọn.
+- Nếu toàn bộ tag trong file khớp duy nhất với các Dạng bài của cùng một Bài học, hệ thống tự suy ra Khối/Lớp/Chương/Bài học; không cần chọn target thủ công.
 - Nếu không có tag, câu hỏi vẫn được nhập như trước nhưng `Dạng bài` để trống.
 - Nếu tag sai tên, sai Bài học hoặc có nhiều kết quả trùng tên, hệ thống phải báo lỗi và không lưu câu đó để tránh phân loại nhầm.
 

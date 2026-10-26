@@ -1582,7 +1582,7 @@ async function openSyncDynamicToConstantModal() {
               </div>
 
               <div>
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Lớp Constant *</label>
+                  <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Lớp Constant <span style="font-weight:400; color:#94a3b8;">(tự nhận diện)</span></label>
                 <select id="sync-dest-class" style="width:100%; height:36px; border:1px solid #cbd5e1; border-radius:8px; padding:0 8px; font-size:12.5px; background:#ffffff;">
                   <option value="">-- Chọn lớp Constant --</option>
                 </select>
@@ -3224,13 +3224,13 @@ function openImportMarkdownModal() {
                 </select>
               </div>
               <div>
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Chương Constant</label>
+                  <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Chương Constant <span style="font-weight:400; color:#94a3b8;">(tự nhận diện)</span></label>
                 <select id="md-target-chapter" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#ffffff;">
                   <option value="">-- Chọn chương Constant --</option>
                 </select>
               </div>
               <div>
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Bài học Constant</label>
+                  <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Bài học Constant <span style="font-weight:400; color:#94a3b8;">(tự nhận diện)</span></label>
                 <select id="md-target-lesson" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; background:#ffffff;">
                   <option value="">-- Chọn bài học Constant --</option>
                 </select>
@@ -3482,6 +3482,7 @@ function openImportMarkdownModal() {
       if (!q.difficulty) q.difficulty = defaultDiff
     })
 
+    inferLessonFromQuestionTypeTags()
     resolveParsedQuestionTypes()
 
     renderParsedSummaryAndList()
@@ -3495,6 +3496,44 @@ function openImportMarkdownModal() {
       .replace(/[–—−]/g, '-')
       .replace(/\s+/g, ' ')
       .trim()
+  }
+
+  function setInferredLessonTarget(lessonId) {
+    const lesson = (constantTaxonomyState.lessons || []).find(l => l.id === lessonId)
+    const chapter = lesson && (constantTaxonomyState.chapters || []).find(ch => ch.id === lesson.chapter_id)
+    const targetClass = chapter && (constantTaxonomyState.classes || []).find(cl => cl.id === chapter.class_id)
+    if (!lesson || !chapter || !targetClass || !classSel || !chapterSel || !lessonSel) return false
+
+    classSel.value = targetClass.id
+    const chapters = (constantTaxonomyState.chapters || [])
+      .filter(ch => ch.class_id === targetClass.id)
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+    chapterSel.innerHTML = '<option value="">-- Chọn chương Constant --</option>' + chapters
+      .map(ch => `<option value="${ch.id}">${escapeHtml(ch.title)}</option>`).join('')
+    chapterSel.value = chapter.id
+
+    const lessons = (constantTaxonomyState.lessons || [])
+      .filter(l => l.chapter_id === chapter.id)
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+    lessonSel.innerHTML = '<option value="">-- Chọn bài học Constant --</option>' + lessons
+      .map(l => `<option value="${l.id}">${escapeHtml(l.title)}</option>`).join('')
+    lessonSel.value = lesson.id
+    return true
+  }
+
+  function inferLessonFromQuestionTypeTags() {
+    const taggedQuestions = parsedQuestions.filter(q => String(q.questionTypeTag || '').trim())
+    if (taggedQuestions.length === 0) return false
+
+    const allTypes = constantTaxonomyState.questionTypes || []
+    const resolved = taggedQuestions.map(q => {
+      const matches = allTypes.filter(t => normalizeQuestionTypeName(t.name) === normalizeQuestionTypeName(q.questionTypeTag))
+      return { q, matches }
+    })
+    if (resolved.some(item => item.matches.length !== 1)) return false
+    const lessonIds = new Set(resolved.map(item => item.matches[0].lesson_id))
+    if (lessonIds.size !== 1) return false
+    return setInferredLessonTarget([...lessonIds][0])
   }
 
   function resolveParsedQuestionTypes() {
@@ -3673,6 +3712,7 @@ function openImportMarkdownModal() {
       return showToast('Không tìm thấy câu hỏi hợp lệ nào trong văn bản Markdown!', 'error')
     }
 
+    inferLessonFromQuestionTypeTags()
     resolveParsedQuestionTypes()
     const taxonomyErrors = parsedQuestions.filter(q => q.questionTypeError)
     if (taxonomyErrors.length > 0) {
