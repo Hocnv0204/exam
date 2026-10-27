@@ -25,6 +25,7 @@ import { renderExamProctoringView, bindExamProctoringEvents } from './views/exam
 import { renderTuitionLedgerView, bindTuitionLedgerEvents } from './views/tuition-ledger.js'
 import { renderActivityLogsView, bindActivityLogsEvents } from './views/activity-logs.js'
 import { showTrialRegistrationModal } from './components/modal.js'
+import { sortClassChaptersLessons } from './utils/student-lesson-sort.js'
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
@@ -248,7 +249,7 @@ async function router() {
               }))
             } else if (type === 'chapters') {
               const chaptersList = Array.isArray(res) ? res : (res?.items || [])
-              state.classChapters = chaptersList.map(ch => ({
+              const mappedChapters = chaptersList.map(ch => ({
                 id: ch.id,
                 code: '',
                 title: ch.title,
@@ -260,6 +261,8 @@ async function router() {
                   videoUrl: l.video_url || '',
                   theoryFiles: l.theory_files || [],
                   createdAt: l.created_at || l.createdAt || null,
+                  orderIndex: l.order_index,
+                  order_index: l.order_index,
                   content: l.content,
                   homeworks: (l.homeworks || []).map(h => ({
                     id: h.id,
@@ -275,6 +278,7 @@ async function router() {
                   }))
                 }))
               }))
+              state.classChapters = sortClassChaptersLessons(mappedChapters)
             } else if (type === 'students') {
               state.students = res || []
             }

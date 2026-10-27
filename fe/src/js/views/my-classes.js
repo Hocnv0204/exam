@@ -14,6 +14,7 @@ import {
   groupLessonsByChapter,
   createSearchController
 } from '../utils/curriculum-search.js'
+import { getClassLessonsNewestFirst } from '../utils/student-lesson-sort.js'
 
 window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
   if (type === 'EXAM') {
@@ -37,6 +38,8 @@ window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
 
 let collapsedChapterIds = new Set()
 let studentSelectedChapterId = 'all'
+// Tab đang xem ở section Chương & Bài học: 'chapters' (mặc định) | 'newest'
+let studentLessonViewTab = 'chapters'
 let lastStudentClassId = null
 
 // Đo thời gian xem bài học/video: log LESSON_VIEW khi mở, VIDEO_WATCH kèm
@@ -101,6 +104,14 @@ export function renderMyClassesView() {
     const displayedChapters = studentSelectedChapterId === 'all'
       ? classChapters
       : classChapters.filter(c => c.id === studentSelectedChapterId)
+
+    // Tab "Bài mới cập nhật": danh sách phẳng toàn lớp, mới nhất trước, theo đúng
+    // contract helper (sort theo createdAt/created_at, không mutate input; mỗi bài
+    // kèm chapterId/chapterTitle/chapterOrderIndex). Lọc chương áp dụng như tab chương.
+    const newestLessonsAll = getClassLessonsNewestFirst(classChapters)
+    const newestLessons = studentSelectedChapterId === 'all'
+      ? newestLessonsAll
+      : newestLessonsAll.filter(l => l.chapterId === studentSelectedChapterId)
 
     return `
       <div class="app-layout">
@@ -279,11 +290,33 @@ export function renderMyClassesView() {
                   <h2 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a;">
                     <i class="fa-solid fa-book-open" style="color:#0066cc;"></i> Chương & Bài học
                   </h2>
+                  <p style="margin:6px 0 0 0; font-size:13px; color:#64748b;">Đang hiển thị ${displayedChapters.length} chương • ${displayedChapters.reduce((acc, c) => acc + ((c.lessons || []).length), 0)} bài học</p>
                 </div>
 
+                <style>
+                  .mc-lesson-card { background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+                  .mc-lesson-card:hover { border-color:#93c5fd; box-shadow:0 4px 12px rgba(0,102,204,0.10); transform:translateY(-1px); }
+                  .mc-lesson-card:focus-visible { outline:2px solid #0066cc; outline-offset:2px; }
+                  .mc-lesson-selected { background:#e0f2fe; border-color:#0066cc; }
+                  .mc-lesson-selected:hover { border-color:#0066cc; box-shadow:0 4px 12px rgba(0,102,204,0.15); }
+                  .mc-toggle-btn { background:#f8fafc; border:1px solid #e2e8f0; }
+                  .mc-toggle-btn:hover { background:#eff6ff; border-color:#93c5fd; }
+                  .mc-toggle-btn:focus-visible { outline:2px solid #0066cc; outline-offset:2px; }
+                  @media (max-width: 640px) {
+                    .mc-filter-row { flex-direction:column !important; align-items:stretch !important; }
+                    .mc-filter-row > div { flex:1 1 100% !important; min-width:0 !important; }
+                  }
+                  @media (prefers-reduced-motion: reduce) {
+                    .mc-lesson-card, .mc-toggle-btn, .mc-tab-btn { transition:none !important; }
+                  }
+                  .mc-tab-btn { background:transparent; border:none; border-radius:8px; padding:8px 16px; font-family:inherit; font-size:13px; font-weight:700; color:#475569; cursor:pointer; transition:all 0.15s ease; }
+                  .mc-tab-btn:hover { color:#0f172a; }
+                  .mc-tab-btn:focus-visible { outline:2px solid #0066cc; outline-offset:2px; }
+                  .mc-tab-active { background:#ffffff; color:#0f172a; box-shadow:0 1px 3px rgba(15,23,42,0.10); }
+                </style>
                 <!-- Student Chapter Filter & Search Bar -->
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:20px;">
-                  <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:20px; box-shadow:0 1px 3px rgba(15,23,42,0.06);">
+                  <div class="mc-filter-row" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
                     <!-- Chapter Filter -->
                     <div style="flex:1 1 240px; min-width:200px;">
                       <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">
@@ -295,7 +328,7 @@ export function renderMyClassesView() {
                         </option>
                         ${classChapters.map((ch, idx) => `
                           <option value="${ch.id}" ${studentSelectedChapterId === ch.id ? 'selected' : ''}>
-                            Chương ${idx + 1}: ${escapeHtml(ch.title)} (${(ch.lessons || []).length} bài)
+                            Chương ${ch.orderIndex || ch.order_index || idx + 1}: ${escapeHtml(ch.title)} (${(ch.lessons || []).length} bài)
                           </option>
                         `).join('')}
                       </select>
@@ -328,6 +361,95 @@ export function renderMyClassesView() {
                   </div>
                 </div>
 
+                <div role="tablist" aria-label="Chế độ xem bài học" style="display:flex; gap:6px; flex-wrap:wrap; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:12px; padding:4px; margin-bottom:20px; width:fit-content; max-width:100%;">
+                  <button type="button" role="tab" id="student-lesson-tab-chapters" aria-controls="student-lesson-panel-chapters" aria-selected="${studentLessonViewTab === 'chapters' ? 'true' : 'false'}" tabindex="${studentLessonViewTab === 'chapters' ? '0' : '-1'}" data-lesson-tab="chapters" class="mc-tab-btn${studentLessonViewTab === 'chapters' ? ' mc-tab-active' : ''}">Theo chương</button>
+                  <button type="button" role="tab" id="student-lesson-tab-newest" aria-controls="student-lesson-panel-newest" aria-selected="${studentLessonViewTab === 'newest' ? 'true' : 'false'}" tabindex="${studentLessonViewTab === 'newest' ? '0' : '-1'}" data-lesson-tab="newest" class="mc-tab-btn${studentLessonViewTab === 'newest' ? ' mc-tab-active' : ''}">Bài mới cập nhật</button>
+                </div>
+
+                ${studentLessonViewTab === 'newest' ? `
+                  <div id="student-lesson-panel-newest" role="tabpanel" aria-labelledby="student-lesson-tab-newest" tabindex="0">
+                    ${(newestLessonsAll.length === 0) ? `
+                      <div class="card" style="text-align:center; padding:32px; color:#64748b;">
+                        <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
+                        <p style="font-weight:600;">Lớp học này chưa cập nhật danh sách bài học.</p>
+                      </div>
+                    ` : (newestLessons.length === 0 ? `
+                      <div class="card" style="text-align:center; padding:32px; color:#64748b;">
+                        <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
+                        <p style="font-weight:600;">Không có bài mới cập nhật trong chương đã chọn.</p>
+                        <button type="button" class="btn-clear-chapter-filter btn-secondary" style="margin-top:12px; width:auto; cursor:pointer;">Xóa bộ lọc</button>
+                      </div>
+                    ` : `
+                      <p style="font-size:13px; color:#64748b; margin:0 0 12px 0;">${newestLessons.length} bài học${studentSelectedChapterId !== 'all' ? ' trong chương đã chọn' : ''} • sắp xếp mới nhất trước</p>
+                      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:12px;">
+                        ${newestLessons.map((l, nIdx) => {
+                          const isSelected = lessonId === l.id
+                          const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
+                          const createdTime = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).getTime() : NaN
+                          const isNew = Number.isFinite(createdTime) && (Date.now() - createdTime) <= 7 * 24 * 3600 * 1000
+                          const hwCount = (l.homeworks || []).length
+                          const hasVideo = !!(l.videoUrl)
+                          const fileCount = (l.theoryFiles || []).length
+                          const upcoming = (l.homeworks || [])
+                            .filter(h => h.deadline && !isNaN(new Date(h.deadline).getTime()))
+                            .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))[0]
+                          const upcomingOverdue = upcoming ? (new Date() > new Date(upcoming.deadline)) : false
+                          return `
+                          <div class="lesson-item-btn mc-lesson-card${isSelected ? ' mc-lesson-selected' : ''}" data-id="${l.id}" role="button" tabindex="0" aria-label="Mở bài học: ${escapeHtml(l.title)}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-radius:12px; cursor:pointer; transition:all 0.15s ease;">
+                            <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:0;">
+                              <span style="width:36px; height:36px; background:#0066cc; color:#ffffff; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0;">${nIdx + 1}</span>
+                              <div style="min-width:0; flex:1;">
+                                <div style="font-weight:700; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="${escapeHtml(l.title)}">
+                                  ${escapeHtml(l.title)}
+                                </div>
+                                ${l.chapterTitle ? `
+                                <div style="font-size:12px; color:#64748b; font-weight:500; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(l.chapterTitle)}">
+                                  <i class="fa-solid fa-folder-open" style="color:#0066cc; font-size:11px;"></i> ${escapeHtml(l.chapterTitle)}
+                                </div>
+                                ` : ''}
+                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:5px;">
+                                  ${isNew ? `
+                                    <span style="font-size:11px; font-weight:700; color:#15803d; background:#f0fdf4; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #bbf7d0;">
+                                      Mới
+                                    </span>
+                                  ` : ''}
+                                  ${createdDateStr ? `
+                                    <span style="font-size:11px; color:#64748b; background:#ffffff; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0;">
+                                      <i class="fa-regular fa-calendar" style="color:#94a3b8; font-size:11px;"></i> Ngày tạo: ${createdDateStr}
+                                    </span>
+                                  ` : ''}
+                                  <span style="font-size:11px; font-weight:700; color:#475569; background:#f1f5f9; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid fa-list-check" style="color:#0066cc; font-size:10px;"></i> ${hwCount} bài tập
+                                  </span>
+                                  ${hasVideo ? `
+                                    <span style="font-size:11px; font-weight:700; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                      <i class="fa-solid fa-circle-play" style="font-size:10px;"></i> Video
+                                    </span>
+                                  ` : ''}
+                                  ${fileCount > 0 ? `
+                                    <span style="font-size:11px; font-weight:700; color:#475569; background:#f1f5f9; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                      <i class="fa-solid fa-paperclip" style="font-size:10px;"></i> ${fileCount} tài liệu
+                                    </span>
+                                  ` : ''}
+                                  ${upcoming ? `
+                                    <span style="font-size:11px; font-weight:700; color:${upcomingOverdue ? '#b91c1c' : '#b45309'}; background:${upcomingOverdue ? '#fef2f2' : '#fffbeb'}; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid ${upcomingOverdue ? '#fecaca' : '#fde68a'};" title="Hạn gần nhất: ${escapeHtml(upcoming.title)}">
+                                      <i class="fa-regular fa-clock" style="font-size:10px;"></i> ${upcomingOverdue ? 'Quá hạn' : 'Hạn'}: ${new Date(upcoming.deadline).toLocaleDateString('vi-VN')}
+                                    </span>
+                                  ` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div style="color:${isSelected ? '#0066cc' : '#94a3b8'}; flex-shrink:0;">
+                              <i class="fa-solid fa-chevron-right"></i>
+                            </div>
+                          </div>
+                        `
+                        }).join('')}
+                      </div>
+                    `)}
+                  </div>
+                ` : `
+                  <div id="student-lesson-panel-chapters" role="tabpanel" aria-labelledby="student-lesson-tab-chapters" tabindex="0">
                 ${(classChapters.length === 0) ? `
                   <div class="card" style="text-align:center; padding:32px; color:#64748b;">
                     <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
@@ -337,26 +459,31 @@ export function renderMyClassesView() {
                   <div class="card" style="text-align:center; padding:32px; color:#64748b;">
                     <i class="fa-solid fa-folder-open" style="font-size:36px; color:#94a3b8; margin-bottom:12px;"></i>
                     <p style="font-weight:600;">Không có bài học nào trong chương đã chọn.</p>
+                    <button type="button" class="btn-clear-chapter-filter btn-secondary" style="margin-top:12px; width:auto; cursor:pointer;">Xóa bộ lọc</button>
                   </div>
                 ` : displayedChapters.map(ch => {
                   const isCollapsed = collapsedChapterIds.has(ch.id)
                   return `
-                  <div class="card chapter-card-item" data-ch-id="${ch.id}" style="padding:18px; margin-bottom:16px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" class="chapter-card-header" data-ch-id="${ch.id}">
-                      <div style="display:flex; align-items:center; gap:10px;">
-                        <i class="fa-solid ${isCollapsed ? 'fa-folder' : 'fa-folder-open'}" style="color:#0066cc; font-size:16px;"></i>
-                        <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">${escapeHtml(ch.title)}</h3>
+                  <div class="card chapter-card-item mc-chapter-card" data-ch-id="${ch.id}" style="padding:0; margin-bottom:16px; overflow:hidden;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; cursor:pointer; user-select:none; padding:16px 18px;" class="chapter-card-header mc-chapter-header" data-ch-id="${ch.id}">
+                      <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:0;">
+                        <span style="width:40px; height:40px; background:#eff6ff; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                          <i class="fa-solid ${isCollapsed ? 'fa-folder' : 'fa-folder-open'}" style="color:#0066cc; font-size:17px;"></i>
+                        </span>
+                        <div style="min-width:0;">
+                          <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0; overflow-wrap:break-word;">${escapeHtml(ch.title)}</h3>
+                          <div style="font-size:12px; color:#64748b; font-weight:500; margin-top:2px;">Chương ${ch.orderIndex || classChapters.findIndex(c => c.id === ch.id) + 1} • ${ch.lessons?.length || 0} bài học</div>
+                        </div>
                       </div>
-                      <div style="display:flex; align-items:center; gap:12px;">
-                        <span style="font-size:12px; color:#64748b; font-weight:500;">${ch.lessons?.length || 0} bài học</span>
-                        <button type="button" class="btn-toggle-chapter" data-ch-id="${ch.id}" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:4px 10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#475569; font-weight:600; transition:all 0.15s ease;">
+                      <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+                        <button type="button" class="btn-toggle-chapter mc-toggle-btn" data-ch-id="${ch.id}" aria-expanded="${isCollapsed ? 'false' : 'true'}" aria-controls="chapter-lessons-${ch.id}" aria-label="${isCollapsed ? 'Mở rộng' : 'Thu gọn'} chương ${escapeHtml(ch.title)}" style="border-radius:8px; padding:6px 12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#475569; font-weight:600; transition:all 0.15s ease;">
                           <span class="btn-toggle-label">${isCollapsed ? 'Mở rộng' : 'Thu gọn'}</span>
                           <i class="fa-solid ${isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'} btn-toggle-icon" style="font-size:11px; color:#64748b;"></i>
                         </button>
                       </div>
                     </div>
 
-                    <div class="chapter-lessons-body" id="chapter-lessons-${ch.id}" style="margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; display:${isCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:10px;">
+                    <div class="chapter-lessons-body" id="chapter-lessons-${ch.id}" style="padding:16px 18px 18px; border-top:1px solid #f1f5f9; background:#fbfcfe; display:${isCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:12px;">
                       ${(ch.lessons || []).map((l, lIdx) => {
                         const isSelected = lessonId === l.id
                         const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
@@ -368,11 +495,11 @@ export function renderMyClassesView() {
                           .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))[0]
                         const upcomingOverdue = upcoming ? (new Date() > new Date(upcoming.deadline)) : false
                         return `
-                          <div class="lesson-item-btn" data-id="${l.id}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:${isSelected ? '#e0f2fe' : '#ffffff'}; border:1px solid ${isSelected ? '#0066cc' : '#e2e8f0'}; border-radius:12px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                          <div class="lesson-item-btn mc-lesson-card${isSelected ? ' mc-lesson-selected' : ''}" data-id="${l.id}" role="button" tabindex="0" aria-label="Mở bài học: ${escapeHtml(l.title)}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-radius:12px; cursor:pointer; transition:all 0.15s ease;">
                             <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:0;">
-                              <span style="width:32px; height:32px; background:${isSelected ? '#0066cc' : '#eff6ff'}; color:${isSelected ? '#ffffff' : '#0066cc'}; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0;">${l.order_index || l.code || (lIdx + 1)}</span>
+                              <span style="width:36px; height:36px; background:${isSelected ? '#0066cc' : '#eff6ff'}; color:${isSelected ? '#ffffff' : '#0066cc'}; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0;">${l.order_index || l.code || (lIdx + 1)}</span>
                               <div style="min-width:0; flex:1;">
-                                <div style="font-weight:700; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(l.title)}">
+                                <div style="font-weight:700; font-size:14px; color:${isSelected ? '#0369a1' : '#0f172a'}; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="${escapeHtml(l.title)}">
                                   ${escapeHtml(l.title)}
                                 </div>
                                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:5px;">
@@ -411,6 +538,8 @@ export function renderMyClassesView() {
                     </div>
                   </div>
                 `}).join(''))}
+                  </div>
+                `}
               </div>
             `}
           </div>
@@ -555,6 +684,7 @@ export function bindMyClassesEvents() {
       const label = header.querySelector('.btn-toggle-label')
       const icon = header.querySelector('.btn-toggle-icon')
       const folderIcon = header.querySelector('.fa-folder, .fa-folder-open')
+      const toggleBtn = header.querySelector('.btn-toggle-chapter')
       if (!body) return
 
       const isHidden = body.style.display === 'none'
@@ -562,6 +692,7 @@ export function bindMyClassesEvents() {
         body.style.display = 'grid'
         collapsedChapterIds.delete(chId)
         if (label) label.textContent = 'Thu gọn'
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true')
         if (icon) {
           icon.classList.remove('fa-chevron-down')
           icon.classList.add('fa-chevron-up')
@@ -574,6 +705,7 @@ export function bindMyClassesEvents() {
         body.style.display = 'none'
         collapsedChapterIds.add(chId)
         if (label) label.textContent = 'Mở rộng'
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false')
         if (icon) {
           icon.classList.remove('fa-chevron-up')
           icon.classList.add('fa-chevron-down')
@@ -600,6 +732,13 @@ export function bindMyClassesEvents() {
       const lessonId = btn.getAttribute('data-id')
       window.location.hash = `#my-classes?classId=${classId}&lessonId=${lessonId}`
     })
+    // Keyboard: Enter/Space on a lesson card navigates exactly like a click
+    btn.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      e.preventDefault()
+      const lessonId = btn.getAttribute('data-id')
+      window.location.hash = `#my-classes?classId=${classId}&lessonId=${lessonId}`
+    })
   })
 
   // Back button: Class Details -> Class List
@@ -621,6 +760,33 @@ export function bindMyClassesEvents() {
       app.innerHTML = renderMyClassesView()
       bindMyClassesEvents()
     }
+  })
+
+  // Segmented tabs: Theo chương / Bài mới cập nhật (giữ nguyên bộ lọc chương khi đổi tab)
+  document.querySelectorAll('[data-lesson-tab]').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      const nextTab = tabBtn.getAttribute('data-lesson-tab')
+      if (!nextTab || nextTab === studentLessonViewTab) return
+      studentLessonViewTab = nextTab
+      const app = document.getElementById('app')
+      if (app) {
+        app.innerHTML = renderMyClassesView()
+        bindMyClassesEvents()
+        document.getElementById(nextTab === 'newest' ? 'student-lesson-tab-newest' : 'student-lesson-tab-chapters')?.focus()
+      }
+    })
+  })
+
+  // Empty-state: xóa bộ lọc chương (cả hai tab)
+  document.querySelectorAll('.btn-clear-chapter-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      studentSelectedChapterId = 'all'
+      const app = document.getElementById('app')
+      if (app) {
+        app.innerHTML = renderMyClassesView()
+        bindMyClassesEvents()
+      }
+    })
   })
 
   // Search Input for Student in Class Curriculum
