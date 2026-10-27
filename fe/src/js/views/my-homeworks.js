@@ -5,6 +5,7 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { escapeHtml, downloadHomeworkPdf } from '../utils/download-helper.js'
+import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 
 // Đảm bảo nút làm/làm lại bài luôn hoạt động kể cả khi vào thẳng trang này
 if (!window.confirmStartHomework) {
@@ -113,6 +114,8 @@ function renderStats(stats) {
 
 function hwCard(hw) {
   const isExam = (hw.type || 'PRACTICE') === 'EXAM'
+  // Học sinh tuyệt đối không thấy nút tải PDF của BÀI THI (kể cả bài đã gắn PDF).
+  const canShowPdf = canViewHomeworkPdf(state.user?.role, hw)
   const deadlineDate = hw.deadline && !isNaN(new Date(hw.deadline).getTime()) ? new Date(hw.deadline) : null
   const overdue = deadlineDate ? (new Date() > deadlineDate) : false
   const typeBadge = isExam
@@ -138,9 +141,9 @@ function hwCard(hw) {
       <div style="font-size:12px; color:#64748b; margin-top:4px;">Nộp lúc: ${hw.submittedAt ? new Date(hw.submittedAt).toLocaleString('vi-VN') : '—'}</div>
     `
     actions = `
-      <button type="button" class="btn-secondary btn-myhw-pdf" data-hwid="${hw.id}" style="padding:8px 12px; font-size:12px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;" title="Tải file PDF đề bài">
+      ${canShowPdf ? `<button type="button" class="btn-secondary btn-myhw-pdf" data-hwid="${hw.id}" style="padding:8px 12px; font-size:12px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;" title="Tải file PDF đề bài">
         <i class="fa-solid fa-file-arrow-down"></i> Tải PDF
-      </button>
+      </button>` : ''}
       <a href="#assignment-review?submissionId=${hw.submissionId}" class="btn-secondary" style="padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
         <i class="fa-solid fa-eye"></i> Xem kết quả
       </a>
@@ -156,9 +159,9 @@ function hwCard(hw) {
       </div>
     ` : `<div style="font-size:12px; color:#94a3b8;">Không giới hạn thời gian nộp</div>`
     actions = `
-      <button type="button" class="btn-secondary btn-myhw-pdf" data-hwid="${hw.id}" style="padding:8px 12px; font-size:12px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;" title="Tải file PDF đề bài">
+      ${canShowPdf ? `<button type="button" class="btn-secondary btn-myhw-pdf" data-hwid="${hw.id}" style="padding:8px 12px; font-size:12px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;" title="Tải file PDF đề bài">
         <i class="fa-solid fa-file-arrow-down"></i> Tải PDF
-      </button>
+      </button>` : ''}
       <button type="button" class="btn-primary" onclick="window.confirmStartHomework('${hw.id}','${hw.type || 'PRACTICE'}')" style="padding:8px 18px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto; background:${overdue ? '#d97706' : ''}; border-color:${overdue ? '#d97706' : ''};">
         <i class="fa-solid fa-pen-to-square"></i> ${isExam ? 'Vào phòng thi' : 'Làm bài'}
       </button>

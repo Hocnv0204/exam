@@ -135,7 +135,12 @@ serve(async (req: Request) => {
           )
       : Promise.resolve({ attemptNo: 0 })
 
-    const pdfPromise = (homework.pdf_path && !homework.pdf_path.startsWith('http'))
+    // Học sinh tuyệt đối không thấy PDF của BÀI THI (EXAM): không cấp signed URL,
+    // không trả pdfPath — chặn cả nút tải lẫn nút xem PDF trong phòng thi.
+    // Đề thi vẫn hiển thị qua câu hỏi trắc nghiệm; giáo viên/admin không ảnh hưởng.
+    const hidePdfForStudentExam = user?.role === 'STUDENT' && (homework.type || 'PRACTICE') === 'EXAM'
+
+    const pdfPromise = (!hidePdfForStudentExam && homework.pdf_path && !homework.pdf_path.startsWith('http'))
       ? serviceRoleClient.storage
           .from('pdf-files')
           .createSignedUrl(homework.pdf_path, 3600)
@@ -166,6 +171,7 @@ serve(async (req: Request) => {
     if (pdfRes.data?.signedUrl) {
       pdfUrl = pdfRes.data.signedUrl
     }
+    if (hidePdfForStudentExam) pdfUrl = ''
 
     if (questionsRes.error) {
       return errorResponse(questionsRes.error.message, 500)
@@ -187,7 +193,7 @@ serve(async (req: Request) => {
       homework: {
         id: homework.id,
         title: homework.title,
-        pdfPath: homework.pdf_path,
+        pdfPath: hidePdfForStudentExam ? '' : homework.pdf_path,
         pdfUrl,
         durationMinutes: homework.duration_minutes,
         passScore: homework.pass_score,

@@ -16,7 +16,8 @@
     "test:admin-history": "node scripts/test-admin-history-filter.mjs",
     "test:student-report-share": "node scripts/test-student-report-share.mjs",
     "test:trial-management": "node scripts/test-trial-management.mjs",
-    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && npm run test:constant-sync && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs && node scripts/test-student-report-share.mjs && node scripts/test-trial-management.mjs && npm run test:qb-scope",
+    "test:homework-pdf-policy": "node scripts/test-homework-pdf-policy.mjs",
+    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && npm run test:constant-sync && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs && node scripts/test-student-report-share.mjs && node scripts/test-trial-management.mjs && npm run test:qb-scope && npm run test:homework-pdf-policy",
     "test:qb-scope": "node scripts/test-qb-constant-scope.mjs"
   },
   "devDependencies": {

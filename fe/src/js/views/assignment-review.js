@@ -3,6 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
+import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 
 export function renderAssignmentReviewView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
@@ -61,6 +62,10 @@ export function renderAssignmentReviewView() {
   const studentClass = sub.className || result.className || sub.homeworks?.lessons?.chapters?.classes?.name || ''
 
   const pdfUrl = sub.pdfUrl || result.pdfUrl || ''
+  // Học sinh tuyệt đối không thấy nút tải PDF của BÀI THI khi xem kết quả;
+  // nút xem đề (toggle) vẫn giữ để đối chiếu bài làm.
+  const homeworkType = sub.type || result.type || result.submission?.type || 'PRACTICE'
+  const canShowPdfDownload = canViewHomeworkPdf(state.user?.role, { type: homeworkType })
   const showSolutions = state.user?.role === 'ADMIN' || (result.showSolutions !== false && result.show_solutions !== false && sub.showSolutions !== false && sub.show_solutions !== false)
   
   const rawAnswers = result.questionReview ? result.questionReview.map(q => ({
@@ -271,9 +276,11 @@ export function renderAssignmentReviewView() {
                 <button id="toggle-pdf-btn" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; background:#0066cc; color:#ffffff; font-weight:600; cursor:pointer; border:none; white-space:nowrap;">
                   <i class="fa-solid fa-file-pdf"></i> Xem đề bài (PDF)
                 </button>
+                ${canShowPdfDownload ? `
                 <a id="download-pdf-btn" href="${pdfUrl}" download target="_blank" class="btn-secondary" style="display:none; align-items:center; gap:8px; font-size:14px; padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#334155; font-weight:600; cursor:pointer; text-decoration:none; white-space:nowrap;">
                   <i class="fa-solid fa-download"></i> Tải file PDF
                 </a>
+                ` : ''}
               ` : ''}
               <button class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : (state.user?.role === 'ADMIN' ? '#admin-history' : '#history')}'" style="cursor:pointer; white-space:nowrap;">
                 <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại bài học thử' : (state.user?.role === 'ADMIN' ? 'Quay lại danh sách nộp bài' : 'Quay lại lịch sử')}

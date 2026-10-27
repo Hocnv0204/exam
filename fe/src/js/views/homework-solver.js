@@ -6,6 +6,7 @@ import { api } from '../api.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
+import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 
 // Student's current answers state
 let studentAnswers = {
@@ -269,7 +270,7 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
 
             <!-- Timer & Actions -->
             <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
-              ${hasAttachedPdf && pdfDownloadUrl ? `
+              ${hasAttachedPdf && pdfDownloadUrl && canViewHomeworkPdf(state.user?.role, hw) ? `
                 <button type="button" id="btn-download-solver-pdf" class="btn-secondary" style="padding:7px 14px; font-size:13px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; transition:all 0.15s ease;" title="Tải file PDF đề bài (${escapeHtml(pdfDownloadName)}) về máy">
                   <i class="fa-solid fa-file-arrow-down" style="font-size:14px; color:#0066cc;"></i> Tải file PDF
                 </button>
@@ -691,7 +692,7 @@ export function renderHomeworkSolverView() {
                   <button type="button" class="btn-secondary btn-manual-save-draft" style="padding:6px 14px; font-size:13px; font-weight:600; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; flex-shrink:0;" title="Lưu nháp bài làm ngay">
                     <i class="fa-solid fa-floppy-disk"></i> Lưu nháp
                   </button>
-                  ${hw.pdfUrl ? `
+                  ${hw.pdfUrl && canViewHomeworkPdf(state.user?.role, hw) ? `
                     <a id="btn-download-pdf-mode" href="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" download="${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="padding:6px 14px; font-size:13px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; flex-shrink:0; cursor:pointer;" title="Tải file PDF bài tập về máy">
                       <i class="fa-solid fa-download"></i> Tải PDF
                     </a>

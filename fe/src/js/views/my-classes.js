@@ -6,6 +6,7 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { api, SUPABASE_URL } from '../api.js'
 import { downloadHomeworkPdf, escapeHtml } from '../utils/download-helper.js'
+import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 import {
   normalizeSearchText,
   highlightMatch,
@@ -233,6 +234,8 @@ export function renderMyClassesView() {
                           <div style="display:flex; flex-direction:column; gap:12px;">
                             ${activeLessonHomeworks.map(hw => {
                               const isExpired = hw.deadline ? new Date() > new Date(hw.deadline) : false
+                              // Học sinh tuyệt đối không thấy nút tải PDF của BÀI THI.
+                              const canShowPdf = canViewHomeworkPdf(state.user?.role, hw)
                               const deadlineHtml = hw.deadline
                                 ? `<div style="margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
                                     <span style="color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; width: fit-content; font-size: 11px;">
@@ -253,9 +256,9 @@ export function renderMyClassesView() {
                                     ${deadlineHtml}
                                   </div>
                                   <div style="display:flex; gap:6px; margin-top:8px;">
-                                    <button type="button" class="btn-secondary btn-download-pdf-card" onclick="window.downloadHomeworkPdf('${hw.id}')" style="padding:6px 10px; font-size:11.5px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; gap:5px; cursor:pointer; transition:all 0.15s ease; white-space:nowrap; flex-shrink:0;" title="Tải file PDF đề bài (${escapeHtml(hw.title)})">
+                                    ${canShowPdf ? `<button type="button" class="btn-secondary btn-download-pdf-card" onclick="window.downloadHomeworkPdf('${hw.id}')" style="padding:6px 10px; font-size:11.5px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; gap:5px; cursor:pointer; transition:all 0.15s ease; white-space:nowrap; flex-shrink:0;" title="Tải file PDF đề bài (${escapeHtml(hw.title)})">
                                       <i class="fa-solid fa-file-arrow-down" style="font-size:12px; color:#0066cc;"></i> Tải PDF
-                                    </button>
+                                    </button>` : ''}
                                     <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}', '${hw.type || 'PRACTICE'}')" style="flex:1; padding:6px 10px; font-size:11.5px; font-weight:600; cursor:pointer; border-radius:6px; background: ${hw.type === 'EXAM' ? '#dc2626' : (isExpired ? '#d97706' : '')}; border-color: ${hw.type === 'EXAM' ? '#dc2626' : (isExpired ? '#d97706' : '')}; display:inline-flex; align-items:center; justify-content:center; gap:4px;">
                                       ${hw.type === 'EXAM' ? '<i class="fa-solid fa-shield-cat"></i> Vào phòng thi' : (isExpired ? 'Vào làm bài (Nộp muộn) <i class="fa-solid fa-arrow-right"></i>' : 'Vào làm bài ngay <i class="fa-solid fa-arrow-right"></i>')}
                                     </button>
@@ -1129,6 +1132,8 @@ async function loadTodoHomeworks() {
       Object.values(groups).forEach(g => {
         const homeworksHtml = g.homeworks.map(hw => {
           const isExam = hw.type === 'EXAM'
+          // Học sinh tuyệt đối không thấy nút tải PDF của BÀI THI.
+          const canShowPdf = canViewHomeworkPdf(state.user?.role, hw)
           const typeBadge = isExam
             ? `<span style="color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 11px; width: fit-content;"><i class="fa-solid fa-shield-halved"></i> BÀI THI</span>`
             : `<span style="color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 11px; width: fit-content;"><i class="fa-solid fa-pen-to-square"></i> LUYỆN TẬP</span>`
@@ -1152,9 +1157,9 @@ async function loadTodoHomeworks() {
                 </div>
               </div>
               <div style="display:flex; gap:8px; margin-top:8px;">
-                <button type="button" class="btn-secondary btn-download-pdf-card" onclick="window.downloadHomeworkPdf('${hw.id}')" style="padding:8px 12px; font-size:12px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; transition:all 0.15s ease; white-space:nowrap; flex-shrink:0;" title="Tải file PDF đề bài (${escapeHtml(hw.title)})">
+                ${canShowPdf ? `<button type="button" class="btn-secondary btn-download-pdf-card" onclick="window.downloadHomeworkPdf('${hw.id}')" style="padding:8px 12px; font-size:12px; font-weight:600; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; transition:all 0.15s ease; white-space:nowrap; flex-shrink:0;" title="Tải file PDF đề bài (${escapeHtml(hw.title)})">
                   <i class="fa-solid fa-file-arrow-down" style="font-size:13px; color:#0066cc;"></i> Tải PDF
-                </button>
+                </button>` : ''}
                 <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}', '${hw.type || 'PRACTICE'}')" style="flex:1; padding:8px 12px; font-size:12px; font-weight:600; cursor:pointer; border-radius:8px; background: ${hw.type === 'EXAM' ? '#dc2626' : ''}; border-color: ${hw.type === 'EXAM' ? '#dc2626' : ''}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
                   ${hw.type === 'EXAM' ? '<i class="fa-solid fa-shield-cat"></i> Vào phòng thi' : 'Bắt đầu làm bài <i class="fa-solid fa-arrow-right"></i>'}
                 </button>

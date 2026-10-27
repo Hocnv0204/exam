@@ -104,7 +104,8 @@ serve(async (req: Request) => {
             deadline: hw.deadline,
             maxAttempts: hw.max_attempts,
             type: hw.type || 'PRACTICE',
-            pdfPath: hw.pdf_path,
+            // Học sinh tuyệt đối không thấy PDF của BÀI THI ngay từ danh sách.
+            pdfPath: hw.type === 'EXAM' ? '' : hw.pdf_path,
             createdAt: hw.created_at,
             classId: classInfo?.id || null,
             className: classInfo?.name || 'Lớp học',
@@ -213,7 +214,8 @@ serve(async (req: Request) => {
             deadline: hw.deadline,
             maxAttempts: hw.max_attempts,
             type: hw.type,
-            pdfPath: hw.pdf_path,
+            // Học sinh tuyệt đối không thấy PDF của BÀI THI ngay từ danh sách việc cần làm.
+            pdfPath: hw.type === 'EXAM' ? '' : hw.pdf_path,
             createdAt: hw.created_at,
             classId: classInfo?.id || null,
             className: classInfo?.name || 'Lớp học'

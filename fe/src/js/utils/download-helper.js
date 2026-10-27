@@ -1,7 +1,9 @@
 import { api } from '../api.js'
+import { state } from '../state.js'
 import { showToast } from '../components/toast.js'
 import { openModal } from '../components/modal.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
+import { canViewHomeworkPdf } from './homework-pdf-policy.js'
 
 export function escapeHtml(str) {
   if (!str) return ''
@@ -20,6 +22,12 @@ export function escapeHtml(str) {
 async function resolveHomeworkPdf(homeworkId, defaultTitle = 'De_Bai') {
   const hwData = await api.getHomeworkDetail(homeworkId)
   const hw = hwData?.homework || {}
+  // Học sinh tuyệt đối không xem/tải PDF của BÀI THI: chặn ngay tại đây để
+  // cả đường gọi trực tiếp (console) cũng không lấy được URL.
+  if (!canViewHomeworkPdf(state.user?.role, hw)) {
+    showToast('Bài thi không cho phép xem hoặc tải file PDF.', 'warning')
+    return null
+  }
   const rawPdfUrl = hw.pdfUrl || ''
   const mappedUrl = rawPdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
   const finalPdfPath = hw.pdfPath || ''
