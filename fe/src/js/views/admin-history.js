@@ -5,6 +5,7 @@ import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
+import { buildAwardLogBadgeHtml } from '../utils/question-award-logs.js'
 
 let currentMode = 'class' // 'class' | 'trial'
 let selectedClassId = ''
@@ -877,6 +878,7 @@ export function renderAdminHistoryView() {
                               <div style="font-size:11px; font-weight:700; color:#7c3aed; font-family:var(--font-sans); margin-top:2px; display:inline-flex; align-items:center; gap:4px; background:#f5f3ff; border:1px solid #ddd6fe; padding:1px 7px; border-radius:6px;">
                                 <i class="fa-solid fa-plus"></i> ${formatScore(sub.bonusScore)}đ cộng thêm
                               </div>` : ''}
+                              ${buildAwardLogBadgeHtml(sub.questionAwardLogs, { targetId: sub.submissionId })}
                               <div style="font-size:11px; font-weight:500; color:#64748b; font-family:var(--font-sans); margin-top:2px;">
                                 (${sub.correctCount}/${(sub.correctCount || 0) + (sub.wrongCount || 0)} câu đúng)
                               </div>
@@ -1422,6 +1424,22 @@ export function bindAdminHistoryEvents() {
       if (subId) {
         window.location.hash = `#assignment-review?submissionId=${subId}${currentMode === 'trial' ? '&trial=true' : ''}`
       }
+    })
+  })
+
+  // 10.5. Expand nhật ký cộng điểm theo câu (submission có nhiều lần cộng)
+  document.querySelectorAll('.award-logs-toggle-btn').forEach(btn => {
+    if (btn.dataset.bound) return
+    btn.dataset.bound = 'true'
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const targetId = btn.getAttribute('data-award-target')
+      if (!targetId) return
+      const panel = document.getElementById(targetId)
+      if (!panel) return
+      const isOpen = panel.style.display !== 'none'
+      panel.style.display = isOpen ? 'none' : 'flex'
+      btn.textContent = isOpen ? 'Xem' : 'Ẩn'
     })
   })
 

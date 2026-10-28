@@ -4,6 +4,8 @@ import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
+import { buildAwardLogSectionHtml } from '../utils/question-award-logs.js'
+import { api } from '../api.js'
 
 export function renderAssignmentReviewView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
@@ -67,8 +69,12 @@ export function renderAssignmentReviewView() {
   const homeworkType = sub.type || result.type || result.submission?.type || 'PRACTICE'
   const canShowPdfDownload = canViewHomeworkPdf(state.user?.role, { type: homeworkType })
   const showSolutions = state.user?.role === 'ADMIN' || (result.showSolutions !== false && result.show_solutions !== false && sub.showSolutions !== false && sub.show_solutions !== false)
+  // Nhật ký cộng điểm theo câu: backend chỉ trả questionAwardLogs cho admin (bài thật).
+  const isAdminReview = state.user?.role === 'ADMIN' && !isTrial && !sub.is_trial && !sub.isTrial
+  const awardLogs = isAdminReview && Array.isArray(result.questionAwardLogs) ? result.questionAwardLogs : []
   
   const rawAnswers = result.questionReview ? result.questionReview.map(q => ({
+    id: q.id || q.submissionAnswerId || q.submission_answer_id,
     is_correct: q.isCorrect !== undefined ? q.isCorrect : q.is_correct,
     score_earned: q.scoreEarned !== undefined ? q.scoreEarned : q.score_earned,
     given_answer: q.givenAnswer !== undefined ? q.givenAnswer : q.given_answer,
@@ -335,7 +341,7 @@ export function renderAssignmentReviewView() {
               <!-- Total Score prominently displayed -->
               <div style="display:flex; align-items:center; gap:12px; background:#f0f9ff; border:1px solid #bae6fd; padding:8px 18px; border-radius:10px; flex-wrap:wrap;">
                 <span style="font-size:13px; color:#0369a1; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Tổng Điểm Số:</span>
-                <strong style="font-size:24px; color:#0284c7; font-family:var(--font-heading);">${formatScore(calculatedScore)} <span style="font-size:15px; color:#0284c7; font-weight:600;">/ ${formatScore(maxScore)}</span></strong>
+                <strong id="review-total-score" style="font-size:24px; color:#0284c7; font-family:var(--font-heading);">${formatScore(calculatedScore)} <span style="font-size:15px; color:#0284c7; font-weight:600;">/ ${formatScore(maxScore)}</span></strong>
                 ${(Number(sub.bonus_score) > 0) ? `
                   <span id="bonus-score-badge" style="display:inline-flex; align-items:center; gap:5px; background:#d1fae5; border:1px solid #6ee7b7; color:#065f46; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px;">
                     <i class="fa-solid fa-plus"></i> Điểm cộng: +${formatScore(Number(sub.bonus_score))}
@@ -385,6 +391,9 @@ export function renderAssignmentReviewView() {
             </div>
           </div>
           <div id="exam-logs-container" style="margin-bottom: 24px;"></div>
+          ${isAdminReview ? `
+            <div id="question-award-logs-container">${buildAwardLogSectionHtml(awardLogs)}</div>
+          ` : ''}
 
           <!-- Main Layout Wrapper with transition -->
           <div id="review-layout-wrapper" style="display: grid; grid-template-columns: 1fr; gap: 24px; transition: all 0.3s ease;">
@@ -413,7 +422,7 @@ export function renderAssignmentReviewView() {
                     Đúng: <strong style="color: #15803d;">${sub.correctCount}</strong> | Sai: <strong style="color: #b91c1c;">${sub.wrongCount}</strong>
                   </span>
                 </div>
-                <strong style="font-size: 16px; color: #0284c7; font-family: var(--font-heading);">
+                <strong id="review-compact-total-score" style="font-size: 16px; color: #0284c7; font-family: var(--font-heading);">
                   ${formatScore(calculatedScore)} / ${formatScore(maxScore)} điểm
                 </strong>
               </div>
@@ -723,9 +732,10 @@ export function renderAssignmentReviewView() {
                           <span class="question-badge" style="background:${cardBorderColor}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
                           <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">${qTypeStr}</span>
                         </div>
-                        <span class="badge" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
+                        <span class="badge" data-score-badge="${ans.id || ''}" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
                           <i class="fa-solid ${badgeIcon}"></i> ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm
                         </span>
+                        ${state.user?.role === 'ADMIN' && !isTrial && !sub.is_trial && !sub.isTrial && sub.id && ans.id ? `<button class="btn-primary award-question-btn" data-answer-id="${ans.id}" style="width:auto!important;padding:6px 10px;${scoreEarned >= pointsPossible ? 'display:none;' : ''}">Cộng điểm</button>` : ''}
                       </div>
 
                       ${promptObj ? `
@@ -830,6 +840,11 @@ export function renderAssignmentReviewView() {
 
 export function bindAssignmentReviewEvents() {
   bindSidebarEvents()
+  const reviewResult = state.lastSubmissionResult || {}
+  const sub = reviewResult.submission || reviewResult
+  const isTrial = window.location.hash.includes('trial=true') || !state.token || !!sub.is_trial || !!sub.isTrial
+  const reviewMaxScore = Number(sub.maxScore || sub.max_score || reviewResult.maxScore || reviewResult.max_score || 10)
+  const formatScore = (value) => Number(Number(value).toFixed(2))
 
   const reviewContainer = document.getElementById('questions-grid') || document.querySelector('.content-body')
   if (reviewContainer) {
@@ -945,6 +960,56 @@ export function bindAssignmentReviewEvents() {
           }
         }
       }).catch(err => console.error("Failed to fetch exam logs", err))
+    })
+  }
+
+  // Admin Reopen Submission feature
+  if (state.user?.role === 'ADMIN' && !isTrial && sub.id) {
+    document.querySelectorAll('.award-question-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (btn.disabled) return
+        btn.disabled = true
+        try {
+          const result = await api.awardQuestionPoints(sub.id, btn.dataset.answerId)
+          const earned = Number(result.scoreEarned)
+          const answerId = btn.dataset.answerId
+          const updateAnswer = answer => {
+            if (answer?.id === answerId || answer?.submissionAnswerId === answerId || answer?.submission_answer_id === answerId) {
+              answer.score_earned = earned
+              answer.scoreEarned = earned
+            }
+          }
+          ;(reviewResult.answers || []).forEach(updateAnswer)
+          ;(reviewResult.questionReview || []).forEach(updateAnswer)
+          if (reviewResult.submission) {
+            reviewResult.submission.total_score = result.totalScore
+            reviewResult.submission.totalScore = result.totalScore
+            reviewResult.submission.score = result.totalScore
+          }
+          reviewResult.total_score = result.totalScore
+          reviewResult.score = result.totalScore
+          const badge = document.querySelector(`[data-score-badge="${btn.dataset.answerId}"]`)
+          if (badge) badge.innerHTML = `<i class="fa-solid fa-check"></i> ${earned.toFixed(2)} / ${earned.toFixed(2)} điểm`
+          btn.remove()
+          const totalText = `${Number(result.totalScore).toFixed(2)} / ${formatScore(reviewMaxScore)}`
+          const mainTotal = document.getElementById('review-total-score')
+          if (mainTotal) mainTotal.innerHTML = `${Number(result.totalScore).toFixed(2)} <span style="font-size:15px; color:#0284c7; font-weight:600;">/ ${formatScore(reviewMaxScore)}</span>`
+          const compactTotal = document.getElementById('review-compact-total-score')
+          if (compactTotal) compactTotal.textContent = `${totalText} điểm`
+          // Backend trả về event log vừa tạo khi điểm THẬT SỰ được cộng (delta > 0):
+          // push vào state + render lại khối nhật ký ngay, không bắt buộc reload.
+          if (result.awardLog && Number(result.delta) > 0) {
+            const awardLogList = Array.isArray(reviewResult.questionAwardLogs) ? reviewResult.questionAwardLogs : []
+            awardLogList.push(result.awardLog)
+            reviewResult.questionAwardLogs = awardLogList
+            const awardLogsContainer = document.getElementById('question-award-logs-container')
+            if (awardLogsContainer) awardLogsContainer.innerHTML = buildAwardLogSectionHtml(awardLogList)
+          }
+        } catch (err) {
+          import('../components/toast.js').then(({ showToast }) => showToast(err.message || 'Không thể cộng điểm. Vui lòng thử lại sau.', 'error'))
+          btn.disabled = false
+        }
+      }
     })
   }
 

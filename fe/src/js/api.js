@@ -601,6 +601,7 @@ export const api = {
   getExamLogs: (homeworkId, params = '', options = {}) => request(`exam-log?homeworkId=${homeworkId}${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET', ...options }),
   getExamSessions: (homeworkId, options = {}) => request(`exam-session?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
   reopenSubmission: (homeworkId, studentId, resetTimer, resetAnswers, options = {}) => request(`reopen-submission`, { method: 'POST', body: JSON.stringify({ homeworkId, studentId, resetTimer, resetAnswers }), ...options }),
+  awardQuestionPoints: (submissionId, answerId, options = {}) => request('reopen-submission?action=award-question', { method: 'POST', body: JSON.stringify({ submissionId, answerId }), ...options }),
   setBonus: (data) => request(`reopen-submission?action=set-bonus`, { method: 'POST', body: JSON.stringify(data) }),
   initExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }), silent: true, ...options }),
   heartbeatExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'heartbeat', homeworkId, sessionToken }), silent: true, ...options }),

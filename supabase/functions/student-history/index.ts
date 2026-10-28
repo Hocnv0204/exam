@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import { requireAuth } from '../../shared/auth-middleware.ts'
 import { createServiceRoleClient } from '../../shared/supabase-client.ts'
+import { QUESTION_AWARD_LOG_SELECT, mapQuestionAwardLogRow } from '../../shared/question-award-logs.ts'
 
 /* ---------------------------------------------------------------------------
  * Public shared progress report (scope=shared-report)
@@ -16,6 +17,10 @@ import { createServiceRoleClient } from '../../shared/supabase-client.ts'
  * học sinh/lớp/kỳ báo cáo lấy hoàn toàn từ row share trong DB.
  * ------------------------------------------------------------------------- */
 const SHARE_TOKEN_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/
+
+// Giới hạn số dòng nhật ký cộng điểm câu trả về cho danh sách admin (current page):
+// đủ cho 100 submission/page × nhiều lần cộng, tránh payload phình bất thường.
+const AWARD_LOGS_LIST_LIMIT = 500
 
 type SharedReportShare = {
   id: string
@@ -726,9 +731,17 @@ serve(async (req: Request) => {
         return errorResponse('Unauthorized: Login required to view this submission', 401)
       }
 
-      // Fetch submission answers with questions and generate signed PDF URL in parallel
+      // Fetch submission answers with questions and generate signed PDF URL in parallel.
+      // Nhật ký cộng điểm câu: CHỈ admin nhận; fetch lỗi -> fail-soft (bỏ log, không làm hỏng xem bài).
       const hwObj = sub.homeworks
-      const [answersRes, signedUrlRes] = await Promise.all([
+      const awardLogsPromise = (user?.role === 'ADMIN')
+        ? serviceRoleClient
+            .from('question_award_logs')
+            .select(QUESTION_AWARD_LOG_SELECT)
+            .eq('submission_id', submissionId)
+            .order('created_at', { ascending: true })
+        : Promise.resolve({ data: null, error: null })
+      const [answersRes, signedUrlRes, awardLogsRes] = await Promise.all([
         serviceRoleClient
           .from('submission_answers')
           .select(`
@@ -759,12 +772,18 @@ serve(async (req: Request) => {
           .eq('submission_id', submissionId),
         (hwObj?.pdf_path && !hwObj.pdf_path.startsWith('http'))
           ? serviceRoleClient.storage.from('pdf-files').createSignedUrl(hwObj.pdf_path, 3600)
-          : Promise.resolve({ data: null, error: null })
+          : Promise.resolve({ data: null, error: null }),
+        awardLogsPromise
       ])
 
       if (answersRes.error) {
         return errorResponse(answersRes.error.message, 500)
       }
+
+      // DTO log cộng điểm cho admin review; fetch lỗi -> undefined (payload cũ giữ nguyên).
+      const questionAwardLogs = (user?.role === 'ADMIN' && !awardLogsRes?.error && Array.isArray(awardLogsRes?.data))
+        ? awardLogsRes.data.map(mapQuestionAwardLogRow)
+        : undefined
 
       const answers = answersRes.data || []
       let pdfUrl = hwObj?.pdf_path
@@ -971,6 +990,8 @@ serve(async (req: Request) => {
         pdfUrl,
         showSolutions: hwObj?.show_solutions !== false,
         answers: formattedAnswers,
+        // Nhật ký cộng điểm theo câu: chỉ thêm key khi admin (học sinh không thấy log).
+        ...(questionAwardLogs ? { questionAwardLogs } : {}),
         submission: {
           id: sub.id,
           homeworkId: sub.homework_id,
@@ -1351,6 +1372,29 @@ serve(async (req: Request) => {
     const wrongAnswersMap = new Map<string, any[]>()
     const wrongQuestionsSummaryMap = new Map<number, any>()
 
+    // Nhật ký cộng điểm theo câu cho danh sách bài nộp của admin (theo dõi nộp bài):
+    // 1 query duy nhất cho đúng submissions của current page (không N+1), CHỈ admin,
+    // học sinh không bao giờ nhận. Fetch lỗi -> fail-soft (danh sách không có cột log).
+    let awardLogsBySubmission: Map<string, any[]> | null = null
+    if (user?.role === 'ADMIN' && !isTrialQuery && subIds.length > 0) {
+      const { data: awardRows, error: awardErr } = await serviceRoleClient
+        .from('question_award_logs')
+        .select(QUESTION_AWARD_LOG_SELECT)
+        .in('submission_id', subIds)
+        .order('created_at', { ascending: true })
+        .limit(AWARD_LOGS_LIST_LIMIT)
+      if (!awardErr && Array.isArray(awardRows)) {
+        awardLogsBySubmission = new Map()
+        for (const row of awardRows) {
+          const dto = mapQuestionAwardLogRow(row)
+          if (!dto.submissionId) continue
+          const bucket = awardLogsBySubmission.get(dto.submissionId)
+          if (bucket) bucket.push(dto)
+          else awardLogsBySubmission.set(dto.submissionId, [dto])
+        }
+      }
+    }
+
     const canSeeWrongAnalysis = (user?.role === 'ADMIN' || isTrialQuery) && subIds.length > 0
 
     if (canSeeWrongAnalysis) {
@@ -1549,6 +1593,8 @@ serve(async (req: Request) => {
         studentName,
         username,
         wrongAnswers: (user?.role === 'ADMIN' || isTrialQuery) ? wrongAnswers : undefined,
+        // Chỉ admin (đang xem danh sách) thấy log; map đã limit theo current page.
+        ...(awardLogsBySubmission ? { questionAwardLogs: awardLogsBySubmission.get(sub.id) || [] } : {}),
       }
     })
 

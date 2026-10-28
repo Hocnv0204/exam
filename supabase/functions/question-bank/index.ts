@@ -2,6 +2,11 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin, requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import { computeClassWeakOverview, allocateLargestRemainder } from '../adaptive/logic.ts'
+import {
+  normalizeTypeIdList,
+  splitLessonIdsByTypePresence,
+  buildTypePoolClauses
+} from './type-scope.ts'
 
 async function getScopeTargetIds(
   serviceRoleClient: any,
@@ -326,6 +331,18 @@ interface ScopeTarget {
   chapterIds: string[]
   lessonIds: string[]
   tags?: string[]
+  // Dạng bài Constant (qb_question_types) được chọn làm leaf của cây phạm vi.
+  // Khi có typeIds, pool luôn bị khóa bởi qb_question_type_id (xem buildTypePoolClauses)
+  // để không OR lọt Dạng bài khác trong cùng Bài/Chương/Lớp.
+  typeIds?: string[]
+  invalidTypeIds?: string[]
+  typeIdsTooMany?: boolean
+  // Các Bài học không có Dạng bài nào (được server phân giải) — giữ hành vi chọn nguyên bài.
+  untypedLessonIds?: string[]
+  // Các Bài học thực sự chứa typeIds (server phân giải) — dùng cho balanced grouping.
+  typeLessonIds?: string[]
+  // Chỉ server set cho item distribution: thu hẹp typeIds theo Lớp/Chương/Bài của item.
+  restrictTypePoolToScope?: boolean
   // constantOnly: chỉ bốc câu hỏi gắn danh mục CONSTANT (qb_class_id/qb_chapter_id/
   // qb_lesson_id). Dùng cho flow tạo đề từ ngân hàng; các flow khác không gửi cờ này
   // nên giữ nguyên hành vi cũ (cả động + constant).
@@ -336,7 +353,7 @@ interface ScopeTarget {
 const parseScopeBool = (v: any): boolean => v === true || v === 'true' || v === '1'
 
 function normalizeScopeInput(input: any): ScopeTarget {
-  if (!input) return { scopeType: null, gradeBlock: null, classIds: [], chapterIds: [], lessonIds: [], tags: [], constantOnly: false }
+  if (!input) return { scopeType: null, gradeBlock: null, classIds: [], chapterIds: [], lessonIds: [], tags: [], typeIds: [], invalidTypeIds: [], constantOnly: false }
 
   const tags: string[] = []
   const rawTags = input.scope?.tags || input.tags
@@ -347,6 +364,13 @@ function normalizeScopeInput(input: any): ScopeTarget {
 
   const scopeType = input.scopeType || input.scope?.scopeType || null
   const constantOnly = parseScopeBool(input.scope?.constantOnly ?? input.constantOnly)
+  const rawTypeIds = input.scope?.typeIds ?? input.typeIds
+  const normalizedTypeIds = normalizeTypeIdList(rawTypeIds)
+  const typeScopeFields = {
+    typeIds: normalizedTypeIds.ids,
+    invalidTypeIds: normalizedTypeIds.invalid,
+    typeIdsTooMany: normalizedTypeIds.tooMany
+  }
 
   if (input.scope && typeof input.scope === 'object') {
     return {
@@ -356,6 +380,7 @@ function normalizeScopeInput(input: any): ScopeTarget {
       chapterIds: Array.isArray(input.scope.chapterIds) ? input.scope.chapterIds.filter(Boolean) : (input.scope.chapterId ? [input.scope.chapterId] : []),
       lessonIds: Array.isArray(input.scope.lessonIds) ? input.scope.lessonIds.filter(Boolean) : (input.scope.lessonId ? [input.scope.lessonId] : []),
       tags,
+      ...typeScopeFields,
       constantOnly
     }
   }
@@ -389,6 +414,7 @@ function normalizeScopeInput(input: any): ScopeTarget {
     chapterIds,
     lessonIds,
     tags,
+    ...typeScopeFields,
     constantOnly
   }
 }
@@ -418,6 +444,142 @@ async function fetchAllQueryRows(
   }
 
   return { data: allRows, error: null }
+}
+
+// Chuẩn hóa + kiểm chứng Dạng bài Constant trước khi bốc câu hỏi.
+// - Không tin UUID/ID do client gửi: mọi typeId phải tồn tại trong qb_question_types.
+// - Kiểm tra chuỗi type -> lesson -> chapter -> class và khối/lớp/chương đang chọn.
+// - Phân giải untypedLessonIds (Bài không có Dạng bài) để giữ hành vi cũ, đồng thời
+//   ghi typeLessonIds cho balanced grouping.
+async function validateAndResolveTypeScope(
+  serviceRoleClient: any,
+  scope: ScopeTarget
+): Promise<string | null> {
+  const typeIds = [...new Set(scope.typeIds || [])]
+
+  if (scope.typeIdsTooMany) {
+    return 'Danh sách Dạng bài Constant vượt quá giới hạn cho phép!'
+  }
+  if ((scope.invalidTypeIds || []).length > 0) {
+    return 'Danh sách Dạng bài Constant không hợp lệ (ID phải là UUID)!'
+  }
+
+  if (typeIds.length === 0) {
+    scope.untypedLessonIds = []
+    scope.typeLessonIds = []
+    return null
+  }
+
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const rawScopeIds = [...(scope.lessonIds || []), ...(scope.chapterIds || []), ...(scope.classIds || [])]
+  if (rawScopeIds.some(id => !uuidRe.test(String(id)))) {
+    return 'Phạm vi Lớp/Chương/Bài không hợp lệ (ID phải là UUID)!'
+  }
+
+  // Dùng paging để không bị giới hạn số dòng mặc định của PostgREST khi chọn
+  // nhiều Dạng bài/Bài học cùng lúc.
+  const { data: typeRows, error: typeErr } = await fetchAllQueryRows(() => serviceRoleClient
+    .from('qb_question_types')
+    .select('id, lesson_id')
+    .in('id', typeIds))
+  if (typeErr) return `Không kiểm tra được Dạng bài Constant: ${typeErr.message}`
+
+  const existingTypeIds = new Set((typeRows || []).map((row: any) => row.id))
+  if (typeIds.some(id => !existingTypeIds.has(id))) {
+    return 'Một hoặc nhiều Dạng bài Constant không tồn tại trong danh mục!'
+  }
+
+  const typeLessonIds = [...new Set((typeRows || []).map((row: any) => row.lesson_id).filter(Boolean))]
+  const selectedLessonIds = [...new Set(scope.lessonIds || [])]
+  const allLessonIds = [...new Set([...typeLessonIds, ...selectedLessonIds])]
+
+  const { data: lessonRows, error: lessonErr } = await fetchAllQueryRows(() => serviceRoleClient
+    .from('qb_lessons')
+    .select('id, chapter_id')
+    .in('id', allLessonIds))
+  if (lessonErr) return `Không kiểm tra được Bài học Constant: ${lessonErr.message}`
+
+  const lessonById = new Map((lessonRows || []).map((row: any) => [row.id, row]))
+  if (typeLessonIds.some(id => !lessonById.has(id))) {
+    return 'Dạng bài Constant không thuộc Bài học Constant hợp lệ!'
+  }
+  if (selectedLessonIds.some(id => !lessonById.has(id))) {
+    return 'Bài học Constant không tồn tại trong danh mục!'
+  }
+
+  const chapterIds = [...new Set((lessonRows || []).map((row: any) => row.chapter_id).filter(Boolean))]
+  const { data: chapterRows, error: chapterErr } = await fetchAllQueryRows(() => serviceRoleClient
+    .from('qb_chapters')
+    .select('id, class_id')
+    .in('id', chapterIds))
+  if (chapterErr) return `Không kiểm tra được Chương Constant: ${chapterErr.message}`
+
+  const chapterById = new Map((chapterRows || []).map((row: any) => [row.id, row]))
+  if (chapterIds.some(id => !chapterById.has(id))) {
+    return 'Dạng bài Constant không thuộc Chương Constant hợp lệ!'
+  }
+
+  const classIds = [...new Set((chapterRows || []).map((row: any) => row.class_id).filter(Boolean))]
+  const { data: classRows, error: classErr } = await fetchAllQueryRows(() => serviceRoleClient
+    .from('qb_classes')
+    .select('id, grade_block')
+    .in('id', classIds))
+  if (classErr) return `Không kiểm tra được Lớp Constant: ${classErr.message}`
+
+  const classById = new Map((classRows || []).map((row: any) => [row.id, row]))
+  if (classIds.some(id => !classById.has(id))) {
+    return 'Dạng bài Constant không thuộc Lớp Constant hợp lệ!'
+  }
+
+  const scopeClassIds = new Set(scope.classIds || [])
+  const scopeChapterIds = new Set(scope.chapterIds || [])
+  const scopeGradeBlock = (scope.gradeBlock || '').trim()
+  const restrictToScope = scope.restrictTypePoolToScope === true
+
+  const verifyLessonMembership = (lessonId: string, enforceParentIds: boolean): string | null => {
+    const lesson = lessonById.get(lessonId)
+    const chapter = lesson ? chapterById.get(lesson.chapter_id) : null
+    const klass = chapter ? classById.get(chapter.class_id) : null
+    if (!lesson || !chapter || !klass) return 'Phân cấp Constant của Bài học/Dạng bài không đầy đủ!'
+    if (scopeGradeBlock && String(klass.grade_block || '').trim() !== scopeGradeBlock) {
+      return 'Dạng bài/Bài học Constant không thuộc Khối đang chọn!'
+    }
+    if (enforceParentIds) {
+      if (scopeClassIds.size > 0 && !scopeClassIds.has(klass.id)) {
+        return 'Dạng bài Constant không thuộc Lớp đang chọn!'
+      }
+      if (scopeChapterIds.size > 0 && !scopeChapterIds.has(chapter.id)) {
+        return 'Dạng bài Constant không thuộc Chương đang chọn!'
+      }
+    }
+    return null
+  }
+
+  for (const lessonId of typeLessonIds) {
+    const membershipError = verifyLessonMembership(lessonId, restrictToScope)
+    if (membershipError) return membershipError
+  }
+  for (const lessonId of selectedLessonIds) {
+    const membershipError = verifyLessonMembership(lessonId, restrictToScope)
+    if (membershipError) return membershipError
+  }
+
+  // Các Bài học được gửi kèm nhưng thực tế đã có Dạng bài: chỉ dùng để giới hạn nhánh
+  // typed (type + lesson), không được coi là "chọn nguyên bài" (tránh OR lọt sibling).
+  let typedLessonIdsAmongSelected: string[] = []
+  if (selectedLessonIds.length > 0) {
+    const { data: selectedTypeRows, error: selectedTypeErr } = await fetchAllQueryRows(() => serviceRoleClient
+      .from('qb_question_types')
+      .select('lesson_id')
+      .in('lesson_id', selectedLessonIds))
+    if (selectedTypeErr) return `Không kiểm tra được Dạng bài của Bài học: ${selectedTypeErr.message}`
+    typedLessonIdsAmongSelected = [...new Set((selectedTypeRows || []).map((row: any) => row.lesson_id).filter(Boolean))]
+  }
+
+  const { untypedLessonIds } = splitLessonIdsByTypePresence(selectedLessonIds, typedLessonIdsAmongSelected)
+  scope.untypedLessonIds = untypedLessonIds
+  scope.typeLessonIds = typeLessonIds
+  return null
 }
 
 async function buildPoolQuery(
@@ -540,6 +702,24 @@ async function buildPoolQuery(
 
   // fetchAllQueryRows gọi factory nhiều lần (range paging) nên resolve preset 1 lần
   // rồi dùng factory đồng bộ cho mọi batch.
+  // Dạng bài Constant: mọi nhánh typed đều bị khóa bởi qb_question_type_id, nhánh
+  // untyped chỉ dành cho Bài không có Dạng bài. Nhờ vậy không OR lọt sibling khi client
+  // gửi kèm Lớp/Chương/Bài cha.
+  const selectedTypeIds = [...new Set(scope.typeIds || [])]
+  if (selectedTypeIds.length > 0) {
+    const typeClauses = buildTypePoolClauses({
+      typeIds: selectedTypeIds,
+      untypedLessonIds: scope.untypedLessonIds || [],
+      lessonIds,
+      chapterIds,
+      classIds,
+      restrictToScope: scope.restrictTypePoolToScope === true
+    })
+    if (typeClauses.length === 0) return { data: [], error: null }
+    const typePreset = typeClauses.join(',')
+    return await fetchAllQueryRows(() => buildQueryInstance(typePreset))
+  }
+
   const single = singleLevelClause()
   if (single) {
     return await fetchAllQueryRows(() => buildQueryInstance(single))
@@ -1013,15 +1193,19 @@ serve(async (req: Request) => {
           scopeType: url.searchParams.get('scopeType') || 'BLOCK',
           gradeBlock: url.searchParams.get('gradeBlock'),
           constantOnly: url.searchParams.get('constantOnly'),
+          typeIds: url.searchParams.get('typeIds'),
           classIds: rawClassIds ? rawClassIds.split(',').map(s => s.trim()).filter(Boolean) : [],
           chapterIds: rawChapterIds ? rawChapterIds.split(',').map(s => s.trim()).filter(Boolean) : [],
           lessonIds: rawLessonIds ? rawLessonIds.split(',').map(s => s.trim()).filter(Boolean) : []
         })
 
+        const typeScopeError = await validateAndResolveTypeScope(serviceRoleClient, scope)
+        if (typeScopeError) return errorResponse(typeScopeError, 400)
+
         const { data: rows, error: availErr } = await buildPoolQuery(
           serviceRoleClient,
           scope,
-          'id, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id, qb_class_id, qb_chapter_id, qb_lesson_id'
+          'id, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id, qb_class_id, qb_chapter_id, qb_lesson_id, qb_question_type_id'
         )
         if (availErr) return errorResponse(availErr.message, 500)
 
@@ -2667,6 +2851,8 @@ serve(async (req: Request) => {
       // ----------------------------------------------------
       if (action === 'generate-exam') {
         const scope = normalizeScopeInput(body)
+        const typeScopeError = await validateAndResolveTypeScope(serviceRoleClient, scope)
+        if (typeScopeError) return errorResponse(typeScopeError, 400)
         const {
           targetLessonId,
           title,
@@ -2926,6 +3112,15 @@ serve(async (req: Request) => {
                 // Flow tạo đề từ ngân hàng là constant-only: cờ constantOnly của scope
                 // tổng phải lan xuống từng item phân bổ, nếu không item sẽ bốc cả câu động.
                 if (scope.constantOnly) itemScope.constantOnly = true
+                // Dạng bài Constant cũng phải lan xuống từng item; nhánh typed của item
+                // vẫn bị khóa bởi qb_question_type_id nên không lọt sibling.
+                if ((scope.typeIds || []).length > 0 && (itemScope.typeIds || []).length === 0) {
+                  itemScope.typeIds = [...new Set(scope.typeIds)]
+                }
+                if ((itemScope.typeIds || []).length > 0) {
+                  // Item distribution phải thu hẹp typeIds theo đúng Lớp/Chương/Bài của item.
+                  itemScope.restrictTypePoolToScope = true
+                }
                 const { data: itemCandidates, error: itemCandErr } = await buildPoolQuery(serviceRoleClient, itemScope)
                 return { item, itemCandidates, itemCandErr }
               })
@@ -2985,17 +3180,27 @@ serve(async (req: Request) => {
             pickForClassMix('SHORT_ANSWER', classQuotasSA)
           }
           // Kịch bản C: Phân bổ đều (balanced) cho các Chương/Bài đã chọn kèm Quỹ bù
-          else if (balanced && ((scope.lessonIds && scope.lessonIds.length > 1) || (scope.chapterIds && scope.chapterIds.length > 1) || (scope.classIds && scope.classIds.length > 1))) {
+          else if (balanced && (
+            (scope.lessonIds && scope.lessonIds.length > 1) ||
+            (scope.chapterIds && scope.chapterIds.length > 1) ||
+            (scope.classIds && scope.classIds.length > 1) ||
+            ((scope.typeIds || []).length > 0 && (scope.typeLessonIds || []).length > 1)
+          )) {
             const CANDIDATE_COLS = 'id, question_type, difficulty, usage_count, chapter_id, lesson_id, class_id, qb_chapter_id, qb_lesson_id, qb_class_id'
             const { data: candidates, error: candError } = await buildPoolQuery(serviceRoleClient, scope, CANDIDATE_COLS)
             if (candError) return errorResponse(candError.message, 500)
             const allCandidates = candidates || []
 
+            // Khi chỉ chọn Dạng bài (không gửi kèm Lớp/Chương/Bài cha), nhóm theo các Bài
+            // thực sự chứa Dạng bài đã chọn để vẫn phân bổ đều được.
+            const typeGroupLessonIds = (scope.typeIds || []).length > 0 ? (scope.typeLessonIds || []) : []
             const groups = (scope.lessonIds && scope.lessonIds.length > 1)
               ? { field: 'lesson_id', ids: scope.lessonIds }
               : ((scope.chapterIds && scope.chapterIds.length > 1)
                 ? { field: 'chapter_id', ids: scope.chapterIds }
-                : { field: 'class_id', ids: scope.classIds || [] })
+                : ((scope.classIds && scope.classIds.length > 1)
+                  ? { field: 'class_id', ids: scope.classIds }
+                  : { field: 'qb_lesson_id', ids: typeGroupLessonIds }))
 
             const pickBalancedType = (qType: string, typeConfig: any) => {
               if (typeConfig.total <= 0) return
@@ -3113,6 +3318,8 @@ serve(async (req: Request) => {
         }
 
         const scope = normalizeScopeInput(body)
+        const typeScopeError = await validateAndResolveTypeScope(serviceRoleClient, scope)
+        if (typeScopeError) return errorResponse(typeScopeError, 400)
         let { data: candidates, error: swapErr } = await buildPoolQuery(
           serviceRoleClient,
           scope,

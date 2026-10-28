@@ -6,6 +6,15 @@ import { api } from '../api.js'
 import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
 import { parseExamMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
 import { resolveBatchQuestionsTaxonomy, resolveSingleQuestion, normalizeTaxonomyText } from '../utils/qb-metadata-resolver.js'
+import {
+  splitQuestionSourceBlocks,
+  findQuestionBlockIndexAtOffset,
+  buildQuestionImageTag,
+  insertImageTagIntoSource,
+  insertImageTagIntoQuestionSource,
+  isQuestionImageTagLine,
+  removeImageTagsFromSource
+} from '../utils/question-bank-image.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 
 // ========================================================
@@ -74,6 +83,7 @@ let generatorState = {
   selectedClassIds: [],
   selectedChapterIds: [],
   selectedLessonIds: [],
+  selectedTypeIds: [],
   currentScope: null,
   targetClassId: '',
   targetChapterId: '',
@@ -3381,6 +3391,213 @@ async function openImportMarkdownModal() {
   let pendingSourceFocus = false
   // false = cấu trúc nguồn không khớp số câu parse được (không reparse toàn bộ để tránh hồi sinh câu đã xóa)
   let batchSourceAligned = true
+  // Tránh 2 lần nén/ghép nguồn chồng nhau khi người dùng dán liên tiếp (mất ảnh hoặc ghi đè nguồn)
+  let imagePasteBusy = false
+
+  function getClipboardImageFile(event) {
+    const data = event?.clipboardData
+    if (!data) return null
+    const items = data.items
+    if (items && items.length) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item && /^image\//i.test(item.type || '') && typeof item.getAsFile === 'function') {
+          const file = item.getAsFile()
+          if (file) return file
+        }
+      }
+    }
+    const files = data.files
+    if (files && files.length) {
+      for (let i = 0; i < files.length; i++) {
+        if (/^image\//i.test(files[i]?.type || '')) return files[i]
+      }
+    }
+    return null
+  }
+
+  function questionNumberAt(index) {
+    return parsedQuestions[index]?.questionNumber || index + 1
+  }
+
+  /** Ghi bản nháp mã nguồn vào textarea card + giữ caret, KHÔNG render lại card. */
+  function writeSourceDraftTextarea(ta, value, caret) {
+    ta.value = value
+    activeSourceDraft = value
+    ta.focus()
+    const pos = Math.max(0, Math.min(Number.isFinite(caret) ? caret : value.length, value.length))
+    try { ta.setSelectionRange(pos, pos) } catch (_) { }
+  }
+
+  /** Dán ảnh vào textarea Mã nguồn của đúng câu: chèn tại caret, giữ caret sau khi nén xong. */
+  async function attachImageToOpenSourceTextarea(index, ta, blob) {
+    if (imagePasteBusy) {
+      showToast('Đang xử lý ảnh trước đó, vui lòng thử lại sau giây lát.', 'info')
+      return
+    }
+    const qn = questionNumberAt(index)
+    const snapshot = ta.value
+    const start = Number.isFinite(ta.selectionStart) ? ta.selectionStart : snapshot.length
+    const end = Number.isFinite(ta.selectionEnd) ? ta.selectionEnd : start
+    imagePasteBusy = true
+    try {
+      showToast(`Đang nén ảnh cho Câu ${qn}...`, 'info')
+      const dataUrl = await compressImage(blob, 900, 0.8)
+      const imageTag = buildQuestionImageTag(dataUrl)
+
+      if (!ta.isConnected || activeSourceEditorIndex !== index) {
+        showToast(`Editor mã nguồn Câu ${qn} đã đóng nên ảnh chưa được chèn. Hãy dán lại.`, 'warning')
+        return
+      }
+      if (ta.value !== snapshot) {
+        showToast('Mã nguồn đã thay đổi trong lúc nén ảnh. Ảnh chưa được chèn — hãy dán lại.', 'warning')
+        return
+      }
+
+      // Câu đã có ảnh → thay tại chỗ để parser không lấy nhầm ảnh cũ (ảnh cuối thắng).
+      const hasExistingImage = snapshot.split('\n').some(line => isQuestionImageTagLine(line))
+      if (hasExistingImage) {
+        const result = insertImageTagIntoQuestionSource(snapshot, imageTag)
+        writeSourceDraftTextarea(ta, result.source, result.tagEnd)
+        showToast(`Đã thay ảnh trong mã nguồn Câu ${qn}. Bấm "Lưu mã nguồn" để áp dụng.`, 'success')
+        return
+      }
+
+      // Con trỏ ở phần preamble (trước header câu) → vẫn gắn vào đề của đúng câu này.
+      const headerStart = splitQuestionSourceBlocks(snapshot).blocks[0]?.start
+      if (Number.isFinite(headerStart) && start < headerStart) {
+        const result = insertImageTagIntoQuestionSource(snapshot, imageTag)
+        writeSourceDraftTextarea(ta, result.source, result.tagEnd)
+        showToast(`Đã chèn ảnh vào mã nguồn Câu ${qn}. Bấm "Lưu mã nguồn" để áp dụng.`, 'success')
+        return
+      }
+
+      const before = snapshot.slice(0, start)
+      const after = snapshot.slice(end)
+      // Thẻ ảnh phải đứng riêng một dòng để parser nhận là ảnh của câu, không thành chữ trong đề.
+      const leading = before && !before.endsWith('\n') ? '\n' : ''
+      const trailing = after && !after.startsWith('\n') ? '\n' : ''
+      const insertion = `${leading}${imageTag}${trailing}`
+      const nextValue = before + insertion + after
+      writeSourceDraftTextarea(ta, nextValue, start + insertion.length)
+      showToast(`Đã chèn ảnh vào mã nguồn Câu ${qn}. Bấm "Lưu mã nguồn" để áp dụng.`, 'success')
+    } catch (err) {
+      showToast('Lỗi ảnh: ' + (err?.message || 'Không thể xử lý ảnh'), 'error')
+    } finally {
+      imagePasteBusy = false
+    }
+  }
+
+  /**
+   * Dán/chọn ảnh cho một câu từ preview card (không phải textarea mã nguồn).
+   * Ghi thẳng thẻ [Ảnh: dataUrl] vào đúng khối câu trong batch source rồi parse lại.
+   */
+  async function attachImageToQuestion(index, blob) {
+    const qn = questionNumberAt(index)
+    if (!parsedQuestions[index]) return
+    if (!batchSourceAligned || splitBatchSource(batchSource).blocks.length !== parsedQuestions.length) {
+      showToast('Danh sách câu và nguồn Markdown chưa khớp. Hãy phân tích lại trước khi gắn ảnh.', 'warning')
+      return
+    }
+    if (imagePasteBusy) {
+      showToast('Đang xử lý ảnh trước đó, vui lòng thử lại sau giây lát.', 'info')
+      return
+    }
+    const sourceSnapshot = batchSource
+    const expectedQuestionNumber = parsedQuestions[index]?.questionNumber
+
+    imagePasteBusy = true
+    try {
+      showToast(`Đang nén ảnh cho Câu ${qn}...`, 'info')
+      const dataUrl = await compressImage(blob, 900, 0.8)
+      const imageTag = buildQuestionImageTag(dataUrl)
+
+      // Người dùng có thể mở editor mã nguồn trong lúc ảnh đang nén.
+      if (activeSourceEditorIndex === index) {
+        const ta = document.querySelector(`#md-preview-questions-list .md-source-textarea[data-index="${index}"]`)
+        if (ta) {
+          const result = insertImageTagIntoQuestionSource(ta.value, imageTag)
+          writeSourceDraftTextarea(ta, result.source, result.tagEnd)
+          showToast(`Đã chèn ảnh vào mã nguồn Câu ${qn}. Bấm "Lưu mã nguồn" để áp dụng.`, 'success')
+        } else {
+          showToast(`Không tìm thấy editor mã nguồn Câu ${qn} để chèn ảnh.`, 'warning')
+        }
+        return
+      }
+      if (activeSourceEditorIndex !== null) {
+        showToast('Đang sửa mã nguồn một câu khác chưa Lưu. Hãy Lưu/Hủy trước khi dán ảnh.', 'warning')
+        return
+      }
+      // Nguồn/danh sách câu thay đổi trong lúc nén → không gắn ảnh vào nhầm câu.
+      if (batchSource !== sourceSnapshot || !batchSourceAligned || parsedQuestions[index]?.questionNumber !== expectedQuestionNumber) {
+        showToast('Danh sách câu đã thay đổi trong lúc nén ảnh. Ảnh chưa được gắn — hãy dán lại.', 'warning')
+        return
+      }
+
+      const beforeParse = parseExamMarkdown(batchSource)?.questions || []
+      if (beforeParse.length !== parsedQuestions.length || !beforeParse[index] || beforeParse[index].questionNumber !== expectedQuestionNumber) {
+        showToast('Không xác định được câu cần gắn ảnh trong nguồn Markdown.', 'warning')
+        return
+      }
+      const expectedNumber = beforeParse[index].questionNumber
+      const result = insertImageTagIntoSource(batchSource, index, imageTag)
+      if (!result) {
+        showToast('Không xác định được vị trí Markdown của câu này để gắn ảnh.', 'warning')
+        return
+      }
+
+      const nextQuestions = parseExamMarkdown(result.source)?.questions || []
+      const attached = nextQuestions[index]
+      if (nextQuestions.length !== beforeParse.length ||
+        !attached ||
+        attached.questionNumber !== expectedNumber ||
+        attached.imageUrl !== dataUrl) {
+        showToast('Không thể gắn ảnh vào đúng câu (cấu trúc Markdown đã thay đổi). Ảnh chưa được lưu.', 'error')
+        return
+      }
+
+      if (editor) editor.value = result.source
+      updateParsedCounters(result.source, parsedQuestions)
+      showToast(`Đã gắn ảnh cho Câu ${qn}.`, 'success')
+    } catch (err) {
+      showToast('Lỗi ảnh: ' + (err?.message || 'Không thể xử lý ảnh'), 'error')
+    } finally {
+      imagePasteBusy = false
+    }
+  }
+
+  /** Gỡ ảnh khỏi một câu (batch source hoặc bản nháp mã nguồn đang mở). */
+  function removeQuestionImage(index) {
+    const qn = questionNumberAt(index)
+    if (activeSourceEditorIndex === index) {
+      const ta = document.querySelector(`#md-preview-questions-list .md-source-textarea[data-index="${index}"]`)
+      if (!ta) return showToast('Không tìm thấy editor mã nguồn của câu này.', 'warning')
+      const result = removeImageTagsFromSource(ta.value, 0)
+      if (!result || !result.removed) return showToast('Câu này chưa có ảnh để xóa.', 'info')
+      const caret = Math.min(ta.selectionStart || result.source.length, result.source.length)
+      writeSourceDraftTextarea(ta, result.source, caret)
+      showToast(`Đã gỡ ảnh khỏi mã nguồn Câu ${qn}. Bấm "Lưu mã nguồn" để áp dụng.`, 'info')
+      return
+    }
+    if (activeSourceEditorIndex !== null) {
+      return showToast('Đang sửa mã nguồn một câu khác chưa Lưu. Hãy Lưu/Hủy trước khi xóa ảnh.', 'warning')
+    }
+
+    const beforeParse = parseExamMarkdown(batchSource)?.questions || []
+    if (!batchSourceAligned || beforeParse.length !== parsedQuestions.length || beforeParse[index]?.questionNumber !== parsedQuestions[index]?.questionNumber) {
+      return showToast('Danh sách câu và nguồn Markdown chưa khớp. Hãy phân tích lại trước khi xóa ảnh.', 'warning')
+    }
+    const result = removeImageTagsFromSource(batchSource, index)
+    if (!result || !result.removed) return showToast('Câu này chưa có ảnh để xóa.', 'info')
+    const nextQuestions = parseExamMarkdown(result.source)?.questions || []
+    if (nextQuestions.length !== beforeParse.length || nextQuestions[index]?.imageUrl) {
+      return showToast('Không thể xóa ảnh an toàn vì cấu trúc Markdown đã thay đổi. Hãy dùng Mã nguồn để sửa.', 'error')
+    }
+
+    if (editor) editor.value = result.source
+    updateParsedCounters(result.source, parsedQuestions)
+    showToast(`Đã xóa ảnh của Câu ${qn}.`, 'info')
+  }
 
   analyzeBtn?.addEventListener('click', () => {
     updateParsedCounters(editor?.value || '', parsedQuestions)
@@ -3470,24 +3687,68 @@ async function openImportMarkdownModal() {
     updateParsedCounters(editor.value, parsedQuestions)
   })
 
-  // Paste image handler inside editor
+  // Dán ảnh trong textarea nguồn batch: gắn vào đúng khối câu chứa con trỏ.
+  // Chỉ preventDefault khi clipboard thực sự có ảnh để không chặn dán text thường.
   editor?.addEventListener('paste', async (e) => {
-    const items = e.clipboardData?.items
-    if (!items) return
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        const blob = items[i].getAsFile()
-        try {
-          const compressed = await compressImage(blob, 900, 0.8)
-          const imgTag = `\n[Ảnh]\n${compressed}\n`
-          const start = editor.selectionStart
-          const end = editor.selectionEnd
-          editor.value = editor.value.substring(0, start) + imgTag + editor.value.substring(end)
-          updateParsedCounters(editor.value, parsedQuestions)
-        } catch (err) {
-          showToast('Lỗi nén ảnh: ' + err.message, 'error')
-        }
+    const blob = getClipboardImageFile(e)
+    if (!blob) return
+    e.preventDefault()
+    if (imagePasteBusy) {
+      return showToast('Đang xử lý ảnh trước đó, vui lòng thử lại sau giây lát.', 'info')
+    }
+
+    const snapshot = editor.value
+    const caret = Number.isFinite(editor.selectionStart) ? editor.selectionStart : snapshot.length
+    const split = splitBatchSource(snapshot)
+    const index = findQuestionBlockIndexAtOffset(split.blocks, caret)
+    if (index === null) {
+      return showToast('Hãy đặt con trỏ vào nội dung một câu hỏi (sau dòng [Câu N]) trước khi dán ảnh.', 'warning')
+    }
+    if (activeSourceEditorIndex !== null) {
+      return showToast(`Đang sửa mã nguồn Câu ${questionNumberAt(activeSourceEditorIndex)} chưa Lưu. Hãy Lưu/Hủy trước khi dán ảnh vào nguồn batch.`, 'warning')
+    }
+    const originalQuestions = parseExamMarkdown(snapshot)?.questions || []
+    if (split.blocks.length !== originalQuestions.length || originalQuestions.length !== parsedQuestions.length || originalQuestions[index]?.questionNumber !== parsedQuestions[index]?.questionNumber) {
+      return showToast('Danh sách câu và nguồn Markdown chưa khớp. Hãy phân tích lại trước khi dán ảnh.', 'warning')
+    }
+
+    const qn = questionNumberAt(index)
+    imagePasteBusy = true
+    try {
+      showToast(`Đang nén ảnh cho Câu ${qn}...`, 'info')
+      const dataUrl = await compressImage(blob, 900, 0.8)
+      const imageTag = buildQuestionImageTag(dataUrl)
+
+      if (editor.value !== snapshot) {
+        showToast('Nguồn Markdown đã thay đổi trong lúc nén ảnh. Ảnh chưa được chèn — hãy dán lại.', 'warning')
+        return
       }
+      if (activeSourceEditorIndex !== null) {
+        showToast(`Đang sửa mã nguồn Câu ${questionNumberAt(activeSourceEditorIndex)}. Ảnh chưa được chèn — hãy Lưu/Hủy rồi dán lại.`, 'warning')
+        return
+      }
+
+      const beforeParse = parseExamMarkdown(snapshot)?.questions || []
+      const expectedNumber = beforeParse[index]?.questionNumber
+      const result = insertImageTagIntoSource(snapshot, index, imageTag)
+      if (!result) return showToast('Không xác định được vị trí Markdown của câu này để gắn ảnh.', 'warning')
+
+      const nextQuestions = parseExamMarkdown(result.source)?.questions || []
+      const attached = nextQuestions[index]
+      if (!attached || attached.questionNumber !== expectedNumber || attached.imageUrl !== dataUrl) {
+        return showToast('Không thể gắn ảnh vào đúng câu (cấu trúc Markdown đã thay đổi). Ảnh chưa được lưu.', 'error')
+      }
+
+      editor.value = result.source
+      updateParsedCounters(result.source, parsedQuestions)
+      editor.focus()
+      const pos = Math.min(result.tagEnd, editor.value.length)
+      try { editor.setSelectionRange(pos, pos) } catch (_) { }
+      showToast(`Đã gắn ảnh cho Câu ${qn} trong nguồn Markdown.`, 'success')
+    } catch (err) {
+      showToast('Lỗi ảnh: ' + (err?.message || 'Không thể xử lý ảnh'), 'error')
+    } finally {
+      imagePasteBusy = false
     }
   })
 
@@ -3511,45 +3772,10 @@ async function openImportMarkdownModal() {
    * Cắt nguồn Markdown thành từng khối câu theo đúng quy tắc nhận diện header của parser
    * (`[Câu 1]`, `Câu 1:` ...) — dùng để sửa / xóa mã nguồn của đúng 1 câu mà không đụng các câu khác.
    * Trả về { lines, lineOffsets, blocks:[{startLine,endLine,start,end}], preamble } (offset theo ký tự).
+   * Logic nằm ở utils/question-bank-image.js để test standalone.
    */
   function splitBatchSource(source) {
-    const src = String(source || '')
-    const lines = src.split('\n')
-    const lineOffsets = []
-    let offset = 0
-    lines.forEach((line, lineIndex) => {
-      lineOffsets[lineIndex] = offset
-      offset += line.length + 1
-    })
-
-    // Mirror parser: định nghĩa ảnh `[id]: <url>` bị loại khỏi luồng parse chính
-    const IMAGE_REF_DEF_REGEX = /^\[([^\]]+)\]:\s*(data:image\/[^\s]+|https?:\/\/[^\s]+|blob:[^\s]+)\s*$/i
-    const HEADER_BRACKET_REGEX = /^\[(?:Câu|Bài)\s*(\d+)\]/i
-    const HEADER_PLAIN_REGEX = /^(?:Câu|Bài)\s*(\d+)/i
-
-    const starts = []
-    lines.forEach((line, lineIndex) => {
-      const trimmed = line.trim()
-      if (!trimmed || IMAGE_REF_DEF_REGEX.test(trimmed)) return
-      if (HEADER_BRACKET_REGEX.test(trimmed) || HEADER_PLAIN_REGEX.test(trimmed)) starts.push(lineIndex)
-    })
-
-    const blocks = starts.map((startLine, i) => {
-      const endLine = i + 1 < starts.length ? starts[i + 1] : lines.length
-      return {
-        startLine,
-        endLine,
-        start: lineOffsets[startLine],
-        end: endLine < lines.length ? lineOffsets[endLine] : src.length
-      }
-    })
-
-    return {
-      lines,
-      lineOffsets,
-      blocks,
-      preamble: blocks.length ? src.slice(0, blocks[0].start) : src
-    }
+    return splitQuestionSourceBlocks(source)
   }
 
   /**
@@ -3757,6 +3983,21 @@ async function openImportMarkdownModal() {
     }
   }
 
+  /** Ảnh đã gắn vào câu (từ thẻ [Ảnh: ...] trong Markdown) — render ngay trong preview card. */
+  function renderQuestionImage(q) {
+    if (q?.imageUrl) {
+      return `<div class="md-question-image" style="margin-top:10px; text-align:center;">
+        <img src="${escapeHtmlAttr(q.imageUrl)}" alt="Ảnh minh họa câu hỏi" loading="lazy" style="max-width:100%; max-height:280px; border-radius:8px; border:1px solid #e2e8f0; object-fit:contain; background:#ffffff;" />
+      </div>`
+    }
+    if (q?.hasImagePlaceholder) {
+      return `<div style="margin-top:10px; padding:8px 10px; font-size:11.5px; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:8px;">
+        <i class="fa-solid fa-triangle-exclamation"></i> Có thẻ <code>[Ảnh]</code> nhưng chưa có dữ liệu ảnh — dán ảnh vào thẻ này để hiển thị.
+      </div>`
+    }
+    return ''
+  }
+
   function renderParsedPreviewList() {
     const container = document.getElementById('md-preview-questions-list')
     if (!container) return
@@ -3779,7 +4020,7 @@ async function openImportMarkdownModal() {
       const explanation = includeExplanation && q.explanation
         ? `<div style="margin-top:12px; padding:10px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;"><strong style="color:#166534;">Lời giải</strong><div style="margin-top:5px;">${renderMarkdown(q.explanation)}</div></div>`
         : ''
-      return `<div class="math-content" style="line-height:1.55; color:#1e293b;">${renderMarkdown(q.promptText || '')}</div>${options ? `<div style="margin-top:8px;">${options}</div>` : ''}${explanation}`
+      return `<div class="math-content" style="line-height:1.55; color:#1e293b;">${renderMarkdown(q.promptText || '')}</div>${renderQuestionImage(q)}${options ? `<div style="margin-top:8px;">${options}</div>` : ''}${explanation}`
     }
 
     // Vùng source của card đang mở editor (giữ bản nháp nếu user đã gõ nhưng chưa Lưu)
@@ -3867,12 +4108,18 @@ async function openImportMarkdownModal() {
         : `<div style="border-top:1px solid #f1f5f9; padding-top:10px;">${renderQuestionBody(q)}</div>`
 
       html += `
-        <article class="md-preview-card" data-index="${idx}" style="border:1px solid ${cardBorder}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:default; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
+        <article class="md-preview-card" data-index="${idx}" tabindex="0" style="border:1px solid ${cardBorder}; border-radius:10px; background:#ffffff; padding:14px 16px; cursor:default; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:box-shadow .15s,border-color .15s;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap; min-width:0;">
             <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; min-width:0;"><strong style="color:#334155;">Câu ${displayNumber}</strong><span style="font-size:11px; font-weight:700; color:#0369a1; background:#eff6ff; padding:2px 7px; border-radius:5px;">${typeLabel}</span></div>
             <div class="md-preview-card-actions" style="display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:5px; min-width:0; max-width:100%;">${headerActions}</div>
           </div>
           ${questionBody}
+          <div class="md-card-image-zone" data-index="${idx}" title="Dán ảnh (Ctrl+V), kéo thả hoặc bấm để chọn ảnh cho đúng câu này" style="margin-top:10px; padding:6px 10px; display:flex; align-items:center; gap:8px; border:1px dashed ${q.imageUrl ? '#86efac' : '#cbd5e1'}; border-radius:8px; background:${q.imageUrl ? '#f0fdf4' : '#f8fafc'}; cursor:pointer; user-select:none; min-width:0;">
+            <i class="fa-solid ${q.imageUrl ? 'fa-image' : 'fa-paste'}" style="color:${q.imageUrl ? '#16a34a' : '#64748b'};"></i>
+            <span style="font-size:11.5px; color:#475569; min-width:0; overflow-wrap:anywhere;">${q.imageUrl ? 'Đã gắn ảnh cho câu này — dán ảnh mới để thay thế' : 'Dán ảnh (Ctrl+V) · kéo thả · hoặc bấm để chọn ảnh cho câu này'}</span>
+            ${q.imageUrl ? `<button type="button" class="md-remove-question-image-btn" data-index="${idx}" title="Gỡ ảnh khỏi câu này" style="margin-left:auto; flex-shrink:0; border:1px solid #fecaca; color:#b91c1c; background:#fff1f2; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;"><i class="fa-solid fa-trash-can"></i> Xóa ảnh</button>` : ''}
+            <input type="file" accept="image/*" class="md-card-image-input" data-index="${idx}" style="display:none;" />
+          </div>
           ${metaBadges}
           ${targetDisplay}
           <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:10px; padding-top:8px; border-top:1px dashed #e2e8f0;">
@@ -3917,12 +4164,83 @@ async function openImportMarkdownModal() {
       })
     })
 
+    // Vùng dán ảnh rõ ràng cho từng câu (Ctrl+V / kéo thả / bấm chọn file)
+    container.querySelectorAll('.md-card-image-zone').forEach(zone => {
+      const idx = parseInt(zone.getAttribute('data-index'), 10)
+      if (!Number.isInteger(idx)) return
+      const fileInput = zone.querySelector('.md-card-image-input')
+
+      zone.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (e.target.closest('.md-remove-question-image-btn')) return
+        if (e.target === fileInput) return
+        fileInput?.click()
+      })
+
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault()
+        zone.style.borderColor = '#0066cc'
+        zone.style.background = '#eff6ff'
+      })
+      zone.addEventListener('dragleave', () => {
+        zone.style.borderColor = zone.querySelector('.md-remove-question-image-btn') ? '#86efac' : '#cbd5e1'
+        zone.style.background = zone.querySelector('.md-remove-question-image-btn') ? '#f0fdf4' : '#f8fafc'
+      })
+      zone.addEventListener('drop', async (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        zone.style.borderColor = zone.querySelector('.md-remove-question-image-btn') ? '#86efac' : '#cbd5e1'
+        zone.style.background = zone.querySelector('.md-remove-question-image-btn') ? '#f0fdf4' : '#f8fafc'
+        const file = e.dataTransfer?.files?.[0]
+        if (!file) return
+        if (!/^image\//i.test(file.type || '')) {
+          return showToast('Tệp kéo thả không phải là ảnh hợp lệ.', 'error')
+        }
+        await attachImageToQuestion(idx, file)
+      })
+
+      fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0]
+        e.target.value = ''
+        if (!file) return
+        await attachImageToQuestion(idx, file)
+      })
+    })
+
+    container.querySelectorAll('.md-remove-question-image-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const idx = parseInt(btn.getAttribute('data-index'), 10)
+        if (Number.isInteger(idx)) removeQuestionImage(idx)
+      })
+    })
+
+    // Dán ảnh khi focus vào card (không phải textarea/input con) → gắn đúng câu của card
+    container.querySelectorAll('.md-preview-card').forEach(card => {
+      card.addEventListener('paste', async (e) => {
+        if (e.target?.closest?.('textarea, input, select')) return
+        const blob = getClipboardImageFile(e)
+        if (!blob) return
+        e.preventDefault()
+        e.stopPropagation()
+        const idx = parseInt(card.getAttribute('data-index'), 10)
+        if (Number.isInteger(idx)) await attachImageToQuestion(idx, blob)
+      })
+    })
+
     // Editor Mã nguồn ngay trong card
     container.querySelectorAll('.md-source-textarea').forEach(ta => {
       const idx = parseInt(ta.getAttribute('data-index'), 10)
       ta.addEventListener('click', (e) => e.stopPropagation())
       ta.addEventListener('input', () => {
         if (idx === activeSourceEditorIndex) activeSourceDraft = ta.value
+      })
+      ta.addEventListener('paste', async (e) => {
+        const blob = getClipboardImageFile(e)
+        if (!blob) return
+        e.preventDefault()
+        e.stopPropagation()
+        await attachImageToOpenSourceTextarea(idx, ta, blob)
       })
       ta.addEventListener('keydown', (e) => {
         if (e.key === 'Tab') {
@@ -4023,7 +4341,7 @@ async function openImportMarkdownModal() {
   }
 
   function renderQuestionBodyForDetail(q, optionsHtml) {
-    return `<div class="math-content" style="line-height:1.6;">${renderMarkdown(q.promptText || '')}</div><div style="margin-top:10px;">${optionsHtml}</div>${q.explanation ? `<div style="margin-top:14px; padding:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;"><strong>Lời giải</strong><div>${renderMarkdown(q.explanation)}</div></div>` : ''}`
+    return `<div class="math-content" style="line-height:1.6;">${renderMarkdown(q.promptText || '')}</div>${renderQuestionImage(q)}<div style="margin-top:10px;">${optionsHtml}</div>${q.explanation ? `<div style="margin-top:14px; padding:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;"><strong>Lời giải</strong><div>${renderMarkdown(q.explanation)}</div></div>` : ''}`
   }
 
   function locateQuestionBlockRange(index) {
@@ -4475,6 +4793,7 @@ async function openMatrixGeneratorModal() {
   generatorState.selectedClassIds = []
   generatorState.selectedChapterIds = []
   generatorState.selectedLessonIds = []
+  generatorState.selectedTypeIds = []
   generatorState.scopeMode = 'MULTI'
   generatorState.scopeType = 'MULTI'
   generatorState.classId = ''
@@ -4498,7 +4817,20 @@ async function openMatrixGeneratorModal() {
     chapters: {}, // classId -> chapters[]
     lessons: {},  // chapterId -> lessons[]
     expandedClasses: new Set(),
-    expandedChapters: new Set()
+    expandedChapters: new Set(),
+    expandedLessons: new Set(), // lessonId -> mở danh sách Dạng bài
+    typeLoadError: ''
+  }
+
+  // Dạng bài Constant đi kèm taxonomy đã tải ở màn Ngân hàng câu hỏi. Nếu vì lý do
+  // nào đó danh mục bài học đã có nhưng questionTypes rỗng, thử tải lại một lần để
+  // cây không hiển thị sai "Bài không có Dạng bài".
+  if ((constantTaxonomyState.lessons || []).length > 0 && (constantTaxonomyState.questionTypes || []).length === 0) {
+    try {
+      await loadConstantTaxonomyData()
+    } catch (err) {
+      treeDataCache.typeLoadError = err.message || 'Không tải được danh mục Dạng bài Constant'
+    }
   }
 
   modalContainer.innerHTML = `
@@ -4577,8 +4909,15 @@ async function openMatrixGeneratorModal() {
               <!-- Tip hướng dẫn -->
               <div style="font-size:11.5px; color:#64748b; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
                 <i class="fa-solid fa-circle-info" style="color:#0284c7;"></i>
-                <span>Tick chọn <strong>Lớp / Chương</strong> để lấy toàn bộ câu hỏi bên trong, hoặc bấm nút mũi tên <strong style="color:#0284c7;">▶</strong> để mở chi tiết và tick từng <strong>Bài học</strong> mong muốn (chọn 1 mục bất kỳ cũng là bốc nhanh hợp lệ).</span>
+                <span>Tick chọn <strong>Lớp / Chương / Bài</strong> để chọn toàn bộ <strong>Dạng bài</strong> bên trong (Bài chưa có Dạng bài sẽ bốc toàn bộ câu của Bài), hoặc bấm nút mũi tên <strong style="color:#0284c7;">▶</strong> để mở chi tiết và tick từng <strong>Bài học / Dạng bài</strong> mong muốn. Bỏ tick một Dạng bài chỉ loại đúng Dạng bài đó, các Dạng bài khác trong bài vẫn được giữ.</span>
               </div>
+
+              ${treeDataCache.typeLoadError ? `
+                <div style="margin-bottom:8px; padding:8px 12px; border:1px solid #fecaca; background:#fff1f2; color:#b91c1c; border-radius:8px; font-size:11.5px; display:flex; align-items:center; gap:6px;">
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                  <span>Không tải được Dạng bài Constant: ${escapeHtml(treeDataCache.typeLoadError)}. Các Bài học vẫn có thể chọn theo hành vi cũ.</span>
+                </div>
+              ` : ''}
 
               <!-- Tree View Container -->
               <div id="gen-scope-tree-container" tabindex="0" role="region" aria-label="Cây phân cấp Lớp Chương Bài" style="max-height:300px; min-height:120px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; padding:10px;">
@@ -4930,8 +5269,10 @@ async function openMatrixGeneratorModal() {
     generatorState.selectedClassIds = []
     generatorState.selectedChapterIds = []
     generatorState.selectedLessonIds = []
+    generatorState.selectedTypeIds = []
     treeDataCache.expandedClasses.clear()
     treeDataCache.expandedChapters.clear()
+    treeDataCache.expandedLessons.clear()
     renderTreeForGradeBlock(generatorState.gradeBlock)
     updateTreeSelectionBadge()
     checkLiveAvailability()
@@ -4943,9 +5284,10 @@ async function openMatrixGeneratorModal() {
     const cCount = (generatorState.selectedClassIds || []).length
     const chCount = (generatorState.selectedChapterIds || []).length
     const lCount = (generatorState.selectedLessonIds || []).length
-    const totalSelected = cCount + chCount + lCount
+    const tCount = (generatorState.selectedTypeIds || []).length
+    const totalSelected = cCount + chCount + lCount + tCount
 
-    const text = `Đã chọn: ${cCount} lớp, ${chCount} chương, ${lCount} bài`
+    const text = `Đã chọn: ${cCount} lớp, ${chCount} chương, ${lCount} bài, ${tCount} dạng bài`
     if (badgeTextEl) {
       badgeTextEl.textContent = text
     } else if (badge) {
@@ -4969,164 +5311,189 @@ async function openMatrixGeneratorModal() {
     }
   }
 
-  // Checkbox cascading helpers
-  function handleClassCheckbox(clId, isChecked) {
-    if (isChecked) {
-      if (!generatorState.selectedClassIds.includes(clId)) {
-        generatorState.selectedClassIds.push(clId)
-      }
-      // Check all rendered chapter & lesson checkboxes under this class
-      const classBox = document.querySelector(`.tree-class-node[data-class-id="${clId}"]`)
-      if (classBox) {
-        classBox.querySelectorAll('.chk-tree-chapter').forEach(chChk => {
-          chChk.checked = true
-          const chId = chChk.getAttribute('data-chapter-id')
-          if (chId && !generatorState.selectedChapterIds.includes(chId)) {
-            generatorState.selectedChapterIds.push(chId)
-          }
-        })
-        classBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
-          lChk.checked = true
-          const lId = lChk.getAttribute('data-lesson-id')
-          if (lId && !generatorState.selectedLessonIds.includes(lId)) {
-            generatorState.selectedLessonIds.push(lId)
-          }
-        })
-      }
-      // Also sync cached chapters & lessons if already loaded
-      const cachedChs = treeDataCache.chapters[clId] || []
-      cachedChs.forEach(ch => {
-        if (!generatorState.selectedChapterIds.includes(ch.id)) {
-          generatorState.selectedChapterIds.push(ch.id)
-        }
-        const cachedLs = treeDataCache.lessons[ch.id] || []
-        cachedLs.forEach(l => {
-          if (!generatorState.selectedLessonIds.includes(l.id)) {
-            generatorState.selectedLessonIds.push(l.id)
-          }
-        })
-      })
-    } else {
-      generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== clId)
-      const classBox = document.querySelector(`.tree-class-node[data-class-id="${clId}"]`)
-      if (classBox) {
-        classBox.querySelectorAll('.chk-tree-chapter').forEach(chChk => {
-          chChk.checked = false
-          const chId = chChk.getAttribute('data-chapter-id')
-          generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== chId)
-        })
-        classBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
-          lChk.checked = false
-          const lId = lChk.getAttribute('data-lesson-id')
-          generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lId)
-        })
-      }
-      // Also uncheck from cache
-      const cachedChs = treeDataCache.chapters[clId] || []
-      cachedChs.forEach(ch => {
-        generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== ch.id)
-        const cachedLs = treeDataCache.lessons[ch.id] || []
-        cachedLs.forEach(l => {
-          generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== l.id)
-        })
-      })
+  // ========================================================
+  // Chọn phạm vi theo leaf: Bài (có/không có Dạng bài) + Dạng bài Constant
+  // ========================================================
+  function getTypesForLesson(lessonId) {
+    return (constantTaxonomyState.questionTypes || []).filter(t => t.lesson_id === lessonId)
+  }
+
+  function getLessonsForChapter(chapterId) {
+    const cached = treeDataCache.lessons[chapterId]
+    if (Array.isArray(cached)) return cached
+    return (constantTaxonomyState.lessons || []).filter(l => l.chapter_id === chapterId)
+  }
+
+  function getChaptersForClass(classId) {
+    const cached = treeDataCache.chapters[classId]
+    if (Array.isArray(cached)) return cached
+    return (constantTaxonomyState.chapters || []).filter(ch => ch.class_id === classId)
+  }
+
+  function getLessonsForClass(classId) {
+    const byId = new Map()
+    getChaptersForClass(classId).forEach(ch => {
+      getLessonsForChapter(ch.id).forEach(l => byId.set(l.id, l))
+    })
+    return Array.from(byId.values())
+  }
+
+  // 'all' = chọn toàn bộ bài (với bài có Dạng bài: mọi Dạng bài đều được chọn)
+  // 'partial' = chỉ một phần Dạng bài trong bài được chọn
+  // 'none' = chưa chọn gì thuộc bài
+  function getLessonSelectionState(lessonId) {
+    const types = getTypesForLesson(lessonId)
+    if (types.length === 0) {
+      return generatorState.selectedLessonIds.includes(lessonId) ? 'all' : 'none'
     }
+    const selectedCount = types.filter(t => generatorState.selectedTypeIds.includes(t.id)).length
+    if (selectedCount === 0) return 'none'
+    return selectedCount === types.length ? 'all' : 'partial'
+  }
+
+  function selectLessonFully(lessonId) {
+    getTypesForLesson(lessonId).forEach(t => {
+      if (!generatorState.selectedTypeIds.includes(t.id)) {
+        generatorState.selectedTypeIds.push(t.id)
+      }
+    })
+    if (!generatorState.selectedLessonIds.includes(lessonId)) {
+      generatorState.selectedLessonIds.push(lessonId)
+    }
+  }
+
+  function deselectLesson(lessonId) {
+    generatorState.selectedTypeIds = generatorState.selectedTypeIds
+      .filter(id => !getTypesForLesson(lessonId).some(t => t.id === id))
+    generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lessonId)
+  }
+
+  // Suy diễn lại Lớp/Chương/Bài đã chọn từ trạng thái thực tế của các leaf.
+  // Nhờ vậy bỏ 1 Dạng bài sẽ tự đưa Bài/Chương/Lớp cha về trạng thái indeterminate
+  // thay vì giữ tick "đã chọn toàn bộ".
+  function recomputeParentSelections() {
+    const block = generatorState.gradeBlock
+    const classes = (constantTaxonomyState.classes || []).filter(c => {
+      if (!block || block === 'ALL') return true
+      return String(c.grade_block || c.gradeBlock || '').trim() === String(block).trim()
+    })
+
+    classes.forEach(c => {
+      const chapters = getChaptersForClass(c.id)
+      let classFullySelected = chapters.length > 0
+      chapters.forEach(ch => {
+        const lessons = getLessonsForChapter(ch.id)
+        let chapterFullySelected = lessons.length > 0
+        lessons.forEach(l => {
+          const state = getLessonSelectionState(l.id)
+          if (state === 'all') {
+            if (!generatorState.selectedLessonIds.includes(l.id)) generatorState.selectedLessonIds.push(l.id)
+          } else {
+            generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== l.id)
+            chapterFullySelected = false
+          }
+        })
+        if (chapterFullySelected) {
+          if (!generatorState.selectedChapterIds.includes(ch.id)) generatorState.selectedChapterIds.push(ch.id)
+        } else {
+          generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== ch.id)
+          classFullySelected = false
+        }
+      })
+      if (classFullySelected) {
+        if (!generatorState.selectedClassIds.includes(c.id)) generatorState.selectedClassIds.push(c.id)
+      } else {
+        generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== c.id)
+      }
+    })
+  }
+
+  // Đồng bộ DOM checkbox + indeterminate theo state thật (không đoán theo DOM).
+  function refreshTreeSelectionUI() {
+    const selectedTypes = new Set(generatorState.selectedTypeIds)
+    document.querySelectorAll('.chk-tree-type').forEach(chk => {
+      chk.checked = selectedTypes.has(chk.getAttribute('data-type-id'))
+    })
+
+    document.querySelectorAll('.chk-tree-lesson').forEach(chk => {
+      const lessonId = chk.getAttribute('data-lesson-id')
+      const state = getLessonSelectionState(lessonId)
+      chk.checked = state === 'all'
+      chk.indeterminate = state === 'partial'
+    })
+
+    document.querySelectorAll('.chk-tree-chapter').forEach(chk => {
+      const chapterId = chk.getAttribute('data-chapter-id')
+      const lessons = getLessonsForChapter(chapterId)
+      const states = lessons.map(l => getLessonSelectionState(l.id))
+      const isChecked = generatorState.selectedChapterIds.includes(chapterId)
+      chk.checked = isChecked
+      chk.indeterminate = !isChecked && states.some(s => s !== 'none')
+    })
+
+    document.querySelectorAll('.chk-tree-class').forEach(chk => {
+      const classId = chk.getAttribute('data-class-id')
+      const lessons = getLessonsForClass(classId)
+      const states = lessons.map(l => getLessonSelectionState(l.id))
+      const isChecked = generatorState.selectedClassIds.includes(classId)
+      chk.checked = isChecked
+      chk.indeterminate = !isChecked && states.some(s => s !== 'none')
+    })
+
     updateTreeSelectionBadge()
+  }
+
+  function hasScopeSelection() {
+    return (generatorState.selectedClassIds && generatorState.selectedClassIds.length > 0) ||
+      (generatorState.selectedChapterIds && generatorState.selectedChapterIds.length > 0) ||
+      (generatorState.selectedLessonIds && generatorState.selectedLessonIds.length > 0) ||
+      (generatorState.selectedTypeIds && generatorState.selectedTypeIds.length > 0)
+  }
+
+  function applyTreeSelectionChange() {
+    recomputeParentSelections()
+    refreshTreeSelectionUI()
     checkLiveAvailability()
   }
 
-  function handleChapterCheckbox(chId, clId, isChecked) {
+  function handleClassCheckbox(clId, isChecked) {
+    const lessons = getLessonsForClass(clId)
     if (isChecked) {
-      if (!generatorState.selectedChapterIds.includes(chId)) {
-        generatorState.selectedChapterIds.push(chId)
-      }
-      // Check all rendered lesson checkboxes under this chapter
-      const chBox = document.querySelector(`.tree-chapter-node[data-chapter-id="${chId}"]`)
-      if (chBox) {
-        chBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
-          lChk.checked = true
-          const lId = lChk.getAttribute('data-lesson-id')
-          if (lId && !generatorState.selectedLessonIds.includes(lId)) {
-            generatorState.selectedLessonIds.push(lId)
-          }
-        })
-      }
-      // Sync cached lessons
-      const cachedLs = treeDataCache.lessons[chId] || []
-      cachedLs.forEach(l => {
-        if (!generatorState.selectedLessonIds.includes(l.id)) {
-          generatorState.selectedLessonIds.push(l.id)
-        }
-      })
-      // If all chapters of class are checked, check class
-      const cachedChs = treeDataCache.chapters[clId] || []
-      if (cachedChs.length > 0 && cachedChs.every(ch => generatorState.selectedChapterIds.includes(ch.id))) {
-        if (!generatorState.selectedClassIds.includes(clId)) {
-          generatorState.selectedClassIds.push(clId)
-        }
-        const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
-        if (cChk) cChk.checked = true
-      }
+      lessons.forEach(l => selectLessonFully(l.id))
     } else {
-      generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== chId)
-      const chBox = document.querySelector(`.tree-chapter-node[data-chapter-id="${chId}"]`)
-      if (chBox) {
-        chBox.querySelectorAll('.chk-tree-lesson').forEach(lChk => {
-          lChk.checked = false
-          const lId = lChk.getAttribute('data-lesson-id')
-          generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lId)
-        })
-      }
-      const cachedLs = treeDataCache.lessons[chId] || []
-      cachedLs.forEach(l => {
-        generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== l.id)
-      })
-      // Uncheck parent class
-      generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== clId)
-      const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
-      if (cChk) cChk.checked = false
+      lessons.forEach(l => deselectLesson(l.id))
     }
-    updateTreeSelectionBadge()
-    checkLiveAvailability()
+    applyTreeSelectionChange()
+  }
+
+  function handleChapterCheckbox(chId, clId, isChecked) {
+    const lessons = getLessonsForChapter(chId)
+    if (isChecked) {
+      lessons.forEach(l => selectLessonFully(l.id))
+    } else {
+      lessons.forEach(l => deselectLesson(l.id))
+    }
+    applyTreeSelectionChange()
   }
 
   function handleLessonCheckbox(lId, chId, clId, isChecked) {
     if (isChecked) {
-      if (!generatorState.selectedLessonIds.includes(lId)) {
-        generatorState.selectedLessonIds.push(lId)
-      }
-      // Check if all lessons of chapter are checked -> check chapter
-      const cachedLs = treeDataCache.lessons[chId] || []
-      if (cachedLs.length > 0 && cachedLs.every(l => generatorState.selectedLessonIds.includes(l.id))) {
-        if (!generatorState.selectedChapterIds.includes(chId)) {
-          generatorState.selectedChapterIds.push(chId)
-        }
-        const chChk = document.querySelector(`.chk-tree-chapter[data-chapter-id="${chId}"]`)
-        if (chChk) chChk.checked = true
+      selectLessonFully(lId)
+    } else {
+      deselectLesson(lId)
+    }
+    applyTreeSelectionChange()
+  }
 
-        // Check if all chapters of class are checked -> check class
-        const cachedChs = treeDataCache.chapters[clId] || []
-        if (cachedChs.length > 0 && cachedChs.every(ch => generatorState.selectedChapterIds.includes(ch.id))) {
-          if (!generatorState.selectedClassIds.includes(clId)) {
-            generatorState.selectedClassIds.push(clId)
-          }
-          const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
-          if (cChk) cChk.checked = true
-        }
+  function handleTypeCheckbox(typeId, lessonId, isChecked) {
+    if (isChecked) {
+      if (!generatorState.selectedTypeIds.includes(typeId)) {
+        generatorState.selectedTypeIds.push(typeId)
       }
     } else {
-      generatorState.selectedLessonIds = generatorState.selectedLessonIds.filter(id => id !== lId)
-      // Uncheck parent chapter & class
-      generatorState.selectedChapterIds = generatorState.selectedChapterIds.filter(id => id !== chId)
-      const chChk = document.querySelector(`.chk-tree-chapter[data-chapter-id="${chId}"]`)
-      if (chChk) chChk.checked = false
-
-      generatorState.selectedClassIds = generatorState.selectedClassIds.filter(id => id !== clId)
-      const cChk = document.querySelector(`.chk-tree-class[data-class-id="${clId}"]`)
-      if (cChk) cChk.checked = false
+      generatorState.selectedTypeIds = generatorState.selectedTypeIds.filter(id => id !== typeId)
     }
-    updateTreeSelectionBadge()
-    checkLiveAvailability()
+    applyTreeSelectionChange()
   }
 
   // Load and render Lessons under a Chapter (hỗ trợ cả constant và curriculum)
@@ -5156,21 +5523,44 @@ async function openMatrixGeneratorModal() {
       return
     }
 
-    const isParentChecked = generatorState.selectedChapterIds.includes(chId) || generatorState.selectedClassIds.includes(clId)
-
     let lHtml = ''
     lessons.forEach(l => {
-      if (isParentChecked && !generatorState.selectedLessonIds.includes(l.id)) {
-        generatorState.selectedLessonIds.push(l.id)
-      }
-      const isLChecked = generatorState.selectedLessonIds.includes(l.id)
-      lHtml += `
-        <div style="padding:4px 0; display:flex; align-items:center; gap:6px;">
-          <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:#475569; margin:0;">
-            <input type="checkbox" class="chk-tree-lesson" data-lesson-id="${l.id}" data-chapter-id="${chId}" data-class-id="${clId}" ${isLChecked ? 'checked' : ''} style="width:14px; height:14px; cursor:pointer; accent-color:#0284c7;" />
-            <i class="fa-solid fa-file-lines" style="color:#0284c7; font-size:11px;"></i>
-            <span>${escapeHtml(l.title)}</span>
+      const types = getTypesForLesson(l.id)
+      const isLExpanded = treeDataCache.expandedLessons.has(l.id)
+
+      let typesHtml = ''
+      if (types.length > 0) {
+        typesHtml = types.map(t => `
+          <label class="tree-type-node" data-type-id="${t.id}" data-lesson-id="${l.id}" style="display:flex; align-items:center; gap:6px; padding:3px 6px; border-radius:6px; cursor:pointer; font-size:11.5px; color:#475569; margin:0 0 1px 0; background:#f8fafc; border:1px solid #eef2f7;">
+            <input type="checkbox" class="chk-tree-type" data-type-id="${t.id}" data-lesson-id="${l.id}" data-chapter-id="${chId}" data-class-id="${clId}" ${generatorState.selectedTypeIds.includes(t.id) ? 'checked' : ''} style="width:13px; height:13px; cursor:pointer; accent-color:#7c3aed;" />
+            <i class="fa-solid fa-tag" style="color:#7c3aed; font-size:10px;"></i>
+            <span>${escapeHtml(t.name)}</span>
           </label>
+        `).join('')
+      }
+
+      lHtml += `
+        <div class="tree-lesson-node" data-lesson-id="${l.id}" style="padding:3px 0;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            ${types.length > 0 ? `
+              <button type="button" class="btn-tree-expand-lesson" data-lesson-id="${l.id}" aria-expanded="${isLExpanded ? 'true' : 'false'}" title="${isLExpanded ? 'Thu gọn dạng bài' : 'Mở rộng dạng bài'}" style="border:1px solid #e2e8f0; background:#ffffff; cursor:pointer; color:#64748b; font-size:9px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px; flex-shrink:0;">
+                <i class="fa-solid ${isLExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} tree-chevron-lesson-${l.id}"></i>
+              </button>
+            ` : `<span style="width:20px; height:20px; display:inline-block; flex-shrink:0;"></span>`}
+            <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:#475569; margin:0; flex:1;">
+              <input type="checkbox" class="chk-tree-lesson" data-lesson-id="${l.id}" data-chapter-id="${chId}" data-class-id="${clId}" style="width:14px; height:14px; cursor:pointer; accent-color:#0284c7;" />
+              <i class="fa-solid fa-file-lines" style="color:#0284c7; font-size:11px;"></i>
+              <span>${escapeHtml(l.title)}</span>
+            </label>
+            <span style="font-size:10px; color:${types.length > 0 ? '#7c3aed' : '#94a3b8'}; background:${types.length > 0 ? '#f5f3ff' : '#f8fafc'}; border:1px solid ${types.length > 0 ? '#ddd6fe' : '#e2e8f0'}; border-radius:999px; padding:1px 7px; white-space:nowrap;" title="${types.length > 0 ? 'Số Dạng bài Constant của bài học' : 'Bài học chưa có Dạng bài — chọn bài sẽ bốc toàn bộ câu của bài'}">
+              ${types.length > 0 ? `${types.length} dạng bài` : 'Chưa có dạng bài'}
+            </span>
+          </div>
+          ${types.length > 0 ? `
+            <div class="tree-lesson-children" id="tree-lesson-children-${l.id}" style="display:${isLExpanded ? 'block' : 'none'}; padding:3px 0 3px 46px;">
+              ${typesHtml}
+            </div>
+          ` : ''}
         </div>
       `
     })
@@ -5184,6 +5574,40 @@ async function openMatrixGeneratorModal() {
         handleLessonCheckbox(lId, chId, clId, e.target.checked)
       })
     })
+
+    // Bind Type Checkboxes — bỏ 1 Dạng bài chỉ loại đúng type đó, giữ sibling.
+    lBox.querySelectorAll('.chk-tree-type').forEach(tChk => {
+      tChk.addEventListener('change', (e) => {
+        const typeId = tChk.getAttribute('data-type-id')
+        const lessonId = tChk.getAttribute('data-lesson-id')
+        handleTypeCheckbox(typeId, lessonId, e.target.checked)
+      })
+    })
+
+    // Bind Lesson Expand buttons (chỉ mở/đóng DOM, state chọn nằm ngoài DOM)
+    lBox.querySelectorAll('.btn-tree-expand-lesson').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const lessonId = btn.getAttribute('data-lesson-id')
+        const children = document.getElementById(`tree-lesson-children-${lessonId}`)
+        const chevron = btn.querySelector(`.tree-chevron-lesson-${lessonId}`)
+        if (!children) return
+        const willExpand = children.style.display === 'none'
+        children.style.display = willExpand ? 'block' : 'none'
+        if (willExpand) {
+          treeDataCache.expandedLessons.add(lessonId)
+        } else {
+          treeDataCache.expandedLessons.delete(lessonId)
+        }
+        if (chevron) {
+          chevron.classList.toggle('fa-chevron-down', willExpand)
+          chevron.classList.toggle('fa-chevron-right', !willExpand)
+        }
+        btn.title = willExpand ? 'Thu gọn dạng bài' : 'Mở rộng dạng bài'
+        btn.setAttribute('aria-expanded', willExpand ? 'true' : 'false')
+      })
+    })
+
+    refreshTreeSelectionUI()
   }
 
   // Load and render Chapters under a Class (hỗ trợ cả constant và curriculum)
@@ -5222,13 +5646,8 @@ async function openMatrixGeneratorModal() {
       return
     }
 
-    const isClassChecked = generatorState.selectedClassIds.includes(clId)
-
     let chHtml = ''
     chapters.forEach(ch => {
-      if (isClassChecked && !generatorState.selectedChapterIds.includes(ch.id)) {
-        generatorState.selectedChapterIds.push(ch.id)
-      }
       const isChChecked = generatorState.selectedChapterIds.includes(ch.id)
       const isChExpanded = treeDataCache.expandedChapters.has(ch.id)
 
@@ -5413,6 +5832,8 @@ async function openMatrixGeneratorModal() {
         handleClassCheckbox(clId, e.target.checked)
       })
     })
+
+    refreshTreeSelectionUI()
   }
 
   // Unified Scope Toolbar Actions
@@ -5426,39 +5847,18 @@ async function openMatrixGeneratorModal() {
       : constClasses.filter(c => (c.grade_block || c.gradeBlock || '').trim() === curBlock.trim())
 
     blockClasses.forEach(c => {
-      if (!generatorState.selectedClassIds.includes(c.id)) {
-        generatorState.selectedClassIds.push(c.id)
-      }
-      const cachedChs = treeDataCache.chapters[c.id] || []
-      cachedChs.forEach(ch => {
-        if (!generatorState.selectedChapterIds.includes(ch.id)) {
-          generatorState.selectedChapterIds.push(ch.id)
-        }
-        const cachedLs = treeDataCache.lessons[ch.id] || []
-        cachedLs.forEach(l => {
-          if (!generatorState.selectedLessonIds.includes(l.id)) {
-            generatorState.selectedLessonIds.push(l.id)
-          }
-        })
-      })
+      getLessonsForClass(c.id).forEach(l => selectLessonFully(l.id))
     })
 
-    document.querySelectorAll('.chk-tree-class, .chk-tree-chapter, .chk-tree-lesson').forEach(chk => {
-      chk.checked = true
-    })
-    updateTreeSelectionBadge()
-    checkLiveAvailability()
+    applyTreeSelectionChange()
   })
 
   scopeClearBtn?.addEventListener('click', () => {
     generatorState.selectedClassIds = []
     generatorState.selectedChapterIds = []
     generatorState.selectedLessonIds = []
-    document.querySelectorAll('.chk-tree-class, .chk-tree-chapter, .chk-tree-lesson').forEach(chk => {
-      chk.checked = false
-    })
-    updateTreeSelectionBadge()
-    checkLiveAvailability()
+    generatorState.selectedTypeIds = []
+    applyTreeSelectionChange()
   })
 
   scopeExpandAllBtn?.addEventListener('click', async () => {
@@ -5502,6 +5902,23 @@ async function openMatrixGeneratorModal() {
               chExpandBtn.setAttribute('aria-expanded', 'true')
             }
             await loadAndRenderLessons(ch.id, lBox, c.id)
+            const lessons = treeDataCache.lessons[ch.id] || []
+            lessons.forEach(l => {
+              if (getTypesForLesson(l.id).length === 0) return
+              treeDataCache.expandedLessons.add(l.id)
+              const typeBox = document.getElementById(`tree-lesson-children-${l.id}`)
+              const lessonChevron = document.querySelector(`.tree-chevron-lesson-${l.id}`)
+              const lessonExpandBtn = document.querySelector(`.btn-tree-expand-lesson[data-lesson-id="${l.id}"]`)
+              if (typeBox) typeBox.style.display = 'block'
+              if (lessonChevron) {
+                lessonChevron.classList.remove('fa-chevron-right')
+                lessonChevron.classList.add('fa-chevron-down')
+              }
+              if (lessonExpandBtn) {
+                lessonExpandBtn.title = 'Thu gọn dạng bài'
+                lessonExpandBtn.setAttribute('aria-expanded', 'true')
+              }
+            })
           }
         }
       }
@@ -5511,13 +5928,19 @@ async function openMatrixGeneratorModal() {
   scopeCollapseAllBtn?.addEventListener('click', () => {
     treeDataCache.expandedClasses.clear()
     treeDataCache.expandedChapters.clear()
+    treeDataCache.expandedLessons.clear()
     document.querySelectorAll('.tree-class-children').forEach(box => { box.style.display = 'none' })
     document.querySelectorAll('.tree-chapter-children').forEach(box => { box.style.display = 'none' })
+    document.querySelectorAll('.tree-lesson-children').forEach(box => { box.style.display = 'none' })
     document.querySelectorAll('[class*="tree-chevron-class-"]').forEach(icon => {
       icon.classList.remove('fa-chevron-down')
       icon.classList.add('fa-chevron-right')
     })
     document.querySelectorAll('[class*="tree-chevron-chapter-"]').forEach(icon => {
+      icon.classList.remove('fa-chevron-down')
+      icon.classList.add('fa-chevron-right')
+    })
+    document.querySelectorAll('[class*="tree-chevron-lesson-"]').forEach(icon => {
       icon.classList.remove('fa-chevron-down')
       icon.classList.add('fa-chevron-right')
     })
@@ -5527,6 +5950,10 @@ async function openMatrixGeneratorModal() {
     })
     document.querySelectorAll('.btn-tree-expand-chapter').forEach(btn => {
       btn.title = 'Mở rộng bài học'
+      btn.setAttribute('aria-expanded', 'false')
+    })
+    document.querySelectorAll('.btn-tree-expand-lesson').forEach(btn => {
+      btn.title = 'Mở rộng dạng bài'
       btn.setAttribute('aria-expanded', 'false')
     })
   })
@@ -5907,9 +6334,7 @@ async function openMatrixGeneratorModal() {
   async function checkLiveAvailability() {
     const requestId = ++availabilityRequestId
     try {
-      const hasSelection = (generatorState.selectedClassIds && generatorState.selectedClassIds.length > 0) ||
-        (generatorState.selectedChapterIds && generatorState.selectedChapterIds.length > 0) ||
-        (generatorState.selectedLessonIds && generatorState.selectedLessonIds.length > 0)
+      const hasSelection = hasScopeSelection()
 
       if (!hasSelection) {
         generatorState.availableStats = { mc: 0, tf: 0, sa: 0, total: 0, byTypeAndDifficulty: {} }
@@ -5931,6 +6356,9 @@ async function openMatrixGeneratorModal() {
       }
       if (generatorState.selectedLessonIds.length > 0) {
         params += `lessonIds=${encodeURIComponent(generatorState.selectedLessonIds.join(','))}&`
+      }
+      if (generatorState.selectedTypeIds.length > 0) {
+        params += `typeIds=${encodeURIComponent(generatorState.selectedTypeIds.join(','))}&`
       }
 
       const res = await api.checkQuestionBankAvailability(params)
@@ -5965,11 +6393,9 @@ async function openMatrixGeneratorModal() {
   const step2 = document.getElementById('matrix-gen-step2')
 
   btnRollPreview?.addEventListener('click', async () => {
-    const hasAnySelection = (generatorState.selectedClassIds && generatorState.selectedClassIds.length > 0) ||
-      (generatorState.selectedChapterIds && generatorState.selectedChapterIds.length > 0) ||
-      (generatorState.selectedLessonIds && generatorState.selectedLessonIds.length > 0)
+    const hasAnySelection = hasScopeSelection()
     if (!hasAnySelection) {
-      return showToast('Vui lòng chọn ít nhất một Lớp học, Chương học hoặc Bài học trong cây phân cấp!', 'warning')
+      return showToast('Vui lòng chọn ít nhất một Lớp học, Chương học, Bài học hoặc Dạng bài trong cây phân cấp!', 'warning')
     }
 
     const mcCount = Number(mcInput?.value) || 0
@@ -6009,7 +6435,10 @@ async function openMatrixGeneratorModal() {
       gradeBlock: generatorState.gradeBlock && generatorState.gradeBlock !== 'ALL' ? generatorState.gradeBlock : null,
       classIds: [...new Set(generatorState.selectedClassIds || [])],
       chapterIds: [...new Set(generatorState.selectedChapterIds || [])],
-      lessonIds: [...new Set(generatorState.selectedLessonIds || [])]
+      lessonIds: [...new Set(generatorState.selectedLessonIds || [])],
+      // Dạng bài Constant là leaf ưu tiên: backend khóa mọi nhánh typed bằng
+      // qb_question_type_id.in.(typeIds) nên không OR lọt sibling trong cùng Bài.
+      typeIds: [...new Set(generatorState.selectedTypeIds || [])]
     }
     generatorState.currentScope = scopePayload
 
@@ -6081,7 +6510,7 @@ async function openMatrixGeneratorModal() {
       if (destClassSel && !destClassSel.value) {
         let firstClassId = (generatorState.selectedClassIds && generatorState.selectedClassIds[0]) || null
         if (!firstClassId) {
-          const checkedEl = document.querySelector('.chk-tree-chapter:checked, .chk-tree-lesson:checked')
+          const checkedEl = document.querySelector('.chk-tree-chapter:checked, .chk-tree-lesson:checked, .chk-tree-type:checked')
           firstClassId = checkedEl?.getAttribute('data-class-id') || null
         }
         if (firstClassId) {
