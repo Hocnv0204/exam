@@ -7,6 +7,12 @@ import {
   updateHomeworkSchema,
   deleteHomeworkSchema,
 } from '../../shared/validators.ts'
+import {
+  createSupabaseQuestionBankSyncAdapter,
+  syncHomeworkQuestionsToConstantBank,
+} from './auto-bank-sync.ts'
+import { loadClassHomeworkProgress } from './class-progress.ts'
+import { scheduleHomeworkTelegram } from './telegram-notify.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -227,6 +233,10 @@ serve(async (req: Request) => {
 
       // Parameters for Querying, Filtering & Pagination
       const classId = url.searchParams.get('classId')
+      const includeProgress = url.searchParams.get('includeProgress') === 'true'
+      if (includeProgress && (!classId || user.role !== 'ADMIN')) {
+        return errorResponse('Chỉ quản trị viên được xem tiến độ nộp bài theo lớp', 403)
+      }
       const chapterId = url.searchParams.get('chapterId')
       const lessonId = url.searchParams.get('lessonId')
       const type = url.searchParams.get('type')
@@ -361,6 +371,15 @@ serve(async (req: Request) => {
 
       if (error) return errorResponse(error.message, 500)
 
+      let classProgress: Map<string, { submittedCount: number; assignedCount: number }> | null = null
+      if (includeProgress) {
+        try {
+          classProgress = await loadClassHomeworkProgress(serviceRoleClient, classId!, (homeworks || []).map((hw: any) => hw.id))
+        } catch (progressError) {
+          return errorResponse(progressError instanceof Error ? progressError.message : 'Không tải được tiến độ nộp bài', 500)
+        }
+      }
+
       const formatted = (homeworks || []).map((hw: any) => {
         const lessonInfo = hw.lessons
         const chapterInfo = lessonInfo?.chapters
@@ -389,7 +408,8 @@ serve(async (req: Request) => {
           classId: classInfo?.id || chapterInfo?.class_id || null,
           className: classInfo?.name || '',
           assignedStudentIds: targetIds,
-          targetCount: targetIds.length
+          targetCount: targetIds.length,
+          ...(classProgress ? { progress: classProgress.get(hw.id) || { submittedCount: 0, assignedCount: 0 } } : {})
         }
       })
 
@@ -452,7 +472,7 @@ serve(async (req: Request) => {
       // Kick off lesson metadata fetch in parallel with homework creation
       const lessonPromise = serviceRoleClient
         .from('lessons')
-        .select('id, chapter_id, chapters(id, class_id, classes(grade_block))')
+        .select('id, title, chapter_id, chapters(id, title, class_id, classes(id, name, grade_block))')
         .eq('id', lessonId)
         .single()
 
@@ -582,110 +602,46 @@ serve(async (req: Request) => {
         return errorResponse(`Failed to insert answer keys: ${ansError.message}`, 500)
       }
 
-      // Tự động đồng bộ các câu hỏi vừa tạo vào Ngân hàng câu hỏi (question_bank) không chặn phản hồi
-      const syncQbTask = (async () => {
+      // Đồng bộ câu hỏi Markdown interactive sang Ngân hàng câu hỏi Constant.
+      // Await để trả summary thật (created/skipped/unsynced), không fire-and-forget và
+      // không làm hỏng kết quả lưu bài tập nếu đồng bộ thất bại.
+      // CHỈ chạy cho Markdown interactive; PDF/manual caller cũ không gửi source phải
+      // nhận autoBankSync = null, kể cả khi lookup bài học động lỗi.
+      let autoBankSync: any = null
+      const interactiveQuestions = questions.filter((q: any) => q.source === 'MARKDOWN_INTERACTIVE')
+      if (interactiveQuestions.length > 0) {
         try {
           const { data: lessonData } = await lessonPromise
-          const chId = lessonData?.chapter_id || null
-          const clId = (lessonData?.chapters as any)?.class_id || null
-          const grBlock = ((lessonData?.chapters as any)?.classes as any)?.grade_block || '12-Toán'
-
-          const bankRows = questions.map((q: any) => {
-            let promptPayload: any = null
-            if (typeof q.prompt === 'object' && q.prompt !== null) {
-              promptPayload = { ...q.prompt }
-            } else if (typeof q.prompt === 'string') {
-              try {
-                const parsed = JSON.parse(q.prompt)
-                if (parsed && typeof parsed === 'object') {
-                  promptPayload = parsed
-                }
-              } catch (_) {}
-            }
-
-            if (!promptPayload) {
-              promptPayload = {
-                isInteractive: true,
-                text: q.content || (typeof q.prompt === 'string' ? q.prompt : '') || '',
-                imageUrl: q.imageUrl || '',
-                partTitle: q.partTitle || '',
-                options: q.options || [],
-                statements: q.statements || [],
-                explanation: q.explanation || ''
-              }
-            }
-
-            // Unwrap if promptPayload.text is itself a stringified JSON (prevent double-nested JSON)
-            let unwrapCount = 0
-            while (typeof promptPayload.text === 'string' && promptPayload.text.trim().startsWith('{') && unwrapCount < 3) {
-              try {
-                const inner = JSON.parse(promptPayload.text)
-                if (inner && typeof inner === 'object' && (inner.text !== undefined || inner.options || inner.statements)) {
-                  promptPayload = {
-                    ...promptPayload,
-                    ...inner,
-                    text: inner.text !== undefined ? inner.text : promptPayload.text,
-                    options: (inner.options && inner.options.length) ? inner.options : promptPayload.options,
-                    statements: (inner.statements && inner.statements.length) ? inner.statements : promptPayload.statements,
-                    explanation: inner.explanation || promptPayload.explanation || '',
-                    imageUrl: inner.imageUrl || promptPayload.imageUrl || ''
-                  }
-                  unwrapCount++
-                } else {
-                  break
-                }
-              } catch (_) {
-                break
-              }
-            }
-
-            // Ensure options and statements arrays are populated correctly
-            if (q.questionType === 'TRUE_FALSE' && (!promptPayload.statements || promptPayload.statements.length === 0) && promptPayload.options) {
-              promptPayload.statements = promptPayload.options
-            }
-            if (q.questionType === 'MULTIPLE_CHOICE' && (!promptPayload.options || promptPayload.options.length === 0) && promptPayload.statements) {
-              promptPayload.options = promptPayload.statements
-            }
-
-            return {
-              subject: 'TOAN',
-              grade_level: 12,
-              grade_block: grBlock,
-              class_id: clId,
-              chapter_id: chId,
-              lesson_id: lessonId,
-              question_type: q.questionType,
-              difficulty: 'THONG_HIEU',
-              prompt: promptPayload,
-              mc_answer: q.questionType === 'MULTIPLE_CHOICE' ? (q.mcAnswer || promptPayload.mcAnswer || null) : null,
-              tf_answers: q.questionType === 'TRUE_FALSE' ? (q.tfAnswers || promptPayload.tfAnswers || null) : null,
-              sa_answer: q.questionType === 'SHORT_ANSWER' ? ((q.saAnswer !== undefined && q.saAnswer !== null) ? String(q.saAnswer) : (promptPayload.saAnswer ? String(promptPayload.saAnswer) : null)) : null,
-              sa_tolerance: q.saTolerance || promptPayload.saTolerance || 0,
-              points: q.points || 0.25,
-              tags: [title],
-              usage_count: 1
-            }
+          const syncAdapter = createSupabaseQuestionBankSyncAdapter(serviceRoleClient)
+          autoBankSync = await syncHomeworkQuestionsToConstantBank(syncAdapter, {
+            questions,
+            dynamicLesson: lessonData as any,
+            homeworkTitle: title,
           })
-
-          if (bankRows.length > 0) {
-            await serviceRoleClient.from('question_bank').insert(bankRows)
-          }
         } catch (syncErr) {
-          console.warn('[Auto-sync question_bank warning]:', syncErr)
+          autoBankSync = {
+            enabled: true,
+            source: 'MARKDOWN_INTERACTIVE',
+            totalQuestions: interactiveQuestions.length,
+            createdCount: 0,
+            skippedDuplicateCount: 0,
+            unsyncedCount: 0,
+            failedCount: interactiveQuestions.length,
+            fallbackTypeCount: 0,
+            reasons: [{
+              questionNumber: null,
+              reason: `Không đồng bộ được Ngân hàng câu hỏi: ${syncErr instanceof Error ? syncErr.message : String(syncErr)}`,
+            }],
+            target: null,
+          }
         }
-      })()
-
-      // @ts-ignore
-      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
-        // @ts-ignore
-        EdgeRuntime.waitUntil(syncQbTask)
-      } else {
-        await syncQbTask
       }
 
+      scheduleHomeworkTelegram(serviceRoleClient, homework)
       return jsonResponse(
         {
           homework,
+          autoBankSync,
           questionsCount: insertedQuestions.length,
           questions: insertedQuestions,
         },
@@ -748,6 +704,7 @@ serve(async (req: Request) => {
       if (hwRes.error || !hwRes.data) {
         return errorResponse(`Source homework not found: ${hwRes.error?.message}`, 404)
       }
+      if (qRes.error) return errorResponse('Failed to load source questions', 500)
 
       const sourceHw = hwRes.data
       const sourceQuestions = qRes.data || []
@@ -908,7 +865,8 @@ serve(async (req: Request) => {
                 .insert(answersPayload)
 
               if (insAnsErr) {
-                console.error(`[assign-to-class] Failed to copy answer keys for class ${targetClassId}:`, insAnsErr)
+                await serviceRoleClient.from('homeworks').delete().eq('id', newHw.id)
+                throw new Error(`Failed to copy answer keys to class ${targetClassId}`)
               }
             }
 
@@ -927,6 +885,7 @@ serve(async (req: Request) => {
             }
           }
 
+          scheduleHomeworkTelegram(serviceRoleClient, newHw)
           createdHomeworks.push({
             classId: targetClassId,
             homeworkId: newHw.id,
@@ -962,6 +921,9 @@ serve(async (req: Request) => {
       }
 
       const { homeworkId, lessonId, title, pdfPath, durationMinutes, passScore, maxScore, isPublished, questions, deadline, maxAttempts, type, maxViolations, showSolutions, assignedStudentIds } = validation.data
+      const { data: previousHomework, error: previousError } = await serviceRoleClient
+        .from('homeworks').select('is_published, deadline, updated_at').eq('id', homeworkId).single()
+      if (previousError || !previousHomework) return errorResponse('Homework not found', 404)
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
       if (lessonId !== undefined) updateData.lesson_id = lessonId
@@ -987,14 +949,26 @@ serve(async (req: Request) => {
          }
       }
 
-      const { data: updatedHomework, error } = await serviceRoleClient
+      // Optimistic guard: concurrent retries must not both announce the same transition.
+      let updateQuery = serviceRoleClient
         .from('homeworks')
         .update(updateData)
         .eq('id', homeworkId)
+        .eq('is_published', previousHomework.is_published)
+      updateQuery = previousHomework.deadline == null
+        ? updateQuery.is('deadline', null)
+        : updateQuery.eq('deadline', previousHomework.deadline)
+      updateQuery = previousHomework.updated_at == null
+        ? updateQuery.is('updated_at', null)
+        : updateQuery.eq('updated_at', previousHomework.updated_at)
+      const { data: updatedHomework, error } = await updateQuery
         .select()
         .single()
 
-      if (error) return errorResponse(error.message, 500)
+      if (error || !updatedHomework) {
+        const conflict = error?.code === 'PGRST116'
+        return errorResponse(conflict ? 'Bài tập đã thay đổi, vui lòng tải lại' : (error?.message || 'Failed to update homework'), conflict ? 409 : 500)
+      }
 
       // Handle Questions and Answer Keys update in-place to preserve submission_answers
       if (questions) {
@@ -1137,6 +1111,45 @@ serve(async (req: Request) => {
         }
       }
 
+      // Đồng bộ câu hỏi interactive sang Ngân hàng câu hỏi Constant (idempotent theo content_hash).
+      // Chỉ chạy khi caller gửi source Markdown interactive; không tạo bản trùng khi sửa bài.
+      let autoBankSync: any = null
+      const interactiveQuestions = (questions || []).filter(
+        (q: any) => q.source === 'MARKDOWN_INTERACTIVE'
+      )
+      if (interactiveQuestions.length > 0) {
+        try {
+          const syncLessonId = (updatedHomework as any)?.lesson_id || lessonId
+          const { data: syncLessonData } = await serviceRoleClient
+            .from('lessons')
+            .select('id, title, chapter_id, chapters(id, title, class_id, classes(id, name, grade_block))')
+            .eq('id', syncLessonId)
+            .single()
+          const syncAdapter = createSupabaseQuestionBankSyncAdapter(serviceRoleClient)
+          autoBankSync = await syncHomeworkQuestionsToConstantBank(syncAdapter, {
+            questions: questions as any,
+            dynamicLesson: syncLessonData as any,
+            homeworkTitle: title || (updatedHomework as any)?.title || '',
+          })
+        } catch (syncErr) {
+          autoBankSync = {
+            enabled: true,
+            source: 'MARKDOWN_INTERACTIVE',
+            totalQuestions: interactiveQuestions.length,
+            createdCount: 0,
+            skippedDuplicateCount: 0,
+            unsyncedCount: 0,
+            failedCount: interactiveQuestions.length,
+            fallbackTypeCount: 0,
+            reasons: [{
+              questionNumber: null,
+              reason: `Không đồng bộ được Ngân hàng câu hỏi: ${syncErr instanceof Error ? syncErr.message : String(syncErr)}`,
+            }],
+            target: null,
+          }
+        }
+      }
+
       // Đồng bộ danh sách giao riêng (có truyền = ghi đè; không truyền = giữ nguyên)
       if (assignedStudentIds !== undefined) {
         const { error: delTargetErr } = await serviceRoleClient
@@ -1153,8 +1166,10 @@ serve(async (req: Request) => {
         }
       }
 
+      scheduleHomeworkTelegram(serviceRoleClient, updatedHomework, previousHomework)
       return jsonResponse({
         homework: updatedHomework,
+        autoBankSync,
         message: 'Homework updated successfully'
       })
     }
@@ -1337,4 +1352,3 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
     )
   }
 }
-

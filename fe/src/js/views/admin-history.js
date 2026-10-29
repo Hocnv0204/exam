@@ -174,6 +174,18 @@ function escapeHtmlAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+/**
+ * Phân biệt "user tự chọn bài trên dropdown" với "link/Lịch sử vào trang":
+ * - URL có pick=1 => khôi phục homeworkId (kể cả F5/reload), vì user đã chủ động chọn bài.
+ * - URL chỉ có homeworkId (link cũ từ Quản lý bài tập / Chi tiết lớp / deep link) => KHÔNG tự chọn bài.
+ * - Vào trang từ menu sidebar (#admin-history) luôn bắt đầu không lọc theo bài.
+ */
+export function resolveHistoryHomeworkId(params) {
+  if (!params || typeof params.get !== 'function') return ''
+  if (params.get('pick') !== '1') return ''
+  return params.get('homeworkId') || ''
+}
+
 function buildHistoryHash(opts = {}) {
   const p = new URLSearchParams()
   const m = opts.mode !== undefined ? opts.mode : currentMode
@@ -182,7 +194,11 @@ function buildHistoryHash(opts = {}) {
   if (cid && cid !== 'TRIAL') p.set('classId', cid)
   else if (cid === 'TRIAL' || m === 'trial') p.set('classId', 'TRIAL')
   const hw = opts.homeworkId !== undefined ? opts.homeworkId : selectedHomeworkId
-  if (hw) p.set('homeworkId', hw)
+  if (hw) {
+    p.set('homeworkId', hw)
+    // Đánh dấu đây là lựa chọn chủ động của user trên dropdown (không phải link vào trang)
+    p.set('pick', '1')
+  }
   const tab = opts.subTab !== undefined ? opts.subTab : currentSubTab
   if (tab && tab !== 'submitted') p.set('subTab', tab)
   if (opts.page && opts.page > 1) p.set('page', String(opts.page))
@@ -198,7 +214,6 @@ function parseUrlParams() {
     const mode = params.get('mode')
     const tabParam = params.get('tab') || params.get('subTab')
     const cId = params.get('classId')
-    const hId = params.get('homeworkId')
     const pageParam = parseInt(params.get('page') || '1', 10)
     currentPage = !isNaN(pageParam) && pageParam > 0 ? pageParam : 1
     searchQuery = params.get('search') || ''
@@ -211,10 +226,16 @@ function parseUrlParams() {
       // Không chọn lớp nào => mặc định lấy tất cả các lớp ('')
       selectedClassId = (cId && cId !== 'TRIAL') ? cId : ''
     }
-    selectedHomeworkId = hId || ''
+    // homeworkId trong URL chỉ được áp dụng khi user tự chọn trên dropdown (pick=1);
+    // link vào trang (kể cả link cũ chứa homeworkId) không được tự chọn bài tập.
+    selectedHomeworkId = resolveHistoryHomeworkId(params)
     if (tabParam && ['submitted', 'wrong-questions', 'unsubmitted'].includes(tabParam)) {
       currentSubTab = tabParam
     } else {
+      currentSubTab = 'submitted'
+    }
+    // Tab "Câu sai" / "Chưa làm bài" chỉ có ý nghĩa khi đang chọn 1 bài tập cụ thể
+    if (!selectedHomeworkId && currentSubTab !== 'submitted') {
       currentSubTab = 'submitted'
     }
   } else {

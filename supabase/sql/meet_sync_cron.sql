@@ -1,63 +1,63 @@
--- Cron meet-sync chạy cố định 2h00 sáng hàng ngày (chỉ chạy khi lên Cloud).
--- Yêu cầu extension pg_cron + pg_net và Vault (có sẵn trên Supabase Cloud).
--- Thay <PROJECT_REF> bằng ref project của bạn, sau đó chạy toàn bộ file này
--- một lần trong SQL Editor (role postgres).
+-- Cài lịch Meet cho project fpeqddxhhsngntybyson. Chạy bằng role postgres
+-- SAU KHI đã bật pg_cron + pg_net và tạo Vault secret meet_cron_secret.
+-- Giá trị Vault secret phải khớp Edge Function secret CRON_SECRET; không lưu
+-- giá trị secret trong file SQL/repository. Không chạy file này ở project khác.
+-- pg_cron chạy theo UTC: 19:00 UTC = 02:00 sáng hôm sau tại Việt Nam.
 
--- 1. Lưu secret bảo vệ webhook (chỉ cần tạo 1 lần, thay chuỗi ngẫu nhiên của bạn)
-select vault.create_secret('thay-chuoi-ngau-nhien-cron-secret-cua-ban', 'meet_cron_secret');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron')
+     OR NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_net') THEN
+    RAISE EXCEPTION 'Enable pg_cron and pg_net before scheduling meet-sync';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM vault.secrets WHERE name = 'meet_cron_secret') THEN
+    RAISE EXCEPTION 'Create Vault secret meet_cron_secret before scheduling meet-sync';
+  END IF;
+  PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname IN
+    ('meet-sync-job', 'meet-sync-retry-1', 'meet-sync-retry-2');
+END $$;
 
--- 2. Nếu đã schedule job cũ thì xóa trước để tránh trùng (chạy lại an toàn)
-select cron.unschedule('meet-sync-job') where exists (
-  select 1 from cron.job where jobname = 'meet-sync-job'
-);
-select cron.unschedule('meet-sync-retry-1') where exists (
-  select 1 from cron.job where jobname = 'meet-sync-retry-1'
-);
-select cron.unschedule('meet-sync-retry-2') where exists (
-  select 1 from cron.job where jobname = 'meet-sync-retry-2'
-);
-
--- 3. Lập lịch gọi Edge Function meet-sync: lượt chính 2h00 + 2 lượt vét
--- 2h20, 2h40 để thử lại nếu lượt trước lỗi (session READY tự loại khỏi
--- hàng đợi nên chạy lại vô hại). Múi giờ DB, mặc định UTC -> lưu ý đổi nếu cần.
-select cron.schedule(
-  'meet-sync-job',
-  '0 2 * * *', -- lượt chính 2h00
-  $$
-  select net.http_post(
-    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/meet-sync',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'meet_cron_secret')
-    )
-  );
-  $$
+SELECT cron.schedule(
+  'meet-sync-job', '0 19 * * *',
+  $job$
+    SELECT net.http_post(
+      url := 'https://fpeqddxhhsngntybyson.supabase.co/functions/v1/meet-sync',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'meet_cron_secret')
+      ),
+      body := '{}'::jsonb,
+      timeout_milliseconds := 120000
+    );
+  $job$
 );
 
-select cron.schedule(
-  'meet-sync-retry-1',
-  '20 2 * * *', -- vét lần 1 lúc 2h20
-  $$
-  select net.http_post(
-    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/meet-sync',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'meet_cron_secret')
-    )
-  );
-  $$
+SELECT cron.schedule(
+  'meet-sync-retry-1', '20 19 * * *',
+  $job$
+    SELECT net.http_post(
+      url := 'https://fpeqddxhhsngntybyson.supabase.co/functions/v1/meet-sync',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'meet_cron_secret')
+      ),
+      body := '{}'::jsonb,
+      timeout_milliseconds := 120000
+    );
+  $job$
 );
 
-select cron.schedule(
-  'meet-sync-retry-2',
-  '40 2 * * *', -- vét lần 2 lúc 2h40
-  $$
-  select net.http_post(
-    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/meet-sync',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'meet_cron_secret')
-    )
-  );
-  $$
+SELECT cron.schedule(
+  'meet-sync-retry-2', '40 19 * * *',
+  $job$
+    SELECT net.http_post(
+      url := 'https://fpeqddxhhsngntybyson.supabase.co/functions/v1/meet-sync',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'meet_cron_secret')
+      ),
+      body := '{}'::jsonb,
+      timeout_milliseconds := 120000
+    );
+  $job$
 );

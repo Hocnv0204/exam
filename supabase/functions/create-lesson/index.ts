@@ -8,6 +8,41 @@ import {
   deleteLessonSchema,
 } from '../../shared/validators.ts'
 
+/**
+ * Tính toán order_index kế tiếp cho bài học chuyển vào chương đích.
+ * Luôn gán vào cuối danh sách đích: max(order_index) + 1.
+ * Nếu chương chưa có bài học nào, mặc định là 1.
+ */
+export function calculateNextOrderIndex(existingLessons: Array<{ order_index?: number | null } | null | undefined>): number {
+  if (!existingLessons || existingLessons.length === 0) return 1
+  const max = existingLessons.reduce((currentMax, item) => {
+    const val = item?.order_index
+    const num = typeof val === 'number' && !Number.isNaN(val) ? val : 0
+    return Math.max(currentMax, num)
+  }, 0)
+  return max + 1
+}
+
+/**
+ * Kiểm tra tính hợp lệ khi chuyển bài học giữa các chương.
+ * Chỉ cho phép chuyển bài học giữa các chương thuộc CÙNG một lớp học (class_id).
+ */
+export function validateChapterMove(
+  currentChapter: { id: string; class_id?: string | null } | null | undefined,
+  targetChapter: { id: string; class_id?: string | null } | null | undefined
+): { allowed: boolean; error?: string; status?: number } {
+  if (!currentChapter) {
+    return { allowed: false, error: 'Current chapter not found', status: 404 }
+  }
+  if (!targetChapter) {
+    return { allowed: false, error: 'Target chapter not found', status: 404 }
+  }
+  if (!currentChapter.class_id || !targetChapter.class_id || currentChapter.class_id !== targetChapter.class_id) {
+    return { allowed: false, error: 'Cannot move lesson to a chapter in a different class', status: 400 }
+  }
+  return { allowed: true }
+}
+
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
   if (corsRes) return corsRes
@@ -407,7 +442,7 @@ serve(async (req: Request) => {
         return errorResponse('Validation error', 400, validation.error.format())
       }
 
-      const { lessonId, title, orderIndex, content, videoUrl, theoryFiles, isTrial } = validation.data
+      const { lessonId, chapterId, title, orderIndex, content, videoUrl, theoryFiles, isTrial } = validation.data
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (title) updateData.title = title
       if (orderIndex !== undefined) updateData.order_index = orderIndex
@@ -415,6 +450,55 @@ serve(async (req: Request) => {
       if (videoUrl !== undefined) updateData.video_url = videoUrl
       if (theoryFiles !== undefined) updateData.theory_files = theoryFiles
       if (isTrial !== undefined) updateData.is_trial = isTrial
+
+      // Xử lý chuyển bài học sang chương khác (Move Lesson Contract)
+      if (chapterId !== undefined) {
+        // 1. Lấy thông tin bài học hiện tại để xác định chương nguồn
+        const { data: currentLesson, error: curLessonErr } = await serviceRoleClient
+          .from('lessons')
+          .select('id, chapter_id, order_index')
+          .eq('id', lessonId)
+          .maybeSingle()
+
+        if (curLessonErr) return errorResponse(curLessonErr.message, 500)
+        if (!currentLesson) return errorResponse('Lesson not found', 404)
+
+        // 2. Nếu chapterId khác với chương hiện tại -> kiểm tra cùng lớp và gán order_index cuối danh sách đích
+        if (chapterId !== currentLesson.chapter_id) {
+          const { data: chapters, error: chErr } = await serviceRoleClient
+            .from('chapters')
+            .select('id, class_id')
+            .in('id', [currentLesson.chapter_id, chapterId])
+
+          if (chErr) return errorResponse(chErr.message, 500)
+
+          const currentChapter = chapters?.find((c: any) => c.id === currentLesson.chapter_id)
+          const targetChapter = chapters?.find((c: any) => c.id === chapterId)
+
+          const moveCheck = validateChapterMove(currentChapter, targetChapter)
+          if (!moveCheck.allowed) {
+            return errorResponse(moveCheck.error || 'Invalid chapter move', moveCheck.status || 400)
+          }
+
+          // Tính toán order_index mới ở cuối danh sách đích: max(order_index) + 1
+          const { data: targetLessons, error: targetLessonsErr } = await serviceRoleClient
+            .from('lessons')
+            .select('order_index')
+            .eq('chapter_id', chapterId)
+            .order('order_index', { ascending: false })
+            .limit(1)
+
+          if (targetLessonsErr) return errorResponse(targetLessonsErr.message, 500)
+
+          const nextOrderIndex = calculateNextOrderIndex(targetLessons || [])
+
+          updateData.chapter_id = chapterId
+          updateData.order_index = nextOrderIndex
+        } else {
+          // Nếu chapterId chính là chương hiện tại: giữ nguyên không đổi thứ tự (trừ khi có orderIndex chỉ định)
+          updateData.chapter_id = chapterId
+        }
+      }
 
       const { data: updatedLesson, error } = await serviceRoleClient
         .from('lessons')

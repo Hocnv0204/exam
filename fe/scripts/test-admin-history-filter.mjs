@@ -101,6 +101,7 @@ const {
   renderAdminHistoryView,
   loadAdminHistoryData,
   bindAdminHistoryEvents,
+  resolveHistoryHomeworkId,
   _getAdminHistoryState,
   _resetAdminHistoryState
 } = await import('../src/js/views/admin-history.js')
@@ -480,6 +481,219 @@ console.log('--- 7. Kiểm thử Hợp đồng Edge Function (Anti Cross-class L
   assert.equal(resFiltered.length, 0, 'Edge Function không được phép rò rỉ submission của lớp khác')
 
   console.log('  ✓ Hợp đồng Edge Function bảo đảm cô lập dữ liệu theo lớp, triệt tiêu rò rỉ submission chéo lớp')
+}
+
+// ========================================================
+// TEST SUITE 8: Vào trang Lịch sử KHÔNG được tự chọn bài (menu / link / link cũ)
+// ========================================================
+console.log('--- 8. Kiểm thử Không Tự Chọn Bài Khi Vào Trang Lịch Sử ---')
+{
+  _resetAdminHistoryState()
+
+  // 8a. Vào từ menu sidebar: #admin-history (không tham số)
+  window.location.hash = '#admin-history'
+  renderAdminHistoryView()
+  let st = _getAdminHistoryState()
+  assert.equal(st.selectedHomeworkId, '', 'Vào từ menu sidebar không được tự chọn bài tập')
+  assert.equal(st.currentSubTab, 'submitted')
+  assert.equal(st.currentMode, 'class')
+
+  // 8b. Link từ Quản lý bài tập ("Lịch sử") / Chi tiết lớp ("Kết quả"): chỉ có classId
+  window.location.hash = '#admin-history?classId=class_a'
+  renderAdminHistoryView()
+  st = _getAdminHistoryState()
+  assert.equal(st.selectedClassId, 'class_a', 'Vẫn giữ ngữ cảnh lớp từ link')
+  assert.equal(st.selectedHomeworkId, '', 'Link vào trang không được tự chọn bài tập')
+
+  // 8c. Link CŨ còn sót (được lưu/bookmark trước fix) chứa homeworkId nhưng không có pick=1
+  window.location.hash = '#admin-history?classId=class_a&homeworkId=hw_a1'
+  renderAdminHistoryView()
+  st = _getAdminHistoryState()
+  assert.equal(st.selectedClassId, 'class_a', 'Giữ ngữ cảnh lớp từ link cũ')
+  assert.equal(st.selectedHomeworkId, '', 'Link cũ chứa homeworkId không được tự chọn bài tập')
+
+  // 8d. Link cũ kèm tab=unsubmitted nhưng không chọn bài => rơi về tab "Đã nộp bài"
+  window.location.hash = '#admin-history?classId=class_a&homeworkId=hw_a1&tab=unsubmitted'
+  renderAdminHistoryView()
+  st = _getAdminHistoryState()
+  assert.equal(st.selectedHomeworkId, '')
+  assert.equal(st.currentSubTab, 'submitted', 'Tab "Chưa làm bài" chỉ hợp lệ khi đang chọn 1 bài tập')
+
+  // 8e. URL do USER tự chọn bài trên dropdown (có pick=1) => giữ lựa chọn khi F5/reload
+  window.location.hash = '#admin-history?mode=class&classId=class_a&homeworkId=hw_a2&pick=1&subTab=unsubmitted'
+  renderAdminHistoryView()
+  st = _getAdminHistoryState()
+  assert.equal(st.selectedHomeworkId, 'hw_a2', 'URL có pick=1 phải khôi phục bài user đã tự chọn')
+  assert.equal(st.currentSubTab, 'unsubmitted', 'Giữ nguyên tab chi tiết khi đang chọn bài')
+
+  // 8f. Hợp đồng dùng chung với router (app.js)
+  assert.equal(resolveHistoryHomeworkId(new URLSearchParams('classId=class_a&homeworkId=hw_a1')), '', 'Router không gửi homeworkId cho link không có pick=1')
+  assert.equal(resolveHistoryHomeworkId(new URLSearchParams('classId=class_a&homeworkId=hw_a1&pick=1')), 'hw_a1', 'Router khôi phục homeworkId khi có pick=1')
+  assert.equal(resolveHistoryHomeworkId(new URLSearchParams('pick=1')), '', 'pick=1 mà thiếu homeworkId => không chọn bài')
+  assert.equal(resolveHistoryHomeworkId(new URLSearchParams('mode=trial&classId=TRIAL')), '', 'Link vào chế độ học thử không tự chọn bài')
+
+  console.log('  ✓ Menu/link/link cũ vào trang luôn bắt đầu không lọc theo bài; chỉ URL pick=1 (user tự chọn) mới khôi phục bộ lọc')
+}
+
+// ========================================================
+// TEST SUITE 9: User tự chọn bài trên dropdown => hash pick=1, query có homeworkId, placeholder đúng
+// ========================================================
+console.log('--- 9. Kiểm thử Tự Chọn Bài Tập Trên Dropdown (Manual Selection + Reset) ---')
+{
+  _resetAdminHistoryState()
+
+  let queries = []
+  api.getStudentHistory = async (queryStr) => {
+    queries.push(queryStr)
+    if (queryStr.includes('homeworkId=hw_a1')) {
+      return {
+        classId: 'class_a',
+        classHomeworks: mockClassHomeworksA,
+        history: mockSubmissionsA,
+        submissionStats: { homeworkTitle: 'Bài tập este 01' }
+      }
+    }
+    return {
+      classId: 'class_a',
+      classHomeworks: mockClassHomeworksA,
+      history: mockSubmissionsA,
+      total: 1,
+      page: 1,
+      totalPages: 1
+    }
+  }
+
+  // Vào trang bằng link còn sót chứa homeworkId (không pick=1) => không chọn bài
+  window.location.hash = '#admin-history?classId=class_a&homeworkId=hw_a2'
+  const routerParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
+  await loadAdminHistoryData('class_a', resolveHistoryHomeworkId(routerParams), 'class')
+
+  assert.ok(queries[0].includes('classId=class_a'), 'Request theo lớp khi chưa chọn bài')
+  assert.ok(!queries[0].includes('homeworkId='), 'Request KHÔNG được lọc theo homeworkId của link cũ')
+  assert.ok(queries[0].includes('page=1'), 'Có phân trang server khi chưa chọn bài')
+  assert.ok(queries[0].includes('pageSize='), 'Có pageSize khi chưa chọn bài')
+
+  // Placeholder "Tất cả bài tập" phải là option đầu và KHÔNG có option nào được selected
+  let html = renderAdminHistoryView()
+  const selMatch = html.match(/<select id="admin-history-hw-select"[\s\S]*?<\/select>/)
+  assert.ok(selMatch, 'Giao diện có dropdown "Lọc theo Bài học / Bài tập"')
+  const selHtml = selMatch[0]
+  assert.ok(selHtml.includes('-- Tất cả bài tập trong lớp (2 bài) --'), 'Có placeholder "Tất cả bài tập trong lớp"')
+  assert.ok(!/<option[^>]*selected/.test(selHtml), 'Không option bài tập nào được selected khi chưa chọn bài (không tự chọn option đầu)')
+
+  // User chủ động chọn bài trên dropdown
+  const hwSelect = dom.makeElement('select')
+  hwSelect.id = 'admin-history-hw-select'
+  hwSelect.value = 'hw_a1'
+  dom.registry.set('admin-history-hw-select', hwSelect)
+  bindAdminHistoryEvents()
+  await hwSelect.dispatchEvent({ type: 'change', target: hwSelect })
+
+  const pickedHash = window.location.hash
+  assert.ok(pickedHash.includes('homeworkId=hw_a1'), 'Hash phải chứa homeworkId sau khi user tự chọn')
+  assert.ok(pickedHash.includes('pick=1'), 'Hash phải chứa dấu pick=1 để phân biệt với link vào trang')
+
+  // Mô phỏng router xử lý hashchange y hệt app.js
+  const pickedParams = new URLSearchParams(pickedHash.split('?')[1] || '')
+  queries = []
+  await loadAdminHistoryData('class_a', resolveHistoryHomeworkId(pickedParams), 'class')
+  assert.ok(queries.some(q => q.includes('homeworkId=hw_a1')), 'Request phải lọc theo bài user đã tự chọn')
+  assert.equal(_getAdminHistoryState().selectedHomeworkId, 'hw_a1')
+
+  // Chuyển tab chi tiết khi đang chọn bài: hash vẫn giữ pick=1 + homeworkId
+  const tabBtnWrong = dom.makeElement('button')
+  tabBtnWrong.id = 'tab-btn-wrong'
+  dom.registry.set('tab-btn-wrong', tabBtnWrong)
+  bindAdminHistoryEvents()
+  await tabBtnWrong.dispatchEvent({ type: 'click' })
+  assert.ok(window.location.hash.includes('subTab=wrong-questions'), 'Chuyển tab phải cập nhật hash')
+  assert.ok(window.location.hash.includes('pick=1'), 'Chuyển tab vẫn giữ dấu pick=1')
+  assert.ok(window.location.hash.includes('homeworkId=hw_a1'), 'Chuyển tab vẫn giữ bài tập đang lọc')
+
+  // User chọn lại "Tất cả bài tập" => xóa bộ lọc + dấu pick
+  hwSelect.value = ''
+  await hwSelect.dispatchEvent({ type: 'change', target: hwSelect })
+  const resetHash = window.location.hash
+  assert.ok(!resetHash.includes('homeworkId'), 'Chọn "Tất cả bài tập" phải xóa homeworkId khỏi hash')
+  assert.ok(!resetHash.includes('pick='), 'Chọn "Tất cả bài tập" phải xóa dấu pick')
+
+  const resetParams = new URLSearchParams(resetHash.split('?')[1] || '')
+  queries = []
+  await loadAdminHistoryData('class_a', resolveHistoryHomeworkId(resetParams), 'class')
+  assert.ok(!queries.some(q => q.includes('homeworkId=')), 'Request sau khi reset không còn lọc theo bài')
+  assert.ok(queries.some(q => q.includes('pageSize=')), 'Quay lại phân trang server khi xem tất cả bài tập')
+
+  console.log('  ✓ Tự chọn bài: hash có pick=1, request lọc đúng bài, placeholder đúng; chọn lại "Tất cả" xóa sạch bộ lọc')
+}
+
+// ========================================================
+// TEST SUITE 10: Đổi Lớp / Đổi chế độ (Lớp <-> Học thử) không giữ bộ lọc bài cũ
+// ========================================================
+console.log('--- 10. Kiểm thử Đổi Lớp / Đổi Chế Độ Không Giữ Bộ Lọc Bài Cũ ---')
+{
+  _resetAdminHistoryState()
+
+  api.getStudentHistory = async (queryStr) => {
+    if (queryStr.includes('classId=class_b')) {
+      return { classId: 'class_b', classHomeworks: mockClassHomeworksB, history: mockSubmissionsB, total: 1, page: 1, totalPages: 1 }
+    }
+    return { classId: 'class_a', classHomeworks: mockClassHomeworksA, history: mockSubmissionsA, total: 1, page: 1, totalPages: 1 }
+  }
+
+  // Vào trang với bài đã tự chọn trước đó (pick=1)
+  window.location.hash = '#admin-history?mode=class&classId=class_a&homeworkId=hw_a1&pick=1'
+  renderAdminHistoryView()
+  assert.equal(_getAdminHistoryState().selectedHomeworkId, 'hw_a1')
+
+  const btnModeClass = dom.makeElement('button')
+  btnModeClass.id = 'btn-mode-class'
+  dom.registry.set('btn-mode-class', btnModeClass)
+  const btnModeTrial = dom.makeElement('button')
+  btnModeTrial.id = 'btn-mode-trial'
+  dom.registry.set('btn-mode-trial', btnModeTrial)
+  const classSelect = dom.makeElement('select')
+  classSelect.id = 'admin-history-class-select'
+  classSelect.value = 'class_b'
+  dom.registry.set('admin-history-class-select', classSelect)
+  const hwSelect = dom.makeElement('select')
+  hwSelect.id = 'admin-history-hw-select'
+  dom.registry.set('admin-history-hw-select', hwSelect)
+  bindAdminHistoryEvents()
+
+  // Chuyển sang chế độ Học thử: hash mode=trial, không còn homeworkId/pick
+  await btnModeTrial.dispatchEvent({ type: 'click' })
+  const trialHash = window.location.hash
+  assert.ok(trialHash.includes('mode=trial'), 'Hash chuyển sang chế độ học thử')
+  assert.ok(trialHash.includes('classId=TRIAL'), 'Hash giữ ngữ cảnh TRIAL')
+  assert.ok(!trialHash.includes('homeworkId'), 'Không được giữ homeworkId khi đổi chế độ')
+  assert.ok(!trialHash.includes('pick='), 'Không được giữ dấu pick khi đổi chế độ')
+
+  window.location.hash = trialHash
+  renderAdminHistoryView()
+  let st = _getAdminHistoryState()
+  assert.equal(st.currentMode, 'trial', 'Chế độ học thử được áp dụng')
+  assert.equal(st.selectedHomeworkId, '', 'Không tự chọn bài khi sang chế độ học thử')
+
+  // Quay lại chế độ lớp rồi đổi lớp: homework filter phải reset
+  await btnModeClass.dispatchEvent({ type: 'click' })
+  renderAdminHistoryView()
+  st = _getAdminHistoryState()
+  assert.equal(st.currentMode, 'class')
+  assert.equal(st.selectedHomeworkId, '', 'Quay lại chế độ lớp: không giữ bộ lọc bài cũ')
+
+  await classSelect.dispatchEvent({ type: 'change', target: classSelect })
+  const classHash = window.location.hash
+  assert.ok(classHash.includes('classId=class_b'), 'Hash chuyển sang lớp mới')
+  assert.ok(!classHash.includes('homeworkId'), 'Đổi lớp không được giữ homeworkId')
+  assert.ok(!classHash.includes('pick='), 'Đổi lớp không được giữ dấu pick')
+
+  window.location.hash = classHash
+  renderAdminHistoryView()
+  st = _getAdminHistoryState()
+  assert.equal(st.selectedClassId, 'class_b')
+  assert.equal(st.selectedHomeworkId, '', 'Sau khi đổi lớp, không có bài tập nào được tự chọn')
+
+  console.log('  ✓ Đổi lớp/đổi chế độ luôn xóa bộ lọc bài tập và dấu pick, không rò rỉ selection cũ')
 }
 
 console.log('\n============================================================')

@@ -244,6 +244,56 @@ y  | +\\infty ~> -\\infty || -\\infty ~> 0 -> +\\infty`)
 }
 
 {
+  // Hồi quy screenshot: nhãn mốc/giá trị dạng biểu thức ("sqrt(3)",
+  // "-sqrt(3)", "2 * sqrt(5)") phải vẽ CĂN THỨC (√) thay vì hiện chữ
+  // "sqrt(...)" thô. Nhãn LaTeX tường minh và nhãn cột giữ nguyên.
+  const res = validateBbtV2({
+    version: 2,
+    labels: { x: 'x', derivative: "f'(x)", value: 'f(x)' },
+    knots: ['-inf', '-sqrt(3)', 'sqrt(5)', '+inf'],
+    signs: ['-', '-', '-'],
+    derivativeAt: [null, null, null, null],
+    values: ['+inf', '2 * sqrt(5)', 0, '-inf']
+  })
+  check('BBT sqrt hợp lệ (không lỗi)', !hasErrors(res.diagnostics), JSON.stringify(res.diagnostics))
+  if (!res.model) throw new Error('model rỗng')
+  const svg = renderBBT(res.model, 20, [])
+
+  check('BBT hiện -\\sqrt{3} cho mốc "-sqrt(3)"', svg.includes('-\\sqrt{3}'))
+  check('BBT hiện \\sqrt{5} cho mốc "sqrt(5)"', svg.includes('\\sqrt{5}'))
+  check('BBT hiện 2\\sqrt{5} cho giá trị "2 * sqrt(5)"', svg.includes('2\\sqrt{5}'))
+  check('BBT KHÔNG còn chữ "sqrt(3)" thô', !svg.includes('sqrt(3)'))
+  check('BBT KHÔNG còn chữ "sqrt(5)" thô', !svg.includes('sqrt(5)'))
+
+  // Nhãn LaTeX tường minh và nhãn cột không bị chuyển đổi
+  check('BBT giữ LaTeX \\infty của mốc/giá trị vô cực', svg.includes('+\\infty') && svg.includes('-\\infty'))
+  check('BBT giữ nhãn cột f\'(x) (escape nháy \' thành &#39;)', svg.includes('f&#39;(x)'))
+  check('BBT giữ nhãn cột f(x)', svg.includes('$f(x)$'))
+
+  // Invariant số/hình: 3 khoảng đang giảm ⇒ 3 đoạn, mỗi đoạn có mũi tên và y tăng dần (đi xuống)
+  const segs = [...svg.matchAll(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)" stroke="#0f172a" stroke-width="1.3" marker-end/g)]
+    .map(m => m.slice(1, 5).map(Number))
+  check('BBT sqrt: đủ 3 đoạn giá trị có mũi tên', segs.length === 3, `thấy ${segs.length} đoạn`)
+  check('BBT sqrt: mỗi đoạn đi sang phải (x2 > x1) và đi xuống (y2 > y1) theo dấu "-"',
+    segs.every(([x1, y1, x2, y2]) => x2 > x1 && y2 > y1), JSON.stringify(segs))
+}
+
+{
+  // Nhãn cột độc hại vẫn bị escape nguyên vẹn (foreignLabel không mở HTML/XSS)
+  const res = validateBbtV2({
+    version: 2,
+    labels: { x: '<img src=x onerror=alert(1)>' },
+    knots: [0, 1],
+    signs: ['+']
+  })
+  check('BBT nhãn độc hại hợp lệ để render (escape ở tầng nhãn)', !hasErrors(res.diagnostics), JSON.stringify(res.diagnostics))
+  const svg = renderBBT(res.model, 21, [])
+  check('BBT escape HTML trong nhãn độc hại (không có <img thô)', !svg.includes('<img') && svg.includes('&lt;img'))
+  // Mốc giá trị thường (không phải biểu thức lạ) vẫn hiển thị số nguyên vẹn
+  check('BBT giữ số 0/1 nguyên vẹn', svg.includes('>$0$<') && svg.includes('>$1$<'))
+}
+
+{
   // Legacy: preset không tồn tại ⇒ KHÔNG fallback im lặng
   const legacy = adaptLegacyGeo3d('preset: khong_ton_tai\nsolid: AB')
   check('geo3d legacy preset lạ ⇒ lỗi (không fallback)', hasErrors(legacy.diagnostics))

@@ -707,18 +707,13 @@ function attachRowActions(tableBody) {
       window.openHomeworkPdf?.(btn.getAttribute('data-id'))
     })
   })
-  // Attach History buttons listeners -> Redirect to /admin-history?classId=...&homeworkId=...
+  // Attach History buttons listeners -> Redirect to /admin-history?classId=...
+  // Không truyền homeworkId: trang Lịch sử KHÔNG tự chọn bài khi vào trang,
+  // admin tự chọn bài tập trên dropdown "Lọc theo Bài học / Bài tập".
   tableBody.querySelectorAll('.btn-history-hw').forEach(btn => {
     btn.addEventListener('click', () => {
-      const hwId = btn.getAttribute('data-id')
       const classId = btn.getAttribute('data-classid')
-      let hash = '#admin-history'
-      if (classId && hwId) {
-        hash += `?classId=${classId}&homeworkId=${hwId}`
-      } else if (hwId) {
-        hash += `?homeworkId=${hwId}`
-      }
-      window.location.hash = hash
+      window.location.hash = classId ? `#admin-history?classId=${classId}` : '#admin-history'
     })
   })
 

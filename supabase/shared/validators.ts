@@ -90,6 +90,7 @@ export const createLessonSchema = z.object({
 
 export const updateLessonSchema = z.object({
   lessonId: z.string().uuid('Invalid Lesson ID'),
+  chapterId: z.string().uuid('Invalid Chapter ID').optional(),
   title: z.string().min(1).optional(),
   orderIndex: z.number().int().optional(),
   content: z.string().optional().nullable(),
@@ -129,6 +130,17 @@ export const questionInputSchema = z.object({
   tfAnswers: tfAnswerSchema.nullable().optional(),
   saAnswer: z.union([z.number(), z.string()]).nullable().optional(),
   saTolerance: z.number().nonnegative().nullable().optional().default(0),
+  // Metadata câu hỏi từ Markdown interactive (dùng cho auto-sync Ngân hàng câu hỏi Constant).
+  // Chỉ là dữ liệu phân loại/nguồn, không phải đáp án; backend vẫn tự xác minh taxonomy.
+  difficulty: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  classTag: z.string().optional().nullable(),
+  gradeTag: z.string().optional().nullable(),
+  subjectTag: z.string().optional().nullable(),
+  chapterTag: z.string().optional().nullable(),
+  lessonTag: z.string().optional().nullable(),
+  questionTypeTag: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
 })
 
 // Homework Management Validators

@@ -87,15 +87,8 @@ serve(async (req: Request) => {
         }
       } catch (e) {
         errors++
-        const errMsg = (e as Error).message?.slice(0, 1000)
-        errorLessons.push({ lessonId: s.lesson_id, message: errMsg || 'Unknown error' })
-        await supabase
-          .from('meeting_sessions')
-          .update({
-            last_synced_at: new Date().toISOString(),
-            last_error: errMsg,
-          })
-          .eq('id', s.id)
+        const errMsg = await recordSyncFailure(supabase, s.id, e)
+        errorLessons.push({ lessonId: s.lesson_id, message: errMsg })
       }
     }
 
@@ -171,13 +164,49 @@ async function handleManualSync(
       session_id: target.id,
     })
   } catch (e) {
-    const errMsg = (e as Error).message?.slice(0, 1000) || 'Unknown error'
-    await supabase
-      .from('meeting_sessions')
-      .update({ last_synced_at: new Date().toISOString(), last_error: errMsg })
-      .eq('id', target.id)
+    const errMsg = await recordSyncFailure(supabase, target.id, e)
     return jsonResponse({ checked: 1, ready: 0, expired: 0, errors: 1, outcome: 'ERROR', message: errMsg })
   }
+}
+
+// UPDATE không lỗi vẫn có thể khớp 0 dòng (session/bài học đã bị xóa).
+// Chỉ coi ghi thành công khi DB trả về đúng dòng đã cập nhật.
+async function updateSession(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  sessionId: string,
+  values: { status: string; last_synced_at: string; last_error: string | null },
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('meeting_sessions')
+    .update(values)
+    .eq('id', sessionId)
+    .select('id')
+    .maybeSingle()
+  if (error) throw new Error(`meeting_sessions update failed: ${error.message}`)
+  if (!data) throw new Error(`Meeting session not found during update: ${sessionId}`)
+}
+
+async function recordSyncFailure(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  sessionId: string,
+  error: unknown,
+): Promise<string> {
+  const message = (error as Error)?.message?.slice(0, 1000) || 'Unknown error'
+  try {
+    // Không chốt READY/EXPIRED khi có lỗi; cron chỉ lấy PENDING để thử lại.
+    await updateSession(supabase, sessionId, {
+      status: 'PENDING',
+      last_synced_at: new Date().toISOString(),
+      last_error: message,
+    })
+  } catch (saveError) {
+    // DB có thể đang lỗi hoàn toàn: không nuốt lỗi ghi chẩn đoán, nhưng cũng
+    // không để một session chặn các session còn lại trong batch cron.
+    const diagnostic = `${message}; failed to persist sync error: ${(saveError as Error)?.message}`
+    console.error('[meet-sync]', sessionId, diagnostic)
+    return diagnostic
+  }
+  return message
 }
 
 // Quét 1 session: conference records theo space -> recordings ->
@@ -195,16 +224,14 @@ async function syncSingleSession(
   if (records.length === 0) {
     const ageMs = now - new Date(s.created_at).getTime()
     if (ageMs > EXPIRE_AFTER_DAYS * 24 * 60 * 60 * 1000) {
-      await supabase
-        .from('meeting_sessions')
-        .update({ status: 'EXPIRED', last_synced_at: new Date().toISOString() })
-        .eq('id', s.id)
+      await updateSession(supabase, s.id, {
+        status: 'EXPIRED', last_synced_at: new Date().toISOString(), last_error: null,
+      })
       return { outcome: 'EXPIRED' }
     }
-    await supabase
-      .from('meeting_sessions')
-      .update({ last_synced_at: new Date().toISOString() })
-      .eq('id', s.id)
+    await updateSession(supabase, s.id, {
+      status: 'PENDING', last_synced_at: new Date().toISOString(), last_error: null,
+    })
     return { outcome: 'PENDING' }
   }
 
@@ -216,7 +243,7 @@ async function syncSingleSession(
     const recs = await listRecordings(rec.name, accessToken)
     for (const r of recs) {
       // UPSERT recording (khóa recording_name).
-      await supabase.from('meeting_recordings').upsert(
+      const { error: recordingError } = await supabase.from('meeting_recordings').upsert(
         {
           session_id: s.id,
           recording_name: r.name,
@@ -230,6 +257,7 @@ async function syncSingleSession(
         },
         { onConflict: 'recording_name' },
       )
+      if (recordingError) throw new Error(`meeting_recordings upsert failed: ${recordingError.message}`)
 
       // Điều kiện chốt: FILE_GENERATED + có file Drive.
       const exportUri = r.driveDestination?.exportUri
@@ -245,30 +273,28 @@ async function syncSingleSession(
   }
 
   if (bestExportUri) {
-    await supabase
-      .from('meeting_sessions')
-      .update({
-        status: 'READY',
-        last_synced_at: new Date().toISOString(),
-        last_error: null,
-      })
-      .eq('id', s.id)
-
-    // TỰ ĐỘNG GẮN BÀI HỌC: đổ exportUri vào lessons.video_url.
+    // Lưu video trước khi chốt READY. Nếu bước READY lỗi, lần sau upsert và
+    // ghi lại cùng video an toàn; không bỏ sót bài học vì cron chỉ lấy PENDING.
     if (s.lesson_id) {
-      await supabase
+      const { data: lesson, error: lessonError } = await supabase
         .from('lessons')
         .update({ video_url: bestExportUri })
         .eq('id', s.lesson_id)
+        .select('id')
+        .maybeSingle()
+      if (lessonError) throw new Error(`lessons video_url update failed: ${lessonError.message}`)
+      if (!lesson) throw new Error(`Lesson not found during video_url update: ${s.lesson_id}`)
     }
+    await updateSession(supabase, s.id, {
+      status: 'READY', last_synced_at: new Date().toISOString(), last_error: null,
+    })
     return { outcome: 'READY' }
   }
 
-  // Chưa có file -> chỉ cập nhật mốc quét.
-  await supabase
-    .from('meeting_sessions')
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq('id', s.id)
+  // Chưa có file -> tiếp tục PENDING và cập nhật mốc quét thành công.
+  await updateSession(supabase, s.id, {
+    status: 'PENDING', last_synced_at: new Date().toISOString(), last_error: null,
+  })
   return { outcome: 'PENDING' }
 }
 

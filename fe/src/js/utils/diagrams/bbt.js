@@ -12,6 +12,7 @@
  */
 
 import { diagramWrap, foreignLabel, arrowMarker, escapeXml, r2 } from './svg.js'
+import { parseExpression, formatNumber } from './expression.js'
 
 const ROW_X_HEIGHT = 34
 const ROW_DERIV_HEIGHT = 42
@@ -25,7 +26,7 @@ const HOLE_OFFSET = 9
 function valueLabel(v) {
   if (!v) return ''
   if (v.kind === 'inf') return v.inf > 0 ? '+\\infty' : '-\\infty'
-  if (v.kind === 'number') return v.text
+  if (v.kind === 'number') return exprLabel(v.text)
   return ''
 }
 
@@ -34,7 +35,95 @@ function knotLabel(k) {
   if (!k) return ''
   if (k.inf === 1) return '+\\infty'
   if (k.inf === -1) return '-\\infty'
-  return k.text
+  return exprLabel(k.text)
+}
+
+/* ------------------------------------------------------------------ *
+ * Nhãn biểu thức → LaTeX
+ *
+ * Schema (validateBbtV2 / adaptLegacyBBT) đã duyệt mọi mốc và giá trị
+ * qua parseExpression (whitelist, không eval), nên chỉ cần chuyển AST
+ * an toàn đó sang LaTeX để KaTeX vẽ căn thức (√) thay vì hiện chữ
+ * "sqrt(3)". Nhãn không phải biểu thức (LaTeX tường minh \infty...,
+ * số thuần, chuỗi khác) giữ nguyên hành vi cũ — không đoán bừa.
+ * ------------------------------------------------------------------ */
+
+const BINARY_PREC = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 3 }
+
+/** AST biểu thức → chuỗi LaTeX (thêm ngoặc khi độ ưu tiên yêu cầu). */
+function exprToLatex(ast, minPrec = 0) {
+  switch (ast.type) {
+    case 'number': return formatNumber(ast.value)
+    case 'constant': return ast.name === 'pi' ? '\\pi' : 'e'
+    case 'variable': return 'x'
+    case 'unary': {
+      const inner = exprToLatex(ast.arg, 4)
+      const body = ast.op === '-' ? `-${inner}` : inner
+      return minPrec > 4 ? `(${body})` : body
+    }
+    case 'call': {
+      const inner = exprToLatex(ast.args[0], 0)
+      switch (ast.name) {
+        case 'sqrt': return `\\sqrt{${inner}}`
+        case 'abs': return `\\left|${inner}\\right|`
+        case 'sin': case 'cos': case 'tan': return `\\${ast.name}\\left(${inner}\\right)`
+        // log là alias của ln (số tự nhiên) theo expression.js → hiển thị \ln cho đúng nghĩa.
+        case 'ln': case 'log': return `\\ln\\left(${inner}\\right)`
+        case 'exp': return `e^{${inner}}`
+        default: return null
+      }
+    }
+    case 'binary': {
+      const prec = BINARY_PREC[ast.op]
+      let body
+      switch (ast.op) {
+        case '+': case '-': {
+          const l = exprToLatex(ast.left, prec)
+          const r = exprToLatex(ast.right, prec + 1)
+          body = `${l} ${ast.op} ${r}`
+          break
+        }
+        case '*': {
+          const l = exprToLatex(ast.left, prec)
+          // 2*sqrt(5) → 2\sqrt{5} (nhân ẩn trước căn); còn lại dùng \cdot.
+          const implicit = ast.right.type === 'call' && ast.right.name === 'sqrt'
+          const r = exprToLatex(ast.right, implicit ? 4 : prec + 1)
+          body = implicit ? `${l}${r}` : `${l} \\cdot ${r}`
+          break
+        }
+        case '/': {
+          // \frac tự nhóm trong ngoặc nhọn nên không cần ngoác ngoài.
+          body = `\\frac{${exprToLatex(ast.left, 0)}}{${exprToLatex(ast.right, 0)}}`
+          break
+        }
+        case '^': {
+          const l = exprToLatex(ast.left, prec)
+          body = `${l}^{${exprToLatex(ast.right, 0)}}`
+          break
+        }
+        default: return null
+      }
+      return minPrec > prec ? `(${body})` : body
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * Nhãn mốc/giá trị: biểu thức hằng an toàn → LaTeX; không phải biểu
+ * thức → giữ nguyên (không ép chữ thường/LaTeX tường minh qua trình
+ * chuyển đổi, tránh làm hỏng nhãn và mở cửa lỗi KaTeX).
+ */
+function exprLabel(text) {
+  const raw = String(text == null ? '' : text)
+  if (!raw) return raw
+  try {
+    const latex = exprToLatex(parseExpression(raw))
+    return latex === null ? raw : latex
+  } catch (_) {
+    return raw
+  }
 }
 
 /** Chiều mũi tên của khoảng i. */

@@ -16,6 +16,12 @@ import {
   createSearchController,
   escapeHtml
 } from '../utils/curriculum-search.js'
+import {
+  syncLessonVideoUrl,
+  syncLessonTitle,
+  findLessonForVideoModal,
+  upsertChapterState
+} from '../utils/curriculum-state.js'
 import { getSafeEmbedUrl } from '../utils/trial-management.js'
 
 function formatTheoryFileName(file) {
@@ -573,10 +579,16 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
                 </div>
               </div>
 
-              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                <span class="btn-open-lesson-hint" style="font-size:12.5px; font-weight:600; color:#0066cc; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; background:#eff6ff;">
+              <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-shrink:0; flex-wrap:wrap;">
+                <button type="button" class="btn-secondary btn-move-curriculum-lesson" data-lesson-id="${l.id}" data-chapter-id="${l.chapterId}" aria-label="Đổi chương cho bài học ${escapeHtml(l.title)}" title="Đổi chương" style="width:auto; font-size:12.5px; font-weight:600; color:#475569; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; cursor:pointer;">
+                  <i class="fa-solid fa-folder-tree"></i> Đổi chương
+                </button>
+                <button type="button" class="btn-secondary btn-rename-curriculum-lesson" data-lesson-id="${l.id}" data-chapter-id="${l.chapterId}" aria-label="Sửa tên bài học ${escapeHtml(l.title)}" title="Sửa tên bài học" style="width:auto; font-size:12.5px; font-weight:600; color:#475569; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; cursor:pointer;">
+                  <i class="fa-solid fa-pen"></i> Sửa tên
+                </button>
+                <button type="button" class="btn-secondary btn-open-lesson-hint" aria-label="Mở bài học ${escapeHtml(l.title)}" style="width:auto; font-size:12.5px; font-weight:600; color:#0066cc; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; background:#eff6ff; cursor:pointer;">
                   Mở bài học <i class="fa-solid fa-chevron-right" style="font-size:11px;"></i>
-                </span>
+                </button>
               </div>
             </div>
           `
@@ -880,7 +892,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
       try {
         showToast('Đang tạo chương học...', 'info')
-        const orderIndex = currObj.chapters.length + 1
+        const orderIndex = (currObj.chapters?.length || currentChapters.length || 0) + 1
         const createdChapter = await api.createChapter({
           classId: activeClassId,
           title,
@@ -894,8 +906,13 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
           lessons: []
         }
 
-        currObj.chapters.push(newChapter)
-        currentChapters.push(newChapter)
+        upsertChapterState({
+          state,
+          activeClassId,
+          currentChapters,
+          newChapter,
+          cachedSummaries: cachedClassCurriculumSummaries
+        })
         selectedChapterId = newChapter.id
         showToast(`Đã thêm thành công chương "${title}"!`, 'success')
         await fetchLessonsAndRefresh()
@@ -1060,9 +1077,15 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
   // Edit Lesson Modal (can be triggered from selected workspace or sidebar)
   const openEditLessonModal = (chId, lessonId) => {
-    const currObj = state.curriculums.find(c => c.classId === activeClassId)
-    const ch = currObj?.chapters.find(c => c.id === chId)
-    const lesson = ch?.lessons?.find(l => l.id === lessonId)
+    const lesson = findLessonForVideoModal({
+      lessonId,
+      chapterId: chId,
+      activeClassId,
+      state,
+      currentChapters,
+      serverLessonsResult,
+      cachedSummaries: cachedClassCurriculumSummaries
+    })
     if (!lesson) return
 
     const modalHTML = `
@@ -1085,7 +1108,15 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         showToast('Đang cập nhật bài học...', 'info')
         await api.updateLesson({ lessonId, title })
 
-        lesson.title = title
+        syncLessonTitle({
+          lessonId,
+          title,
+          serverLessonsResult,
+          cachedSummaries: cachedClassCurriculumSummaries,
+          activeClassId,
+          state,
+          currentChapters
+        })
 
         showToast('Cập nhật bài học thành công!', 'success')
         refreshUI()
@@ -1097,29 +1128,122 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
     })
   }
 
+  // Chuyển bài học sang chương khác trong cùng lớp.
+  const openMoveLessonModal = (sourceChapterId, lessonId) => {
+    const currObj = state.curriculums.find(c => c.classId === activeClassId)
+    const chapters = currentChapters.length > 0 ? currentChapters : (currObj?.chapters || [])
+    const uniqueChapters = [...new Map(chapters.filter(ch => ch?.id).map(ch => [ch.id, ch])).values()]
+    const lesson = findLessonForVideoModal({
+      lessonId,
+      chapterId: sourceChapterId,
+      activeClassId,
+      state,
+      currentChapters,
+      serverLessonsResult,
+      cachedSummaries: cachedClassCurriculumSummaries
+    })
+
+    if (!lesson) {
+      showToast('Không tìm thấy bài học cần chuyển.', 'error')
+      return
+    }
+    if (uniqueChapters.length < 2) {
+      showToast('Lớp cần có ít nhất hai chương để chuyển bài học.', 'info')
+      return
+    }
+
+    const currentChapterId = sourceChapterId || lesson.chapterId
+    const lessonTitle = lesson.title || 'Bài học'
+    const modalHTML = `
+      <div style="display:flex; flex-direction:column; gap:12px; width:420px; max-width:100%;">
+        <p style="margin:0; color:#475569; font-size:14px; line-height:1.5;">
+          Chọn chương đích cho <strong>${escapeHtml(lessonTitle)}</strong>.
+          Thứ tự bài học sẽ được đưa về cuối chương đích.
+        </p>
+        <div>
+          <label for="modal-move-lesson-chapter" style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Chương đích</label>
+          <select id="modal-move-lesson-chapter" class="form-input" style="height:42px;">
+            ${uniqueChapters.map(ch => `
+              <option value="${ch.id}" ${ch.id === currentChapterId ? 'selected' : ''}>
+                Chương ${escapeHtml(String(ch.orderIndex || ch.order_index || ''))}: ${escapeHtml(ch.title || 'Chương chưa đặt tên')}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+      </div>
+    `
+
+    openModal('Đổi chương cho bài học', modalHTML, async () => {
+      const targetChapterId = document.getElementById('modal-move-lesson-chapter')?.value
+      if (!targetChapterId) {
+        showToast('Vui lòng chọn chương đích.', 'error')
+        return false
+      }
+      if (targetChapterId === currentChapterId) {
+        showToast('Bài học đang ở chương này rồi.', 'info')
+        return false
+      }
+
+      try {
+        showToast('Đang chuyển bài học...', 'info')
+        await api.updateLesson({ lessonId, chapterId: targetChapterId })
+        await ensureCurriculumLoaded(activeClassId)
+        if (curriculumError) {
+          // API đã ghi thành công; không giữ modal cho phép gửi lại thao tác ghi.
+          showToast('Đã chuyển bài học, nhưng chưa tải lại được danh sách. Vui lòng làm mới trang.', 'error')
+          refreshUI()
+          return true
+        }
+        showToast('Đã chuyển bài học sang chương mới!', 'success')
+        refreshUI()
+        return true
+      } catch (err) {
+        showToast(`Chuyển chương thất bại: ${err.message}`, 'error')
+        return false
+      }
+    })
+  }
+
   // Modal nhập link video riêng (dùng cho nút Đổi link / Thêm link video / Nhập link thủ công)
   const openVideoUrlModal = (chId, lessonId) => {
-    const currObj = state.curriculums.find(c => c.classId === activeClassId)
-    const ch = currObj?.chapters.find(c => c.id === chId)
-    const lesson = ch?.lessons?.find(l => l.id === lessonId)
-    if (!lesson) return
+    const lesson = findLessonForVideoModal({
+      lessonId,
+      chapterId: chId,
+      activeClassId,
+      state,
+      currentChapters,
+      serverLessonsResult,
+      cachedSummaries: cachedClassCurriculumSummaries
+    }) || { id: lessonId, videoUrl: '', video_url: null }
+
+    const initialVideoUrl = lesson.videoUrl || lesson.video_url || ''
 
     const modalHTML = `
       <div class="full-width-mobile" style="display:flex; flex-direction:column; gap:14px; width:380px; max-width: 100%;">
         <div>
           <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Link Video (Drive/Youtube)</label>
-          <input type="text" id="modal-lesson-video" class="form-input" value="${escapeHtml(lesson.videoUrl || '')}" placeholder="Dán link youtube hoặc drive vào đây">
+          <input type="text" id="modal-lesson-video" class="form-input" value="${escapeHtml(initialVideoUrl)}" placeholder="Dán link youtube hoặc drive vào đây">
         </div>
       </div>
     `
 
     openModal(`Gắn Link Video`, modalHTML, async () => {
-      const videoUrl = document.getElementById('modal-lesson-video')?.value.trim() || null
+      const rawInput = document.getElementById('modal-lesson-video')?.value
+      const trimmed = typeof rawInput === 'string' ? rawInput.trim() : ''
+      const videoUrl = trimmed || null
       try {
         showToast('Đang lưu link video...', 'info')
         await api.updateLesson({ lessonId, videoUrl })
 
-        lesson.videoUrl = videoUrl || ''
+        syncLessonVideoUrl({
+          lessonId,
+          videoUrl,
+          serverLessonsResult,
+          cachedSummaries: cachedClassCurriculumSummaries,
+          activeClassId,
+          state,
+          currentChapters
+        })
 
         showToast('Đã gắn link video cho bài học!', 'success')
         refreshUI()
@@ -1136,6 +1260,21 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
       const chId = btn.getAttribute('data-chapter-id')
       const lessonId = btn.getAttribute('data-lesson-id')
       openEditLessonModal(chId, lessonId)
+    })
+  })
+
+  // Rename directly from lesson list. The card click handler ignores this button.
+  document.querySelectorAll('.btn-rename-curriculum-lesson').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      openEditLessonModal(btn.getAttribute('data-chapter-id'), btn.getAttribute('data-lesson-id'))
+    })
+  })
+
+  document.querySelectorAll('.btn-move-curriculum-lesson').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      openMoveLessonModal(btn.getAttribute('data-chapter-id'), btn.getAttribute('data-lesson-id'))
     })
   })
 
@@ -1235,22 +1374,53 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
   // Delete Lesson Handler
   document.querySelectorAll('.btn-delete-selected-lesson').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation()
       const chId = btn.getAttribute('data-chapter-id')
       const lessonId = btn.getAttribute('data-lesson-id')
-      const currObj = state.curriculums.find(c => c.classId === activeClassId)
-      const ch = currObj?.chapters.find(c => c.id === chId)
-      const lesson = ch?.lessons?.find(l => l.id === lessonId)
-      if (!lesson) return
+      const lesson = findLessonForVideoModal({
+        lessonId,
+        chapterId: chId,
+        activeClassId,
+        state,
+        currentChapters,
+        serverLessonsResult,
+        cachedSummaries: cachedClassCurriculumSummaries
+      })
+      if (!lesson) {
+        showToast('Không tìm thấy bài học cần xóa. Vui lòng tải lại danh sách.', 'error')
+        return
+      }
 
       if (confirm(`Bạn có chắc chắn muốn xóa bài học "${lesson.title}"?`)) {
         try {
           showToast('Đang xóa bài học...', 'info')
           await api.deleteLesson(lessonId)
-          ch.lessons = ch.lessons.filter(l => l.id !== lessonId)
+
+          // Search results are the primary source for the lesson-first view;
+          // remove from every in-memory representation only after API success.
+          serverLessonsResult.items = (serverLessonsResult.items || []).filter(l => l.id !== lessonId)
+          for (const chapter of currentChapters) {
+            if (Array.isArray(chapter.lessons)) {
+              chapter.lessons = chapter.lessons.filter(l => l.id !== lessonId)
+            }
+          }
+          for (const curriculum of state.curriculums || []) {
+            for (const chapter of curriculum.chapters || []) {
+              if (Array.isArray(chapter.lessons)) {
+                chapter.lessons = chapter.lessons.filter(l => l.id !== lessonId)
+              }
+            }
+          }
+          for (const summary of Object.values(cachedClassCurriculumSummaries)) {
+            if (Array.isArray(summary?.results)) {
+              summary.results = summary.results.filter(l => l.id !== lessonId)
+            }
+          }
+
           showToast(`Đã xóa bài học "${lesson.title}"`, 'success')
           if (selectedLessonId === lessonId) {
-            selectedLessonId = ch.lessons[0]?.id || null
+            selectedLessonId = null
           }
           await fetchLessonsAndRefresh()
         } catch (err) {
@@ -1482,25 +1652,16 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
               const meet = await api.getMeetSession(lessonId)
               const driveUrl = meet?.recordings?.find(r => r.drive_url)?.drive_url
                if (driveUrl) {
-                 // Cập nhật cả nguồn render hiện tại và cache curriculum. Trước đây chỉ
-                 // patch state.curriculums nên selectedLesson vẫn lấy bản cũ từ
-                 // serverLessonsResult, khiến video chỉ hiện sau khi reload trang.
-                 const currentItem = serverLessonsResult.items?.find(item => item.id === lessonId)
-                 if (currentItem) {
-                   currentItem.videoUrl = driveUrl
-                   currentItem.video_url = driveUrl
-                   currentItem.hasVideo = true
-                 }
-                const currObj = state.curriculums.find(c => c.classId === activeClassId)
-                const lesson = currObj?.chapters
-                  ?.find(c => c.id === chIdForMeet)?.lessons
-                  ?.find(l => l.id === lessonId)
-                if (lesson) {
-                  lesson.videoUrl = driveUrl
-                  lesson.video_url = driveUrl
-                  lesson.hasVideo = true
-                }
-              }
+                 syncLessonVideoUrl({
+                   lessonId,
+                   videoUrl: driveUrl,
+                   serverLessonsResult,
+                   cachedSummaries: cachedClassCurriculumSummaries,
+                   activeClassId,
+                   state,
+                   currentChapters
+                 })
+               }
             } catch (e) {
               console.warn('Renew lesson video_url failed:', e)
             }
@@ -1653,7 +1814,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
   // Click on a Lesson Card: Mở trực tiếp workspace chi tiết bài học
   document.querySelectorAll('.curriculum-lesson-card').forEach(card => {
     card.addEventListener('click', async (e) => {
-      if (e.target.closest('button, a, input, select')) return
+      if (e.target.closest('button, a, input, select') && !e.target.closest('.btn-open-lesson-hint')) return
 
       const lessonId = card.getAttribute('data-id')
       const chId = card.getAttribute('data-chapter-id')

@@ -3,6 +3,7 @@ import { handleCors, jsonResponse, errorResponse } from '../../shared/response-h
 import { requireAuth } from '../../shared/auth-middleware.ts'
 import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { QUESTION_AWARD_LOG_SELECT, mapQuestionAwardLogRow } from '../../shared/question-award-logs.ts'
+import { resolveWrongQuestionType, isBlankWrongAnswer, loadAllAnalysisRows, loadChunkedWrongAnalysis, ANALYSIS_SUBMISSION_CHUNK_SIZE, uniqueWrongAttempts } from './wrong-analysis.ts'
 
 /* ---------------------------------------------------------------------------
  * Public shared progress report (scope=shared-report)
@@ -1021,6 +1022,8 @@ serve(async (req: Request) => {
     let classHomeworks: any[] = []
     let classHwIds: string[] = []
     let prefetchedEnrolledStudents: any[] | null = null
+    const isClassHomeworkPopup = user?.role === 'ADMIN' && !!homeworkId && !!classId && classId !== 'TRIAL' && url.searchParams.get('includeDraft') === 'true'
+    let popupEligibleStudentIds: Set<string> | null = null
     let pageInfo: { total: number; page: number; pageSize: number; totalPages: number } | null = null
 
     // Prepare Homeworks Query Promise
@@ -1064,7 +1067,7 @@ serve(async (req: Request) => {
             className: h.lessons?.chapters?.classes?.name || 'Chung'
           }))
       } else if (classId && classId !== 'TRIAL') {
-        const { data: hws, error: hwErr } = await serviceRoleClient
+        let classHomeworkQuery = serviceRoleClient
           .from('homeworks')
           .select(`
             id,
@@ -1086,8 +1089,14 @@ serve(async (req: Request) => {
             )
           `)
           .eq('lessons.chapters.class_id', classId)
-          .eq('is_published', true)
-          .order('created_at', { ascending: false })
+        // Popup quản trị có thể xem bài nháp của chính lớp này; tuyệt đối không mở
+        // phạm vi bài nháp cho học sinh hoặc request không chỉ rõ một bài.
+        if (user?.role === 'ADMIN' && homeworkId && url.searchParams.get('includeDraft') === 'true') {
+          classHomeworkQuery = classHomeworkQuery.eq('id', homeworkId)
+        } else {
+          classHomeworkQuery = classHomeworkQuery.eq('is_published', true)
+        }
+        const { data: hws, error: hwErr } = await classHomeworkQuery.order('created_at', { ascending: false })
 
         if (!hwErr && hws) {
           return hws.map((h: any) => ({
@@ -1208,7 +1217,7 @@ serve(async (req: Request) => {
             q = q.eq('homework_id', homeworkId)
           }
         }
-        return q
+        return isClassHomeworkPopup ? q.order('id', { ascending: true }) : q
       }
 
       const enrolledPromise = (homeworkId && classId && classId !== 'TRIAL')
@@ -1223,7 +1232,7 @@ serve(async (req: Request) => {
 
       const [hwsResult, subResult, enrolledResult] = await Promise.all([
         homeworksPromise,
-        buildSubmissionsQuery(),
+        isClassHomeworkPopup ? loadAllAnalysisRows(buildSubmissionsQuery) : buildSubmissionsQuery(),
         enrolledPromise
       ])
 
@@ -1232,6 +1241,18 @@ serve(async (req: Request) => {
       rawSubmissions = subResult.data || []
       fetchErr = subResult.error
       prefetchedEnrolledStudents = enrolledResult.data || null
+
+      if (isClassHomeworkPopup && classHwIds.includes(homeworkId!)) {
+        if (enrolledResult.error) return errorResponse('Không đọc được danh sách học sinh trong lớp', 500)
+        const { data: targets, error: targetError } = await serviceRoleClient
+          .from('homework_targets').select('student_id').eq('homework_id', homeworkId)
+        if (targetError) return errorResponse('Không đọc được danh sách học sinh được giao bài', 500)
+        const enrolledIds = new Set((prefetchedEnrolledStudents || []).map((row: any) => row.student_id))
+        popupEligibleStudentIds = (targets || []).length
+          ? new Set((targets || []).map((row: any) => row.student_id).filter((id: string) => enrolledIds.has(id)))
+          : enrolledIds
+        rawSubmissions = rawSubmissions.filter((row: any) => popupEligibleStudentIds!.has(row.student_id))
+      }
 
       if (classId && classId !== 'TRIAL') {
         if (homeworkId && !classHwIds.includes(homeworkId)) {
@@ -1370,13 +1391,14 @@ serve(async (req: Request) => {
 
     const subIds = (rawSubmissions || []).map((s: any) => s.id)
     const wrongAnswersMap = new Map<string, any[]>()
-    const wrongQuestionsSummaryMap = new Map<number, any>()
+    const wrongQuestionsSummaryMap = new Map<string | number, any>()
 
     // Nhật ký cộng điểm theo câu cho danh sách bài nộp của admin (theo dõi nộp bài):
     // 1 query duy nhất cho đúng submissions của current page (không N+1), CHỈ admin,
     // học sinh không bao giờ nhận. Fetch lỗi -> fail-soft (danh sách không có cột log).
     let awardLogsBySubmission: Map<string, any[]> | null = null
-    if (user?.role === 'ADMIN' && !isTrialQuery && subIds.length > 0) {
+    // Popup does not display award logs: avoid a large unused IN request.
+    if (user?.role === 'ADMIN' && !isTrialQuery && subIds.length > 0 && (!isClassHomeworkPopup || subIds.length <= ANALYSIS_SUBMISSION_CHUNK_SIZE)) {
       const { data: awardRows, error: awardErr } = await serviceRoleClient
         .from('question_award_logs')
         .select(QUESTION_AWARD_LOG_SELECT)
@@ -1398,7 +1420,7 @@ serve(async (req: Request) => {
     const canSeeWrongAnalysis = (user?.role === 'ADMIN' || isTrialQuery) && subIds.length > 0
 
     if (canSeeWrongAnalysis) {
-      const { data: subAns } = await serviceRoleClient
+      const buildWrongAnswersQuery = (submissionIds = subIds) => serviceRoleClient
         .from('submission_answers')
         .select(`
           submission_id,
@@ -1411,6 +1433,7 @@ serve(async (req: Request) => {
             question_number,
             question_type,
             prompt,
+            ${isClassHomeworkPopup ? 'question_bank (id, qb_lesson_id, qb_question_types (id, lesson_id, name)),' : ''}
             question_answers (
               mc_answer,
               tf_answers,
@@ -1418,9 +1441,14 @@ serve(async (req: Request) => {
             )
           )
         `)
-        .in('submission_id', subIds)
+        .in('submission_id', submissionIds)
         .eq('is_correct', false)
 
+      const { data: subAns, error: analysisError } = isClassHomeworkPopup
+        ? await loadChunkedWrongAnalysis(subIds, ids => buildWrongAnswersQuery(ids).order('submission_id').order('question_id'))
+        : await buildWrongAnswersQuery()
+      // Popup must never display a failed query as “no wrong questions”.
+      if (analysisError && isClassHomeworkPopup) return errorResponse('Không tải được phân tích câu sai. Vui lòng thử lại.', 500)
       if (subAns) {
         const studentProfileMap = new Map(
           (rawSubmissions || []).map((s: any) => [
@@ -1428,12 +1456,13 @@ serve(async (req: Request) => {
             {
               id: s.student_id || s.id,
               name: s.guest_name || s.profiles?.full_name || (s.is_trial ? 'Học sinh trải nghiệm' : 'Học sinh'),
+              submittedAt: s.submitted_at,
               phone: s.guest_phone || ''
             }
           ])
         )
 
-        for (const sa of subAns) {
+        for (const sa of isClassHomeworkPopup ? uniqueWrongAttempts(subAns) : subAns) {
           const q = sa.questions
           if (!q) continue
 
@@ -1496,6 +1525,10 @@ serve(async (req: Request) => {
             givenStr = 'Bỏ trống (Chưa làm)'
             isUnanswered = true
           }
+          if (isClassHomeworkPopup) {
+            isUnanswered = isBlankWrongAnswer(sa.given_answer)
+            if (isUnanswered) givenStr = 'Bỏ trống (Chưa làm)'
+          }
 
           const wrongItem = {
             questionNumber: qNum,
@@ -1512,9 +1545,15 @@ serve(async (req: Request) => {
           }
           wrongAnswersMap.get(sa.submission_id)!.push(wrongItem)
 
-          const studentInfo = studentProfileMap.get(sa.submission_id) || { id: '', name: 'Học sinh', phone: '' }
-          if (!wrongQuestionsSummaryMap.has(qNum)) {
-            wrongQuestionsSummaryMap.set(qNum, {
+          const studentInfo = studentProfileMap.get(sa.submission_id) || { id: '', name: 'Học sinh', phone: '', submittedAt: null }
+          const summaryKey = isClassHomeworkPopup ? q.id : qNum
+          if (!wrongQuestionsSummaryMap.has(summaryKey)) {
+            wrongQuestionsSummaryMap.set(summaryKey, {
+              ...(isClassHomeworkPopup ? {
+                questionId: q.id,
+                questionTypeTag: resolveWrongQuestionType(q.prompt, q.question_bank),
+                totalSubmittedAttempts: new Set(subIds).size,
+              } : {}),
               questionNumber: qNum,
               questionType: qType,
               prompt: q.prompt || '',
@@ -1526,7 +1565,7 @@ serve(async (req: Request) => {
             })
           }
 
-          const summaryObj = wrongQuestionsSummaryMap.get(qNum)
+          const summaryObj = wrongQuestionsSummaryMap.get(summaryKey)
           summaryObj.totalFailed += 1
           if (isUnanswered) {
             summaryObj.unansweredCount += 1
@@ -1534,6 +1573,7 @@ serve(async (req: Request) => {
             summaryObj.wrongCount += 1
           }
           summaryObj.students.push({
+            ...(isClassHomeworkPopup ? { submissionId: sa.submission_id, submittedAt: studentInfo.submittedAt } : {}),
             studentId: studentInfo.id,
             studentName: studentInfo.name,
             phone: studentInfo.phone,
@@ -1651,6 +1691,7 @@ serve(async (req: Request) => {
         const isHwOverdue = targetHw.deadline ? new Date() > new Date(targetHw.deadline) : false
 
         unsubmittedStudents = (enrolledStudents || [])
+          .filter((es: any) => !popupEligibleStudentIds || popupEligibleStudentIds.has(es.student_id))
           .filter((es: any) => !submittedStudentIds.has(es.student_id))
           .map((es: any) => ({
             id: es.student_id,
@@ -1663,9 +1704,9 @@ serve(async (req: Request) => {
             deadline: targetHw.deadline || null
           }))
 
-        const totalClassStudents = (enrolledStudents || []).length
-        const submittedCount = history.length
-        const avgScore = submittedCount > 0 ? Math.round((history.reduce((a: number, s: any) => a + (s.score || 0), 0) / submittedCount) * 10) / 10 : 0
+        const totalClassStudents = popupEligibleStudentIds ? popupEligibleStudentIds.size : (enrolledStudents || []).length
+        const submittedCount = popupEligibleStudentIds ? submittedStudentIds.size : history.length
+        const avgScore = history.length > 0 ? Math.round((history.reduce((a: number, s: any) => a + (s.score || 0), 0) / history.length) * 10) / 10 : 0
         const passCount = history.filter((s: any) => s.isPassed).length
 
         submissionStats = {
@@ -1676,7 +1717,7 @@ serve(async (req: Request) => {
           submissionRate: totalClassStudents > 0 ? Math.round((submittedCount / totalClassStudents) * 100) : 0,
           averageScore: avgScore,
           passCount,
-          passRate: submittedCount > 0 ? Math.round((passCount / submittedCount) * 100) : 0,
+          passRate: history.length > 0 ? Math.round((passCount / history.length) * 100) : 0,
           isOverdue: isHwOverdue,
           deadline: targetHw.deadline || null,
           homeworkTitle: targetHw.title || history[0]?.homeworkTitle || 'Bài tập',

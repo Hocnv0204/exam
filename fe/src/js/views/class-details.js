@@ -6,6 +6,8 @@ import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { showAddBalanceModal, showEditBalanceModal } from './student-mgmt.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
+import { getHomeworkDisplayStatus, formatHomeworkProgress } from '../utils/class-homework-progress.js'
+import { openClassHomeworkHistoryModal } from './class-homework-history-modal.js'
 import { renderCurriculumTabHTML, bindCurriculumTabEvents, ensureCurriculumLoaded } from './curriculum.js'
 
 // Module-level state for the active class view
@@ -21,6 +23,8 @@ let attendanceTotalPages = 1
 let attendanceMonths = []
 const ATTENDANCE_PAGE_SIZE = 10
 let cachedHomeworks = null
+let homeworkLoadError = ''
+let homeworkLoadRequest = 0
 let cachedClassStudents = []
 let studentSearchQuery = ''
 let studentStatusFilter = 'ALL' // 'ALL' | 'ACTIVE' | 'PAUSED'
@@ -50,6 +54,8 @@ export function renderClassDetailsView() {
     attendanceTotalPages = 1
     attendanceMonths = []
     cachedHomeworks = null
+    homeworkLoadError = ''
+    homeworkLoadRequest++
     cachedClassStudents = []
     loadedScopes = {}
     pendingLoads = {}
@@ -754,14 +760,20 @@ function renderHomeworkTabHTML(currentClass) {
             <tr>
               <th>Tiêu đề bài tập</th>
               <th>Loại bài</th>
-              <th>Chương & Bài học</th>
+              <th>Đã nộp / Được giao</th>
               <th>Hạn nộp</th>
               <th>Trạng thái</th>
               <th style="text-align:center;">Thao tác</th>
             </tr>
           </thead>
           <tbody id="class-homeworks-tbody">
-            ${homeworks.length === 0 ? `
+            ${homeworkLoadError ? `
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:#b91c1c;">
+                ${escapeHtml(homeworkLoadError)} <button type="button" id="btn-retry-class-homeworks" class="btn-secondary" style="width:auto;margin-left:8px;">Thử lại</button>
+              </td></tr>
+            ` : cachedHomeworks === null ? `
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:#64748b;">Đang tải danh sách và tiến độ nộp bài...</td></tr>
+            ` : homeworks.length === 0 ? `
               <tr>
                 <td colspan="6" style="text-align:center; padding:48px 20px; color:#64748b;">
                   <i class="fa-solid fa-folder-open" style="font-size:36px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
@@ -770,8 +782,8 @@ function renderHomeworkTabHTML(currentClass) {
               </tr>
             ` : homeworks.map(hw => {
               const isExam = hw.type === 'EXAM'
-              const now = new Date().toISOString()
-              const isOverdue = hw.deadline && hw.deadline < now
+              const status = getHomeworkDisplayStatus(hw)
+              const isOverdue = status.label === 'Quá hạn'
 
               return `
                 <tr>
@@ -784,9 +796,8 @@ function renderHomeworkTabHTML(currentClass) {
                       ${isExam ? '<i class="fa-solid fa-stopwatch"></i> Bài thi' : '<i class="fa-solid fa-feather-pointed"></i> Luyện tập'}
                     </span>
                   </td>
-                  <td style="color:#64748b; font-size:13px;">
-                    <div><strong>${escapeHtml(hw.chapterTitle || 'Chương')}</strong></div>
-                    <div>${escapeHtml(hw.lessonTitle || 'Bài học')}</div>
+                  <td style="color:#334155; font-size:13px; font-weight:700;" title="Số học sinh trong lớp đã nộp ít nhất một lần / số học sinh được giao bài">
+                    ${formatHomeworkProgress(hw.progress)}
                   </td>
                   <td>
                     ${hw.deadline ? `
@@ -796,15 +807,15 @@ function renderHomeworkTabHTML(currentClass) {
                     ` : '<span style="color:#94a3b8; font-size:12px;">Không có hạn</span>'}
                   </td>
                   <td>
-                    <span class="badge ${hw.isPublished ? 'badge-paid' : 'badge-absent'}">
-                      <i class="fa-solid fa-circle" style="font-size:6px;"></i> ${hw.isPublished ? 'Đang mở' : 'Bản nháp'}
+                    <span class="badge ${status.badge}">
+                      <i class="fa-solid fa-circle" style="font-size:6px;"></i> ${status.label}
                     </span>
                   </td>
                   <td style="text-align:center;">
                     <div style="display:inline-flex; align-items:center; gap:8px;">
-                      <a href="#admin-history?classId=${currentClass.id}&homeworkId=${hw.id}&tab=unsubmitted" class="btn-primary" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px; width:auto;">
+                      <button type="button" class="btn-primary btn-class-homework-results" data-homework-id="${hw.id}" title="Xem lịch sử và tiến độ nộp riêng bài này" style="padding:6px 12px; font-size:12px; display:inline-flex; align-items:center; gap:6px; border-radius:8px; width:auto;cursor:pointer;">
                         <i class="fa-solid fa-square-poll-vertical"></i> Kết quả
-                      </a>
+                      </button>
                       <a href="#create-homework?homeworkId=${hw.id}" class="btn-secondary" title="Sửa đề & đáp án" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
                         <i class="fa-solid fa-pen-to-square" style="color:#0066cc;"></i> Sửa bài
                       </a>
@@ -1182,7 +1193,11 @@ function loadHomeworkScope(classId, currentClass, force = false) {
   const key = scopeKey(classId, 'homework')
   if (!force && isScopeLoaded(classId, 'homework')) return Promise.resolve(cachedHomeworks)
   if (!force && pendingLoads[key]) return pendingLoads[key]
-  const p = api.getHomeworks('', classId).then(hws => {
+  homeworkLoadError = ''
+  if (force) cachedHomeworks = null
+  const requestId = ++homeworkLoadRequest
+  const p = api.getHomeworks('', classId, 'includeProgress=true').then(hws => {
+    if (currentViewingClassId !== classId || requestId !== homeworkLoadRequest) return null
     cachedHomeworks = Array.isArray(hws) ? hws : (hws?.items || [])
     const tabBadgeHw = document.getElementById('tab-badge-homework')
     if (tabBadgeHw) tabBadgeHw.textContent = cachedHomeworks.length
@@ -1196,7 +1211,20 @@ function loadHomeworkScope(classId, currentClass, force = false) {
     }
     markScopeLoaded(classId, 'homework')
     return cachedHomeworks
-  }).catch(err => console.warn('Failed to load homeworks:', err))
+  }).catch(err => {
+    if (currentViewingClassId !== classId || requestId !== homeworkLoadRequest) return null
+    console.warn('Failed to load homeworks:', err)
+    cachedHomeworks = null
+    homeworkLoadError = 'Không tải được danh sách hoặc tiến độ nộp bài.'
+    if (activeTab === 'homework') {
+      const container = document.getElementById('class-tab-content-container')
+      if (container) {
+        container.innerHTML = renderHomeworkTabHTML(currentClass)
+        bindHomeworkTabEvents(classId, currentClass)
+      }
+    }
+    return null
+  })
     .finally(() => { if (pendingLoads[key] === p) delete pendingLoads[key] })
   pendingLoads[key] = p
   return p
@@ -2229,6 +2257,20 @@ async function exportTuitionCsv(classId, currentClass) {
 // TAB BINDINGS: BÀI TẬP — sinh đề luyện bù từ chương yếu
 // ---------------------------------------------------------
 function bindHomeworkTabEvents(classId, currentClass) {
+  document.querySelectorAll('.btn-class-homework-results').forEach(button => {
+    button.onclick = () => {
+      const homework = cachedHomeworks?.find(hw => hw.id === button.dataset.homeworkId)
+      if (homework && currentViewingClassId === classId) openClassHomeworkHistoryModal(classId, homework)
+    }
+  })
+  const retryBtn = document.getElementById('btn-retry-class-homeworks')
+  if (retryBtn) retryBtn.onclick = () => {
+    retryBtn.disabled = true
+    homeworkLoadError = ''
+    const container = document.getElementById('class-tab-content-container')
+    if (container) container.innerHTML = renderHomeworkTabHTML(currentClass)
+    loadHomeworkScope(classId, currentClass, true)
+  }
   const genBtn = document.getElementById('btn-generate-practice')
   if (!genBtn) return
 

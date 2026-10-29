@@ -76,6 +76,41 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
+/**
+ * Báo kết quả auto-sync Ngân hàng câu hỏi Constant sau khi lưu bài tập thành công.
+ * Tuyệt đối không báo "thành công" cho phần chưa đồng bộ; chỉ hiển thị cho Admin.
+ */
+function showAutoBankSyncToast(summary) {
+  if (!summary || !summary.enabled) return
+
+  const created = Number(summary.createdCount) || 0
+  const skipped = Number(summary.skippedDuplicateCount) || 0
+  const unsynced = Number(summary.unsyncedCount) || 0
+  const failed = Number(summary.failedCount) || 0
+  const notSynced = unsynced + failed
+  const targetName = summary.target?.lessonTitle ? ` bài "${escapeHtml(summary.target.lessonTitle)}"` : ''
+  const firstReason = Array.isArray(summary.reasons) && summary.reasons.length > 0
+    ? escapeHtml(summary.reasons[0].reason || '')
+    : ''
+
+  if (notSynced === 0) {
+    if (created === 0 && skipped > 0) {
+      showToast(`Ngân hàng câu hỏi: không có câu mới, bỏ qua ${skipped} câu đã có${targetName}.`, 'info')
+      return
+    }
+    const parts = [`Ngân hàng câu hỏi: đã đồng bộ ${created} câu${targetName}`]
+    if (skipped > 0) parts.push(`bỏ qua ${skipped} câu đã có`)
+    showToast(`${parts.join(', ')}.`, 'success')
+    return
+  }
+
+  const parts = [`Ngân hàng câu hỏi: đã lưu ${created} câu`]
+  if (skipped > 0) parts.push(`bỏ qua ${skipped} câu trùng`)
+  parts.push(`${notSynced} câu CHƯA đồng bộ`)
+  if (firstReason) parts.push(`lý do: ${firstReason}`)
+  showToast(`${parts.join(', ')}.`, 'warning')
+}
+
 /* ==========================================================================
  * KIỂM TRA LỖI KHỐI HÌNH (bbt / graph / geo3d)
  * - Lỗi  ⇒ không cho lưu đề (hình sai/không vẽ được).
@@ -605,6 +640,7 @@ export function renderCreateHwView() {
           const mcOptions = (Array.isArray(pObj.options) && pObj.options.length > 0)
             ? pObj.options
             : (Array.isArray(q.options) && q.options.length > 0 ? q.options : [])
+          const metaObj = pObj.metadata && typeof pObj.metadata === 'object' ? pObj.metadata : {}
           return {
             questionNumber: q.question_number || q.questionNumber,
             questionType: qType,
@@ -612,12 +648,19 @@ export function renderCreateHwView() {
             points: q.points || (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25)),
             promptText: pObj.text || q.content || (typeof q.prompt === 'string' && !q.prompt.startsWith('{') ? q.prompt : ''),
             imageUrl: pObj.imageUrl || '',
+            partTitle: pObj.partTitle || '',
             options: qType === 'TRUE_FALSE' ? tfStatements : mcOptions,
             explanation: pObj.explanation || qa.explanation || '',
             mcAnswer: qa.mc_answer || pObj.mcAnswer || 'A',
             tfAnswers: qa.tf_answers || pObj.tfAnswers || { a: true, b: true, c: false, d: true },
             saAnswer: (qa.sa_answer !== undefined && qa.sa_answer !== null ? String(qa.sa_answer) : (pObj.saAnswer !== undefined && pObj.saAnswer !== null ? String(pObj.saAnswer) : '')),
             saTolerance: qa.sa_tolerance ?? pObj.saTolerance ?? 0,
+            classTag: metaObj.classTag || pObj.classTag || q.classTag || null,
+            gradeTag: metaObj.gradeTag || pObj.gradeTag || q.gradeTag || null,
+            subjectTag: metaObj.subjectTag || pObj.subjectTag || q.subjectTag || null,
+            chapterTag: metaObj.chapterTag || pObj.chapterTag || q.chapterTag || null,
+            lessonTag: metaObj.lessonTag || pObj.lessonTag || q.lessonTag || null,
+            questionTypeTag: metaObj.questionTypeTag || pObj.questionTypeTag || q.questionTypeTag || null,
             hasImagePlaceholder: !!pObj.imageUrl
           }
         })
@@ -2433,6 +2476,9 @@ export function bindCreateHwEvents() {
 
   // Save Homework Event
   document.getElementById('save-homework-btn')?.addEventListener('click', async () => {
+    const saveBtn = document.getElementById('save-homework-btn')
+    if (saveBtn?.dataset.saving === '1') return
+
     let title = document.getElementById('hw-title')?.value.trim()
     const classId = document.getElementById('hw-class-select')?.value
     const lessonId = document.getElementById('hw-lesson-select')?.value
@@ -2513,20 +2559,38 @@ export function bindCreateHwEvents() {
         const statements = isTf ? opts : (q.statements || [])
 
         const difficulty = q.difficulty || 'THONG_HIEU'
+        const taxonomyMetadata = {
+          classTag: q.classTag || q.gradeTag || null,
+          gradeTag: q.gradeTag || q.classTag || null,
+          subjectTag: q.subjectTag || null,
+          chapterTag: q.chapterTag || null,
+          lessonTag: q.lessonTag || null,
+          questionTypeTag: q.questionTypeTag || null
+        }
         return {
           id: `q_${idx + 1}`,
           questionNumber: idx + 1,
           questionType: q.questionType,
           difficulty,
           points: q.points || (isTf ? 1.0 : (isSa ? 0.5 : 0.25)),
+          source: 'MARKDOWN_INTERACTIVE',
+          partTitle: q.partTitle || '',
+          classTag: taxonomyMetadata.classTag,
+          gradeTag: taxonomyMetadata.gradeTag,
+          subjectTag: taxonomyMetadata.subjectTag,
+          chapterTag: taxonomyMetadata.chapterTag,
+          lessonTag: taxonomyMetadata.lessonTag,
+          questionTypeTag: taxonomyMetadata.questionTypeTag,
           prompt: JSON.stringify({
             isInteractive: true,
             text: q.promptText || '',
             imageUrl: q.imageUrl || '',
+            partTitle: q.partTitle || '',
             options: isMc ? opts : [],
             statements: isTf ? statements : [],
             explanation: q.explanation || '',
-            difficulty
+            difficulty,
+            metadata: taxonomyMetadata
           }),
           content: q.promptText || '',
           options: isMc ? opts : null,
@@ -2629,6 +2693,10 @@ export function bindCreateHwEvents() {
     }
 
     try {
+      if (saveBtn) {
+        saveBtn.dataset.saving = '1'
+        saveBtn.disabled = true
+      }
       if (fileToUpload) {
         const sanitizedName = fileToUpload.name.replace(/[^a-zA-Z0-9.]/g, '_')
         const isSameFile = hw && (hw.pdfPath || hw.pdf_path) && (hw.pdfPath || hw.pdf_path).endsWith(sanitizedName)
@@ -2643,7 +2711,7 @@ export function bindCreateHwEvents() {
 
       if (isEdit && hw) {
         showToast('Đang cập nhật bài tập...', 'info')
-        await api.updateHomework({
+        const updateResult = await api.updateHomework({
           homeworkId: hw.id,
           lessonId,
           title: finalTitle,
@@ -2661,10 +2729,11 @@ export function bindCreateHwEvents() {
           assignedStudentIds: collectAssignStudentIds()
         })
         showToast(`Đã cập nhật bài tập "${finalTitle}" thành công!`, 'success')
+        showAutoBankSyncToast(updateResult?.autoBankSync)
         window.location.hash = '#homework-mgmt'
       } else {
         showToast('Đang lưu cấu hình bài tập...', 'info')
-        await api.createHomework({
+        const createResult = await api.createHomework({
           lessonId,
           title: finalTitle,
           pdfPath,
@@ -2681,10 +2750,16 @@ export function bindCreateHwEvents() {
           assignedStudentIds: collectAssignStudentIds()
         })
         showToast(`Đã xuất bản bài tập "${finalTitle}" thành công!`, 'success')
+        showAutoBankSyncToast(createResult?.autoBankSync)
         window.location.hash = '#homework-mgmt'
       }
     } catch (err) {
       showToast(`Lưu bài tập thất bại: ${err.message}`, 'error')
+    } finally {
+      if (saveBtn) {
+        delete saveBtn.dataset.saving
+        saveBtn.disabled = false
+      }
     }
   })
 

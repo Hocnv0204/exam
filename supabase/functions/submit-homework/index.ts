@@ -361,7 +361,7 @@ serve(async (req: Request) => {
     // 7. Send Telegram notification
     const sendNotification = async () => {
       try {
-        // 1. Determine all relevant class IDs for this homework and student
+        // Only the persisted homework class may receive this submission (including trial).
         const classIdsToSearch: string[] = []
         if (classIdOfHomework) {
           classIdsToSearch.push(classIdOfHomework)
@@ -373,18 +373,6 @@ serve(async (req: Request) => {
             .maybeSingle()
           const resolvedCid = (lessonData?.chapters as any)?.class_id
           if (resolvedCid) classIdsToSearch.push(resolvedCid)
-        }
-
-        // Also include user's enrolled classes if homework's class didn't yield a config
-        if (user) {
-          if (user.classId && !classIdsToSearch.includes(user.classId)) {
-            classIdsToSearch.push(user.classId)
-          }
-          if (Array.isArray(user.classIds)) {
-            for (const cid of user.classIds) {
-              if (cid && !classIdsToSearch.includes(cid)) classIdsToSearch.push(cid)
-            }
-          }
         }
 
         if (classIdsToSearch.length === 0) return

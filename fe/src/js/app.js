@@ -10,7 +10,7 @@ import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/home
 import { renderAssignmentReviewView, bindAssignmentReviewEvents } from './views/assignment-review.js'
 import { renderLearningHistoryView, bindLearningHistoryEvents } from './views/learning-history.js'
 import { renderAdminDashboardView, bindAdminDashboardEvents } from './views/admin-dashboard.js'
-import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData } from './views/admin-history.js'
+import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData, resolveHistoryHomeworkId } from './views/admin-history.js'
 import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
 import { renderSharedReportView, renderStudentReportView, bindSharedReportEvents, bindStudentReportEvents } from './views/student-report.js'
@@ -392,7 +392,9 @@ async function router() {
       if (hash === 'admin-history') {
         const mode = params.get('mode') || (params.get('classId') === 'TRIAL' ? 'trial' : '') || ''
         const classId = params.get('classId') || ''
-        const homeworkId = params.get('homeworkId') || ''
+        // Chỉ khôi phục homeworkId khi URL có dấu hiệu user tự chọn bài (pick=1).
+        // Link/Lịch sử vào trang hoặc link cũ chứa homeworkId không được tự chọn bài.
+        const homeworkId = resolveHistoryHomeworkId(params)
         const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1)
         const search = params.get('search') || ''
 
