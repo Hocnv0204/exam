@@ -1,6 +1,7 @@
 import { state, setSession } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
+import { endActiveTour } from './tour.js'
 
 const BACKUP_KEY = 'edu_admin_backup'
 
@@ -70,6 +71,9 @@ export async function startImpersonation(studentId, studentName) {
 
 /** Thoát chế độ xem như học sinh, quay lại phiên admin (không đăng xuất). */
 export function stopImpersonation() {
+  // Tour hướng dẫn của học sinh gắn trực tiếp vào <body>, không bị router dọn;
+  // đóng trước khi đổi phiên để không còn overlay che giao diện admin.
+  endActiveTour()
   let backup = null
   try {
     backup = JSON.parse(sessionStorage.getItem(BACKUP_KEY) || 'null')

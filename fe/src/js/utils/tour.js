@@ -50,6 +50,15 @@ export function resetTour(key) {
   } catch {}
 }
 
+let activeTourCleanup = null
+
+/** Đóng tour đang mở (overlay + tooltip nằm ngoài vùng render của router). */
+export function endActiveTour() {
+  const cleanup = activeTourCleanup
+  activeTourCleanup = null
+  if (cleanup) cleanup()
+}
+
 /**
  * steps: [{ selector, title, text }]
  * opts: { key, onDone }
@@ -58,6 +67,7 @@ export function startTour(steps, opts = {}) {
   const valid = (steps || []).filter(s => s && document.querySelector(s.selector))
   if (valid.length === 0) return false
   if (opts.key) markTourSeen(opts.key)
+  endActiveTour()
 
   const overlay = document.createElement('div')
   overlay.id = 'newbie-tour-overlay'
@@ -81,8 +91,10 @@ export function startTour(steps, opts = {}) {
     ring.remove()
     tip.remove()
     style.remove()
+    if (activeTourCleanup === cleanup) activeTourCleanup = null
     if (opts.onDone) opts.onDone()
   }
+  activeTourCleanup = cleanup
 
   const place = () => {
     const step = valid[idx]

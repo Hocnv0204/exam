@@ -1,5 +1,6 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
+import { renderThemeToggle } from '../theme.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal } from '../components/modal.js'
@@ -189,6 +190,7 @@ function renderBackdrop(breadcrumb, options = {}) {
       <div class="main-content">
         ${isPublic ? '' : renderNavbar(breadcrumb)}
         <div class="content-body">
+          ${isPublic ? `<div class="shared-report-theme-control">${renderThemeToggle()}</div>` : ''}
           ${backRow}
           <div id="${bodyId}"></div>
         </div>
@@ -738,8 +740,11 @@ const reportDataLabelsPlugin = {
 }
 
 function reportChartPalette(canvas) {
-  const isAdminDark = Boolean(canvas?.closest('.app-layout.admin-dark[data-route="student-report"]'))
-  if (!isAdminDark) {
+  // Dark palette when the report is viewed on a dark surface: admin-dark for
+  // ADMIN, navy-student for STUDENT (2026-10-30). Public shared reports keep
+  // the light palette.
+  const isDark = Boolean(canvas?.closest('.app-layout.admin-dark[data-route="student-report"], .app-layout.navy-student'))
+  if (!isDark) {
     return {
       text: '#64748b',
       legend: '#475569',
@@ -767,6 +772,26 @@ function reportChartPalette(canvas) {
     tooltipText: '#f8fafc',
     tooltipBorder: 'rgba(56, 189, 248, 0.5)'
   }
+}
+
+export function updateReportChartTheme() {
+  const canvas = document.getElementById('report-trend-chart')
+  const chart = canvas && window.Chart?.getChart?.(canvas)
+  if (!chart) return // loading, error or empty report
+  const palette = reportChartPalette(canvas)
+  chart.data.datasets[1].borderColor = palette.line
+  chart.data.datasets[1].pointBorderColor = palette.pointBorder
+  chart.options.scales.x.ticks.color = palette.text
+  chart.options.scales.y.ticks.color = palette.text
+  chart.options.scales.y.grid.color = palette.grid
+  chart.options.plugins.legend.labels.color = palette.legend
+  Object.assign(chart.options.plugins.tooltip, {
+    backgroundColor: palette.tooltipBackground,
+    titleColor: palette.tooltipText,
+    bodyColor: palette.tooltipText,
+    borderColor: palette.tooltipBorder
+  })
+  chart.update('none') // the data-label plugin also reads the current DOM palette
 }
 
 function renderScoreTrendChart(scoreTrend) {

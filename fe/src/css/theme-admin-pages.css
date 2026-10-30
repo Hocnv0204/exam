@@ -37,6 +37,39 @@
   color: #f1f5f9;
 }
 
+/* Student details — monthly scheduler. The day buttons are generated with
+   inline light backgrounds, so the generic inline mapper can be overridden
+   by browser/button styles. Keep empty days on the same navy surface while
+   preserving the green/yellow paid-state colors below. */
+.app-layout.admin-dark[data-route="student-details"] .calendar-day-btn {
+  background: var(--adm-surface-soft) !important;
+  color: var(--adm-text) !important;
+  border-color: var(--adm-border) !important;
+  box-shadow: none;
+}
+.app-layout.admin-dark[data-route="student-details"] .calendar-day-btn:hover {
+  background: #2f4057 !important;
+  border-color: var(--adm-accent) !important;
+  filter: none !important;
+}
+.app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background:#dcfce7"],
+.app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background: #dcfce7"] {
+  background: rgba(52, 211, 153, 0.18) !important;
+  color: #6ee7b7 !important;
+  border-color: #10b981 !important;
+}
+.app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background:#fef3c7"],
+.app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background: #fef3c7"] {
+  background: rgba(251, 191, 36, 0.16) !important;
+  color: #fcd34d !important;
+  border-color: #f59e0b !important;
+}
+.app-layout.admin-dark[data-route="student-details"] #student-calendar-grid-container > div:first-child span[style*="background:#ffffff"],
+.app-layout.admin-dark[data-route="student-details"] #student-calendar-grid-container > div:first-child span[style*="background: #ffffff"] {
+  background: var(--adm-surface-soft) !important;
+  border-color: var(--adm-border) !important;
+}
+
 /* =========================================================================
    2. Chương trình học (curriculum) — các panel class-based trong styles.css
    Base admin-dark chỉ remap inline style; các lớp .curriculum-* đặt nền
@@ -223,37 +256,66 @@
    5. Inline color tối còn thiếu (theme-admin.css chưa liệt kê các tông rất
    đậm: nâu/đỏ/rêu/xanh tím). Chỉ remap TEXT, không đụng gradient trang trí.
    ========================================================================= */
-.app-layout.admin-dark .content-body [style*="color:#7f1d1d"],
-.app-layout.admin-dark .content-body [style*="color: #7f1d1d"] {
+.app-layout.admin-dark .content-body [style^="color:#7f1d1d"],
+.app-layout.admin-dark .content-body [style*=" color:#7f1d1d"],
+.app-layout.admin-dark .content-body [style*=";color:#7f1d1d"],
+.app-layout.admin-dark .content-body [style^="color: #7f1d1d"],
+.app-layout.admin-dark .content-body [style*=" color: #7f1d1d"] {
   color: #fca5a5 !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#78350f"],
-.app-layout.admin-dark .content-body [style*="color:#9a3412"],
-.app-layout.admin-dark .content-body [style*="color: #9a3412"] {
+.app-layout.admin-dark .content-body [style^="color:#78350f"],
+.app-layout.admin-dark .content-body [style*=" color:#78350f"],
+.app-layout.admin-dark .content-body [style*=";color:#78350f"],
+.app-layout.admin-dark .content-body [style^="color:#9a3412"],
+.app-layout.admin-dark .content-body [style*=" color:#9a3412"],
+.app-layout.admin-dark .content-body [style*=";color:#9a3412"],
+.app-layout.admin-dark .content-body [style^="color: #9a3412"],
+.app-layout.admin-dark .content-body [style*=" color: #9a3412"] {
   color: #fdba74 !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#14532d"],
-.app-layout.admin-dark .content-body [style*="color:#065f46"] {
+.app-layout.admin-dark .content-body [style^="color:#14532d"],
+.app-layout.admin-dark .content-body [style*=" color:#14532d"],
+.app-layout.admin-dark .content-body [style*=";color:#14532d"],
+.app-layout.admin-dark .content-body [style^="color:#065f46"],
+.app-layout.admin-dark .content-body [style*=" color:#065f46"],
+.app-layout.admin-dark .content-body [style*=";color:#065f46"] {
   color: #6ee7b7 !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#1e3a8a"],
-.app-layout.admin-dark .content-body [style*="color:#075985"] {
+.app-layout.admin-dark .content-body [style^="color:#1e3a8a"],
+.app-layout.admin-dark .content-body [style*=" color:#1e3a8a"],
+.app-layout.admin-dark .content-body [style*=";color:#1e3a8a"],
+.app-layout.admin-dark .content-body [style^="color:#075985"],
+.app-layout.admin-dark .content-body [style*=" color:#075985"],
+.app-layout.admin-dark .content-body [style*=";color:#075985"] {
   color: #7dd3fc !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#3730a3"],
-.app-layout.admin-dark .content-body [style*="color:#4f46e5"],
-.app-layout.admin-dark .content-body [style*="color: #4f46e5"],
-.app-layout.admin-dark .content-body [style*="color:#6b21a8"],
-.app-layout.admin-dark .content-body [style*="color:#581c87"] {
+.app-layout.admin-dark .content-body [style^="color:#3730a3"],
+.app-layout.admin-dark .content-body [style*=" color:#3730a3"],
+.app-layout.admin-dark .content-body [style*=";color:#3730a3"],
+.app-layout.admin-dark .content-body [style^="color:#4f46e5"],
+.app-layout.admin-dark .content-body [style*=" color:#4f46e5"],
+.app-layout.admin-dark .content-body [style*=";color:#4f46e5"],
+.app-layout.admin-dark .content-body [style^="color: #4f46e5"],
+.app-layout.admin-dark .content-body [style*=" color: #4f46e5"],
+.app-layout.admin-dark .content-body [style^="color:#6b21a8"],
+.app-layout.admin-dark .content-body [style*=" color:#6b21a8"],
+.app-layout.admin-dark .content-body [style*=";color:#6b21a8"],
+.app-layout.admin-dark .content-body [style^="color:#581c87"],
+.app-layout.admin-dark .content-body [style*=" color:#581c87"],
+.app-layout.admin-dark .content-body [style*=";color:#581c87"] {
   color: #c4b5fd !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#db2777"],
-.app-layout.admin-dark .content-body [style*="color:#be185d"] {
+.app-layout.admin-dark .content-body [style^="color:#db2777"],
+.app-layout.admin-dark .content-body [style*=" color:#db2777"],
+.app-layout.admin-dark .content-body [style*=";color:#db2777"],
+.app-layout.admin-dark .content-body [style^="color:#be185d"],
+.app-layout.admin-dark .content-body [style*=" color:#be185d"],
+.app-layout.admin-dark .content-body [style*=";color:#be185d"] {
   color: #f9a8d4 !important;
 }
 
@@ -275,6 +337,9 @@
 }
 
 .app-layout.admin-dark .content-body [style*="#fecaca"],
+.app-layout.admin-dark .content-body [style*="#fecdd3"],
+.app-layout.admin-dark .content-body [style*="#fda4af"],
+.app-layout.admin-dark .content-body [style*="#ffe4e6"],
 .app-layout.admin-dark .content-body [style*="#f87171"] {
   border-color: rgba(248, 113, 113, 0.45) !important;
 }
@@ -371,55 +436,108 @@
 }
 
 /* --- Remap inline color tối (text) --- */
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#0f172a"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color: #0f172a"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#1e293b"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#334155"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color: #334155"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#0f172a"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#0f172a"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#0f172a"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color: #0f172a"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color: #0f172a"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#1e293b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#1e293b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#1e293b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#334155"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#334155"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#334155"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color: #334155"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color: #334155"] {
   color: #f1f5f9 !important;
 }
 
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#475569"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#64748b"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color: #64748b"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#475569"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#475569"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#475569"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#64748b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#64748b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#64748b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color: #64748b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color: #64748b"] {
   color: #cbd5e1 !important;
 }
 
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#94a3b8"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#94a3b8"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#94a3b8"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#94a3b8"] {
   color: var(--adm-text-dim) !important;
 }
 
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#0284c7"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#2563eb"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#1d4ed8"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#1e40af"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#0284c7"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#0284c7"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#0284c7"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#2563eb"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#2563eb"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#2563eb"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#1d4ed8"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#1d4ed8"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#1d4ed8"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#1e40af"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#1e40af"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#1e40af"] {
   color: #7dd3fc !important;
 }
 
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#059669"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#10b981"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#047857"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#065f46"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#059669"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#059669"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#059669"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#10b981"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#10b981"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#10b981"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#047857"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#047857"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#047857"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#065f46"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#065f46"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#065f46"] {
   color: #6ee7b7 !important;
 }
 
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#d97706"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#b45309"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#92400e"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#c2410c"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#9a3412"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#d97706"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#d97706"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#d97706"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#b45309"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#b45309"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#b45309"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#92400e"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#92400e"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#92400e"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#c2410c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#c2410c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#c2410c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#9a3412"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#9a3412"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#9a3412"] {
   color: #fcd34d !important;
 }
 
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#dc2626"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#b91c1c"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#991b1b"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#ef4444"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#dc2626"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#dc2626"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#dc2626"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#b91c1c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#b91c1c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#b91c1c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#991b1b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#991b1b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#991b1b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#ef4444"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#ef4444"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#ef4444"] {
   color: #fca5a5 !important;
 }
 
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#4f46e5"],
-.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#4338ca"] {
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#4f46e5"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#4f46e5"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#4f46e5"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style^="color:#4338ca"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=" color:#4338ca"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*=";color:#4338ca"] {
   color: #c4b5fd !important;
 }
 
@@ -485,6 +603,9 @@
 }
 
 .app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#fecaca"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#fecdd3"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#fda4af"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#ffe4e6"],
 .app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#f87171"] {
   border-color: rgba(248, 113, 113, 0.45) !important;
 }

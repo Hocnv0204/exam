@@ -538,7 +538,7 @@ export function bindClassMgmtEvents() {
   if (manageBlocksBtn) {
     manageBlocksBtn.addEventListener('click', (e) => {
       e.preventDefault()
-      window.location.hash = '#grade-blocks'
+      showGradeBlockManagementModal()
     })
   }
 

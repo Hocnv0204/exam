@@ -1,6 +1,8 @@
 /* Dark navigation shell with high-contrast work surfaces for data-heavy views.
-   The exercise and exam views intentionally avoid decorative illustration/motion. */
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) {
+   The exercise and exam views intentionally avoid decorative illustration/motion.
+   Color rules are gated on html[data-theme="dark"]; the light theme falls back
+   to the original light design declared in styles.css. */
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) {
   --bg-app: #111827;
   --bg-card: #1f2937;
   --border-color: #334155;
@@ -11,9 +13,9 @@
   background: #111827;
   color: #f8fafc;
 }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .main-content { background: #111827; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .sidebar,
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar {
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .main-content { background: #111827; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .sidebar,
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar {
   background: #161f30;
   border-color: #334155;
   color: #e2e8f0;
@@ -22,50 +24,54 @@
   padding-bottom: max(22px, env(safe-area-inset-bottom));
   overflow-y: auto;
 }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .brand-logo { color: #7dd3fc; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .brand-logo i {
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .brand-logo { color: #7dd3fc; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .brand-logo i {
   color: #38bdf8;
   filter: drop-shadow(0 2px 8px #38bdf866);
 }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-section-title { color: #94a3b8; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item { color: #cbd5e1; min-height: 44px; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item:hover,
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item:focus-visible {
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-section-title { color: #94a3b8; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item { color: #cbd5e1; min-height: 44px; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item { min-height: 44px; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item:hover,
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item:focus-visible {
   background: #273549;
   color: #f8fafc;
 }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item.active {
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item.active {
   color: #111827;
   background: #38bdf8;
   box-shadow: 0 4px 18px #38bdf833;
 }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item.active i { color: #111827 !important; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-profile-chip { color: #f8fafc; cursor: default; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-avatar-circle { background: #38bdf8; color: #111827; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) #sidebar-toggle-btn {
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item.active i { color: #111827 !important; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-profile-chip { color: #f8fafc; cursor: default; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-profile-chip { cursor: default; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-avatar-circle { background: #38bdf8; color: #111827; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) #sidebar-toggle-btn {
   min-height: 44px;
   min-width: 44px;
   color: #e2e8f0 !important;
 }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) #sidebar-toggle-btn:hover { background: #273549; color: #f8fafc; }
-.navbar-breadcrumb { color: #cbd5e1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(52vw, 680px); }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) #sidebar-toggle-btn { min-height: 44px; min-width: 44px; }
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) #sidebar-toggle-btn:hover { background: #273549; color: #f8fafc; }
+.navbar-breadcrumb { color: #475569; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(52vw, 680px); }
+html[data-theme="dark"] .navbar-breadcrumb { color: #cbd5e1; }
 /* Public/guest screens keep the original light navigation. */
 .app-layout[data-role="GUEST"] .navbar-breadcrumb,
 .app-layout.public-report-layout .navbar-breadcrumb { color: #475569; }
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .sidebar :is(a, button, [role="link"]):focus-visible,
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar button:focus-visible {
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .sidebar :is(a, button, [role="link"]):focus-visible,
+html[data-theme="dark"] .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar button:focus-visible {
   outline: 3px solid #7dd3fc;
   outline-offset: 2px;
 }
 
 /* Legacy student/result forms have extensive inline dark text on light cards.
    Keep these work surfaces light rather than sacrificing readability.
-   Admin routes opt into the navy palette below via .admin-dark. */
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body,
-.app-layout.student-class-detail .content-body,
-.app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body,
-.app-layout[data-route="homework-attempt"] .content-body,
-.app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body {
+   Student routes that opted into the navy theme (.navy-student) and admin
+   routes (.admin-dark) are excluded so theme-admin.css can skin them. */
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]) .content-body,
+.app-layout[data-role="ADMIN"]:not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body,
+.app-layout[data-route="homework-attempt"]:not(.navy-student):not(.admin-dark) .content-body,
+.app-layout[data-route="assignment-review"]:not(.admin-dark):not(.navy-student) .content-body {
   background: #f8fafc;
   color: #0f172a;
   border-radius: 18px;
@@ -73,109 +79,68 @@
   min-width: 0;
 }
 
-.app-layout.student-class-detail .content-body .card,
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body .card,
-.app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body .card,
-.app-layout[data-route="homework-attempt"] .content-body .card,
-.app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body .card {
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]) .content-body .card,
+.app-layout[data-role="ADMIN"]:not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body .card,
+.app-layout[data-route="homework-attempt"]:not(.navy-student):not(.admin-dark) .content-body .card,
+.app-layout[data-route="assignment-review"]:not(.admin-dark):not(.navy-student) .content-body .card {
   background: #fff !important;
   border-color: #dbe4ee !important;
   color: #0f172a !important;
 }
 
-.app-layout.student-class-detail .content-body {
-  --navy-text: #0f172a;
-  --navy-muted: #64748b;
-  --navy-card: #ffffff;
-  --navy-border: #cbd5e1;
-  --navy-accent: #0284c7;
-}
-.app-layout.student-class-detail .content-body .btn-secondary {
-  background: #fff;
-  color: #334155;
-  border-color: #cbd5e1;
-}
-.app-layout.student-class-detail .content-body .btn-secondary:hover {
-  background: #f8fafc;
-  color: #0369a1;
-  border-color: #7dd3fc;
-}
-.app-layout.student-class-detail .content-body :is(input, select, textarea) {
-  background: #fff;
-  color: #0f172a;
-  border-color: #cbd5e1;
-}
-.app-layout.student-class-detail .content-body input::placeholder { color: #64748b; }
-.app-layout.student-class-detail .content-body .btn-primary {
-  background: #0284c7;
-  color: #fff;
-  border-color: #0284c7;
-}
-.app-layout.student-class-detail .content-body a { color: #0369a1; }
-.app-layout.student-class-detail .content-body :is(h1, h2, h3, h4, p, label),
-.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body .page-title,
-.app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body .page-title,
-.app-layout[data-route="homework-attempt"] .content-body .page-title,
-.app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body .page-title {
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]) .content-body .page-title,
+.app-layout[data-role="ADMIN"]:not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body .page-title,
+.app-layout[data-route="homework-attempt"]:not(.navy-student):not(.admin-dark) .content-body .page-title,
+.app-layout[data-route="assignment-review"]:not(.admin-dark):not(.navy-student) .content-body .page-title {
   color: #0f172a;
 }
-
-.app-layout.student-class-detail .content-body [style*="color:#0f172a"],
-.app-layout.student-class-detail .content-body [style*="color:#334155"],
-.app-layout.student-class-detail .content-body [style*="color:#475569"],
-.app-layout.student-class-detail .content-body [style*="color:#64748b"] { color: inherit !important; }
 
 /* Dashboard shell; chart cards and canvas palette are completed by
    theme-admin-analytics.css when the ADMIN route opts into .admin-dark. */
-.app-layout[data-route="admin-dashboard"] .dash-kpi-card {
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-card {
   background: #1f2937;
   border-color: #334155;
   box-shadow: 0 10px 26px #060d1b25;
 }
-.app-layout[data-route="admin-dashboard"] .dash-kpi-card:hover {
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-card:hover {
   border-color: #38bdf8;
 }
-.app-layout[data-route="admin-dashboard"] .dash-kpi-value,
-.app-layout[data-route="admin-dashboard"] .dash-section-title {
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-value,
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-section-title {
   color: #f8fafc;
 }
-.app-layout[data-route="admin-dashboard"] .content-body .page-title {
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .content-body .page-title {
   color: #f8fafc;
 }
-.app-layout[data-route="admin-dashboard"] .content-body .page-description {
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .content-body .page-description {
   color: #cbd5e1;
 }
-.app-layout[data-route="admin-dashboard"] .dash-section-badge {
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-section-badge {
   border-color: #475569;
 }
-.app-layout[data-route="admin-dashboard"] .dash-kpi-label,
-.app-layout[data-route="admin-dashboard"] .dash-kpi-subtext,
-.app-layout[data-route="admin-dashboard"] .dash-kpi-value [style*="color:#64748b"] {
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-label,
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-subtext,
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-value [style^="color:#64748b"],
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-value [style*=" color:#64748b"],
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-kpi-value [style*=";color:#64748b"] {
   color: #cbd5e1 !important;
 }
-.app-layout[data-route="admin-dashboard"] .dash-chart-card {
+.app-layout[data-route="admin-dashboard"] .dash-chart-card { min-width: 0; }
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-chart-card {
   background: #f8fafc;
   border-color: #334155;
   color: #0f172a;
-  min-width: 0;
 }
-.app-layout[data-route="admin-dashboard"] .dash-chart-card .dash-chart-title { color: #0f172a; }
-.app-layout[data-route="admin-dashboard"] .dash-chart-card .dash-chart-desc { color: #475569; }
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-chart-card .dash-chart-title { color: #0f172a; }
+html[data-theme="dark"] .app-layout[data-route="admin-dashboard"] .dash-chart-card .dash-chart-desc { color: #475569; }
 
-/* Timer, answer choices and autosave must remain predictable and readable. */
-.exam-room-layout {
+/* Timer, answer choices and autosave must remain predictable and readable.
+   Surfaces for the exam room and solver come from theme-navy.css /
+   theme-admin.css; keep only sizing guarantees here. */
+.exam-room-layout { min-height: 100dvh; }
+html[data-theme="dark"] .exam-room-layout {
   background: #111827;
-  min-height: 100dvh;
   color: #f8fafc;
-}
-.exam-room-layout .exam-room-body,
-.exam-room-layout .interactive-q-card {
-  color: #0f172a;
-}
-.exam-room-layout .interactive-q-card,
-.app-layout[data-route="homework-attempt"] .interactive-q-card {
-  background: #fff;
-  border-color: #cbd5e1;
 }
 .exam-room-layout .exam-option-card,
 .app-layout[data-route="homework-attempt"] .exam-option-card {
@@ -185,6 +150,29 @@
 .app-layout[data-route="homework-attempt"] .exam-nav-btn {
   min-width: 44px;
   min-height: 44px;
+}
+.exam-top-toolbar .exam-toolbar-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: none;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.exam-top-toolbar .exam-toolbar-back:focus-visible { outline: 3px solid #0284c7; outline-offset: 2px; }
+html[data-theme="dark"] .exam-top-toolbar .exam-toolbar-back {
+  background: #243244;
+  color: #f8fafc;
+  border-color: #475569;
 }
 
 @media (max-width: 1100px) {
@@ -209,11 +197,10 @@
   .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar { padding-inline: 12px; }
   .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-profile-chip > span { display: none; }
   .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar-right { gap: 6px; }
-  .app-layout.student-class-detail .content-body,
-  .app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body,
-  .app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body,
-  .app-layout[data-route="homework-attempt"] .content-body,
-  .app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body,
+  .app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]) .content-body,
+  .app-layout[data-role="ADMIN"]:not(.admin-dark):not(.theme-public-page):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body,
+  .app-layout[data-route="homework-attempt"]:not(.navy-student):not(.admin-dark) .content-body,
+  .app-layout[data-route="assignment-review"]:not(.admin-dark):not(.navy-student) .content-body,
   .app-layout.admin-dark .content-body {
     margin: 8px;
     border-radius: 14px;
@@ -226,6 +213,26 @@
     overflow-x: auto;
   }
   .exam-room-layout .exam-room-body { padding-inline: 12px; }
+}
+
+/* Review actions can outgrow the header at tablet/desktop widths. Keep the
+   title readable and let actions wrap instead of squeezing it to one word. */
+.app-layout[data-route="assignment-review"] .page-header {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.app-layout[data-route="assignment-review"] .page-header > div:first-child {
+  flex: 1 1 250px;
+  min-width: min(250px, 100%);
+}
+.app-layout[data-route="assignment-review"] .page-header > div:nth-child(2) {
+  flex-wrap: wrap;
+  flex-shrink: 1 !important;
+  min-width: 0;
+  max-width: 100%;
+}
+.app-layout[data-route="assignment-review"] .page-header > div:nth-child(2) > .btn-primary {
+  width: auto;
 }
 
 @media (max-width: 640px) {
@@ -243,6 +250,86 @@
   .exam-top-toolbar > div:last-child > div:first-child { display: none !important; }
   .exam-top-toolbar > div:last-child { justify-content: space-between; }
   .exam-top-toolbar > div:first-child { gap: 10px; }
+  .exam-room-layout .exam-sidebar-palette {
+    position: static !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .exam-room-layout #btn-exit-exam-room { min-height: 44px; }
+}
+
+/* Exam toolbar: retain every status/action on a narrow portrait viewport,
+   rather than hiding content behind the fixed-width timer or submit button. */
+@media (max-width: 375px) {
+  .exam-room-layout { width: 100%; }
+  .exam-top-toolbar {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+    gap: 8px;
+    align-items: stretch;
+  }
+  .exam-top-toolbar .exam-toolbar-identity { min-width: 0; gap: 8px !important; align-items: flex-start !important; }
+  .exam-top-toolbar .brand-logo,
+  .exam-top-toolbar .brand-logo + div { display: none; }
+  .exam-top-toolbar .exam-toolbar-back { width: 44px; padding: 8px; }
+  .exam-top-toolbar .exam-toolbar-back span { display: none; }
+  .exam-top-toolbar .exam-toolbar-heading { flex: 1; min-width: 0; overflow: visible !important; }
+  .exam-top-toolbar .exam-toolbar-heading h1 {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+  .exam-top-toolbar .exam-toolbar-badges { gap: 4px !important; margin-bottom: 5px !important; }
+  .exam-top-toolbar .exam-toolbar-badges > span {
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .exam-top-toolbar #exam-autosave-status { min-width: 0; }
+  .exam-top-toolbar .exam-toolbar-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    gap: 6px !important;
+    min-width: 0;
+    width: 100%;
+  }
+  .exam-top-toolbar .exam-toolbar-actions > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .exam-top-toolbar .timer-box {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: center;
+    padding: 8px !important;
+    min-height: 44px;
+  }
+  .exam-top-toolbar #btn-top-submit-exam {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    padding: 8px !important;
+  }
+  .exam-top-toolbar #exam-violations-pill {
+    justify-content: center;
+    min-height: 44px;
+    padding: 6px !important;
+  }
+  .exam-top-toolbar #btn-toggle-exam-pdf {
+    min-height: 44px;
+    justify-content: center;
+    padding: 6px !important;
+    white-space: normal;
+  }
+  .exam-top-toolbar .exam-theme-toggle { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

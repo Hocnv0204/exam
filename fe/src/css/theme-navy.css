@@ -1,5 +1,12 @@
-/* EduPortal navy/sky-blue student dashboard theme (phase 1).
-   Scoped to student dashboard views only; does not affect exam/public roadmap/login. */
+/* EduPortal navy/sky-blue student theme.
+   2026-10-30: extended from dashboard-only to every student surface
+   (my-classes, my-homeworks, homework-attempt, history, student-report,
+   exam-room). Public roadmap/login/trial are NOT affected.
+   Student routes also carry .admin-dark (see app.js studentDarkRoutes), so
+   theme-admin*.css skins legacy markup; this file patches the surfaces those
+   themes do not reach (embedded view styles, inline borders, exam room).
+   Rendered PDF pages stay light on purpose (long reading); their chrome is
+   restored below after the admin inline-color remap. */
 .app-layout.navy-student {
   --navy-bg: #111827;
   --navy-card: #1f2937;
@@ -143,41 +150,63 @@
 
 /* Only remap text inside dark student cards, not status badges or light
    lesson-detail surfaces. Global attribute overrides invert legacy alerts. */
-.app-layout.navy-student .myhw-card [style*="color:#0f172a"],
-.app-layout.navy-student .myhw-card [style*="color:#334155"],
-.app-layout.navy-student .myhw-card [style*="color:#475569"],
-.app-layout.navy-student .myhw-card [style*="color:#64748b"],
-.app-layout.navy-student #myhw-stats [style*="color:#0f172a"],
-.app-layout.navy-student #myhw-stats [style*="color:#64748b"],
-.app-layout.student-class-list .class-card [style*="color:#64748b"],
-.app-layout.student-class-list #tour-latest-hw [style*="color:#64748b"] {
+.app-layout.navy-student .myhw-card [style^="color:#0f172a"],
+.app-layout.navy-student .myhw-card [style*=" color:#0f172a"],
+.app-layout.navy-student .myhw-card [style*=";color:#0f172a"],
+.app-layout.navy-student .myhw-card [style^="color:#334155"],
+.app-layout.navy-student .myhw-card [style*=" color:#334155"],
+.app-layout.navy-student .myhw-card [style*=";color:#334155"],
+.app-layout.navy-student .myhw-card [style^="color:#475569"],
+.app-layout.navy-student .myhw-card [style*=" color:#475569"],
+.app-layout.navy-student .myhw-card [style*=";color:#475569"],
+.app-layout.navy-student .myhw-card [style^="color:#64748b"],
+.app-layout.navy-student .myhw-card [style*=" color:#64748b"],
+.app-layout.navy-student .myhw-card [style*=";color:#64748b"],
+.app-layout.navy-student #myhw-stats [style^="color:#0f172a"],
+.app-layout.navy-student #myhw-stats [style*=" color:#0f172a"],
+.app-layout.navy-student #myhw-stats [style*=";color:#0f172a"],
+.app-layout.navy-student #myhw-stats [style^="color:#64748b"],
+.app-layout.navy-student #myhw-stats [style*=" color:#64748b"],
+.app-layout.navy-student #myhw-stats [style*=";color:#64748b"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style^="color:#64748b"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style*=" color:#64748b"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style*=";color:#64748b"],
+html[data-theme="dark"] .app-layout.student-class-list #tour-latest-hw [style^="color:#64748b"],
+html[data-theme="dark"] .app-layout.student-class-list #tour-latest-hw [style*=" color:#64748b"],
+html[data-theme="dark"] .app-layout.student-class-list #tour-latest-hw [style*=";color:#64748b"] {
   color: var(--navy-text) !important;
 }
 
-.app-layout.student-class-list .class-card [style*="color:#0066cc"],
-.app-layout.student-class-list .class-card [style*="color:#0284c7"] {
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style^="color:#0066cc"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style*=" color:#0066cc"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style*=";color:#0066cc"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style^="color:#0284c7"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style*=" color:#0284c7"],
+html[data-theme="dark"] .app-layout.student-class-list .class-card [style*=";color:#0284c7"] {
   color: var(--navy-accent) !important;
 }
 
 /* Class-list tiles are not .card; explicitly skin their surfaces. */
-.app-layout.student-class-list .class-card {
+html[data-theme="dark"] .app-layout.student-class-list .class-card {
   background: var(--navy-card);
   border-color: var(--navy-border);
   color: var(--navy-text);
 }
-.app-layout.student-class-list .class-card:hover { border-color: var(--navy-accent); }
-.app-layout.student-class-list .class-title { color: #f8fafc; }
-.app-layout.student-class-list .class-footer,
-.app-layout.student-class-list .class-teacher { color: #cbd5e1; }
-.app-layout.student-class-list .enter-class-btn { color: #7dd3fc; }
+html[data-theme="dark"] .app-layout.student-class-list .class-card:hover { border-color: var(--navy-accent); }
+html[data-theme="dark"] .app-layout.student-class-list .class-title { color: #f8fafc; }
+html[data-theme="dark"] .app-layout.student-class-list .class-footer,
+html[data-theme="dark"] .app-layout.student-class-list .class-teacher { color: #cbd5e1; }
+html[data-theme="dark"] .app-layout.student-class-list .enter-class-btn { color: #7dd3fc; }
 .app-layout.navy-student .myhw-status-btn { background: transparent; color: #cbd5e1; }
 .app-layout.navy-student .myhw-status-btn.active { background: #38bdf8; color: #0b1220; }
 .app-layout.navy-student #tour-myhw-filter > div > div:first-child { background: #0f172a !important; }
-.app-layout.navy-student #myhw-pagination [data-myhw-page] { color: #0f172a; }
+.app-layout.navy-student #myhw-pagination [data-myhw-page] { color: #e2e8f0; }
 .app-layout.navy-student #myhw-pagination [data-myhw-page][disabled] { opacity: .55 !important; }
 .app-layout.navy-student #myhw-pagination [data-myhw-page]:focus-visible,
-.app-layout.student-class-list .class-card:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 2px; }
-.app-layout.navy-student #weekly-calendar-root .wc-day [style*="color:#64748b"] {
+html[data-theme="dark"] .app-layout.student-class-list .class-card:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 2px; }
+.app-layout.navy-student #weekly-calendar-root .wc-day [style^="color:#64748b"],
+.app-layout.navy-student #weekly-calendar-root .wc-day [style*=" color:#64748b"],
+.app-layout.navy-student #weekly-calendar-root .wc-day [style*=";color:#64748b"] {
   color: #cbd5e1 !important;
 }
 
@@ -260,4 +289,642 @@
     width: 72px;
     height: 54px;
   }
+}
+
+/* =========================================================================
+   Exam room (2026-10-30)
+   .exam-room-layout has no .app-layout root, so it cannot reuse the
+   .app-layout.admin-dark rules. It mirrors the admin navy palette here:
+   toolbar, navigation palette, question paper and answer controls.
+   ========================================================================= */
+.exam-room-layout.navy-student {
+  --navy-bg: #111827;
+  --navy-card: #1f2937;
+  --navy-surface-soft: #243244;
+  --navy-border: #334155;
+  --navy-accent: #38bdf8;
+  --navy-text: #e5e7eb;
+  --navy-muted: #94a3b8;
+  background: var(--navy-bg);
+  color: var(--navy-text);
+}
+
+.exam-room-layout.navy-student .exam-top-toolbar {
+  background: var(--navy-card);
+  border-bottom-color: var(--navy-border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Exam title uses an inline dark color; the toolbar is navy now. */
+.exam-room-layout.navy-student .exam-top-toolbar h1 {
+  color: #f8fafc !important;
+}
+
+.exam-room-layout.navy-student .exam-room-body {
+  color: var(--navy-text);
+}
+
+/* Question paper */
+.exam-room-layout.navy-student .interactive-q-card {
+  background: var(--navy-card) !important;
+  border-color: var(--navy-border) !important;
+  color: #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.35);
+}
+
+.exam-room-layout.navy-student .interactive-q-card.flagged {
+  border-color: #f59e0b !important;
+  background: rgba(251, 191, 36, 0.08) !important;
+}
+
+.exam-room-layout.navy-student .interactive-q-prompt,
+.exam-room-layout.navy-student .interactive-q-prompt :is(p, li, span, strong, em, h1, h2, h3, h4) {
+  color: #e2e8f0;
+}
+
+.exam-room-layout.navy-student .exam-option-card {
+  background: var(--navy-surface-soft) !important;
+  border-color: var(--navy-border) !important;
+  color: #e2e8f0 !important;
+}
+
+.exam-room-layout.navy-student .exam-option-card:hover {
+  background: #2f4057 !important;
+  border-color: #475569 !important;
+}
+
+.exam-room-layout.navy-student .exam-option-card.selected {
+  background: rgba(56, 189, 248, 0.16) !important;
+  border-color: var(--navy-accent) !important;
+  color: #7dd3fc !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.16);
+}
+
+.exam-room-layout.navy-student .exam-opt-badge {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.exam-room-layout.navy-student .exam-option-card.selected .exam-opt-badge {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+/* True/False rows and borders are remapped by the inline-surface battery below;
+   only the toggle buttons need an explicit dark default (active states keep
+   their inline green/red). */
+
+.exam-room-layout.navy-student .tf-statement-row {
+  color: #e2e8f0;
+}
+
+.exam-room-layout.navy-student .tf-toggle-btn:not(.active) {
+  background: var(--navy-surface-soft) !important;
+  border-color: var(--navy-border) !important;
+  color: var(--navy-muted) !important;
+}
+
+/* Written answers */
+.exam-room-layout.navy-student :is(.student-interactive-essay-input, .student-interactive-sa-input) {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: var(--navy-border) !important;
+}
+
+.exam-room-layout.navy-student :is(.student-interactive-essay-input, .student-interactive-sa-input)::placeholder {
+  color: var(--navy-muted) !important;
+}
+
+/* Navigation palette */
+.exam-room-layout.navy-student .exam-sidebar-palette {
+  background: var(--navy-card) !important;
+  border-color: var(--navy-border) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* Palette labels use inline muted colors that wash out on navy. */
+.exam-room-layout.navy-student .exam-sidebar-palette [style^="color:#475569"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=" color:#475569"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=";color:#475569"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style^="color:#64748b"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=" color:#64748b"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=";color:#64748b"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style^="color:#1e293b"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=" color:#1e293b"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=";color:#1e293b"] {
+  color: #cbd5e1 !important;
+}
+
+.exam-room-layout.navy-student .exam-sidebar-palette [style^="color:#0066cc"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=" color:#0066cc"],
+.exam-room-layout.navy-student .exam-sidebar-palette [style*=";color:#0066cc"] {
+  color: #7dd3fc !important;
+}
+
+.exam-room-layout.navy-student :is(.btn-secondary, .btn-primary) {
+  min-height: 44px;
+}
+
+/* Inline light surfaces used across the room. */
+.exam-room-layout.navy-student [style*="background:#ffffff"],
+.exam-room-layout.navy-student [style*="background: #ffffff"],
+.exam-room-layout.navy-student [style*="background:#fff"],
+.exam-room-layout.navy-student [style*="background: #fff"],
+.exam-room-layout.navy-student [style*="background:#f8fafc"],
+.exam-room-layout.navy-student [style*="background: #f8fafc"],
+.exam-room-layout.navy-student [style*="background:#f1f5f9"],
+.exam-room-layout.navy-student [style*="background: #f1f5f9"],
+.exam-room-layout.navy-student [style*="background:#fbfcfe"] {
+  background: var(--navy-surface-soft) !important;
+}
+
+.exam-room-layout.navy-student [style*="background:#eff6ff"],
+.exam-room-layout.navy-student [style*="background: #eff6ff"],
+.exam-room-layout.navy-student [style*="background:#e0f2fe"],
+.exam-room-layout.navy-student [style*="background:#dbeafe"] {
+  background: rgba(56, 189, 248, 0.14) !important;
+}
+
+.exam-room-layout.navy-student [style*="background:#f0fdf4"],
+.exam-room-layout.navy-student [style*="background: #f0fdf4"],
+.exam-room-layout.navy-student [style*="background:#ecfdf5"],
+.exam-room-layout.navy-student [style*="background:#dcfce7"] {
+  background: rgba(52, 211, 153, 0.14) !important;
+}
+
+.exam-room-layout.navy-student [style*="background:#fef2f2"],
+.exam-room-layout.navy-student [style*="background: #fef2f2"],
+.exam-room-layout.navy-student [style*="background:#fee2e2"],
+.exam-room-layout.navy-student [style*="background:#fff1f2"] {
+  background: rgba(248, 113, 113, 0.14) !important;
+}
+
+.exam-room-layout.navy-student [style*="background:#fffbeb"],
+.exam-room-layout.navy-student [style*="background:#fef3c7"],
+.exam-room-layout.navy-student [style*="background:#fff7ed"] {
+  background: rgba(251, 191, 36, 0.14) !important;
+}
+
+/* Toolbar separators use a light grey inline background. */
+.exam-room-layout.navy-student [style*="background:#cbd5e1"],
+.exam-room-layout.navy-student [style*="background: #cbd5e1"] {
+  background: var(--navy-border) !important;
+}
+
+.exam-room-layout.navy-student [style*="background:#faf5ff"],
+.exam-room-layout.navy-student [style*="background:#f3e8ff"],
+.exam-room-layout.navy-student [style*="background:#e9d5ff"] {
+  background: rgba(167, 139, 250, 0.14) !important;
+}
+
+/* Section headers use an inline light gradient. */
+.exam-room-layout.navy-student [style*="linear-gradient"][style*="#f8fafc"],
+.exam-room-layout.navy-student [style*="linear-gradient"][style*="#f1f5f9"] {
+  background: linear-gradient(135deg, #1e3a52 0%, #1b2a3d 100%) !important;
+  border-color: var(--navy-border) !important;
+  color: #f8fafc !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#0f172a"],
+.exam-room-layout.navy-student [style*=" color:#0f172a"],
+.exam-room-layout.navy-student [style*=";color:#0f172a"],
+.exam-room-layout.navy-student [style^="color: #0f172a"],
+.exam-room-layout.navy-student [style*=" color: #0f172a"],
+.exam-room-layout.navy-student [style^="color:#1e293b"],
+.exam-room-layout.navy-student [style*=" color:#1e293b"],
+.exam-room-layout.navy-student [style*=";color:#1e293b"],
+.exam-room-layout.navy-student [style^="color: #1e293b"],
+.exam-room-layout.navy-student [style*=" color: #1e293b"] {
+  color: #f1f5f9 !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#334155"],
+.exam-room-layout.navy-student [style*=" color:#334155"],
+.exam-room-layout.navy-student [style*=";color:#334155"],
+.exam-room-layout.navy-student [style^="color:#475569"],
+.exam-room-layout.navy-student [style*=" color:#475569"],
+.exam-room-layout.navy-student [style*=";color:#475569"],
+.exam-room-layout.navy-student [style^="color: #475569"],
+.exam-room-layout.navy-student [style*=" color: #475569"] {
+  color: #cbd5e1 !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#64748b"],
+.exam-room-layout.navy-student [style*=" color:#64748b"],
+.exam-room-layout.navy-student [style*=";color:#64748b"],
+.exam-room-layout.navy-student [style^="color: #64748b"],
+.exam-room-layout.navy-student [style*=" color: #64748b"],
+.exam-room-layout.navy-student [style^="color:#6b7280"],
+.exam-room-layout.navy-student [style*=" color:#6b7280"],
+.exam-room-layout.navy-student [style*=";color:#6b7280"],
+.exam-room-layout.navy-student [style^="color:#94a3b8"],
+.exam-room-layout.navy-student [style*=" color:#94a3b8"],
+.exam-room-layout.navy-student [style*=";color:#94a3b8"] {
+  color: #94a3b8 !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#0066cc"],
+.exam-room-layout.navy-student [style*=" color:#0066cc"],
+.exam-room-layout.navy-student [style*=";color:#0066cc"],
+.exam-room-layout.navy-student [style^="color:#0284c7"],
+.exam-room-layout.navy-student [style*=" color:#0284c7"],
+.exam-room-layout.navy-student [style*=";color:#0284c7"],
+.exam-room-layout.navy-student [style^="color: #0284c7"],
+.exam-room-layout.navy-student [style*=" color: #0284c7"],
+.exam-room-layout.navy-student [style^="color:#0369a1"],
+.exam-room-layout.navy-student [style*=" color:#0369a1"],
+.exam-room-layout.navy-student [style*=";color:#0369a1"] {
+  color: #7dd3fc !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#15803d"],
+.exam-room-layout.navy-student [style*=" color:#15803d"],
+.exam-room-layout.navy-student [style*=";color:#15803d"],
+.exam-room-layout.navy-student [style^="color:#16a34a"],
+.exam-room-layout.navy-student [style*=" color:#16a34a"],
+.exam-room-layout.navy-student [style*=";color:#16a34a"],
+.exam-room-layout.navy-student [style^="color:#059669"],
+.exam-room-layout.navy-student [style*=" color:#059669"],
+.exam-room-layout.navy-student [style*=";color:#059669"],
+.exam-room-layout.navy-student [style^="color:#10b981"],
+.exam-room-layout.navy-student [style*=" color:#10b981"],
+.exam-room-layout.navy-student [style*=";color:#10b981"],
+.exam-room-layout.navy-student [style^="color:#047857"],
+.exam-room-layout.navy-student [style*=" color:#047857"],
+.exam-room-layout.navy-student [style*=";color:#047857"],
+.exam-room-layout.navy-student [style^="color:#065f46"],
+.exam-room-layout.navy-student [style*=" color:#065f46"],
+.exam-room-layout.navy-student [style*=";color:#065f46"] {
+  color: #6ee7b7 !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#dc2626"],
+.exam-room-layout.navy-student [style*=" color:#dc2626"],
+.exam-room-layout.navy-student [style*=";color:#dc2626"],
+.exam-room-layout.navy-student [style^="color:#ef4444"],
+.exam-room-layout.navy-student [style*=" color:#ef4444"],
+.exam-room-layout.navy-student [style*=";color:#ef4444"],
+.exam-room-layout.navy-student [style^="color:#b91c1c"],
+.exam-room-layout.navy-student [style*=" color:#b91c1c"],
+.exam-room-layout.navy-student [style*=";color:#b91c1c"],
+.exam-room-layout.navy-student [style^="color:#991b1b"],
+.exam-room-layout.navy-student [style*=" color:#991b1b"],
+.exam-room-layout.navy-student [style*=";color:#991b1b"] {
+  color: #fca5a5 !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#b45309"],
+.exam-room-layout.navy-student [style*=" color:#b45309"],
+.exam-room-layout.navy-student [style*=";color:#b45309"],
+.exam-room-layout.navy-student [style^="color:#d97706"],
+.exam-room-layout.navy-student [style*=" color:#d97706"],
+.exam-room-layout.navy-student [style*=";color:#d97706"],
+.exam-room-layout.navy-student [style^="color:#92400e"],
+.exam-room-layout.navy-student [style*=" color:#92400e"],
+.exam-room-layout.navy-student [style*=";color:#92400e"],
+.exam-room-layout.navy-student [style^="color:#f59e0b"],
+.exam-room-layout.navy-student [style*=" color:#f59e0b"],
+.exam-room-layout.navy-student [style*=";color:#f59e0b"] {
+  color: #fcd34d !important;
+}
+
+.exam-room-layout.navy-student [style^="color:#6b21a8"],
+.exam-room-layout.navy-student [style*=" color:#6b21a8"],
+.exam-room-layout.navy-student [style*=";color:#6b21a8"],
+.exam-room-layout.navy-student [style^="color:#7c3aed"],
+.exam-room-layout.navy-student [style*=" color:#7c3aed"],
+.exam-room-layout.navy-student [style*=";color:#7c3aed"] {
+  color: #c4b5fd !important;
+}
+
+.exam-room-layout.navy-student [style*="#e2e8f0"],
+.exam-room-layout.navy-student [style*="#cbd5e1"],
+.exam-room-layout.navy-student [style*="#f1f5f9"],
+.exam-room-layout.navy-student [style*="#e9d5ff"],
+.exam-room-layout.navy-student [style*="#d1d5db"] {
+  border-color: var(--navy-border) !important;
+}
+
+/* PDF attachment modal keeps a light page. */
+body:has(.exam-room-layout.navy-student) #modal-container .modal-content iframe {
+  background: #ffffff !important;
+  color-scheme: light !important;
+}
+
+/* =========================================================================
+   Legacy inline borders
+   Student views author borders inline; theme-admin.css only remaps colours
+   and backgrounds. Dim the common light-grey borders so the dark surfaces do
+   not keep a bright outline. The PDF light island below opts back out.
+   ========================================================================= */
+.app-layout.navy-student .content-body [style*="#cbd5e1"],
+.app-layout.navy-student .content-body [style*="#e2e8f0"],
+.app-layout.navy-student .content-body [style*="#dbe4ee"],
+.app-layout.navy-student .content-body [style*="#d1d5db"] {
+  border-color: var(--navy-border) !important;
+}
+
+/* =========================================================================
+   Solver (homework-attempt) PDF preview — light island
+   The question and answer surfaces are dark, but the PDF chrome and rendered
+   pages stay light. Extra .content-body keeps these above theme-admin's
+   inline background/colour remaps (same specificity, loaded earlier).
+   ========================================================================= */
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container,
+.app-layout.navy-student[data-route="homework-attempt"] .content-body #pdf-preview-container,
+.app-layout.navy-student[data-route="homework-attempt"] .content-body #pdf-placeholder {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  color-scheme: light !important;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container .pdf-toolbar,
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container .pdf-utility-bar,
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-iframe-wrapper {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  color-scheme: light !important;
+}
+
+/* The toolbar mixes inline dark text with themed buttons; force dark text so
+   the admin colour remap cannot leave light text on the white toolbar. */
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container .pdf-toolbar :is(div, span, strong, p, label, button, a, i) {
+  color: #0f172a !important;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container .pdf-toolbar .fa-file-pdf {
+  color: #ef4444 !important;
+}
+
+/* Restore the light tinted action buttons inside the white toolbar. */
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container .pdf-toolbar .btn-secondary {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container .pdf-toolbar .btn-manual-save-draft {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-viewer-container .pdf-toolbar #btn-download-pdf-mode {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] .content-body :is(
+  .pdf-page-canvas,
+  #pdf-preview-iframe,
+  .pdf-iframe-wrapper iframe
+) {
+  background: #ffffff !important;
+  color-scheme: light !important;
+}
+
+/* pdf-viewer.js loading placeholder is injected before the light island
+   classes exist; keep it light so it does not flash a dark slab. */
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-iframe-wrapper > div[style*="background:#f8fafc"] {
+  background: #f8fafc !important;
+  color: #64748b !important;
+}
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-iframe-wrapper > div[style*="background:#f8fafc"] span {
+  color: #334155 !important;
+}
+.app-layout.navy-student[data-route="homework-attempt"] .content-body .pdf-iframe-wrapper > div[style*="background:#f8fafc"] i {
+  color: #0066cc !important;
+}
+
+/* Solver section headers use inline light gradients; keep their text readable
+   on the navy student surface. */
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container [style*="linear-gradient"] {
+  background: linear-gradient(135deg, #1e3a52 0%, #1b2a3d 100%) !important;
+  border-color: var(--navy-border) !important;
+  color: #f8fafc !important;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container [style*="linear-gradient"] [style*="color:#0f172a"],
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container [style*="linear-gradient"] [style*="color: #0f172a"] {
+  color: #f8fafc !important;
+}
+
+/* Use a dark scrollbar instead of the browser-white default. */
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container,
+.app-layout.navy-student[data-route="homework-attempt"] .interactive-exam-sidebar,
+.exam-room-layout.navy-student .exam-room-body,
+.exam-room-layout.navy-student .exam-sidebar-palette {
+  scrollbar-color: #64748b #182335;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container::-webkit-scrollbar,
+.app-layout.navy-student[data-route="homework-attempt"] .interactive-exam-sidebar::-webkit-scrollbar,
+.exam-room-layout.navy-student .exam-room-body::-webkit-scrollbar,
+.exam-room-layout.navy-student .exam-sidebar-palette::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container::-webkit-scrollbar-track,
+.app-layout.navy-student[data-route="homework-attempt"] .interactive-exam-sidebar::-webkit-scrollbar-track,
+.exam-room-layout.navy-student .exam-room-body::-webkit-scrollbar-track,
+.exam-room-layout.navy-student .exam-sidebar-palette::-webkit-scrollbar-track {
+  background: #182335;
+  border-radius: 6px;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container::-webkit-scrollbar-thumb,
+.app-layout.navy-student[data-route="homework-attempt"] .interactive-exam-sidebar::-webkit-scrollbar-thumb,
+.exam-room-layout.navy-student .exam-room-body::-webkit-scrollbar-thumb,
+.exam-room-layout.navy-student .exam-sidebar-palette::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border: 2px solid #182335;
+  border-radius: 6px;
+}
+
+.app-layout.navy-student[data-route="homework-attempt"] #interactive-solver-container::-webkit-scrollbar-thumb:hover,
+.app-layout.navy-student[data-route="homework-attempt"] .interactive-exam-sidebar::-webkit-scrollbar-thumb:hover,
+.exam-room-layout.navy-student .exam-room-body::-webkit-scrollbar-thumb:hover,
+.exam-room-layout.navy-student .exam-sidebar-palette::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* =========================================================================
+   Student palette patches
+   Some student views ship embedded <style> blocks or inline colors that load
+   after theme-admin.css. These rules keep the surfaces navy with !important.
+   ========================================================================= */
+
+/* Weekly calendar uses an embedded stylesheet loaded with the view. */
+.app-layout.navy-student #weekly-calendar-root .wc-day {
+  background: var(--navy-card) !important;
+  border-color: var(--navy-border) !important;
+  color: var(--navy-text);
+}
+.app-layout.navy-student #weekly-calendar-root .wc-day h3 { color: #f8fafc; }
+.app-layout.navy-student #weekly-calendar-root .wc-day[aria-current="date"] {
+  border-color: var(--navy-accent) !important;
+}
+.app-layout.navy-student #weekly-calendar-root .wc-event {
+  background: rgba(56, 189, 248, 0.12) !important;
+  border-left-color: var(--navy-accent) !important;
+  color: var(--navy-text);
+}
+.app-layout.navy-student #weekly-calendar-root .wc-event.session {
+  background: rgba(52, 211, 153, 0.12) !important;
+  border-color: #4ade80 !important;
+}
+.app-layout.navy-student #weekly-calendar-root .wc-note {
+  background: rgba(51, 65, 85, 0.5) !important;
+  border-color: var(--navy-border) !important;
+  color: var(--navy-text);
+}
+.app-layout.navy-student #weekly-calendar-root .wc-meta { color: #cbd5e1 !important; }
+.app-layout.navy-student #weekly-calendar-root select {
+  background: #0f172a !important;
+  color: var(--navy-text) !important;
+  border-color: var(--navy-border) !important;
+}
+
+/* my-classes embeds lesson/chapter styles after the linked stylesheets. */
+.app-layout.navy-student .content-body .mc-lesson-card {
+  background: var(--navy-card) !important;
+  border-color: var(--navy-border) !important;
+  color: var(--navy-text);
+  box-shadow: none !important;
+}
+.app-layout.navy-student .content-body .mc-lesson-card:hover {
+  border-color: var(--navy-accent) !important;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.45) !important;
+}
+
+/* Student class detail: the accordion body has an inline light background
+   (#fbfcfe), while its lesson cards are already dark. Keep the whole chapter
+   surface consistent instead of leaving a white strip between cards. */
+.app-layout.navy-student.student-class-detail .chapter-card-item {
+  background: var(--navy-card) !important;
+  border-color: var(--navy-border) !important;
+}
+.app-layout.navy-student.student-class-detail .chapter-card-header {
+  background: var(--navy-card) !important;
+  color: var(--navy-text);
+}
+.app-layout.navy-student.student-class-detail .chapter-lessons-body {
+  background: var(--navy-bg) !important;
+  border-top-color: var(--navy-border) !important;
+}
+.app-layout.navy-student.student-class-detail .chapter-card-header h3 {
+  color: #f8fafc !important;
+}
+.app-layout.navy-student.student-class-detail .chapter-card-header [style^="color:#64748b"],
+.app-layout.navy-student.student-class-detail .chapter-card-header [style*=" color:#64748b"],
+.app-layout.navy-student.student-class-detail .chapter-card-header [style*=";color:#64748b"],
+.app-layout.navy-student.student-class-detail .chapter-card-header [style^="color: #64748b"],
+.app-layout.navy-student.student-class-detail .chapter-card-header [style*=" color: #64748b"] {
+  color: var(--navy-muted) !important;
+}
+.app-layout.navy-student .content-body .mc-lesson-selected {
+  background: rgba(56, 189, 248, 0.14) !important;
+  border-color: var(--navy-accent) !important;
+}
+.app-layout.navy-student .content-body .mc-toggle-btn {
+  background: #243244 !important;
+  border-color: var(--navy-border) !important;
+  color: var(--navy-text);
+}
+.app-layout.navy-student .content-body .mc-toggle-btn:hover {
+  background: #2f4057 !important;
+  border-color: #475569 !important;
+}
+.app-layout.navy-student .content-body .mc-tab-btn { color: #cbd5e1 !important; }
+.app-layout.navy-student .content-body .mc-tab-btn:hover { color: #f8fafc !important; }
+.app-layout.navy-student .content-body .mc-tab-active {
+  background: var(--navy-card) !important;
+  color: var(--navy-accent) !important;
+  box-shadow: 0 1px 3px rgba(2, 6, 23, 0.5) !important;
+}
+
+/* Class progress bars are light by default. */
+.app-layout.navy-student .content-body .progress-bar-bg { background: #334155; }
+.app-layout.navy-student .content-body .progress-bar-fill { background: #38bdf8; }
+
+/* Class dashboard homework lists: size tracks to the card, not the viewport.
+   At phone widths the text and actions occupy separate lines instead of
+   competing for the same narrow flex row. */
+.student-class-list :is(#tour-latest-hw, #inprogress-drafts-card),
+.student-class-list :is(#latest-homeworks-container, #inprogress-drafts-container),
+.student-class-list :is(.mc-latest-grid, .mc-drafts-grid, .mc-latest-row, .mc-draft-row) {
+  min-width: 0;
+}
+.student-class-list :is(#latest-homeworks-container, #inprogress-drafts-container) {
+  container-type: inline-size;
+}
+.student-class-list .mc-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+@container (max-width: 380px) {
+  .student-class-list :is(.mc-latest-row, .mc-draft-row) {
+    flex-wrap: wrap;
+  }
+  .student-class-list :is(.mc-latest-row, .mc-draft-row) .mc-homework-info {
+    flex-basis: 100%;
+  }
+  .student-class-list :is(.mc-latest-row, .mc-draft-row) :is(.mc-homework-title, .mc-homework-meta) {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  .student-class-list .mc-draft-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Inline light colors on these two cards need a matching navy treatment. */
+html[data-theme="dark"] .app-layout.navy-student.student-class-list :is(#tour-latest-hw, #inprogress-drafts-card) .mc-homework-title {
+  color: #f8fafc !important;
+}
+html[data-theme="dark"] .app-layout.navy-student.student-class-list :is(#tour-latest-hw, #inprogress-drafts-card) .mc-homework-meta {
+  color: #cbd5e1 !important;
+}
+html[data-theme="dark"] .app-layout.navy-student.student-class-list .mc-draft-row {
+  background: #243244 !important;
+  border-color: var(--navy-border) !important;
+}
+
+/* Class banner / weak-topic cards use inline light gradients. */
+.app-layout.navy-student .content-body [style*="linear-gradient"][style*="#f0f7ff"],
+.app-layout.navy-student .content-body [style*="linear-gradient"][style*="#fffafa"],
+.app-layout.navy-student .content-body [style*="linear-gradient"][style*="#f5faff"] {
+  background: linear-gradient(135deg, #1e3a52 0%, #1b2a3d 100%) !important;
+}
+
+/* Exam navigator buttons (shared by solver and exam room). */
+.app-layout.navy-student .exam-nav-btn,
+.exam-room-layout.navy-student .exam-nav-btn {
+  background: #243244;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+.app-layout.navy-student .exam-nav-btn:hover,
+.exam-room-layout.navy-student .exam-nav-btn:hover {
+  border-color: var(--navy-accent, #38bdf8);
+  color: #7dd3fc;
+}
+.app-layout.navy-student .exam-nav-btn.answered,
+.exam-room-layout.navy-student .exam-nav-btn.answered {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+.app-layout.navy-student .exam-nav-btn.partial,
+.exam-room-layout.navy-student .exam-nav-btn.partial {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: #38bdf8;
+  color: #7dd3fc;
 }

@@ -514,7 +514,7 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
         ` : ''}
       </div>
     ` : `
-      <div style="display:flex; flex-direction:column; gap:10px;">
+      <div class="curriculum-lesson-list" style="display:flex; flex-direction:column; gap:10px;">
         ${pagedLessons.map((l, lIdx) => {
           const isSelected = selectedLessonId === l.id
           const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
@@ -522,13 +522,13 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
           const highlightedContent = l.content ? highlightMatch(l.content, currentSearchQuery) : ''
 
           return `
-            <div class="curriculum-lesson-card curriculum-lesson-item ${isSelected ? 'active' : ''}" data-id="${l.id}" data-chapter-id="${l.chapterId}" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:15px 18px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#e2e8f0'}; border-radius:12px; transition:all 0.15s ease; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-              <div style="display:flex; align-items:flex-start; gap:14px; flex:1; min-width:0;">
+            <div class="curriculum-lesson-card curriculum-lesson-item ${isSelected ? 'active' : ''}" data-id="${l.id}" data-chapter-id="${l.chapterId}" style="cursor:pointer; display:flex; justify-content:space-between; gap:14px; padding:15px 18px; background:#ffffff; border:1px solid ${isSelected ? '#0066cc' : '#e2e8f0'}; border-radius:12px; transition:all 0.15s ease; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+              <div class="curriculum-lesson-main" style="display:flex; align-items:flex-start; gap:14px; min-width:0;">
                 <span style="width:36px; height:36px; border-radius:10px; background:${isSelected ? '#0066cc' : '#eff6ff'}; color:${isSelected ? '#ffffff' : '#0066cc'}; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; flex-shrink:0; margin-top:2px;">
                   ${escapeHtml(l.code || l.orderIndex || (startIndex + lIdx + 1))}
                 </span>
                 <div style="flex:1; min-width:0;">
-                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+                  <div class="curriculum-lesson-badges" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
                     <span style="font-size:12px; font-weight:700; color:#0284c7; background:#f0f9ff; border:1px solid #e0f2fe; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
                       <i class="fa-solid fa-folder" style="font-size:11px;"></i> ${escapeHtml(l.chapterTitle || 'Chương')}
                     </span>
@@ -553,7 +553,7 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
                     </div>
                   ` : ''}
 
-                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:#64748b; margin-top:4px;">
+                  <div class="curriculum-lesson-meta" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:#64748b; margin-top:4px;">
                     ${l.hasVideo ? `
                       <span style="color:#0284c7; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
                         <i class="fa-solid fa-circle-play"></i> Video bài giảng
@@ -579,7 +579,7 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
                 </div>
               </div>
 
-              <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-shrink:0; flex-wrap:wrap;">
+              <div class="curriculum-lesson-actions" style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;">
                 <button type="button" class="btn-secondary btn-move-curriculum-lesson" data-lesson-id="${l.id}" data-chapter-id="${l.chapterId}" aria-label="Đổi chương cho bài học ${escapeHtml(l.title)}" title="Đổi chương" style="width:auto; font-size:12.5px; font-weight:600; color:#475569; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; cursor:pointer;">
                   <i class="fa-solid fa-folder-tree"></i> Đổi chương
                 </button>

@@ -1064,12 +1064,20 @@ function loadStudentsScope(classId, currentClass, force = false) {
   const key = scopeKey(classId, 'students')
   if (!force && isScopeLoaded(classId, 'students')) return Promise.resolve(cachedClassStudents)
   if (!force && pendingLoads[key]) return pendingLoads[key]
+  // Router vừa prefetch students cho route class-details -> lần tải đầu tiên
+  // tái sử dụng dữ liệu đó, tránh gọi trùng create-student ngay sau prefetch.
+  const PREFETCH_TTL_MS = 15000
+  const canReusePrefetched = !force &&
+    Array.isArray(state.students) && state.students.length > 0 &&
+    Date.now() - (state.studentsFetchedAt || 0) < PREFETCH_TTL_MS
   const p = (async () => {
     const [updatedStudents, debtList] = await Promise.all([
-      api.getStudents({}, { silent: true }).catch(err => {
-        console.warn('Failed to refresh students list:', err)
-        return null
-      }),
+      canReusePrefetched
+        ? Promise.resolve(null)
+        : api.getStudents({}, { silent: true }).catch(err => {
+            console.warn('Failed to refresh students list:', err)
+            return null
+          }),
       api.getClassDebtSummary(classId).catch(err => {
         console.warn('Failed to load debt summary:', err)
         return null

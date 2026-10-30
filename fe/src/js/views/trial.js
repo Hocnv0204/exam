@@ -15,13 +15,34 @@ let trialLoaded = false
 let serverTrialHistory = []
 let isSyncingPhone = false
 
+// Trial data refreshes replace the route markup without going through app.js.
+// Preserve the shell state so a narrow screen never reopens the drawer over
+// the public page (or loses the route/role hooks used by its theme CSS).
+function refreshTrialView(app) {
+  const previous = app.querySelector('.app-layout')
+  const collapsed = previous?.classList.contains('sidebar-collapsed') || window.innerWidth <= 1024
+  const role = previous?.dataset.role || 'GUEST'
+  app.innerHTML = renderTrialView()
+  const layout = app.querySelector('.app-layout')
+  if (layout) {
+    layout.dataset.route = window.location.hash.slice(1).split('?')[0]
+    layout.dataset.role = role
+    layout.classList.toggle('sidebar-collapsed', collapsed)
+    layout.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && role !== 'GUEST')
+    const toggle = layout.querySelector('#sidebar-toggle-btn')
+    toggle?.setAttribute('aria-expanded', String(!collapsed))
+    toggle?.setAttribute('aria-label', collapsed ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
+  }
+  bindTrialEvents()
+}
+
 function renderTrialTabSwitcher(activeTab, historyCount = 0) {
   const isRoadmap12 = activeTab === 'roadmap' || activeTab === 'roadmap-12'
   const isRoadmap11 = activeTab === 'roadmap-11'
 
   return `
     <!-- Tab Switcher Header -->
-    <div style="display:flex; gap:10px; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:14px; align-items:center; flex-wrap:wrap;">
+    <div class="trial-tabbar" style="display:flex; gap:10px; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:14px; align-items:center; flex-wrap:wrap;">
       <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap-12" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${isRoadmap12 ? 'background:#0284c7; color:#fff; border-color:#0284c7;' : 'background:#fff;'};">
         <i class="fa-solid fa-route" style="${isRoadmap12 ? 'color:#fff;' : 'color:#0284c7;'}"></i> Lộ trình Hóa 12 (Bứt phá 8+)
       </button>
@@ -174,10 +195,10 @@ export function renderTrialView() {
   // TAB 0A: ROADMAP HÓA 11 (CHUẨN KNTT 35 TUẦN)
   if (activeTab === 'roadmap-11') {
     return `
-      <div class="app-layout">
+      <div class="app-layout theme-public-page">
         ${renderSidebar('roadmap-11')}
         <div class="main-content">
-          ${renderNavbar('Lộ trình Hóa 11: học chắc từng chương, không học lan man (35 tuần)')}
+          ${renderNavbar('Lộ trình Hóa 11: học chắc từng chương, không học lan man (35 tuần)', { themeToggle: true })}
           <div class="content-body" style="padding-top:16px;">
             ${renderTrialTabSwitcher('roadmap-11', historyList.length)}
             ${renderRoadmap11()}
@@ -190,10 +211,10 @@ export function renderTrialView() {
   // TAB 0B: ROADMAP HÓA 12 (90 NGÀY LÊN 8+)
   if (activeTab === 'roadmap') {
     return `
-      <div class="app-layout">
+      <div class="app-layout theme-public-page">
         ${renderSidebar('roadmap')}
         <div class="main-content">
-          ${renderNavbar('Lộ trình Hóa 12: từ mất gốc lên 8+ trong 90 ngày')}
+          ${renderNavbar('Lộ trình Hóa 12: từ mất gốc lên 8+ trong 90 ngày', { themeToggle: true })}
           <div class="content-body" style="padding-top:16px;">
             ${renderTrialTabSwitcher('roadmap', historyList.length)}
             ${renderRoadmap()}
@@ -222,10 +243,10 @@ export function renderTrialView() {
   // Loading state for lessons
   if (isLoadingTrial || (!trialLoaded && cachedTrialLessons.length === 0)) {
     return `
-      <div class="app-layout">
+      <div class="app-layout theme-public-page">
         ${renderSidebar('trial')}
         <div class="main-content">
-          ${renderNavbar('Học thử / Đang tải dữ liệu...')}
+          ${renderNavbar('Học thử / Đang tải dữ liệu...', { themeToggle: true })}
           <div class="content-body" style="padding-top:16px;">
             ${renderTrialTabSwitcher('lessons', historyList.length)}
             <div style="text-align: center; padding: 70px 20px;">
@@ -249,10 +270,10 @@ export function renderTrialView() {
   })
   if (deepLink.status === 'revoked' && activeTab === 'lessons') {
     return `
-      <div class="app-layout">
+      <div class="app-layout theme-public-page">
         ${renderSidebar('trial')}
         <div class="main-content">
-          ${renderNavbar('Học thử / Bài học không khả dụng')}
+          ${renderNavbar('Học thử / Bài học không khả dụng', { themeToggle: true })}
           <div class="content-body" style="padding-top:16px;">
             ${renderTrialTabSwitcher('lessons', historyList.length)}
             <div class="card" style="text-align:center; padding:60px 20px;">
@@ -279,10 +300,10 @@ export function renderTrialView() {
     const passRate = totalDone > 0 ? Math.round((passCount / totalDone) * 100) : 0
 
     return `
-      <div class="app-layout">
+      <div class="app-layout theme-public-page">
         ${renderSidebar('trial-history')}
         <div class="main-content">
-          ${renderNavbar('Học thử / Lịch sử làm bài')}
+          ${renderNavbar('Học thử / Lịch sử làm bài', { themeToggle: true })}
           <div class="content-body" style="padding-top:16px;">
             ${renderTrialTabSwitcher('history', historyList.length)}
 
@@ -459,10 +480,10 @@ export function renderTrialView() {
   // Case 1: Specific Class is selected (Show lessons in class or active lesson)
   if (classId && selectedClass) {
     return `
-      <div class="app-layout">
+      <div class="app-layout theme-public-page">
         ${renderSidebar('trial')}
         <div class="main-content">
-          ${renderNavbar(`Học thử / ${selectedClass.name}`)}
+          ${renderNavbar(`Học thử / ${selectedClass.name}`, { themeToggle: true })}
           <div class="content-body">
 
             ${renderTrialTabSwitcher('lessons', historyList.length)}
@@ -753,10 +774,10 @@ export function renderTrialView() {
 
   // Case 2: List of All Classes offering trial lessons
   return `
-    <div class="app-layout">
+    <div class="app-layout theme-public-page">
       ${renderSidebar('trial')}
       <div class="main-content">
-        ${renderNavbar('Học thử / Danh sách lớp trải nghiệm')}
+        ${renderNavbar('Học thử / Danh sách lớp trải nghiệm', { themeToggle: true })}
         <div class="content-body">
 
           ${renderTrialTabSwitcher('lessons', historyList.length)}
@@ -897,8 +918,7 @@ export function bindTrialEvents() {
     isSyncingPhone = true
     const app = document.getElementById('app')
     if (app) {
-      app.innerHTML = renderTrialView()
-      bindTrialEvents()
+      refreshTrialView(app)
     }
 
     try {
@@ -918,8 +938,7 @@ export function bindTrialEvents() {
     } finally {
       isSyncingPhone = false
       if (app) {
-        app.innerHTML = renderTrialView()
-        bindTrialEvents()
+        refreshTrialView(app)
       }
     }
   })
@@ -935,8 +954,7 @@ export function bindTrialEvents() {
         showToast('Đã xóa lịch sử tạm thời trên thiết bị!', 'info')
         const app = document.getElementById('app')
         if (app) {
-          app.innerHTML = renderTrialView()
-          bindTrialEvents()
+          refreshTrialView(app)
         }
         return true
       }
@@ -1066,8 +1084,7 @@ export function bindTrialEvents() {
         const app = document.getElementById('app')
         const currentHash = window.location.hash.replace('#', '').split('?')[0]
         if (app && ['trial', 'roadmap', 'roadmap-12', 'roadmap-11'].includes(currentHash)) {
-          app.innerHTML = renderTrialView()
-          bindTrialEvents()
+          refreshTrialView(app)
         }
       }
     }).catch(err => {

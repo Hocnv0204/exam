@@ -54,6 +54,12 @@ verify_jwt = true
 [functions.trial-management]
 verify_jwt = true
 
+[functions.weekly-calendar]
+verify_jwt = true
+
+[functions.question-appeals]
+verify_jwt = true
+
 [functions.homework-detail]
 verify_jwt = false
 

@@ -1,486 +1,291 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
-import { state } from '../state.js'
 import { api } from '../api.js'
-import { showToast } from '../components/toast.js'
 import { openModal } from '../components/modal.js'
 
+const PAGE_SIZE = 50
 let proctoringInterval = null
 let isAutoRefresh = true
 let currentHomeworkId = null
 let currentHomeworkData = null
 let sessionsList = []
 let logsList = []
-let activeTab = 'sessions' // 'sessions' | 'logs'
+let sessionsError = null
+let logsError = null
+let homeworkError = null
+let sessionsLoaded = false
+let logsLoaded = false
+let lastSessionsRefresh = null
+let lastLogsRefresh = null
+let activeTab = 'sessions'
 let searchQuery = ''
+let sessionsPage = 1
+let logsPage = 1
+let requestVersion = 0
+let detailVersion = 0
 
-function formatActionLabel(action) {
-  switch (action) {
-    case 'LEAVE_TAB':
-      return `<span style="color:#dc2626; background:#fee2e2; border:1px solid #fecaca; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        <i class="fa-solid fa-arrow-up-right-from-square"></i> Rời tab thi
-      </span>`
-    case 'BLUR_TAB':
-      return `<span style="color:#d97706; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        <i class="fa-solid fa-window-restore"></i> Mất tiêu điểm cửa sổ
-      </span>`
-    case 'DEVTOOLS':
-      return `<span style="color:#991b1b; background:#fee2e2; border:1px solid #f87171; padding:2px 8px; border-radius:6px; font-weight:800; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        <i class="fa-solid fa-code"></i> Mở DevTools (F12)
-      </span>`
-    case 'FULLSCREEN_EXIT':
-      return `<span style="color:#b45309; background:#ffedd5; border:1px solid #fed7aa; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        <i class="fa-solid fa-compress"></i> Thoát toàn màn hình
-      </span>`
-    case 'COPY':
-      return `<span style="color:#4f46e5; background:#e0e7ff; border:1px solid #c7d2fe; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        <i class="fa-solid fa-copy"></i> Thử sao chép (Copy)
-      </span>`
-    case 'PASTE':
-      return `<span style="color:#4338ca; background:#e0e7ff; border:1px solid #c7d2fe; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        <i class="fa-solid fa-paste"></i> Dán nội dung (Paste)
-      </span>`
-    default:
-      return `<span style="color:#64748b; background:#f1f5f9; padding:2px 8px; border-radius:6px; font-weight:600; font-size:11px;">${action}</span>`
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
+}
+
+function formatDate(value) {
+  const date = value ? new Date(value) : null
+  return date && !Number.isNaN(date.getTime()) ? escapeHTML(date.toLocaleString('vi-VN')) : 'Không rõ'
+}
+
+function displayName(profile, fallback = 'Học sinh') {
+  return escapeHTML(profile?.full_name || fallback)
+}
+
+function actionLabel(action) {
+  const labels = {
+    LEAVE_TAB: 'Tab thi bị ẩn', BLUR_TAB: 'Cửa sổ thi mất tiêu điểm', DEVTOOLS: 'Phím tắt bị chặn',
+    FULLSCREEN_EXIT: 'Thoát toàn màn hình', COPY: 'Thao tác sao chép', PASTE: 'Thao tác dán',
+    LEAVE_EXAM: 'Rời phòng thi', RETURN_TAB: 'Quay lại tab thi',
+    EXAM_STARTED: 'Máy chủ xác nhận bắt đầu phiên thi', EXAM_RESUMED: 'Trình duyệt tiếp tục phiên thi',
+    CONNECTION_RESTORED: 'Trình duyệt báo kết nối trở lại', AUTOSAVE_RECOVERED: 'Lưu nháp thành công sau lỗi'
   }
+  return escapeHTML(labels[action] || action || 'Không rõ')
+}
+
+function eventType(log) {
+  if (log.session_id == null) return '<span style="color:#92400e">Chưa gắn phiên · chưa xác minh</span>'
+  if (log.counted === true) return '<strong style="color:#b91c1c">Được tính vi phạm</strong>'
+  if (log.counted === false) return '<span style="color:#475569">Thông tin · không tính vi phạm</span>'
+  return '<span style="color:#92400e">Chưa rõ trạng thái tính</span>'
+}
+
+function logRow(log) {
+  return `<tr style="border-bottom:1px solid #e2e8f0">
+    <td style="padding:12px">${formatDate(log.server_timestamp || log.created_at)}</td>
+    <td style="padding:12px">${displayName(log.profiles)}<br><small>@${escapeHTML(log.profiles?.username || log.student_id || 'Không rõ')}</small></td>
+    <td style="padding:12px">${actionLabel(log.action)}</td>
+    <td style="padding:12px">${eventType(log)}<br><small>Lần thi: ${escapeHTML(log.attempt_no ?? 'Không rõ')} · ${escapeHTML(log.severity || 'Không rõ mức độ')}</small>${log.reason ? `<br><small>Lý do: ${escapeHTML(log.reason)}</small>` : ''}</td>
+    <td style="padding:12px"><small>${log.session_id == null ? 'Chưa gắn phiên' : escapeHTML(log.session_id)}</small></td>
+  </tr>`
+}
+
+function logTable(logs) {
+  return `<div style="overflow-x:auto"><table style="width:100%;min-width:720px;border-collapse:collapse;text-align:left;font-size:13px">
+    <thead><tr style="background:#f1f5f9"><th scope="col" style="padding:12px">Thời gian máy chủ</th><th scope="col" style="padding:12px">Thí sinh</th><th scope="col" style="padding:12px">Sự kiện</th><th scope="col" style="padding:12px">Phân loại</th><th scope="col" style="padding:12px">Phiên</th></tr></thead>
+    <tbody>${logs.map(logRow).join('')}</tbody></table></div>`
 }
 
 export function renderExamProctoringView() {
-  const hashUrl = window.location.hash.replace('#', '')
-  const [_, queryString] = hashUrl.split('?')
-  const params = new URLSearchParams(queryString || '')
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '')
   currentHomeworkId = params.get('homeworkId')
-
-  return `
-    <div class="app-layout">
-      ${renderSidebar('homework-mgmt')}
-      <div class="main-content">
-        ${renderNavbar()}
-        <div class="content-container" style="max-width:1240px; margin:0 auto; padding:24px 20px;">
-          <div id="proctoring-mount">
-            <div style="text-align:center; padding:60px 0; color:#64748b;">
-              <i class="fa-solid fa-spinner fa-spin" style="font-size:32px; color:#0284c7; margin-bottom:12px;"></i>
-              <p style="font-size:15px; font-weight:600;">Đang kết nối trung tâm giám sát thi...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `
+  currentHomeworkData = null
+  sessionsList = []
+  logsList = []
+  sessionsError = logsError = homeworkError = null
+  sessionsLoaded = logsLoaded = false
+  lastSessionsRefresh = lastLogsRefresh = null
+  sessionsPage = 1
+  logsPage = 1
+  searchQuery = ''
+  activeTab = 'sessions'
+  requestVersion++
+  detailVersion++
+  return `<div class="app-layout">${renderSidebar('homework-mgmt')}<div class="main-content">${renderNavbar()}
+    <div class="content-container" style="max-width:1240px;margin:0 auto;padding:24px 20px">
+      <div id="proctoring-mount" aria-live="polite">Đang tải dữ liệu giám sát...</div>
+    </div></div></div>`
 }
 
 async function fetchProctoringData(isSilent = false) {
-  if (!currentHomeworkId) return
-  try {
-    const [hwData, sessions, logs] = await Promise.all([
-      currentHomeworkData ? Promise.resolve(currentHomeworkData) : api.getHomeworkDetail(currentHomeworkId, { silent: isSilent }),
-      api.getExamSessions(currentHomeworkId, { silent: isSilent }).catch(() => []),
-      api.getExamLogs(currentHomeworkId, '', { silent: isSilent }).catch(() => [])
-    ])
-
-    currentHomeworkData = hwData
-    sessionsList = sessions || []
-    logsList = logs || []
-
+  if (!currentHomeworkId) {
     renderProctoringContent()
-  } catch (err) {
-    console.error('[ExamProctoring] Failed to fetch proctoring data:', err)
+    return
   }
+  const version = ++requestVersion
+  const homeworkId = currentHomeworkId
+  const requestedSessionsPage = sessionsPage
+  const requestedLogsPage = logsPage
+  const requests = await Promise.allSettled([
+    currentHomeworkData ? Promise.resolve(currentHomeworkData) : api.getHomeworkDetail(homeworkId, { silent: isSilent }),
+    // The API wrapper appends homeworkId directly to the URL; keep paging in this view until it accepts query params.
+    api.getExamSessions(`${encodeURIComponent(homeworkId)}&page=${requestedSessionsPage}&limit=${PAGE_SIZE}`, { silent: isSilent }),
+    api.getExamLogs(homeworkId, `page=${requestedLogsPage}&limit=${PAGE_SIZE}`, { silent: isSilent })
+  ])
+  if (version !== requestVersion || homeworkId !== currentHomeworkId || requestedSessionsPage !== sessionsPage || requestedLogsPage !== logsPage) return
+  const [homework, sessions, logs] = requests
+  if (homework.status === 'fulfilled') {
+    currentHomeworkData = homework.value
+    homeworkError = null
+  } else homeworkError = homework.reason
+  if (sessions.status === 'fulfilled' && Array.isArray(sessions.value)) {
+    sessionsList = sessions.value
+    sessionsLoaded = true
+    sessionsError = null
+    lastSessionsRefresh = new Date()
+  } else sessionsError = sessions.status === 'rejected' ? sessions.reason : new Error('Dữ liệu phiên không hợp lệ')
+  if (logs.status === 'fulfilled' && Array.isArray(logs.value)) {
+    logsList = logs.value
+    logsLoaded = true
+    logsError = null
+    lastLogsRefresh = new Date()
+  } else logsError = logs.status === 'rejected' ? logs.reason : new Error('Dữ liệu nhật ký không hợp lệ')
+  renderProctoringContent()
+}
+
+function sessionSignal(session, now) {
+  if (session.status !== 'ACTIVE') return 'Không áp dụng'
+  const heartbeat = session.last_heartbeat_at ? new Date(session.last_heartbeat_at).getTime() : NaN
+  if (!Number.isFinite(heartbeat)) return 'Chưa có tín hiệu'
+  if (heartbeat > now + 90000) return 'Thời gian tín hiệu không hợp lệ'
+  return now - heartbeat <= 90000 ? `Có tín hiệu · ${formatDate(session.last_heartbeat_at)}` : `Mất tín hiệu · ${formatDate(session.last_heartbeat_at)}`
 }
 
 function renderProctoringContent() {
   const mount = document.getElementById('proctoring-mount')
   if (!mount) return
-
   const hw = currentHomeworkData?.homework || {}
   const now = Date.now()
-  const maxViolations = hw.maxViolations || hw.max_violations || 3
-
-  // Aggregate logs per student
-  const studentViolationsMap = {}
-  logsList.forEach(log => {
-    const sid = log.student_id
-    if (!studentViolationsMap[sid]) {
-      studentViolationsMap[sid] = { total: 0, logs: [] }
-    }
-    studentViolationsMap[sid].logs.push(log)
-    if (['LEAVE_TAB', 'BLUR_TAB', 'DEVTOOLS', 'FULLSCREEN_EXIT'].includes(log.action)) {
-      studentViolationsMap[sid].total++
-    }
-  })
-
-  // Counters
-  let activeCount = 0
-  let disconnectedCount = 0
-  let submittedCount = 0
-  let flaggedCount = 0
-
-  sessionsList.forEach(s => {
-    if (s.status === 'SUBMITTED') {
-      submittedCount++
-    } else if (s.status === 'ACTIVE') {
-      const lastHb = new Date(s.last_heartbeat_at).getTime()
-      if (now - lastHb <= 90000) {
-        activeCount++
-      } else {
-        disconnectedCount++
-      }
-    }
-    const studentVio = studentViolationsMap[s.student_id]?.total || 0
-    if (studentVio >= maxViolations) {
-      flaggedCount++
-    }
-  })
-
-  // Filtered lists
-  const filteredSessions = sessionsList.filter(s => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    const name = s.profiles?.full_name?.toLowerCase() || ''
-    const username = s.profiles?.username?.toLowerCase() || ''
-    return name.includes(q) || username.includes(q)
-  })
-
-  const filteredLogs = logsList.filter(l => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    const name = l.profiles?.full_name?.toLowerCase() || ''
-    const username = l.profiles?.username?.toLowerCase() || ''
-    return name.includes(q) || username.includes(q) || l.action.toLowerCase().includes(q)
-  })
-
+  const online = sessionsList.filter(s => s.status === 'ACTIVE' && sessionSignal(s, now).startsWith('Có tín hiệu')).length
+  const disconnected = sessionsList.filter(s => s.status === 'ACTIVE' && sessionSignal(s, now).startsWith('Mất tín hiệu')).length
+  const submitted = sessionsList.filter(s => s.status === 'SUBMITTED').length
+  const q = searchQuery.toLocaleLowerCase('vi-VN')
+  const matching = (profile, extra = '') => `${profile?.full_name || ''} ${profile?.username || ''} ${extra}`.toLocaleLowerCase('vi-VN').includes(q)
+  const filteredSessions = sessionsList.filter(s => matching(s.profiles, `${s.student_id || ''} ${s.id || ''}`))
+  const filteredLogs = logsList.filter(l => matching(l.profiles, `${l.action || ''} ${l.student_id || ''} ${l.session_id || ''}`))
   mount.innerHTML = `
-    <!-- Top Header -->
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #e2e8f0;">
-      <div>
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-          <a href="#homework-mgmt" class="btn-secondary" style="padding:6px 12px; font-size:12px; border-radius:8px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; color:#475569;">
-            <i class="fa-solid fa-arrow-left"></i> Quay lại
-          </a>
-          <span style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; font-size:11px; font-weight:800; padding:3px 10px; border-radius:20px; display:inline-flex; align-items:center; gap:6px; letter-spacing:0.5px;">
-            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; animation: pulse 1.5s infinite;"></span>
-            LIVE PROCTORING
-          </span>
-        </div>
-        <h1 style="font-size:22px; font-weight:800; color:#0f172a; margin:0 0 4px 0;">
-          ${hw.title || 'Giám Sát Phòng Thi'}
-        </h1>
-        <div style="font-size:13px; color:#64748b; display:flex; gap:16px; flex-wrap:wrap;">
-          <span><i class="fa-regular fa-clock" style="color:#0284c7;"></i> Thời lượng: <strong>${hw.durationMinutes || hw.duration_minutes || 45} phút</strong></span>
-          <span><i class="fa-solid fa-triangle-exclamation" style="color:#d97706;"></i> Giới hạn vi phạm: <strong>${maxViolations} lần</strong></span>
-          <span><i class="fa-solid fa-calendar-check" style="color:#10b981;"></i> Trạng thái: <strong>${hw.is_published ? 'Đang mở đề' : 'Chưa công bố'}</strong></span>
-        </div>
+    <header style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+      <div><a href="#homework-mgmt" class="btn-secondary" style="display:inline-block;padding:6px 12px;margin-bottom:10px">← Quay lại</a>
+        <h1 style="font-size:22px;margin:0 0 6px">${escapeHTML(hw.title || 'Giám sát phòng thi')}</h1>
+        <div style="font-size:13px;color:#475569">Thời lượng: ${escapeHTML(hw.durationMinutes ?? hw.duration_minutes ?? 'Không rõ')} phút · Ngưỡng cấu hình: ${escapeHTML(hw.maxViolations ?? hw.max_violations ?? 'Không rõ')} lần</div></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label><input type="checkbox" id="proctor-auto-refresh" ${isAutoRefresh ? 'checked' : ''}> Tự động cập nhật (5s)</label>
+        <button type="button" id="proctor-refresh-now" class="btn-secondary" style="padding:8px 14px">Làm mới</button>
       </div>
-
-      <!-- Live Controls -->
-      <div style="display:flex; align-items:center; gap:12px;">
-        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600; color:#334155; background:#f8fafc; padding:8px 14px; border-radius:10px; border:1px solid #cbd5e1; user-select:none;">
-          <input type="checkbox" id="proctor-auto-refresh" ${isAutoRefresh ? 'checked' : ''} style="cursor:pointer; accent-color:#0284c7; width:16px; height:16px;">
-          <span>Tự động cập nhật (5s)</span>
-        </label>
-        <button id="proctor-refresh-now" class="btn-secondary" style="padding:8px 14px; font-size:13px; border-radius:10px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
-          <i class="fa-solid fa-rotate-right"></i> Làm mới
-        </button>
-      </div>
+    </header>
+    ${!currentHomeworkId ? '<p role="alert">Thiếu mã bài thi. Vui lòng quay lại danh sách bài tập.</p>' : ''}
+    ${homeworkError ? '<p role="alert" style="color:#b91c1c">Không tải được thông tin bài thi. Hãy thử làm mới.</p>' : ''}
+    ${sessionsError ? `<p role="alert" style="color:#b91c1c">Không tải được phiên trang ${sessionsPage}; số liệu trang này có thể đã cũ. Hãy thử làm mới.</p>` : ''}
+    ${logsError ? `<p role="alert" style="color:#b91c1c">Không tải được nhật ký trang ${logsPage}; dữ liệu hiển thị có thể đã cũ. Hãy thử làm mới.</p>` : ''}
+    <p style="color:#475569;font-size:13px">Phiên trang ${sessionsPage} cập nhật: ${lastSessionsRefresh ? formatDate(lastSessionsRefresh) : 'Chưa tải'} · Nhật ký trang ${logsPage} cập nhật: ${lastLogsRefresh ? formatDate(lastLogsRefresh) : 'Chưa tải'}.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:20px 0">
+      ${[['Có tín hiệu · phiên trang ' + sessionsPage, online], ['Mất tín hiệu · phiên trang ' + sessionsPage, disconnected], ['Đã nộp · phiên trang ' + sessionsPage, submitted], ['Sự kiện · nhật ký trang ' + logsPage, logsList.length]].map(([label, value], i) => `
+        <div style="border:1px solid #cbd5e1;border-radius:12px;padding:16px;background:#fff"><strong style="display:block;font-size:22px">${(i === 3 ? logsLoaded : sessionsLoaded) ? value : '—'}</strong><span style="font-size:13px">${label}</span></div>`).join('')}
     </div>
-
-    <!-- Quick Stats Cards -->
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
-      <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.03); display:flex; align-items:center; gap:14px;">
-        <div style="width:46px; height:46px; border-radius:12px; background:#ecfdf5; color:#10b981; display:flex; align-items:center; justify-content:center; font-size:20px;">
-          <i class="fa-solid fa-user-graduate"></i>
-        </div>
-        <div>
-          <div style="font-size:24px; font-weight:800; color:#065f46;">${activeCount}</div>
-          <div style="font-size:12px; font-weight:600; color:#047857;">Đang làm bài (Online)</div>
-        </div>
+    <section style="border:1px solid #cbd5e1;border-radius:12px;background:#fff;overflow:hidden">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:16px;background:#f8fafc">
+        <button type="button" id="tab-btn-sessions" class="btn-secondary" aria-pressed="${activeTab === 'sessions'}" style="padding:8px 12px">Phiên thi · trang ${sessionsPage} (${sessionsLoaded ? sessionsList.length : '—'})</button>
+        <button type="button" id="tab-btn-logs" class="btn-secondary" aria-pressed="${activeTab === 'logs'}" style="padding:8px 12px">Nhật ký (trang ${logsPage})</button>
+        <label style="margin-left:auto">Tìm trong ${activeTab === 'sessions' ? `phiên trang ${sessionsPage}` : `nhật ký trang ${logsPage}`} (không tìm toàn bộ) <input type="search" id="proctor-search" value="${escapeHTML(searchQuery)}" placeholder="Tên, tài khoản, sự kiện..." style="max-width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px"></label>
       </div>
-
-      <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.03); display:flex; align-items:center; gap:14px;">
-        <div style="width:46px; height:46px; border-radius:12px; background:#eff6ff; color:#2563eb; display:flex; align-items:center; justify-content:center; font-size:20px;">
-          <i class="fa-solid fa-circle-check"></i>
-        </div>
-        <div>
-          <div style="font-size:24px; font-weight:800; color:#1e40af;">${submittedCount}</div>
-          <div style="font-size:12px; font-weight:600; color:#1d4ed8;">Đã hoàn thành & nộp bài</div>
-        </div>
-      </div>
-
-      <div style="background:#ffffff; border:1px solid #fed7aa; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.03); display:flex; align-items:center; gap:14px;">
-        <div style="width:46px; height:46px; border-radius:12px; background:#fff7ed; color:#ea580c; display:flex; align-items:center; justify-content:center; font-size:20px;">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
-        <div>
-          <div style="font-size:24px; font-weight:800; color:#9a3412;">${logsList.length}</div>
-          <div style="font-size:12px; font-weight:600; color:#c2410c;">Lượt cảnh báo ghi nhận</div>
-        </div>
-      </div>
-
-      <div style="background:#ffffff; border:1px solid #fecaca; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.03); display:flex; align-items:center; gap:14px;">
-        <div style="width:46px; height:46px; border-radius:12px; background:#fef2f2; color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:20px;">
-          <i class="fa-solid fa-ban"></i>
-        </div>
-        <div>
-          <div style="font-size:24px; font-weight:800; color:#991b1b;">${flaggedCount}</div>
-          <div style="font-size:12px; font-weight:600; color:#b91c1c;">Vượt ngưỡng vi phạm</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Navigation Tabs & Search -->
-    <div style="background:#ffffff; border-radius:16px; border:1px solid #e2e8f0; box-shadow:0 2px 12px rgba(0,0,0,0.04); overflow:hidden;">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 20px; border-bottom:1px solid #e2e8f0; background:#f8fafc;">
-        <div style="display:flex; gap:8px;">
-          <button id="tab-btn-sessions" class="btn-tab ${activeTab === 'sessions' ? 'active' : ''}" style="padding:8px 16px; font-size:13px; font-weight:700; border-radius:8px; border:1px solid ${activeTab === 'sessions' ? '#0284c7' : '#cbd5e1'}; background:${activeTab === 'sessions' ? '#0284c7' : '#ffffff'}; color:${activeTab === 'sessions' ? '#ffffff' : '#475569'}; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-            <i class="fa-solid fa-users"></i> Danh sách thí sinh (${sessionsList.length})
-          </button>
-          <button id="tab-btn-logs" class="btn-tab ${activeTab === 'logs' ? 'active' : ''}" style="padding:8px 16px; font-size:13px; font-weight:700; border-radius:8px; border:1px solid ${activeTab === 'logs' ? '#0284c7' : '#cbd5e1'}; background:${activeTab === 'logs' ? '#0284c7' : '#ffffff'}; color:${activeTab === 'logs' ? '#ffffff' : '#475569'}; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-            <i class="fa-solid fa-shield-halved"></i> Nhật ký gian lận trực tiếp (${logsList.length})
-          </button>
-        </div>
-
-        <div style="position:relative; width:260px;">
-          <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;"></i>
-          <input type="text" id="proctor-search" placeholder="Tìm kiếm học sinh..." value="${searchQuery}" style="width:100%; padding:8px 12px 8px 34px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;">
-        </div>
-      </div>
-
-      <!-- Tab Content 1: Sessions List -->
       ${activeTab === 'sessions' ? `
-        <div style="overflow-x:auto;">
-          <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
-            <thead>
-              <tr style="background:#f1f5f9; color:#475569; font-weight:700; border-bottom:1px solid #e2e8f0;">
-                <th style="padding:12px 16px; width:50px;">STT</th>
-                <th style="padding:12px 16px;">Thí sinh</th>
-                <th style="padding:12px 16px;">Trạng thái phiên</th>
-                <th style="padding:12px 16px;">Tín hiệu Online (Heartbeat)</th>
-                <th style="padding:12px 16px; text-align:center;">Số vi phạm</th>
-                <th style="padding:12px 16px; text-align:right;">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredSessions.length === 0 ? `
-                <tr>
-                  <td colspan="6" style="text-align:center; padding:40px; color:#94a3b8;">
-                    <i class="fa-solid fa-folder-open" style="font-size:28px; margin-bottom:8px; display:block;"></i>
-                    Chưa có thí sinh nào vào phòng thi này.
-                  </td>
-                </tr>
-              ` : filteredSessions.map((s, idx) => {
-                const sid = s.student_id
-                const vData = studentViolationsMap[sid] || { total: 0, logs: [] }
-                const vioCount = vData.total
-                const isOver = vioCount >= maxViolations
-
-                // Heartbeat status
-                const lastHb = new Date(s.last_heartbeat_at).getTime()
-                const hbSecondsAgo = Math.floor((now - lastHb) / 1000)
-                let hbBadge = ''
-                if (s.status === 'SUBMITTED') {
-                  hbBadge = `<span style="color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:3px 8px; border-radius:6px; font-weight:600; font-size:11px;">
-                    <i class="fa-solid fa-check"></i> Đã nộp bài
-                  </span>`
-                } else if (hbSecondsAgo <= 90) {
-                  hbBadge = `<span style="color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:3px 8px; border-radius:6px; font-weight:600; font-size:11px; display:inline-flex; align-items:center; gap:5px;">
-                    <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981;"></span> Online (${hbSecondsAgo}s trước)
-                  </span>`
-                } else {
-                  hbBadge = `<span style="color:#d97706; background:#fef3c7; border:1px solid #fde68a; padding:3px 8px; border-radius:6px; font-weight:600; font-size:11px; display:inline-flex; align-items:center; gap:5px;">
-                    <i class="fa-solid fa-triangle-exclamation"></i> Mất tín hiệu (${Math.floor(hbSecondsAgo / 60)} phút trước)
-                  </span>`
-                }
-
-                // Violation badge
-                let vioBadge = `<span style="color:#059669; font-weight:700; font-size:13px;">0</span>`
-                if (vioCount > 0 && !isOver) {
-                  vioBadge = `<span style="color:#d97706; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:12px; font-weight:700; font-size:11px;">
-                    ${vioCount} / ${maxViolations}
-                  </span>`
-                } else if (isOver) {
-                  vioBadge = `<span style="color:#dc2626; background:#fee2e2; border:1px solid #fca5a5; padding:2px 8px; border-radius:12px; font-weight:800; font-size:11px; animation: pulse 1.5s infinite;">
-                    <i class="fa-solid fa-triangle-exclamation"></i> ${vioCount} (Đã khóa)
-                  </span>`
-                }
-
-                return `
-                  <tr style="border-bottom:1px solid #f1f5f9; background:${isOver ? '#fef2f2' : '#ffffff'};">
-                    <td style="padding:14px 16px; color:#64748b; font-weight:600;">${idx + 1}</td>
-                    <td style="padding:14px 16px;">
-                      <div style="font-weight:700; color:#0f172a;">${s.profiles?.full_name || 'Học sinh'}</div>
-                      <div style="font-size:11px; color:#64748b;">@${s.profiles?.username || sid.substring(0, 8)}</div>
-                    </td>
-                    <td style="padding:14px 16px;">
-                      <span style="font-weight:700; font-size:12px; color:${s.status === 'ACTIVE' ? '#0284c7' : '#059669'};">
-                        ${s.status === 'ACTIVE' ? 'ĐANG LÀM BÀI' : (s.status === 'SUBMITTED' ? 'ĐÃ NỘP BÀI' : s.status)}
-                      </span>
-                    </td>
-                    <td style="padding:14px 16px;">${hbBadge}</td>
-                    <td style="padding:14px 16px; text-align:center;">${vioBadge}</td>
-                    <td style="padding:14px 16px; text-align:right;">
-                      <button class="btn-secondary view-student-logs-btn" data-student-id="${sid}" data-student-name="${s.profiles?.full_name || 'Học sinh'}" style="padding:5px 12px; font-size:12px; border-radius:6px; cursor:pointer;">
-                        <i class="fa-solid fa-list-check"></i> Xem vi phạm
-                      </button>
-                    </td>
-                  </tr>
-                `
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
+        <p style="padding:0 16px;color:#475569;font-size:13px">Chỉ hiển thị tối đa ${PAGE_SIZE} phiên/trang; số liệu và tìm kiếm chỉ áp dụng cho trang hiện tại, không phải tổng toàn bài thi. Số vi phạm toàn phiên không có trong API danh sách phiên; không tính từ trang nhật ký giới hạn và không suy đoán trạng thái khóa.</p>
+        ${!sessionsLoaded ? '<p style="padding:16px">Chưa tải được phiên trang này.</p>' : !filteredSessions.length ? '<p style="padding:16px">Không có phiên phù hợp trong trang này.</p>' : `
+        <div style="overflow-x:auto"><table style="width:100%;min-width:650px;border-collapse:collapse;text-align:left;font-size:13px"><thead><tr style="background:#f1f5f9"><th scope="col" style="padding:12px">Thí sinh</th><th scope="col" style="padding:12px">Trạng thái</th><th scope="col" style="padding:12px">Tín hiệu</th><th scope="col" style="padding:12px">Bắt đầu</th><th scope="col" style="padding:12px">Nhật ký</th></tr></thead><tbody>
+        ${filteredSessions.map(s => `<tr style="border-top:1px solid #e2e8f0"><td style="padding:12px">${displayName(s.profiles)}<br><small>@${escapeHTML(s.profiles?.username || s.student_id || 'Không rõ')}</small></td><td style="padding:12px">${escapeHTML(s.status === 'ACTIVE' ? 'Đang làm bài' : s.status === 'SUBMITTED' ? 'Đã nộp' : s.status || 'Không rõ')}</td><td style="padding:12px">${sessionSignal(s, now)}</td><td style="padding:12px">${formatDate(s.created_at)}</td><td style="padding:12px"><button type="button" class="btn-secondary view-session-logs-btn" data-session-id="${escapeHTML(s.id)}" style="padding:6px 10px">Xem phiên</button></td></tr>`).join('')}</tbody></table></div>`}
+        <div style="display:flex;gap:12px;align-items:center;padding:16px;flex-wrap:wrap"><button type="button" id="sessions-prev" class="btn-secondary" ${sessionsPage <= 1 ? 'disabled' : ''} style="padding:6px 12px">Trang trước</button><span>Trang phiên ${sessionsPage}</span><button type="button" id="sessions-next" class="btn-secondary" ${!sessionsLoaded || sessionsList.length < PAGE_SIZE || sessionsPage >= 10000 ? 'disabled' : ''} style="padding:6px 12px">Trang sau</button></div>
       ` : `
-        <!-- Tab Content 2: Real-time Live Logs Stream -->
-        <div style="overflow-x:auto;">
-          <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
-            <thead>
-              <tr style="background:#f1f5f9; color:#475569; font-weight:700; border-bottom:1px solid #e2e8f0;">
-                <th style="padding:12px 16px; width:160px;">Thời gian</th>
-                <th style="padding:12px 16px;">Thí sinh</th>
-                <th style="padding:12px 16px;">Hành vi ghi nhận</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredLogs.length === 0 ? `
-                <tr>
-                  <td colspan="3" style="text-align:center; padding:40px; color:#94a3b8;">
-                    <i class="fa-solid fa-shield-check" style="font-size:28px; margin-bottom:8px; display:block; color:#10b981;"></i>
-                    Chưa phát hiện hành vi vi phạm nào trong phòng thi này.
-                  </td>
-                </tr>
-              ` : filteredLogs.map(l => {
-                const timeStr = new Date(l.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                const dateStr = new Date(l.created_at).toLocaleDateString('vi-VN')
-                return `
-                  <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:12px 16px; color:#64748b; font-size:12px; font-weight:600;">
-                      ${timeStr} <span style="font-size:10px; color:#94a3b8;">(${dateStr})</span>
-                    </td>
-                    <td style="padding:12px 16px;">
-                      <span style="font-weight:700; color:#0f172a;">${l.profiles?.full_name || 'Học sinh'}</span>
-                      <span style="font-size:11px; color:#64748b; margin-left:4px;">(@${l.profiles?.username || ''})</span>
-                    </td>
-                    <td style="padding:12px 16px;">${formatActionLabel(l.action)}</td>
-                  </tr>
-                `
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
+         <p style="padding:0 16px;color:#475569;font-size:13px">Chỉ hiển thị tối đa ${PAGE_SIZE} sự kiện/trang, mới nhất trước. Tín hiệu từ trình duyệt không chứng minh hành vi gian lận hay tình trạng mạng thực tế. Sự kiện không gắn phiên là chưa xác minh; không cộng vào phiên nào. Tìm kiếm chỉ áp dụng cho trang hiện tại.</p>
+        ${!logsLoaded ? '<p style="padding:16px">Chưa tải được nhật ký.</p>' : !filteredLogs.length ? '<p style="padding:16px">Không có sự kiện phù hợp trong trang này.</p>' : logTable(filteredLogs)}
+        <div style="display:flex;gap:12px;align-items:center;padding:16px;flex-wrap:wrap"><button type="button" id="logs-prev" class="btn-secondary" ${logsPage <= 1 ? 'disabled' : ''} style="padding:6px 12px">Trang trước</button><span>Trang ${logsPage}</span><button type="button" id="logs-next" class="btn-secondary" ${!logsLoaded || logsList.length < PAGE_SIZE || logsPage >= 10000 ? 'disabled' : ''} style="padding:6px 12px">Trang sau</button></div>
       `}
-    </div>
-  `
-
+    </section>`
   bindProctoringDynamicEvents()
 }
 
+function showSessionDetail(session) {
+  const version = ++detailVersion
+  const homeworkId = currentHomeworkId
+  const sessionId = session.id
+  let page = 1
+  let busy = false
+  const title = `NHẬT KÝ PHIÊN · ${displayName(session.profiles)}`
+  const show = (content) => {
+    if (version !== detailVersion || homeworkId !== currentHomeworkId) return
+    openModal(title, content, null, { cancelLabel: 'Đóng', contentStyle: 'max-width:960px;width:min(96vw,960px)', onClose: () => { detailVersion++ } })
+  }
+  const load = async () => {
+    if (busy) return
+    busy = true
+    show(`<p role="status">Đang tải nhật ký phiên, trang ${page}...</p>`)
+    try {
+      const logs = await api.getExamLogs(homeworkId, `sessionId=${encodeURIComponent(sessionId)}&page=${page}&limit=${PAGE_SIZE}`, { silent: true })
+      if (version !== detailVersion || homeworkId !== currentHomeworkId) return
+      if (!Array.isArray(logs)) throw new Error('Invalid logs')
+      const counted = logs.filter(l => l.session_id === sessionId && l.counted === true).length
+      const complete = page === 1 && logs.length < PAGE_SIZE
+       show(`<p style="font-size:13px">Phiên: <code>${escapeHTML(sessionId)}</code> · Trang ${page}. ${complete ? `Tổng sự kiện được tính trong phiên: ${counted}.` : `Sự kiện được tính trong trang này: ${counted}; chưa biết tổng toàn phiên.`} Các lần thi khác và sự kiện chưa gắn phiên không được cộng vào đây. Tín hiệu trình duyệt chỉ là thông tin, không phải bằng chứng gian lận.</p>
+        ${logs.length ? logTable(logs) : '<p>Không có sự kiện trong trang này; điều này không chứng minh không có vi phạm.</p>'}
+        <div style="display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap"><button type="button" id="detail-prev" class="btn-secondary" ${page <= 1 ? 'disabled' : ''} style="padding:6px 12px">Trang trước</button><span>Trang ${page}</span><button type="button" id="detail-next" class="btn-secondary" ${logs.length < PAGE_SIZE || page >= 10000 ? 'disabled' : ''} style="padding:6px 12px">Trang sau</button></div>`)
+      document.getElementById('detail-prev')?.addEventListener('click', () => { page--; load() })
+      document.getElementById('detail-next')?.addEventListener('click', () => { page++; load() })
+    } catch (error) {
+      if (version !== detailVersion || homeworkId !== currentHomeworkId) return
+      show(`<p role="alert" style="color:#b91c1c">Không tải được nhật ký phiên (trang ${page}). Hãy thử lại; không thể kết luận phiên không có sự kiện.</p><button type="button" id="detail-retry" class="btn-secondary" style="padding:6px 12px">Thử lại</button>`)
+      document.getElementById('detail-retry')?.addEventListener('click', load)
+    } finally {
+      busy = false
+    }
+  }
+  load()
+}
+
 function bindProctoringDynamicEvents() {
-  const autoRefreshCb = document.getElementById('proctor-auto-refresh')
-  if (autoRefreshCb) {
-    autoRefreshCb.onchange = (e) => {
-      isAutoRefresh = e.target.checked
-      setupAutoRefresh()
-    }
-  }
-
-  const refreshBtn = document.getElementById('proctor-refresh-now')
-  if (refreshBtn) {
-    refreshBtn.onclick = () => {
-      fetchProctoringData()
-      showToast('Đã làm mới dữ liệu phòng thi!', 'info')
-    }
-  }
-
-  const searchInput = document.getElementById('proctor-search')
-  if (searchInput) {
-    searchInput.oninput = (e) => {
-      searchQuery = e.target.value
-      renderProctoringContent()
-      const newSearch = document.getElementById('proctor-search')
-      if (newSearch) {
-        newSearch.focus()
-        newSearch.setSelectionRange(newSearch.value.length, newSearch.value.length)
-      }
-    }
-  }
-
-  const tabSessions = document.getElementById('tab-btn-sessions')
-  if (tabSessions) {
-    tabSessions.onclick = () => {
-      activeTab = 'sessions'
-      renderProctoringContent()
-    }
-  }
-
-  const tabLogs = document.getElementById('tab-btn-logs')
-  if (tabLogs) {
-    tabLogs.onclick = () => {
-      activeTab = 'logs'
-      renderProctoringContent()
-    }
-  }
-
-  // Student details modal
-  document.querySelectorAll('.view-student-logs-btn').forEach(btn => {
-    btn.onclick = () => {
-      const sid = btn.getAttribute('data-student-id')
-      const sname = btn.getAttribute('data-student-name')
-      const studentLogs = logsList.filter(l => l.student_id === sid)
-
-      const modalContent = `
-        <div style="font-size:13px; color:#334155;">
-          <p style="margin-bottom:16px;">Chi tiết các vi phạm được ghi nhận tự động của thí sinh <strong>${sname}</strong>:</p>
-          ${studentLogs.length === 0 ? `
-            <div style="text-align:center; padding:24px; color:#059669; background:#ecfdf5; border-radius:10px; border:1px solid #a7f3d0;">
-              <i class="fa-solid fa-circle-check" style="font-size:24px; margin-bottom:6px;"></i>
-              <div>Không có vi phạm nào! Thí sinh làm bài hoàn toàn trung thực.</div>
-            </div>
-          ` : `
-            <div style="display:flex; flex-direction:column; gap:8px; max-height:360px; overflow-y:auto; padding-right:4px;">
-              ${studentLogs.map((l, i) => `
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px;">
-                  <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-weight:700; color:#64748b;">#${i + 1}</span>
-                    ${formatActionLabel(l.action)}
-                  </div>
-                  <div style="font-size:11px; color:#64748b; font-weight:600;">
-                    ${new Date(l.created_at).toLocaleTimeString('vi-VN')}
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          `}
-        </div>
-      `
-
-      openModal(`NHẬT KÝ VI PHẠM - ${sname}`, modalContent, () => true)
-      const confirmBtn = document.getElementById('modal-confirm-btn')
-      const cancelBtn = document.getElementById('modal-cancel-btn')
-      if (confirmBtn) confirmBtn.style.display = 'none'
-      if (cancelBtn) cancelBtn.textContent = 'Đóng'
-    }
+  document.getElementById('proctor-auto-refresh')?.addEventListener('change', e => {
+    isAutoRefresh = e.target.checked
+    setupAutoRefresh()
   })
+  document.getElementById('proctor-refresh-now')?.addEventListener('click', () => fetchProctoringData())
+  document.getElementById('proctor-search')?.addEventListener('input', e => {
+    const position = e.target.selectionStart
+    searchQuery = e.target.value
+    renderProctoringContent()
+    const input = document.getElementById('proctor-search')
+    input?.focus()
+    input?.setSelectionRange(position, position)
+  })
+  document.getElementById('tab-btn-sessions')?.addEventListener('click', () => { activeTab = 'sessions'; renderProctoringContent() })
+  document.getElementById('tab-btn-logs')?.addEventListener('click', () => { activeTab = 'logs'; renderProctoringContent() })
+  const changeSessionsPage = delta => {
+    sessionsPage += delta
+    sessionsList = []
+    sessionsLoaded = false
+    sessionsError = null
+    lastSessionsRefresh = null
+    renderProctoringContent()
+    fetchProctoringData(true)
+  }
+  document.getElementById('sessions-prev')?.addEventListener('click', () => changeSessionsPage(-1))
+  document.getElementById('sessions-next')?.addEventListener('click', () => changeSessionsPage(1))
+  const changePage = delta => {
+    logsPage += delta
+    logsList = []
+    logsLoaded = false
+    lastLogsRefresh = null
+    renderProctoringContent()
+    fetchProctoringData(true)
+  }
+  document.getElementById('logs-prev')?.addEventListener('click', () => changePage(-1))
+  document.getElementById('logs-next')?.addEventListener('click', () => changePage(1))
+  document.querySelectorAll('.view-session-logs-btn').forEach(btn => btn.addEventListener('click', () => {
+    const session = sessionsList.find(s => String(s.id) === btn.dataset.sessionId)
+    if (session) showSessionDetail(session)
+  }))
 }
 
 function setupAutoRefresh() {
   if (proctoringInterval) clearInterval(proctoringInterval)
-  if (isAutoRefresh) {
-    proctoringInterval = setInterval(() => {
-      if (window.location.hash.includes('exam-proctoring')) {
-        fetchProctoringData(true)
-      } else {
-        clearInterval(proctoringInterval)
-      }
-    }, 5000)
-  }
+  proctoringInterval = null
+  if (isAutoRefresh) proctoringInterval = setInterval(() => {
+    if (window.location.hash.startsWith('#exam-proctoring')) fetchProctoringData(true)
+    else { clearInterval(proctoringInterval); proctoringInterval = null }
+  }, 5000)
 }
 
 export function bindExamProctoringEvents() {
   bindSidebarEvents()
   fetchProctoringData()
   setupAutoRefresh()
-
   const handleHashChange = () => {
+    requestVersion++
+    detailVersion++
     if (proctoringInterval) clearInterval(proctoringInterval)
+    proctoringInterval = null
     window.removeEventListener('hashchange', handleHashChange)
   }
   window.addEventListener('hashchange', handleHashChange)

@@ -908,7 +908,7 @@ export function renderRoadmap11() {
             <input type="search" id="h11r-week-q" class="h12r__search" placeholder="Tìm tuần: pH, ammonia, alkane, alcohol, carbonyl..." style="width:100%; padding-left:38px; border-radius:10px;" autocomplete="off">
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button type="button" class="btn-secondary h11r-sem-btn" data-sem="all" style="padding:8px 14px; font-size:13px; font-weight:700; border-radius:8px; background:#0f172a; color:#ffffff; border-color:#0f172a;">Tất cả 35 tuần</button>
+            <button type="button" class="btn-secondary h11r-sem-btn is-active" data-sem="all" style="padding:8px 14px; font-size:13px; font-weight:700; border-radius:8px;">Tất cả 35 tuần</button>
             <button type="button" class="btn-secondary h11r-sem-btn" data-sem="1" style="padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px;">Học kỳ I (Tuần 1–18)</button>
             <button type="button" class="btn-secondary h11r-sem-btn" data-sem="2" style="padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px;">Học kỳ II (Tuần 19–35)</button>
           </div>
@@ -1193,10 +1193,7 @@ export function bindRoadmap11Events(root, options = {}) {
     btn.addEventListener('click', () => {
       currentSem = btn.dataset.sem
       semBtns.forEach(b => {
-        const isCurrent = b === btn
-        b.style.background = isCurrent ? '#0f172a' : ''
-        b.style.color = isCurrent ? '#ffffff' : ''
-        b.style.borderColor = isCurrent ? '#0f172a' : ''
+        b.classList.toggle('is-active', b === btn)
       })
       filterWeeks()
     })

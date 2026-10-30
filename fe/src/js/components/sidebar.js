@@ -1,4 +1,5 @@
 import { state, logout } from '../state.js'
+import { renderThemeToggle } from '../theme.js'
 
 export function renderSidebar(currentRoute) {
   const isGuest = !state.token
@@ -35,9 +36,6 @@ export function renderSidebar(currentRoute) {
         </div>
         <div class="nav-item ${currentRoute === 'students' ? 'active' : ''}" onclick="window.location.hash='#students'">
           <i class="fa-solid fa-users"></i> Quản lý học sinh
-        </div>
-        <div class="nav-item ${currentRoute === 'grade-blocks' ? 'active' : ''}" onclick="window.location.hash='#grade-blocks'">
-          <i class="fa-solid fa-layer-group"></i> Quản lý khối học
         </div>
         <div class="nav-item ${currentRoute === 'classes-admin' ? 'active' : ''}" onclick="window.location.hash='#classes-admin'">
           <i class="fa-solid fa-book-bookmark"></i> Quản lý lớp học
@@ -86,6 +84,7 @@ export function renderSidebar(currentRoute) {
       `)}
 
       <div style="margin-top:auto; padding-top:20px; border-top:1px solid var(--border-color);">
+        ${renderThemeToggle('sidebar-theme-toggle')}
         <div class="nav-item" id="sidebar-logout-btn">
           <i class="fa-solid ${isGuest ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket'}"></i> ${isGuest ? 'Đăng nhập' : 'Đăng xuất'}
         </div>

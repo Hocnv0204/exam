@@ -290,8 +290,11 @@ export function bindHomeworkMgmtEvents() {
 async function loadData() {
   const tableBody = document.getElementById('hw-table-body')
   try {
-    // 1. Populate allClasses fresh via api.getClasses()
-    const cls = await api.getClasses()
+    // 1. Dùng danh sách lớp đã có trong state (router prefetch ở nhiều route),
+    // chỉ gọi API khi cache rỗng để tránh request trùng.
+    const cls = (Array.isArray(state.classes) && state.classes.length > 0)
+      ? state.classes
+      : await api.getClasses()
     allClasses = (cls || []).map(c => ({
       id: c.id,
       name: c.name,

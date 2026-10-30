@@ -96,12 +96,22 @@ export function resolveClass(q, classes = []) {
   const subjectTag = q.subjectTag || ''
 
   const rawNorm = normalizeTaxonomyText(classTag)
+  const requestedSubject = normalizeSubject(subjectTag)
+
+  // Tên lớp Constant đôi khi chỉ là "11"/"12" và không chứa môn. Không được
+  // chọn bản ghi đầu tiên trong trường hợp đó: [MÔN: Hóa] phải khóa kết quả
+  // vào lớp 11-Hóa, không thể rơi sang 11-Toán theo thứ tự API trả về.
+  const classMatchesSubject = (cl) => {
+    if (!requestedSubject) return true
+    const classText = normalizeTaxonomyText(`${cl.name || ''} ${cl.grade_block || ''}`)
+    return normalizeSubject(classText) === requestedSubject
+  }
 
   // 1. Nếu classTag chứa đầy đủ thông tin khối (ví dụ: "11-Toán", "12-Hóa", "11 toan", "lop 11 toan")
   for (const cl of classes) {
     const clNameNorm = normalizeTaxonomyText(cl.name || '')
     const clBlockNorm = normalizeTaxonomyText(cl.grade_block || '')
-    if (rawNorm === clNameNorm || rawNorm === clBlockNorm) {
+    if ((rawNorm === clNameNorm || rawNorm === clBlockNorm) && classMatchesSubject(cl)) {
       return { targetClass: cl, error: null }
     }
   }
@@ -112,7 +122,7 @@ export function resolveClass(q, classes = []) {
   if (hasBothSubjects(`${classTag || ''} ${subjectTag || ''}`)) {
     return { targetClass: null, error: `Metadata [MÔN] mơ hồ: vừa có Toán vừa có Hóa trong "${[classTag, subjectTag].filter(Boolean).join(' / ')}". Hãy chỉ ghi một môn.` }
   }
-  const subject = normalizeSubject(subjectTag) || normalizeSubject(classTag)
+  const subject = requestedSubject || normalizeSubject(classTag)
 
   if (!gradeLevel && !subject) {
     return { targetClass: null, error: 'Thiếu metadata [LỚP] và [MÔN] để xác định lớp Constant' }

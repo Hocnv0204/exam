@@ -716,24 +716,33 @@ serve(async (req: Request) => {
       const createdHomeworks = []
       const errors = []
 
-      // 2. Loop over each target class
-      for (const targetClassId of targetClassIds) {
-        try {
+      // 2. Xử lý từng lớp đích. Các lớp độc lập nhau nên chạy song song có giới hạn;
+      // trong một lớp, chapter -> lesson -> homework -> questions -> answers vẫn phải tuần tự.
+      const needsLessonResolution = !targetLessonId || targetClassIds.length > 1
+      const chapterByClass = new Map<string, { id: string; title: string }>()
+      if (needsLessonResolution) {
+        // Gom lookup chapter của tất cả lớp đích vào 1 query thay vì 1 query/lớp
+        const { data: prefetchedChapters } = await serviceRoleClient
+          .from('chapters')
+          .select('id, title, class_id')
+          .in('class_id', targetClassIds)
+          .ilike('title', sourceChapterTitle.trim())
+        for (const ch of prefetchedChapters || []) {
+          if (!chapterByClass.has(ch.class_id)) chapterByClass.set(ch.class_id, { id: ch.id, title: ch.title })
+        }
+      }
+
+      const processTargetClass = async (targetClassId: string) => {
           let resolvedLessonId = targetLessonId
 
           // If targetLessonId is not provided or multiple target classes, resolve lesson for this class
           if (!resolvedLessonId || targetClassIds.length > 1) {
-            // Check if there is already a chapter with the same title in target class
-            const { data: existingChapters } = await serviceRoleClient
-              .from('chapters')
-              .select('id, title')
-              .eq('class_id', targetClassId)
-              .ilike('title', sourceChapterTitle.trim())
-              .limit(1)
+            // Chapter đã được lookup sẵn cho toàn bộ lớp đích
+            const prefetchedChapter = chapterByClass.get(targetClassId)
 
             let chapterId: string
-            if (existingChapters && existingChapters.length > 0) {
-              chapterId = existingChapters[0].id
+            if (prefetchedChapter) {
+              chapterId = prefetchedChapter.id
             } else {
               // Create new chapter in target class
               const { data: newCh, error: chErr } = await serviceRoleClient
@@ -886,17 +895,28 @@ serve(async (req: Request) => {
           }
 
           scheduleHomeworkTelegram(serviceRoleClient, newHw)
-          createdHomeworks.push({
+          return {
             classId: targetClassId,
             homeworkId: newHw.id,
             lessonId: resolvedLessonId,
             title: newHw.title
-          })
-        } catch (clsErr: any) {
-          errors.push({
-            classId: targetClassId,
-            error: clsErr.message || 'Unknown error'
-          })
+          }
+      }
+
+      const ASSIGN_CLASS_CONCURRENCY = 3
+      for (let i = 0; i < targetClassIds.length; i += ASSIGN_CLASS_CONCURRENCY) {
+        const chunk = targetClassIds.slice(i, i + ASSIGN_CLASS_CONCURRENCY)
+        const chunkResults = await Promise.all(chunk.map(async (targetClassId) => {
+          try {
+            const created = await processTargetClass(targetClassId)
+            return { created, error: null }
+          } catch (clsErr: any) {
+            return { created: null, error: { classId: targetClassId, error: clsErr.message || 'Unknown error' } }
+          }
+        }))
+        for (const result of chunkResults) {
+          if (result.created) createdHomeworks.push(result.created)
+          else if (result.error) errors.push(result.error)
         }
       }
 

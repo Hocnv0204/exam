@@ -70,6 +70,8 @@ function createFakeDom() {
 
   const document = {
     body,
+    documentElement: { dataset: {}, style: {} },
+    dispatchEvent() {},
     getElementById: (id) => registry.get(id) || null,
     createElement: (tag) => makeElement(tag),
     querySelector: (selector) => {
@@ -86,6 +88,7 @@ function createFakeDom() {
 
 const dom = createFakeDom()
 globalThis.window = {
+  addEventListener() {},
   location: { hash: '#admin-history' },
   history: { replaceState(s, t, url) { globalThis.window.location.hash = url } },
   navigator: { clipboard: { writeText: async () => {} } },

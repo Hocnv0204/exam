@@ -3,8 +3,12 @@ import { readFileSync } from 'node:fs'
 
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 globalThis.sessionStorage = { getItem: () => null }
-globalThis.window = { location: { hash: '#assignment-review' } }
-globalThis.document = { getElementById: () => null, createElement: () => ({ dataset: {}, style: {} }) }
+globalThis.window = { location: { hash: '#assignment-review' }, addEventListener() {} }
+globalThis.document = {
+  documentElement: { dataset: {}, style: {} },
+  addEventListener() {}, dispatchEvent() {},
+  getElementById: () => null, createElement: () => ({ dataset: {}, style: {} })
+}
 const { questionAppealReviewContext: context, renderQuestionAppealSlot, renderAppealThread, renderAdminAppealCard,
   bindReviewQuestionAppeals, renderQuestionAppealsView, bindQuestionAppealsEvents } = await import('../src/js/views/question-appeals.js')
 const { state } = await import('../src/js/state.js')

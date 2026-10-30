@@ -165,7 +165,7 @@ function renderWrongQuestion(q, totalAttempts) {
     <div class="class-hw-correct"><strong>Đáp án đúng:</strong> ${q.correctAnswer && q.correctAnswer !== 'N/A' ? safeMarkdown(q.correctAnswer) : 'Chưa có dữ liệu đáp án'}${tf ? '<div style="font-size:12px;">Đ = Đúng · S = Sai · − = chưa có đáp án</div>' : ''}</div>
     <div style="color:#b91c1c;font-size:14px;margin-top:12px;"><strong>${numberText(q.wrongCount)} lượt trả lời sai · ${numberText(q.unansweredCount)} lượt bỏ trống</strong></div>
     <div style="font-size:13px;color:#64748b;margin-top:6px;">Tổng lượt chưa đúng: ${numberText(q.totalFailed ?? (Number(q.wrongCount || 0) + Number(q.unansweredCount || 0)))}${distinct ? ` · ${distinct} học sinh có lượt chưa đúng` : ''}. Tổng lượt đã nộp của bài: ${numberText(q.totalSubmittedAttempts ?? totalAttempts)}.</div>
-    ${students.length ? `<details style="margin-top:12px;"><summary style="cursor:pointer;color:#0369a1;">Xem câu trả lời của các lượt chưa đúng (${students.length})</summary><div>${students.map(s => `<div class="class-hw-option"><div><strong>${escapeHtml(s.studentName || 'Học sinh')}</strong>${s.submittedAt ? `<div style="font-size:12px;color:#64748b;">Nộp: ${dateText(s.submittedAt)}</div>` : ''}</div><div>${s.isUnanswered ? 'Bỏ trống' : safeMarkdown(s.givenAnswer ?? 'Chưa có dữ liệu')}</div></div>`).join('')}</div></details>` : ''}
+    ${students.length ? `<details style="margin-top:12px;"><summary style="cursor:pointer;color:#0369a1;">Xem câu trả lời của các lượt chưa đúng (${students.length})</summary><div class="class-hw-student-answers"><div class="class-hw-student-answer-head"><span>Học sinh</span><span>Câu trả lời</span></div>${students.map(s => `<div class="class-hw-student-answer"><div class="class-hw-student-answer-person"><strong>${escapeHtml(s.studentName || 'Học sinh')}</strong>${s.submittedAt ? `<div style="font-size:12px;color:#64748b;">Nộp: ${dateText(s.submittedAt)}</div>` : ''}</div><div class="class-hw-student-answer-value">${s.isUnanswered ? 'Bỏ trống' : safeMarkdown(s.givenAnswer ?? 'Chưa có dữ liệu')}</div></div>`).join('')}</div></details>` : ''}
     ${prompt.explanation ? `<details style="margin-top:12px;"><summary style="cursor:pointer;">Lời giải</summary><div class="class-hw-question-content">${safeMarkdown(prompt.explanation)}</div></details>` : ''}
   </article>`
 }
@@ -187,11 +187,17 @@ export function renderClassHomeworkHistory(data, tab = 'submitted', options = {}
       .class-hw-wrong-card img{display:block;max-width:100%;height:auto;max-height:420px;object-fit:contain;margin:12px auto}
       .class-hw-question-content{margin:14px 0;color:#1e293b}
       .class-hw-option{display:flex;gap:10px;flex-wrap:wrap;padding:10px 12px;background:#f8fafc;border-radius:8px;margin-top:8px}
-      .class-hw-option>div{flex:1;min-width:0}
-      .class-hw-correct{margin-top:16px;padding:12px;background:#f0fdf4;border-radius:8px;color:#166534}
+       .class-hw-option>div{flex:1;min-width:0}
+       .class-hw-student-answers{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+       .class-hw-student-answer-head,.class-hw-student-answer{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr);gap:16px;align-items:center}
+       .class-hw-student-answer-head{padding:0 12px;color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+       .class-hw-student-answer{padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#cbd5e1}
+       .class-hw-student-answer-person,.class-hw-student-answer-value{min-width:0;overflow-wrap:anywhere}
+       .class-hw-student-answer-value{padding-left:16px;border-left:1px solid #334155;font-size:15px;font-weight:700}
+       .class-hw-correct{margin-top:16px;padding:12px;background:#f0fdf4;border-radius:8px;color:#166534}
       .class-hw-wrong-card .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden}
       .class-hw-wrong-card table{display:block;max-width:100%;overflow-x:auto}
-      @media(max-width:600px){.class-hw-wrong-card{padding:14px}}
+       @media(max-width:600px){.class-hw-wrong-card{padding:14px}.class-hw-student-answer-head,.class-hw-student-answer{grid-template-columns:1fr;gap:6px}.class-hw-student-answer-value{padding-left:0;padding-top:8px;border-left:0;border-top:1px solid #334155}.class-hw-student-answer-head span:last-child{display:none}}
     </style>
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">

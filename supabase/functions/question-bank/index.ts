@@ -446,6 +446,29 @@ async function fetchAllQueryRows(
   return { data: allRows, error: null }
 }
 
+// Fallback khi insert theo lô bị xung đột unique (race condition / hash trùng):
+// chèn lại từng câu theo lô song song, bỏ qua câu lỗi. Trước đây chèn tuần tự
+// từng câu nên với 100+ câu sẽ tốn 100+ round-trip.
+async function insertRowsIgnoringDuplicates(
+  serviceRoleClient: any,
+  rows: any[],
+  chunkSize = 20
+): Promise<{ inserted: number; skipped: number }> {
+  let inserted = 0
+  let skipped = 0
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize)
+    const results = await Promise.all(
+      chunk.map((row) => serviceRoleClient.from('question_bank').insert(row))
+    )
+    for (const r of results) {
+      if (r.error) skipped++
+      else inserted++
+    }
+  }
+  return { inserted, skipped }
+}
+
 // Chuẩn hóa + kiểm chứng Dạng bài Constant trước khi bốc câu hỏi.
 // - Không tin UUID/ID do client gửi: mọi typeId phải tồn tại trong qb_question_types.
 // - Kiểm tra chuỗi type -> lesson -> chapter -> class và khối/lớp/chương đang chọn.
@@ -2280,7 +2303,7 @@ serve(async (req: Request) => {
             explanation: q.explanation || ''
           })
 
-          const VALID_QTYPES = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER']
+          const VALID_QTYPES = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY']
           const VALID_DIFFS = ['NHAN_BIET', 'THONG_HIEU', 'VAN_DUNG', 'VAN_DUNG_CAO']
           let qType = q.questionType || (promptPayload.options && promptPayload.options.length ? 'MULTIPLE_CHOICE' : (promptPayload.statements && promptPayload.statements.length ? 'TRUE_FALSE' : 'SHORT_ANSWER'))
           if (!VALID_QTYPES.includes(qType)) qType = 'MULTIPLE_CHOICE'
@@ -2333,7 +2356,7 @@ serve(async (req: Request) => {
             prompt: promptPayload,
             mc_answer: q.mcAnswer || promptPayload.mcAnswer || null,
             tf_answers: q.tfAnswers || promptPayload.tfAnswers || null,
-            sa_answer: q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : (promptPayload.saAnswer ? String(promptPayload.saAnswer) : null),
+            sa_answer: qType === 'SHORT_ANSWER' && q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : (qType === 'SHORT_ANSWER' && promptPayload.saAnswer ? String(promptPayload.saAnswer) : null),
             sa_tolerance: Number(q.saTolerance) || promptPayload.saTolerance || 0,
             points: (() => { const p = Number(q.points); return (isFinite(p) && p > 0 && p <= 10) ? p : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)) })(),
             tags: Array.isArray(q.tags) ? Array.from(new Set(q.tags.map((t: any) => String(t).trim().toLowerCase()).filter(Boolean))).slice(0, 20) : [],
@@ -2431,18 +2454,9 @@ serve(async (req: Request) => {
         if (insertError) {
           // Phòng trường hợp xung đột unique constraint do race condition: fallback insert từng câu bỏ qua lỗi trùng
           if (insertError.message?.includes('uq_qb_block_hash') || insertError.code === '23505') {
-            console.warn('[import question-bank] Batch duplicate collision, fallback to row-by-row insert')
-            let fallbackSkipped = 0
-            for (const singleRow of filteredRows) {
-              const { error: singleErr } = await serviceRoleClient
-                .from('question_bank')
-                .insert(singleRow)
-              if (!singleErr) {
-                insertedCount++
-              } else {
-                fallbackSkipped++
-              }
-            }
+            console.warn('[import question-bank] Batch duplicate collision, fallback to per-row insert')
+            const { inserted: fallbackInserted, skipped: fallbackSkipped } = await insertRowsIgnoringDuplicates(serviceRoleClient, filteredRows)
+            insertedCount = fallbackInserted
             const finalSkipped = totalSkipped + fallbackSkipped
             return jsonResponse({
               success: true,
@@ -2515,14 +2529,24 @@ serve(async (req: Request) => {
         const pickedIdsSet = new Set<string>()
         const distribution: Array<{ chapterId: string; chapterTitle: string; quota: number; picked: number }> = []
 
-        for (const ch of weakChapters as Array<{ chapterId: string; chapterTitle: string }>) {
-          const quota = quotas[ch.chapterId] || 0
-          if (quota <= 0) continue
-          const { data: pool } = await buildPoolQuery(
+        // Bốc pool của tất cả chương yếu song song (tối đa 6 query độc lập) thay vì tuần tự
+        const weakChapterList = weakChapters as Array<{ chapterId: string; chapterTitle: string; wrong?: number }>
+        const poolResults = await Promise.all(weakChapterList.map((ch) =>
+          buildPoolQuery(
             serviceRoleClient,
             normalizeScopeInput({ chapterId: ch.chapterId }),
             'id, question_type, difficulty, usage_count, chapter_id, lesson_id',
           )
+        ))
+        const poolByChapter = new Map<string, any[]>()
+        poolResults.forEach((result, idx) => {
+          poolByChapter.set(weakChapterList[idx].chapterId, (result?.data || []) as any[])
+        })
+
+        for (const ch of weakChapterList) {
+          const quota = quotas[ch.chapterId] || 0
+          if (quota <= 0) continue
+          const pool = poolByChapter.get(ch.chapterId) || []
           const avail = (pool || []).filter((q: any) => !pickedIdsSet.has(q.id))
           if (avail.length === 0) {
             distribution.push({ chapterId: ch.chapterId, chapterTitle: ch.chapterTitle, quota, picked: 0 })
@@ -2820,13 +2844,7 @@ serve(async (req: Request) => {
 
         if (insertError) {
           if (insertError.message?.includes('uq_qb_block_hash') || insertError.code === '23505') {
-            let rowInserted = 0
-            let rowSkipped = 0
-            for (const r of rowsToInsert) {
-              const { error: sErr } = await serviceRoleClient.from('question_bank').insert(r)
-              if (!sErr) rowInserted++
-              else rowSkipped++
-            }
+            const { inserted: rowInserted, skipped: rowSkipped } = await insertRowsIgnoringDuplicates(serviceRoleClient, rowsToInsert)
             return jsonResponse({
               success: true,
               importedCount: rowInserted,
@@ -3705,7 +3723,7 @@ serve(async (req: Request) => {
         return errorResponse('Không có trường hợp lệ nào để cập nhật', 400)
       }
 
-      const VALID_QTYPES = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER']
+      const VALID_QTYPES = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY']
       const VALID_DIFFS = ['NHAN_BIET', 'THONG_HIEU', 'VAN_DUNG', 'VAN_DUNG_CAO']
       if (updates.question_type !== undefined && !VALID_QTYPES.includes(updates.question_type)) {
         return errorResponse('question_type không hợp lệ', 400)

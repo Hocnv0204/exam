@@ -749,8 +749,10 @@ serve(async (req: Request) => {
             id,
             question_id,
             given_answer,
-            is_correct,
-            score_earned,
+             is_correct,
+             score_earned,
+             teacher_feedback,
+             grading_status,
             questions (
               id,
               question_number,
@@ -906,7 +908,9 @@ serve(async (req: Request) => {
         }
 
         let prompt = qObj.prompt || ans.prompt
-        const feedback = ans.is_correct ? 'Đúng' : 'Sai'
+        const feedback = qType === 'ESSAY'
+          ? (ans.grading_status === 'MANUALLY_GRADED' ? (ans.teacher_feedback || 'Đã chấm') : 'Chờ giáo viên chấm')
+          : (ans.is_correct ? 'Đúng' : 'Sai')
 
         if (!shouldShowSolutions) {
           if (typeof prompt === 'string' && prompt.startsWith('{')) {
@@ -946,6 +950,8 @@ serve(async (req: Request) => {
           correctAnswerSummary: shouldShowSolutions ? correctAnswerSummary : null,
           statementGrades,
           feedback,
+          teacherFeedback: ans.teacher_feedback || null,
+          gradingStatus: ans.grading_status || (qType === 'ESSAY' ? 'PENDING' : 'AUTO_GRADED'),
           questions: {
             id: ans.question_id,
             question_number: qNum,
@@ -1468,6 +1474,7 @@ serve(async (req: Request) => {
 
           const qNum = q.question_number
           const qType = q.question_type
+          if (qType === 'ESSAY') continue
           const qAns = q.question_answers?.[0] || q.question_answers || {}
 
           let correctAnsStr = 'N/A'

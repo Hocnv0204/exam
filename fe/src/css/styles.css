@@ -298,6 +298,14 @@ select.form-input {
   left: 0;
   z-index: 100;
   padding: 24px 16px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .brand-logo {
@@ -1298,6 +1306,90 @@ select.form-input {
     bottom: 0;
     background: rgba(15, 23, 42, 0.5);
     z-index: 900;
+  }
+}
+
+/* =========================================================================
+   Desktop sidebar: collapsed icon rail -> expands on hover/focus.
+   The content keeps the rail offset while the expanded sidebar overlays it,
+   matching the compact navigation pattern without changing route logic.
+   Touch/tablet widths continue using the drawer rules above.
+   ========================================================================= */
+@media (min-width: 1025px) {
+  /* The expanded-on-hover sidebar replaces the old desktop top navigation
+     strip (hamburger + breadcrumb). Keep the strip on touch widths where it
+     is still the drawer trigger. */
+  .app-layout.sidebar-hover-expand .top-navbar {
+    display: none !important;
+  }
+
+  .app-layout.sidebar-hover-expand .sidebar {
+    width: 64px;
+    padding: 24px 8px;
+    overflow-x: hidden;
+    transition: width 0.22s ease, box-shadow 0.22s ease;
+  }
+
+  .app-layout.sidebar-hover-expand .main-content {
+    margin-left: 64px;
+    transition: margin-left 0.22s ease;
+  }
+
+  .app-layout.sidebar-hover-expand .brand-logo {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .app-layout.sidebar-hover-expand .brand-logo span,
+  .app-layout.sidebar-hover-expand .nav-section-title {
+    display: none;
+  }
+
+  .app-layout.sidebar-hover-expand .nav-item {
+    justify-content: center;
+    gap: 0;
+    padding: 10px 0;
+    font-size: 0;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .app-layout.sidebar-hover-expand .nav-item i {
+    flex: 0 0 20px;
+    font-size: 16px;
+  }
+
+  .app-layout.sidebar-hover-expand .sidebar:hover,
+  .app-layout.sidebar-hover-expand .sidebar:focus-within {
+    width: 240px;
+    padding-left: 16px;
+    padding-right: 16px;
+    box-shadow: 8px 0 24px rgba(2, 6, 23, 0.22);
+  }
+
+  .app-layout.sidebar-hover-expand .sidebar:hover .brand-logo,
+  .app-layout.sidebar-hover-expand .sidebar:focus-within .brand-logo {
+    justify-content: flex-start;
+    gap: 12px;
+    padding-left: 8px;
+  }
+
+  .app-layout.sidebar-hover-expand .sidebar:hover .brand-logo span,
+  .app-layout.sidebar-hover-expand .sidebar:focus-within .brand-logo span,
+  .app-layout.sidebar-hover-expand .sidebar:hover .nav-section-title,
+  .app-layout.sidebar-hover-expand .sidebar:focus-within .nav-section-title {
+    display: block;
+  }
+
+  .app-layout.sidebar-hover-expand .sidebar:hover .nav-item,
+  .app-layout.sidebar-hover-expand .sidebar:focus-within .nav-item {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
   }
 }
 
@@ -3145,6 +3237,25 @@ body.review-split-mode .page-header {
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
+.student-interactive-essay-input {
+  width: 100%;
+  min-height: 168px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.student-interactive-essay-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
 /* Single Question MD Edit Button & Modal Styles */
 .btn-edit-q-md {
   transition: all 0.18s ease-in-out;
@@ -3929,6 +4040,67 @@ body.review-split-mode .page-header {
 .curriculum-lesson-item.active .lesson-title-text {
   color: #0066cc;
   font-weight: 700;
+}
+
+/* Respond to the lesson list itself, which can be narrow even on desktop. */
+.curriculum-lesson-list {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.curriculum-lesson-card {
+  align-items: center;
+}
+
+.curriculum-lesson-card .curriculum-lesson-main {
+  flex: 1;
+}
+
+.curriculum-lesson-card .curriculum-lesson-actions {
+  justify-content: flex-end;
+}
+
+.curriculum-lesson-card .lesson-title-text,
+.curriculum-lesson-card .curriculum-lesson-badges > span,
+.curriculum-lesson-card .curriculum-lesson-meta > span {
+  overflow-wrap: anywhere;
+}
+
+.curriculum-lesson-card .curriculum-lesson-badges > span,
+.curriculum-lesson-card .curriculum-lesson-meta > span {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@container (max-width: 760px) {
+  .curriculum-lesson-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .curriculum-lesson-card .curriculum-lesson-main {
+    width: 100%;
+    flex: 0 1 auto;
+  }
+
+  .curriculum-lesson-card .curriculum-lesson-actions {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .curriculum-lesson-card .curriculum-lesson-actions > button {
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .curriculum-lesson-card .curriculum-lesson-meta > span:nth-child(2),
+  .curriculum-lesson-card .curriculum-lesson-meta > span:nth-child(4),
+  .curriculum-lesson-card .curriculum-lesson-meta > span:nth-child(6) {
+    display: none;
+  }
 }
 
 .curriculum-content-panel {

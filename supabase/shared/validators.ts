@@ -117,7 +117,7 @@ export const tfAnswerSchema = z.object({
 
 export const questionInputSchema = z.object({
   questionNumber: z.number().int().positive(),
-  questionType: z.enum(['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER']),
+  questionType: z.enum(['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY']),
   prompt: z.string().optional().default(''),
   content: z.string().optional().nullable(),
   options: z.any().optional().nullable(),
@@ -208,6 +208,10 @@ export const submittedAnswerItemSchema = z.object({
     z.object({
       type: z.literal('SHORT_ANSWER'),
       value: z.union([z.number(), z.string()]),
+    }),
+    z.object({
+      type: z.literal('ESSAY'),
+      value: z.string(),
     }),
   ]),
 })

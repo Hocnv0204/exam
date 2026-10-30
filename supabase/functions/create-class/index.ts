@@ -1148,22 +1148,34 @@ serve(async (req: Request) => {
             .from('class_sessions')
             .upsert({ class_id: classId, session_date: sessionDate }, { onConflict: 'class_id,session_date' })
 
-          // Upsert records
+          // Upsert records — batch toàn bộ điểm danh trong 3 query thay vì 3 query/học sinh
+          const recordStudentIds = records.map((r: any) => r.studentId).filter(Boolean)
+
+          const { data: existingRecs } = recordStudentIds.length > 0
+            ? await serviceRoleClient
+                .from('attendance_records')
+                .select('student_id, payment_status, paid_at')
+                .eq('session_id', sessionId)
+                .in('student_id', recordStudentIds)
+            : { data: [] as any[] }
+
+          const existingRecMap = new Map<string, { payment_status: string; paid_at: string | null }>()
+          for (const rec of (existingRecs || [])) {
+            existingRecMap.set(rec.student_id, rec)
+          }
+
+          // Dùng Map theo student_id để tránh trùng khóa trong cùng 1 câu upsert
+          const attendanceRowMap = new Map<string, any>()
+          const presentSessionMap = new Map<string, any>()
+
           for (const r of records) {
             const isPresent = r.isPresent === true
             const studentId = r.studentId
-
-            // Check existing record
-            const { data: existingRec } = await serviceRoleClient
-              .from('attendance_records')
-              .select('payment_status, paid_at')
-              .eq('session_id', sessionId)
-              .eq('student_id', studentId)
-              .maybeSingle()
+            const existingRec = existingRecMap.get(studentId)
 
             let status = 'none'
             let fee = 0
-            let paidAt = null
+            let paidAt: string | null = null
 
             if (isPresent) {
               fee = feePerSession
@@ -1176,36 +1188,55 @@ serve(async (req: Request) => {
                 status = 'unpaid'
               }
 
-              // Sync student_sessions
-              await serviceRoleClient
-                .from('student_sessions')
-                .upsert({
-                  student_id: studentId,
-                  class_id: classId,
-                  session_date: sessionDate,
-                  is_paid: status === 'paid'
-                }, { onConflict: 'student_id,class_id,session_date' })
+              presentSessionMap.set(studentId, {
+                student_id: studentId,
+                class_id: classId,
+                session_date: sessionDate,
+                is_paid: status === 'paid'
+              })
             } else {
-              // Delete from student_sessions
-              await serviceRoleClient
-                .from('student_sessions')
-                .delete()
-                .eq('student_id', studentId)
-                .eq('class_id', classId)
-                .eq('session_date', sessionDate)
+              presentSessionMap.delete(studentId)
             }
 
-            await serviceRoleClient
+            attendanceRowMap.set(studentId, {
+              session_id: sessionId,
+              student_id: studentId,
+              is_present: isPresent,
+              fee_amount: fee,
+              payment_status: status,
+              paid_at: paidAt,
+              updated_at: new Date().toISOString()
+            })
+          }
+
+          const presentSessionRows = Array.from(presentSessionMap.values())
+          const attendanceRows = Array.from(attendanceRowMap.values())
+          const absentStudentIds = attendanceRows
+            .filter((row) => row.is_present !== true)
+            .map((row) => row.student_id)
+
+          if (presentSessionRows.length > 0) {
+            const { error: ssErr } = await serviceRoleClient
+              .from('student_sessions')
+              .upsert(presentSessionRows, { onConflict: 'student_id,class_id,session_date' })
+            if (ssErr) return errorResponse(ssErr.message, 500)
+          }
+
+          if (absentStudentIds.length > 0) {
+            const { error: ssDelErr } = await serviceRoleClient
+              .from('student_sessions')
+              .delete()
+              .in('student_id', absentStudentIds)
+              .eq('class_id', classId)
+              .eq('session_date', sessionDate)
+            if (ssDelErr) return errorResponse(ssDelErr.message, 500)
+          }
+
+          if (attendanceRows.length > 0) {
+            const { error: arErr } = await serviceRoleClient
               .from('attendance_records')
-              .upsert({
-                session_id: sessionId,
-                student_id: studentId,
-                is_present: isPresent,
-                fee_amount: fee,
-                payment_status: status,
-                paid_at: paidAt,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'session_id,student_id' })
+              .upsert(attendanceRows, { onConflict: 'session_id,student_id' })
+            if (arErr) return errorResponse(arErr.message, 500)
           }
 
           sessionResult = {
@@ -1327,31 +1358,42 @@ serve(async (req: Request) => {
 
           if (updErr) return errorResponse(updErr.message, 500)
 
+          // Lấy 1 lần dữ liệu cần cho cả đồng bộ student_sessions và ghi sổ thu tay
           const { data: affectedRecords } = await serviceRoleClient
             .from('attendance_records')
-            .select('student_id, attendance_sessions!inner(class_id, session_date)')
+            .select('student_id, fee_amount, attendance_sessions!inner(class_id, session_date)')
             .in('id', recordIds)
 
+          // Gom theo (class_id, session_date) để mỗi buổi chỉ cần 1 câu update
+          const sessionGroups = new Map<string, { classId: string; sessionDate: string; studentIds: string[] }>()
           for (const r of (affectedRecords || [])) {
             const sess = (r as any).attendance_sessions
-            if (sess) {
-              await serviceRoleClient
+            if (!sess?.class_id || !sess?.session_date) continue
+            const key = `${sess.class_id}|${sess.session_date}`
+            const group = sessionGroups.get(key) || {
+              classId: sess.class_id,
+              sessionDate: sess.session_date,
+              studentIds: []
+            }
+            group.studentIds.push(r.student_id)
+            sessionGroups.set(key, group)
+          }
+
+          await Promise.all(
+            Array.from(sessionGroups.values()).map((group) =>
+              serviceRoleClient
                 .from('student_sessions')
                 .update({ is_paid: isPaid })
-                .eq('student_id', r.student_id)
-                .eq('class_id', sess.class_id)
-                .eq('session_date', sess.session_date)
-            }
-          }
+                .in('student_id', group.studentIds)
+                .eq('class_id', group.classId)
+                .eq('session_date', group.sessionDate)
+            )
+          )
 
           // Ghi sổ thu tay (manual_collect) khi đánh dấu đã đóng
           if (isPaid) {
             try {
-              const { data: feeRows } = await serviceRoleClient
-                .from('attendance_records')
-                .select('student_id, fee_amount, attendance_sessions!inner(class_id)')
-                .in('id', recordIds)
-              const rows = (feeRows || []).map((r: any) => ({
+              const rows = (affectedRecords || []).map((r: any) => ({
                 student_id: r.student_id,
                 class_id: (r as any).attendance_sessions?.class_id || classId || null,
                 type: 'manual_collect',
@@ -1858,14 +1900,14 @@ serve(async (req: Request) => {
             .eq('session_id', sessionId)
             .eq('payment_status', 'paid')
 
-          // 2. Refund to balance
+          // 2. Refund to balance (mỗi học sinh độc lập -> chạy song song)
           if (recordsToRefund && recordsToRefund.length > 0) {
-            for (const r of recordsToRefund) {
-              await serviceRoleClient.rpc('fn_add_student_balance', {
+            await Promise.all(
+              recordsToRefund.map((r) => serviceRoleClient.rpc('fn_add_student_balance', {
                 p_student_id: r.student_id,
                 p_amount: r.fee_amount
-              })
-            }
+              }))
+            )
           }
 
           // 3. Delete session

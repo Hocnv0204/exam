@@ -117,9 +117,19 @@ serve(async (req: Request) => {
         .eq('user_id', userId)
       if (from) countQuery = countQuery.gte('created_at', from)
       if (to) countQuery = countQuery.lte('created_at', to)
-      const [{ data: logs, error: logErr }, { data: allRows, error: countErr }] = await Promise.all([
+      const [
+        { data: logs, error: logErr },
+        { data: allRows, error: countErr },
+        { data: profile },
+      ] = await Promise.all([
         query.range(0, limit - 1),
         countQuery.limit(5000),
+        // Profile độc lập với logs -> tải song song thay vì chờ tuần tự
+        serviceRoleClient
+          .from('profiles')
+          .select('id, username, full_name, role, is_locked')
+          .eq('id', userId)
+          .maybeSingle(),
       ])
       if (logErr) return errorResponse(logErr.message, 500)
       if (countErr) return errorResponse(countErr.message, 500)
@@ -136,12 +146,6 @@ serve(async (req: Request) => {
         }
         if (r.action === 'LOGIN') loginCount++
       }
-
-      const { data: profile } = await serviceRoleClient
-        .from('profiles')
-        .select('id, username, full_name, role, is_locked')
-        .eq('id', userId)
-        .maybeSingle()
 
       const detailMap = await enrichLogDetails(serviceRoleClient, (logs || []) as Array<{ metadata?: Record<string, unknown> }>)
       const enrichedLogs = (logs || []).map((l: Record<string, unknown>, idx: number) => ({

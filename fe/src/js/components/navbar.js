@@ -2,6 +2,7 @@ import { state } from '../state.js'
 import { showToast } from './toast.js'
 import { api } from '../api.js'
 import { isImpersonating } from '../utils/impersonate.js'
+import { renderThemeToggle } from '../theme.js'
 
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
 
@@ -24,11 +25,14 @@ async function switchToHocnvSession() {
 
 window.switchToHocnvSession = switchToHocnvSession
 
-export function renderNavbar(breadcrumbText = 'Nền tảng / Bảng điều khiển') {
+export function renderNavbar(breadcrumbText = 'Nền tảng / Bảng điều khiển', options = {}) {
   const isGuest = !state.token
   const name = isGuest ? 'Khách trải nghiệm' : (state.user?.fullName || 'Quản trị hệ thống')
   const initials = isGuest ? 'KT' : name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
   const impersonating = !isGuest && isImpersonating()
+  // Guest exercise routes use the same navbar, so the control is available
+  // there too (the guest sidebar switch is hidden at touch widths).
+  const themeToggle = options.themeToggle === false ? '' : renderThemeToggle('navbar-theme-toggle')
 
   return `
     ${impersonating ? `
@@ -47,6 +51,7 @@ export function renderNavbar(breadcrumbText = 'Nền tảng / Bảng điều khi
          <span class="navbar-breadcrumb" aria-label="Vị trí hiện tại" title="${escapeText(breadcrumbText)}">${escapeText(breadcrumbText)}</span>
       </div>
       <div class="top-navbar-right">
+        ${themeToggle}
         ${isGuest ? `
           <button class="btn-primary" onclick="window.location.hash='#login'" style="padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
             <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập

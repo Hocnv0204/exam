@@ -2,10 +2,12 @@ import { api } from '../api.js'
 import { state, setSession } from '../state.js'
 import { showToast } from '../components/toast.js'
 import { getLoginReturnTarget } from '../utils/login-return.js'
+import { renderThemeToggle } from '../theme.js'
 
 export function renderLoginView() {
   return `
-    <div class="login-wrapper">
+    <div class="login-wrapper login-page">
+      ${renderThemeToggle('login-theme-toggle')}
       <div class="login-card">
         <div class="login-logo">
           <i class="fa-solid fa-graduation-cap"></i>

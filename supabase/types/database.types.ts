@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type UserRole = 'ADMIN' | 'STUDENT'
-export type QuestionType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'SHORT_ANSWER'
+export type QuestionType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'SHORT_ANSWER' | 'ESSAY'
 
 export interface TrueFalseStatementAnswer {
   statement1: boolean
@@ -27,6 +27,7 @@ export type GivenAnswerInput =
   | { type: 'MULTIPLE_CHOICE'; value: string }
   | { type: 'TRUE_FALSE'; value: TrueFalseStatementGiven }
   | { type: 'SHORT_ANSWER'; value: number }
+  | { type: 'ESSAY'; value: string }
 
 export interface Database {
   public: {
@@ -298,6 +299,8 @@ export interface Database {
           given_answer: Json
           is_correct: boolean
           score_earned: number
+          teacher_feedback: string | null
+          grading_status: 'AUTO_GRADED' | 'PENDING' | 'MANUALLY_GRADED'
           created_at: string
         }
         Insert: {
@@ -307,6 +310,8 @@ export interface Database {
           given_answer: Json
           is_correct: boolean
           score_earned: number
+          teacher_feedback?: string | null
+          grading_status?: 'AUTO_GRADED' | 'PENDING' | 'MANUALLY_GRADED'
           created_at?: string
         }
         Update: {
@@ -316,6 +321,87 @@ export interface Database {
           given_answer?: Json
           is_correct?: boolean
           score_earned?: number
+          teacher_feedback?: string | null
+          grading_status?: 'AUTO_GRADED' | 'PENDING' | 'MANUALLY_GRADED'
+          created_at?: string
+        }
+      }
+      exam_sessions: {
+        Row: {
+          id: string
+          homework_id: string
+          student_id: string
+          session_token: string
+          status: 'ACTIVE' | 'SUBMITTED' | 'ARCHIVED' | 'ORPHANED' | string
+          attempt_no: number
+          last_heartbeat_at: string
+          draft_answers: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          homework_id: string
+          student_id: string
+          session_token: string
+          status?: 'ACTIVE' | 'SUBMITTED' | 'ARCHIVED' | 'ORPHANED' | string
+          attempt_no?: number
+          last_heartbeat_at?: string
+          draft_answers?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          homework_id?: string
+          student_id?: string
+          session_token?: string
+          status?: 'ACTIVE' | 'SUBMITTED' | 'ARCHIVED' | 'ORPHANED' | string
+          attempt_no?: number
+          last_heartbeat_at?: string
+          draft_answers?: Json
+          created_at?: string
+        }
+      }
+      exam_logs: {
+        Row: {
+          id: string
+          homework_id: string
+          student_id: string
+          session_id: string | null
+          attempt_no: number
+          action: string
+          event_id: string | null
+          counted: boolean
+          reason: string | null
+          severity: string
+          server_timestamp: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          homework_id: string
+          student_id: string
+          session_id?: string | null
+          attempt_no?: number
+          action: string
+          event_id?: string | null
+          counted?: boolean
+          reason?: string | null
+          severity?: string
+          server_timestamp?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          homework_id?: string
+          student_id?: string
+          session_id?: string | null
+          attempt_no?: number
+          action?: string
+          event_id?: string | null
+          counted?: boolean
+          reason?: string | null
+          severity?: string
+          server_timestamp?: string
           created_at?: string
         }
       }

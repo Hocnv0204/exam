@@ -6,6 +6,9 @@ export const state = {
   classes: [],
   curriculums: [],
   students: [],
+  // Mốc thời gian prefetch state.students gần nhất (ms). View dùng để tái sử dụng
+  // dữ liệu router vừa tải thay vì gọi lại API ngay sau đó.
+  studentsFetchedAt: 0,
   homeworks: [],
   submissions: [],
   classChapters: [],
@@ -16,6 +19,8 @@ export function setSession(user, token, refreshToken = null) {
   state.user = user
   state.token = token
   state.classes = []
+  state.students = []
+  state.studentsFetchedAt = 0
   state.classChapters = []
   state.activeLessonHomeworks = []
   if (refreshToken) {

@@ -21,7 +21,8 @@ serve(async (req: Request) => {
       return errorResponse('Validation error', 400, validation.error.format())
     }
 
-    const { homeworkId, answers, durationSecondsTaken, sessionToken, guestName, guestPhone, disqualified, violationCount } = validation.data
+    const { homeworkId, durationSecondsTaken, sessionToken, guestName, disqualified } = validation.data
+    let answers = validation.data.answers
     const serviceRoleClient = createServiceRoleClient()
 
     const authHeader = req.headers.get('Authorization')
@@ -36,6 +37,7 @@ serve(async (req: Request) => {
         lesson_id,
         deadline,
         max_attempts,
+        max_violations,
         pdf_path,
         type,
         show_solutions,
@@ -90,20 +92,23 @@ serve(async (req: Request) => {
     // Check session for EXAM (if student)
     let examSessionId = null
     let examSessionAttemptNo = 1
+    let serverViolationCount = 0
     if (homework.type === 'EXAM' && user) {
       if (!sessionToken) {
         return errorResponse('sessionToken is required for EXAM', 400)
       }
 
-      const { data: session } = await serviceRoleClient
+      const { data: session, error: sessionError } = await serviceRoleClient
         .from('exam_sessions')
-        .select('id, session_token, created_at, status, attempt_no')
+        .select('id, session_token, created_at, status, attempt_no, draft_answers, submission_fingerprint')
         .eq('homework_id', homeworkId)
         .eq('student_id', user.id)
+        .eq('session_token', sessionToken)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
 
+      if (sessionError) return errorResponse('Failed to verify exam session', 500)
       if (!session) {
         return errorResponse('No exam session found', 404)
       }
@@ -115,27 +120,27 @@ serve(async (req: Request) => {
         }, 403)
       }
 
-      // Idempotency: If session is already SUBMITTED (e.g. server auto-submitted on violation), return existing submission
-      if (session.status === 'SUBMITTED') {
-        const { data: existingSub } = await serviceRoleClient
-          .from('submissions')
-          .select('id, total_score, max_score, submitted_at')
-          .eq('homework_id', homeworkId)
-          .eq('student_id', user.id)
-          .order('submitted_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        return jsonResponse({
-          submissionId: existingSub?.id || null,
-          alreadySubmitted: true,
-          score: existingSub?.total_score || 0,
-          message: 'Bài thi đã được ghi nhận nộp thành công.'
-        })
-      }
-
       examSessionId = session.id
       examSessionAttemptNo = Number((session as any).attempt_no) || 1
+      const { count: countedViolations, error: violationError } = await serviceRoleClient.from('exam_logs')
+        .select('*', { count: 'exact', head: true }).eq('session_id', session.id).eq('counted', true)
+      if (violationError) return errorResponse('Failed to verify exam violations', 500)
+      serverViolationCount = countedViolations || 0
+      if ((countedViolations || 0) >= Math.max(1, homework.max_violations ?? 3)) {
+        // Once disqualified, grade only the frozen server draft, not caller answers.
+        answers = Array.isArray(session.draft_answers) ? session.draft_answers : []
+      }
+      const cutoff = Math.min(
+        homework.deadline ? new Date(homework.deadline).getTime() : Infinity,
+        new Date(session.created_at).getTime() + Number(homework.duration_minutes) * 60000
+      )
+      if (!Number.isFinite(cutoff)) return errorResponse('Invalid exam duration', 500)
+      if (session.status === 'ACTIVE' && Date.now() >= cutoff) {
+        if (Date.now() > cutoff + 90000)
+          return errorResponse('EXAM_EXPIRED', 403)
+        // A late request may only submit the last server-persisted draft.
+        answers = Array.isArray(session.draft_answers) ? session.draft_answers : []
+      }
     }
 
     // Check deadline (mark as late if past deadline instead of blocking)
@@ -148,10 +153,10 @@ serve(async (req: Request) => {
       }
     }
 
-    // Check max attempts limit for authenticated student.
-    // EXAM: each admin-granted reopen creates a new attempt (attempt_no),
-    // so allowance grows by (attempt_no - 1). Non-EXAM behavior unchanged.
-    if (user && homework.max_attempts && homework.max_attempts > 0 && !isTrialHomework) {
+    // EXAM attempt quotas are enforced while starting the session in the database.
+    // Keep legacy PRACTICE/trial submission checks unchanged.
+    if (user && homework.max_attempts && homework.max_attempts > 0 && !isTrialHomework &&
+      !(homework.type === 'EXAM' && examSessionId)) {
       const { count, error: countError } = await serviceRoleClient
         .from('submissions')
         .select('*', { count: 'exact', head: true })
@@ -211,7 +216,7 @@ serve(async (req: Request) => {
     const gradeInputs: QuestionGradeInput[] = questions.map((q) => {
       const key = keyMap.get(q.id)
       const given = answerMap.get(q.id) || { type: q.question_type, value: null }
-      const points = q.points !== undefined && q.points !== null && !isNaN(Number(q.points))
+        const points = q.points !== undefined && q.points !== null && !isNaN(Number(q.points))
         ? Number(q.points)
         : (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
 
@@ -291,8 +296,10 @@ serve(async (req: Request) => {
         question_id: q.id,
         given_answer: givenAnswerWithMeta,
         is_correct: gradeResult.isCorrect,
-        score_earned: gradeResult.scoreEarned,
-      })
+         score_earned: gradeResult.scoreEarned,
+         grading_status: q.question_type === 'ESSAY' ? 'PENDING' : 'AUTO_GRADED',
+         teacher_feedback: null,
+       })
     }
 
     // 5. Save Submission record
@@ -301,7 +308,22 @@ serve(async (req: Request) => {
     const saveGuestName = isTrialSubmission ? (guestName || 'Học sinh trải nghiệm') : null
     const saveGuestPhone = isTrialSubmission ? (guestPhone || null) : null
 
-    const { data: submission, error: subError } = await serviceRoleClient
+    const atomic = !!examSessionId
+    const atomicResult = atomic ? await serviceRoleClient.rpc('commit_exam_submission', {
+      p_homework_id: homeworkId, p_student_id: user.id, p_token: sessionToken,
+      p_answers: answers, p_rows: submissionAnswersToInsert,
+      p_total: finalScore, p_correct: correctCount, p_wrong: wrongCount,
+      p_duration: durationSecondsTaken || 0, p_disqualified: disqualified === true
+    }) : null
+    if (atomicResult?.error) {
+      const msg = atomicResult.error.message || ''
+      if (/EXAM_EXPIRED|SUBMISSION_CONFLICT|INVALID_SESSION|INVALID_ANSWERS|INVALID_DISQUALIFICATION|FORBIDDEN/.test(msg))
+        return errorResponse(msg, /FORBIDDEN|INVALID_SESSION/.test(msg) ? 403 : 409)
+      return errorResponse('Failed to record exam submission', 500)
+    }
+    const { data: submission, error: subError } = atomic
+      ? { data: atomicResult?.data, error: null }
+      : await serviceRoleClient
       .from('submissions')
       .insert({
         homework_id: homeworkId,
@@ -324,14 +346,8 @@ serve(async (req: Request) => {
     if (subError || !submission) {
       return errorResponse(`Failed to record submission: ${subError?.message}`, 500)
     }
-
-    // Update exam_sessions status if EXAM
-    if (examSessionId) {
-      await serviceRoleClient
-        .from('exam_sessions')
-        .update({ status: 'SUBMITTED' })
-        .eq('id', examSessionId)
-    }
+    if (atomic) isLate = submission.is_late === true
+    const wasDisqualified = atomic ? submission.disqualified === true : disqualified === true
 
     // 6. Save Submission Answers
     const answersWithSubId = submissionAnswersToInsert.map((item) => ({
@@ -339,12 +355,16 @@ serve(async (req: Request) => {
       ...item,
     }))
 
-    const { error: subAnsError } = await serviceRoleClient
+    const { error: subAnsError } = atomic ? { error: null } : await serviceRoleClient
       .from('submission_answers')
       .insert(answersWithSubId)
 
     if (subAnsError) {
       return errorResponse(`Failed to record submission answers: ${subAnsError.message}`, 500)
+    }
+    if (atomic && submission.already_submitted) {
+      return jsonResponse({ submissionId: submission.id, alreadySubmitted: true,
+        score: submission.total_score, message: 'Bài thi đã được ghi nhận nộp thành công.' })
     }
 
     // Generate Signed URL for PDF storage file
@@ -450,9 +470,9 @@ serve(async (req: Request) => {
             `📊 <b>Điểm số:</b> ${finalScore}/${homework.max_score} (${statusText})\n` +
             `✅ <b>Đúng/Sai:</b> ${correctAnswers}/${wrongAnswers}\n` +
             `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}`
-        } else if (disqualified) {
+        } else if (wasDisqualified) {
           const maxV = homework.max_violations || 3
-          const vioCount = violationCount || maxV
+          const vioCount = atomic ? serverViolationCount : (validation.data.violationCount || maxV)
           message = `🚨 <b>THÔNG BÁO ĐÌNH CHỈ THI (VI PHẠM QUY CHẾ)</b>\n` +
             `🎓 <b>Học sinh:</b> ${safeStudent}\n` +
             `🏫 <b>Lớp:</b> ${safeClass}\n` +

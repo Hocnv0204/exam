@@ -21,7 +21,8 @@ export interface QuestionGradeInput {
   givenAnswer:
     | { type: 'MULTIPLE_CHOICE'; value: string }
     | { type: 'TRUE_FALSE'; value: { s1?: boolean; s2?: boolean; s3?: boolean; s4?: boolean; a?: boolean; b?: boolean; c?: boolean; d?: boolean } }
-    | { type: 'SHORT_ANSWER'; value: string | number }
+  | { type: 'SHORT_ANSWER'; value: string | number }
+    | { type: 'ESSAY'; value: string }
 }
 
 export interface QuestionGradeResult {
@@ -98,7 +99,15 @@ export function gradeQuestion(input: QuestionGradeInput): QuestionGradeResult {
   let wrongCount = 0
   let statementGrades: { a: boolean; b: boolean; c: boolean; d: boolean } | undefined = undefined
 
-  if (questionType === 'MULTIPLE_CHOICE') {
+  if (questionType === 'ESSAY') {
+    // Essay answers are intentionally never compared to a hidden answer key.
+    // They remain pending until an authorised teacher grades them.
+    const text = givenAnswer?.type === 'ESSAY' ? String(givenAnswer.value ?? '') : ''
+    correctAnswerSummary = null
+    feedback = text.trim() ? 'Chờ giáo viên chấm' : 'Chưa có câu trả lời tự luận'
+    correctCount = 0
+    wrongCount = 0
+  } else if (questionType === 'MULTIPLE_CHOICE') {
     correctAnswerSummary = mcAnswer
     if (givenAnswer?.type === 'MULTIPLE_CHOICE' && givenAnswer.value) {
       const formattedGiven = String(givenAnswer.value).trim().toUpperCase()
@@ -251,7 +260,7 @@ export function gradeExam(
     rawMax += item.points
     if (qRes.isCorrect) {
       correctCount += 1
-    } else {
+    } else if (item.questionType !== 'ESSAY') {
       wrongCount += 1
     }
   }
@@ -286,4 +295,3 @@ export function gradeExam(
     questionResults
   }
 }
-

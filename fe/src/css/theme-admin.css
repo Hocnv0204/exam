@@ -186,6 +186,11 @@
   border-color: #0ea5e9;
 }
 
+/* Inline-styled buttons without a class keep the UA black text otherwise. */
+.app-layout.admin-dark .content-body button:not([class]) {
+  color: var(--adm-text);
+}
+
 .app-layout.admin-dark .content-body .search-box input {
   background: var(--adm-surface-soft);
   color: var(--adm-text);
@@ -579,90 +584,211 @@
 }
 
 /* ---------- Inline neutral text ---------- */
-.app-layout.admin-dark .content-body [style*="color:#0f172a"],
-.app-layout.admin-dark .content-body [style*="color: #0f172a"],
-.app-layout.admin-dark .content-body [style*="color:#111827"],
-.app-layout.admin-dark .content-body [style*="color: #111827"],
-.app-layout.admin-dark .content-body [style*="color:#1e293b"],
-.app-layout.admin-dark .content-body [style*="color: #1e293b"] {
+.app-layout.admin-dark .content-body [style^="color:#0f172a"],
+.app-layout.admin-dark .content-body [style*=" color:#0f172a"],
+.app-layout.admin-dark .content-body [style*=";color:#0f172a"],
+.app-layout.admin-dark .content-body [style^="color: #0f172a"],
+.app-layout.admin-dark .content-body [style*=" color: #0f172a"],
+.app-layout.admin-dark .content-body [style^="color:#111827"],
+.app-layout.admin-dark .content-body [style*=" color:#111827"],
+.app-layout.admin-dark .content-body [style*=";color:#111827"],
+.app-layout.admin-dark .content-body [style^="color: #111827"],
+.app-layout.admin-dark .content-body [style*=" color: #111827"],
+.app-layout.admin-dark .content-body [style^="color:#1e293b"],
+.app-layout.admin-dark .content-body [style*=" color:#1e293b"],
+.app-layout.admin-dark .content-body [style*=";color:#1e293b"],
+.app-layout.admin-dark .content-body [style^="color: #1e293b"],
+.app-layout.admin-dark .content-body [style*=" color: #1e293b"] {
   color: #f1f5f9 !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#334155"],
-.app-layout.admin-dark .content-body [style*="color: #334155"],
-.app-layout.admin-dark .content-body [style*="color:#374151"],
-.app-layout.admin-dark .content-body [style*="color:#475569"],
-.app-layout.admin-dark .content-body [style*="color: #475569"] {
+.app-layout.admin-dark .content-body [style^="color:#334155"],
+.app-layout.admin-dark .content-body [style*=" color:#334155"],
+.app-layout.admin-dark .content-body [style*=";color:#334155"],
+.app-layout.admin-dark .content-body [style^="color: #334155"],
+.app-layout.admin-dark .content-body [style*=" color: #334155"],
+.app-layout.admin-dark .content-body [style^="color:#374151"],
+.app-layout.admin-dark .content-body [style*=" color:#374151"],
+.app-layout.admin-dark .content-body [style*=";color:#374151"],
+.app-layout.admin-dark .content-body [style^="color:#475569"],
+.app-layout.admin-dark .content-body [style*=" color:#475569"],
+.app-layout.admin-dark .content-body [style*=";color:#475569"],
+.app-layout.admin-dark .content-body [style^="color: #475569"],
+.app-layout.admin-dark .content-body [style*=" color: #475569"] {
   color: #e2e8f0 !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#64748b"],
-.app-layout.admin-dark .content-body [style*="color: #64748b"],
-.app-layout.admin-dark .content-body [style*="color:#6b7280"],
-.app-layout.admin-dark .content-body [style*="color:#94a3b8"],
-.app-layout.admin-dark .content-body [style*="color: #94a3b8"],
-.app-layout.admin-dark .content-body [style*="color:#9ca3af"] {
+.app-layout.admin-dark .content-body [style^="color:#64748b"],
+.app-layout.admin-dark .content-body [style*=" color:#64748b"],
+.app-layout.admin-dark .content-body [style*=";color:#64748b"],
+.app-layout.admin-dark .content-body [style^="color: #64748b"],
+.app-layout.admin-dark .content-body [style*=" color: #64748b"],
+.app-layout.admin-dark .content-body [style^="color:#6b7280"],
+.app-layout.admin-dark .content-body [style*=" color:#6b7280"],
+.app-layout.admin-dark .content-body [style*=";color:#6b7280"],
+.app-layout.admin-dark .content-body [style^="color:#94a3b8"],
+.app-layout.admin-dark .content-body [style*=" color:#94a3b8"],
+.app-layout.admin-dark .content-body [style*=";color:#94a3b8"],
+.app-layout.admin-dark .content-body [style^="color: #94a3b8"],
+.app-layout.admin-dark .content-body [style*=" color: #94a3b8"],
+.app-layout.admin-dark .content-body [style^="color:#9ca3af"],
+.app-layout.admin-dark .content-body [style*=" color:#9ca3af"],
+.app-layout.admin-dark .content-body [style*=";color:#9ca3af"] {
   color: #cbd5e1 !important;
 }
 
 /* ---------- Inline accent text ---------- */
-.app-layout.admin-dark .content-body [style*="color:#0066cc"],
-.app-layout.admin-dark .content-body [style*="color: #0066cc"],
-.app-layout.admin-dark .content-body [style*="color:#0284c7"],
-.app-layout.admin-dark .content-body [style*="color: #0284c7"],
-.app-layout.admin-dark .content-body [style*="color:#0369a1"],
-.app-layout.admin-dark .content-body [style*="color: #0369a1"],
-.app-layout.admin-dark .content-body [style*="color:#2563eb"],
-.app-layout.admin-dark .content-body [style*="color:#1d4ed8"],
-.app-layout.admin-dark .content-body [style*="color:#1e40af"],
-.app-layout.admin-dark .content-body [style*="color:#0ea5e9"],
-.app-layout.admin-dark .content-body [style*="color:#0077b6"] {
+.app-layout.admin-dark .content-body [style^="color:#0066cc"],
+.app-layout.admin-dark .content-body [style*=" color:#0066cc"],
+.app-layout.admin-dark .content-body [style*=";color:#0066cc"],
+.app-layout.admin-dark .content-body [style^="color: #0066cc"],
+.app-layout.admin-dark .content-body [style*=" color: #0066cc"],
+.app-layout.admin-dark .content-body [style^="color:#0284c7"],
+.app-layout.admin-dark .content-body [style*=" color:#0284c7"],
+.app-layout.admin-dark .content-body [style*=";color:#0284c7"],
+.app-layout.admin-dark .content-body [style^="color: #0284c7"],
+.app-layout.admin-dark .content-body [style*=" color: #0284c7"],
+.app-layout.admin-dark .content-body [style^="color:#0369a1"],
+.app-layout.admin-dark .content-body [style*=" color:#0369a1"],
+.app-layout.admin-dark .content-body [style*=";color:#0369a1"],
+.app-layout.admin-dark .content-body [style^="color: #0369a1"],
+.app-layout.admin-dark .content-body [style*=" color: #0369a1"],
+.app-layout.admin-dark .content-body [style^="color:#2563eb"],
+.app-layout.admin-dark .content-body [style*=" color:#2563eb"],
+.app-layout.admin-dark .content-body [style*=";color:#2563eb"],
+.app-layout.admin-dark .content-body [style^="color:#1d4ed8"],
+.app-layout.admin-dark .content-body [style*=" color:#1d4ed8"],
+.app-layout.admin-dark .content-body [style*=";color:#1d4ed8"],
+.app-layout.admin-dark .content-body [style^="color:#1e40af"],
+.app-layout.admin-dark .content-body [style*=" color:#1e40af"],
+.app-layout.admin-dark .content-body [style*=";color:#1e40af"],
+.app-layout.admin-dark .content-body [style^="color:#0ea5e9"],
+.app-layout.admin-dark .content-body [style*=" color:#0ea5e9"],
+.app-layout.admin-dark .content-body [style*=";color:#0ea5e9"],
+.app-layout.admin-dark .content-body [style^="color:#0077b6"],
+.app-layout.admin-dark .content-body [style*=" color:#0077b6"],
+.app-layout.admin-dark .content-body [style*=";color:#0077b6"],
+.app-layout.admin-dark .content-body [style^="color:#1e3a5f"],
+.app-layout.admin-dark .content-body [style*=" color:#1e3a5f"],
+.app-layout.admin-dark .content-body [style*=";color:#1e3a5f"] {
   color: #7dd3fc !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#15803d"],
-.app-layout.admin-dark .content-body [style*="color: #15803d"],
-.app-layout.admin-dark .content-body [style*="color:#16a34a"],
-.app-layout.admin-dark .content-body [style*="color: #16a34a"],
-.app-layout.admin-dark .content-body [style*="color:#059669"],
-.app-layout.admin-dark .content-body [style*="color:#10b981"],
-.app-layout.admin-dark .content-body [style*="color:#047857"],
-.app-layout.admin-dark .content-body [style*="color:#065f46"],
-.app-layout.admin-dark .content-body [style*="color:#166534"],
-.app-layout.admin-dark .content-body [style*="color:#22c55e"] {
+.app-layout.admin-dark .content-body [style^="color:#15803d"],
+.app-layout.admin-dark .content-body [style*=" color:#15803d"],
+.app-layout.admin-dark .content-body [style*=";color:#15803d"],
+.app-layout.admin-dark .content-body [style^="color: #15803d"],
+.app-layout.admin-dark .content-body [style*=" color: #15803d"],
+.app-layout.admin-dark .content-body [style^="color:#16a34a"],
+.app-layout.admin-dark .content-body [style*=" color:#16a34a"],
+.app-layout.admin-dark .content-body [style*=";color:#16a34a"],
+.app-layout.admin-dark .content-body [style^="color: #16a34a"],
+.app-layout.admin-dark .content-body [style*=" color: #16a34a"],
+.app-layout.admin-dark .content-body [style^="color:#059669"],
+.app-layout.admin-dark .content-body [style*=" color:#059669"],
+.app-layout.admin-dark .content-body [style*=";color:#059669"],
+.app-layout.admin-dark .content-body [style^="color:#10b981"],
+.app-layout.admin-dark .content-body [style*=" color:#10b981"],
+.app-layout.admin-dark .content-body [style*=";color:#10b981"],
+.app-layout.admin-dark .content-body [style^="color:#047857"],
+.app-layout.admin-dark .content-body [style*=" color:#047857"],
+.app-layout.admin-dark .content-body [style*=";color:#047857"],
+.app-layout.admin-dark .content-body [style^="color:#065f46"],
+.app-layout.admin-dark .content-body [style*=" color:#065f46"],
+.app-layout.admin-dark .content-body [style*=";color:#065f46"],
+.app-layout.admin-dark .content-body [style^="color:#166534"],
+.app-layout.admin-dark .content-body [style*=" color:#166534"],
+.app-layout.admin-dark .content-body [style*=";color:#166534"],
+.app-layout.admin-dark .content-body [style^="color:#22c55e"],
+.app-layout.admin-dark .content-body [style*=" color:#22c55e"],
+.app-layout.admin-dark .content-body [style*=";color:#22c55e"] {
   color: #6ee7b7 !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#ef4444"],
-.app-layout.admin-dark .content-body [style*="color: #ef4444"],
-.app-layout.admin-dark .content-body [style*="color:#dc2626"],
-.app-layout.admin-dark .content-body [style*="color: #dc2626"],
-.app-layout.admin-dark .content-body [style*="color:#b91c1c"],
-.app-layout.admin-dark .content-body [style*="color:#991b1b"],
-.app-layout.admin-dark .content-body [style*="color:#e11d48"],
-.app-layout.admin-dark .content-body [style*="color:#f43f5e"] {
+.app-layout.admin-dark .content-body [style^="color:#ef4444"],
+.app-layout.admin-dark .content-body [style*=" color:#ef4444"],
+.app-layout.admin-dark .content-body [style*=";color:#ef4444"],
+.app-layout.admin-dark .content-body [style^="color: #ef4444"],
+.app-layout.admin-dark .content-body [style*=" color: #ef4444"],
+.app-layout.admin-dark .content-body [style^="color:#dc2626"],
+.app-layout.admin-dark .content-body [style*=" color:#dc2626"],
+.app-layout.admin-dark .content-body [style*=";color:#dc2626"],
+.app-layout.admin-dark .content-body [style^="color: #dc2626"],
+.app-layout.admin-dark .content-body [style*=" color: #dc2626"],
+.app-layout.admin-dark .content-body [style^="color:#b91c1c"],
+.app-layout.admin-dark .content-body [style*=" color:#b91c1c"],
+.app-layout.admin-dark .content-body [style*=";color:#b91c1c"],
+.app-layout.admin-dark .content-body [style^="color:#991b1b"],
+.app-layout.admin-dark .content-body [style*=" color:#991b1b"],
+.app-layout.admin-dark .content-body [style*=";color:#991b1b"],
+.app-layout.admin-dark .content-body [style^="color:#e11d48"],
+.app-layout.admin-dark .content-body [style*=" color:#e11d48"],
+.app-layout.admin-dark .content-body [style*=";color:#e11d48"],
+.app-layout.admin-dark .content-body [style^="color:#9f1239"],
+.app-layout.admin-dark .content-body [style*=" color:#9f1239"],
+.app-layout.admin-dark .content-body [style*=";color:#9f1239"],
+.app-layout.admin-dark .content-body [style^="color:#f43f5e"],
+.app-layout.admin-dark .content-body [style*=" color:#f43f5e"],
+.app-layout.admin-dark .content-body [style*=";color:#f43f5e"] {
   color: #fca5a5 !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#d97706"],
-.app-layout.admin-dark .content-body [style*="color: #d97706"],
-.app-layout.admin-dark .content-body [style*="color:#b45309"],
-.app-layout.admin-dark .content-body [style*="color:#92400e"],
-.app-layout.admin-dark .content-body [style*="color:#ea580c"],
-.app-layout.admin-dark .content-body [style*="color:#c2410c"],
-.app-layout.admin-dark .content-body [style*="color:#f59e0b"],
-.app-layout.admin-dark .content-body [style*="color:#f97316"] {
+.app-layout.admin-dark .content-body [style^="color:#d97706"],
+.app-layout.admin-dark .content-body [style*=" color:#d97706"],
+.app-layout.admin-dark .content-body [style*=";color:#d97706"],
+.app-layout.admin-dark .content-body [style^="color: #d97706"],
+.app-layout.admin-dark .content-body [style*=" color: #d97706"],
+.app-layout.admin-dark .content-body [style^="color:#b45309"],
+.app-layout.admin-dark .content-body [style*=" color:#b45309"],
+.app-layout.admin-dark .content-body [style*=";color:#b45309"],
+.app-layout.admin-dark .content-body [style^="color:#92400e"],
+.app-layout.admin-dark .content-body [style*=" color:#92400e"],
+.app-layout.admin-dark .content-body [style*=";color:#92400e"],
+.app-layout.admin-dark .content-body [style^="color:#ea580c"],
+.app-layout.admin-dark .content-body [style*=" color:#ea580c"],
+.app-layout.admin-dark .content-body [style*=";color:#ea580c"],
+.app-layout.admin-dark .content-body [style^="color:#c2410c"],
+.app-layout.admin-dark .content-body [style*=" color:#c2410c"],
+.app-layout.admin-dark .content-body [style*=";color:#c2410c"],
+.app-layout.admin-dark .content-body [style^="color:#f59e0b"],
+.app-layout.admin-dark .content-body [style*=" color:#f59e0b"],
+.app-layout.admin-dark .content-body [style*=";color:#f59e0b"],
+.app-layout.admin-dark .content-body [style^="color:#f97316"],
+.app-layout.admin-dark .content-body [style*=" color:#f97316"],
+.app-layout.admin-dark .content-body [style*=";color:#f97316"] {
   color: #fcd34d !important;
 }
 
-.app-layout.admin-dark .content-body [style*="color:#7c3aed"],
-.app-layout.admin-dark .content-body [style*="color:#9333ea"],
-.app-layout.admin-dark .content-body [style*="color:#7e22ce"],
-.app-layout.admin-dark .content-body [style*="color:#8b5cf6"],
-.app-layout.admin-dark .content-body [style*="color:#6366f1"],
-.app-layout.admin-dark .content-body [style*="color:#4338ca"],
-.app-layout.admin-dark .content-body [style*="color:#6d28d9"] {
+.app-layout.admin-dark .content-body [style^="color:#7c3aed"],
+.app-layout.admin-dark .content-body [style*=" color:#7c3aed"],
+.app-layout.admin-dark .content-body [style*=";color:#7c3aed"],
+.app-layout.admin-dark .content-body [style^="color:#9333ea"],
+.app-layout.admin-dark .content-body [style*=" color:#9333ea"],
+.app-layout.admin-dark .content-body [style*=";color:#9333ea"],
+.app-layout.admin-dark .content-body [style^="color:#7e22ce"],
+.app-layout.admin-dark .content-body [style*=" color:#7e22ce"],
+.app-layout.admin-dark .content-body [style*=";color:#7e22ce"],
+.app-layout.admin-dark .content-body [style^="color:#8b5cf6"],
+.app-layout.admin-dark .content-body [style*=" color:#8b5cf6"],
+.app-layout.admin-dark .content-body [style*=";color:#8b5cf6"],
+.app-layout.admin-dark .content-body [style^="color:#6366f1"],
+.app-layout.admin-dark .content-body [style*=" color:#6366f1"],
+.app-layout.admin-dark .content-body [style*=";color:#6366f1"],
+.app-layout.admin-dark .content-body [style^="color:#4338ca"],
+.app-layout.admin-dark .content-body [style*=" color:#4338ca"],
+.app-layout.admin-dark .content-body [style*=";color:#4338ca"],
+.app-layout.admin-dark .content-body [style^="color:#6d28d9"],
+.app-layout.admin-dark .content-body [style*=" color:#6d28d9"],
+.app-layout.admin-dark .content-body [style*=";color:#6d28d9"] {
   color: #c4b5fd !important;
+}
+
+/* Amber fills: white labels fall under 3:1, so use ink text instead. */
+.app-layout.admin-dark .content-body [style*="background:#f59e0b"],
+.app-layout.admin-dark .content-body [style*="background:#d97706"],
+.app-layout.admin-dark .content-body [style*="background:#f97316"],
+.app-layout.admin-dark .content-body [style*="background:#ea580c"] {
+  color: #111827 !important;
 }
 
 /* ---------- Inline light surfaces ---------- */

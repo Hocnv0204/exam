@@ -1,5 +1,7 @@
 import { state } from './state.js'
 import { api } from './api.js'
+// Applies the saved dark/light preference before the first render.
+import { isDarkTheme } from './theme.js'
 import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
 import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
@@ -9,11 +11,11 @@ import { renderCurriculumView, bindCurriculumEvents } from './views/curriculum.j
 import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/homework-solver.js'
 import { renderAssignmentReviewView, bindAssignmentReviewEvents } from './views/assignment-review.js'
 import { renderLearningHistoryView, bindLearningHistoryEvents } from './views/learning-history.js'
-import { renderAdminDashboardView, bindAdminDashboardEvents } from './views/admin-dashboard.js'
+import { renderAdminDashboardView, bindAdminDashboardEvents, updateAdminChartTheme } from './views/admin-dashboard.js'
 import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData, resolveHistoryHomeworkId } from './views/admin-history.js'
 import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
-import { renderSharedReportView, renderStudentReportView, bindSharedReportEvents, bindStudentReportEvents } from './views/student-report.js'
+import { renderSharedReportView, renderStudentReportView, bindSharedReportEvents, bindStudentReportEvents, updateReportChartTheme } from './views/student-report.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
 import { renderTrialView, bindTrialEvents } from './views/trial.js'
 import { renderTrialManagementView, bindTrialManagementEvents } from './views/trial-management.js'
@@ -30,7 +32,8 @@ import { showTrialRegistrationModal } from './components/modal.js'
 import { sortClassChaptersLessons } from './utils/student-lesson-sort.js'
 
 // Admin routes whose legacy light markup is re-themed to navy by the admin themes.
-// Public/student report and grading surfaces remain unchanged because the class is role-gated.
+// Student routes opt into the same navy surfaces through studentDarkRoutes below;
+// exam-room has no .app-layout root, so it carries navy-student on its own layout.
 const adminDarkRoutes = new Set([
   'admin-dashboard',
   'students',
@@ -51,6 +54,47 @@ const adminDarkRoutes = new Set([
   'student-report',
   'assignment-review'
 ])
+
+// Student routes re-themed to navy by the student theme (2026-10-30: extended
+// from dashboard-only to every student surface, including the exam room).
+// They also receive admin-dark so the admin navy surfaces (cards, tables,
+// forms, question paper, report/review pages, modals) apply unchanged.
+// Public trial/roadmap/login routes are intentionally NOT included.
+const studentDarkRoutes = new Set([
+  'my-classes',
+  'my-homeworks',
+  'weekly-calendar',
+  'homework-attempt',
+  'assignment-review',
+  'history',
+  'student-report'
+])
+
+// Dark skins are keyed on these classes, so they follow the active theme.
+// Light mode drops them and the original light design shows through.
+function applyThemeClasses(layout, hash) {
+  if (!layout) return
+  const dark = isDarkTheme()
+  const isStudentDark = state.user?.role === 'STUDENT' && studentDarkRoutes.has(hash)
+  layout.classList.toggle('admin-dark',
+    dark && ((state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash)) || isStudentDark))
+  layout.classList.toggle('navy-student', dark && isStudentDark)
+}
+
+function syncThemeClassesToDom() {
+  const hash = (window.location.hash || '').replace(/^#/, '').split('?')[0]
+  document.querySelectorAll('.app-layout').forEach(el => applyThemeClasses(el, hash))
+  const dark = isDarkTheme()
+  document.querySelectorAll('.exam-room-layout').forEach(el => el.classList.toggle('navy-student', dark))
+}
+
+document.addEventListener('eduportal:themechange', () => {
+  syncThemeClassesToDom()
+  // Never rerender a route to change color: it can destroy drafts, modal state,
+  // chart instances and in-flight loading/error state.
+  updateAdminChartTheme()
+  updateReportChartTheme()
+})
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
@@ -308,6 +352,7 @@ async function router() {
               state.classChapters = sortClassChaptersLessons(mappedChapters)
             } else if (type === 'students') {
               state.students = res || []
+              state.studentsFetchedAt = Date.now()
             }
           })
         }
@@ -459,7 +504,12 @@ async function router() {
     if (layout) {
       layout.dataset.route = hash
       layout.dataset.role = state.user?.role || 'GUEST'
-      layout.classList.toggle('admin-dark', state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash))
+      // Desktop navigation uses an icon rail that expands over the content
+      // on hover. Touch widths keep the existing drawer behaviour below.
+      layout.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && !!state.token)
+      applyThemeClasses(layout, hash)
+      // exam-room renders its own root; keep its dark skin in sync too.
+      app.querySelectorAll('.exam-room-layout').forEach(el => el.classList.toggle('navy-student', isDarkTheme()))
       if (window.innerWidth <= 1024) layout.classList.add('sidebar-collapsed')
       const toggle = layout.querySelector('#sidebar-toggle-btn')
       toggle?.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))

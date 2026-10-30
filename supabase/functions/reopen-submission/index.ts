@@ -78,6 +78,51 @@ serve(async (req: Request) => {
       return jsonResponse({ success: true, delta: 0, scoreEarned: calculation.target, totalScore: calculation.newTotal })
     }
 
+    // Giáo viên chấm một câu tự luận. Điểm luôn bị chặn trong [0, points] và
+    // tổng bài được tính lại từ toàn bộ câu để không phụ thuộc thứ tự chấm.
+    if (action === 'grade-essay') {
+      const { submissionId, answerId, score, feedback } = body || {}
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      const scoreValue = Number(score)
+      if (!uuid.test(String(submissionId || '')) || !uuid.test(String(answerId || '')) || !Number.isFinite(scoreValue) || scoreValue < 0) {
+        return errorResponse('Valid submissionId, answerId and non-negative score are required', 400)
+      }
+      if (feedback !== undefined && feedback !== null && typeof feedback !== 'string') {
+        return errorResponse('feedback must be text', 400)
+      }
+      const { data: answer, error: answerErr } = await serviceRoleClient.from('submission_answers')
+        .select('id, submission_id, question_id, questions(id, question_type, points)')
+        .eq('id', answerId).eq('submission_id', submissionId).maybeSingle()
+      if (answerErr) return errorResponse(answerErr.message, 500)
+      const q = Array.isArray(answer?.questions) ? answer.questions[0] : answer?.questions
+      if (!answer || !q || q.question_type !== 'ESSAY') return errorResponse('Essay answer not found', 404)
+      const points = Number(q.points)
+      if (!Number.isFinite(points) || scoreValue > points) return errorResponse(`Score must be between 0 and ${points}`, 400)
+      const roundedScore = Math.round(scoreValue * 100) / 100
+      const { data: submission, error: subErr } = await serviceRoleClient.from('submissions')
+        .select('id, max_score, status').eq('id', submissionId).maybeSingle()
+      if (subErr) return errorResponse(subErr.message, 500)
+      if (!submission || submission.status !== 'SUBMITTED') return errorResponse('Submitted submission not found', 404)
+      const { error: writeErr } = await serviceRoleClient.from('submission_answers').update({
+        score_earned: roundedScore,
+        is_correct: roundedScore >= points,
+        grading_status: 'MANUALLY_GRADED',
+        teacher_feedback: feedback === undefined ? null : (feedback || null),
+      }).eq('id', answerId).eq('submission_id', submissionId)
+      if (writeErr) return errorResponse(writeErr.message, 500)
+
+      const { data: allAnswers, error: allErr } = await serviceRoleClient.from('submission_answers')
+        .select('score_earned, questions(points)').eq('submission_id', submissionId)
+      if (allErr) return errorResponse(allErr.message, 500)
+      const rawMax = (allAnswers || []).reduce((sum: number, a: any) => sum + Number(a.questions?.points || 0), 0)
+      const rawEarned = (allAnswers || []).reduce((sum: number, a: any) => sum + Number(a.score_earned || 0), 0)
+      const maxScore = Number(submission.max_score || 10)
+      const totalScore = rawMax > 0 ? Math.round(Math.min(maxScore, rawEarned / rawMax * maxScore) * 100) / 100 : 0
+      const { error: totalErr } = await serviceRoleClient.from('submissions').update({ total_score: totalScore }).eq('id', submissionId)
+      if (totalErr) return errorResponse(totalErr.message, 500)
+      return jsonResponse({ success: true, scoreEarned: roundedScore, totalScore, feedback: feedback || null, gradingStatus: 'MANUALLY_GRADED' })
+    }
+
     // Cộng điểm vào bài làm (cá nhân hoặc cả lớp trong 1 bài).
     // Body: { homeworkId, studentId? | allInHomework?: true, classId?, bonus }
     // - bonus là MỨC cộng tuyệt đối (ghi đè lần cộng trước, không dồn), >= 0.
@@ -131,15 +176,21 @@ serve(async (req: Request) => {
       }
 
       let updated = 0
-      for (const s of subs as Array<{ id: string; total_score: number; max_score: number; bonus_score: number | null }>) {
-        const base = Number(s.total_score || 0) - Number(s.bonus_score || 0)
-        const maxScore = Number(s.max_score || 10)
-        const newTotal = Math.min(maxScore, Math.round((base + bonusVal) * 100) / 100)
-        const { error: upErr } = await serviceRoleClient
-          .from('submissions')
-          .update({ total_score: newTotal, bonus_score: bonusVal })
-          .eq('id', s.id)
-        if (!upErr) updated++
+      const bonusChunkSize = 20
+      for (let i = 0; i < subs.length; i += bonusChunkSize) {
+        const chunk = subs.slice(i, i + bonusChunkSize)
+        const results = await Promise.all(chunk.map((s) => {
+          const base = Number(s.total_score || 0) - Number(s.bonus_score || 0)
+          const maxScore = Number(s.max_score || 10)
+          const newTotal = Math.min(maxScore, Math.round((base + bonusVal) * 100) / 100)
+          return serviceRoleClient
+            .from('submissions')
+            .update({ total_score: newTotal, bonus_score: bonusVal })
+            .eq('id', s.id)
+        }))
+        for (const r of results) {
+          if (!r.error) updated++
+        }
       }
 
       return jsonResponse({ success: true, updated, bonus: bonusVal })

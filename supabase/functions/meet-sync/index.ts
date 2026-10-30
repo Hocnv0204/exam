@@ -71,26 +71,31 @@ serve(async (req: Request) => {
     const now = Date.now()
     const readyLessons: Array<{ lessonId: string; title: string }> = []
     const errorLessons: Array<{ lessonId: string | null; message: string }> = []
-    const checkedLessonIds: string[] = []
+    const checkedLessonIdSet = new Set<string>()
 
-    for (const s of sessions as MeetingSession[]) {
-      if (s.lesson_id && !checkedLessonIds.includes(s.lesson_id)) {
-        checkedLessonIds.push(s.lesson_id)
-      }
-      try {
-        const { outcome } = await syncSingleSession(supabase, accessToken, s, now)
-        if (outcome === 'READY') {
-          ready++
-          if (s.lesson_id) readyLessons.push({ lessonId: s.lesson_id, title: '' })
-        } else if (outcome === 'EXPIRED') {
-          expired++
+    // Quét song song có giới hạn: mỗi buổi cần vài lượt gọi Google API + DB,
+    // chạy tuần tự dễ vượt thời gian cho phép khi tồn nhiều buổi PENDING.
+    const SYNC_CONCURRENCY = 4
+    const sessionList = sessions as MeetingSession[]
+    for (let i = 0; i < sessionList.length; i += SYNC_CONCURRENCY) {
+      await Promise.all(sessionList.slice(i, i + SYNC_CONCURRENCY).map(async (s) => {
+        if (s.lesson_id) checkedLessonIdSet.add(s.lesson_id)
+        try {
+          const { outcome } = await syncSingleSession(supabase, accessToken, s, now)
+          if (outcome === 'READY') {
+            ready++
+            if (s.lesson_id) readyLessons.push({ lessonId: s.lesson_id, title: '' })
+          } else if (outcome === 'EXPIRED') {
+            expired++
+          }
+        } catch (e) {
+          errors++
+          const errMsg = await recordSyncFailure(supabase, s.id, e)
+          errorLessons.push({ lessonId: s.lesson_id, message: errMsg })
         }
-      } catch (e) {
-        errors++
-        const errMsg = await recordSyncFailure(supabase, s.id, e)
-        errorLessons.push({ lessonId: s.lesson_id, message: errMsg })
-      }
+      }))
     }
+    const checkedLessonIds = [...checkedLessonIdSet]
 
     const summary = { checked: sessions.length, ready, expired, errors }
     // Thông báo Telegram kết quả quét (chạy nền, không chặn response cron)
@@ -238,26 +243,28 @@ async function syncSingleSession(
   let bestExportUri: string | null = null
   let bestEndTime = ''
 
-  // Với mỗi conference record, lấy danh sách recordings.
-  for (const rec of records) {
-    const recs = await listRecordings(rec.name, accessToken)
+  // Với mỗi conference record, lấy danh sách recordings — gọi song song thay vì tuần tự.
+  const recordingLists = await Promise.all(
+    records.map(async (rec) => ({ rec, recs: await listRecordings(rec.name, accessToken) }))
+  )
+
+  const fetchedAt = new Date().toISOString()
+  // Key theo recording_name để 1 lần upsert không chứa khóa trùng.
+  const recordingRows = new Map<string, any>()
+
+  for (const { rec, recs } of recordingLists) {
     for (const r of recs) {
-      // UPSERT recording (khóa recording_name).
-      const { error: recordingError } = await supabase.from('meeting_recordings').upsert(
-        {
-          session_id: s.id,
-          recording_name: r.name,
-          conference_record: rec.name,
-          state: r.state,
-          start_time: r.startTime ? new Date(r.startTime).toISOString() : null,
-          end_time: r.endTime ? new Date(r.endTime).toISOString() : null,
-          drive_file_id: r.driveDestination?.file || null,
-          drive_url: r.driveDestination?.exportUri || null,
-          fetched_at: new Date().toISOString(),
-        },
-        { onConflict: 'recording_name' },
-      )
-      if (recordingError) throw new Error(`meeting_recordings upsert failed: ${recordingError.message}`)
+      recordingRows.set(r.name, {
+        session_id: s.id,
+        recording_name: r.name,
+        conference_record: rec.name,
+        state: r.state,
+        start_time: r.startTime ? new Date(r.startTime).toISOString() : null,
+        end_time: r.endTime ? new Date(r.endTime).toISOString() : null,
+        drive_file_id: r.driveDestination?.file || null,
+        drive_url: r.driveDestination?.exportUri || null,
+        fetched_at: fetchedAt,
+      })
 
       // Điều kiện chốt: FILE_GENERATED + có file Drive.
       const exportUri = r.driveDestination?.exportUri
@@ -270,6 +277,14 @@ async function syncSingleSession(
         }
       }
     }
+  }
+
+  if (recordingRows.size > 0) {
+    const { error: recordingError } = await supabase.from('meeting_recordings').upsert(
+      Array.from(recordingRows.values()),
+      { onConflict: 'recording_name' },
+    )
+    if (recordingError) throw new Error(`meeting_recordings upsert failed: ${recordingError.message}`)
   }
 
   if (bestExportUri) {

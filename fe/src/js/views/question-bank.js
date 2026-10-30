@@ -478,12 +478,21 @@ async function loadInitialData() {
       filterState.gradeBlock = urlGradeBlock
     }
 
-    // 1. Fetch fresh Question Bank CONSTANT taxonomy (khối, lớp, chương, bài)
-    await loadConstantTaxonomyData()
+    // 1 & 2. Taxonomy CONSTANT và danh sách lớp động độc lập nhau -> chạy song song.
+    // Router đã prefetch classes cho route 'question-bank' (state.classes) nên chỉ
+    // gọi getClasses khi cache rỗng để tránh request trùng.
+    const cachedClasses = Array.isArray(state.classes) && state.classes.length > 0 ? state.classes : null
+    const [, rawClasses] = await Promise.all([
+      loadConstantTaxonomyData(),
+      cachedClasses
+        ? Promise.resolve(cachedClasses)
+        : api.getClasses().catch((e) => {
+            console.warn('[QuestionBank] Dynamic classes load failed (non-critical for constant filter):', e)
+            return null
+          })
+    ])
 
-    // 2. Tải song song danh sách lớp động của chương trình để phục vụ Modal Tạo bài tập & Modal Sync Nguồn
-    try {
-      const rawClasses = await api.getClasses()
+    if (rawClasses) {
       allClasses = (rawClasses || []).map(c => ({
         id: c.id,
         name: c.name,
@@ -493,8 +502,6 @@ async function loadInitialData() {
         progress: 0
       }))
       state.classes = allClasses
-    } catch (e) {
-      console.warn('[QuestionBank] Dynamic classes load failed (non-critical for constant filter):', e)
     }
 
     // 3. Khởi tạo dropdown Khối/Lớp/Chương/Bài từ taxonomy Constant
@@ -1345,7 +1352,7 @@ function renderCardAnswers(q, promptData) {
           const isCorrect = (optKey === correctKey)
           return `
             <div style="display:flex; align-items:flex-start; gap:10px; padding:9px 14px; border-radius:10px; border:1px solid ${isCorrect ? '#86efac' : '#e2e8f0'}; background:${isCorrect ? '#f0fdf4' : '#f8fafc'}; font-size:14px; transition:border-color 0.15s;">
-              <span style="font-weight:700; width:24px; height:24px; border-radius:50%; background:${isCorrect ? '#16a34a' : '#cbd5e1'}; color:#ffffff; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;">
+              <span style="font-weight:700; width:24px; height:24px; border-radius:50%; background:${isCorrect ? '#16a34a' : '#64748b'}; color:#ffffff; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;">
                 ${optKey}
               </span>
               <div class="math-content" style="color:${isCorrect ? '#15803d' : '#334155'}; font-weight:${isCorrect ? '600' : '400'}; flex:1; line-height:1.5;">
@@ -4840,16 +4847,16 @@ async function openMatrixGeneratorModal() {
 
   modalContainer.innerHTML = `
     <div class="modal-backdrop" id="matrix-gen-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="modal-content" onclick="event.stopPropagation()" style="width:100%; max-width:1040px; max-height:92vh; background:#ffffff; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); display:flex; flex-direction:column; overflow:hidden;">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="matrix-gen-title" onclick="event.stopPropagation()" style="width:100%; max-width:1040px; max-height:92vh; background:#ffffff; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); display:flex; flex-direction:column; overflow:hidden;">
         
         <!-- Header -->
-        <div style="padding:18px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, #0066cc, #0284c7); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px;">
+        <div class="matrix-gen-header" style="padding:18px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
+          <div class="matrix-gen-heading" style="display:flex; align-items:center; gap:10px;">
+            <div class="matrix-gen-icon" style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, #0066cc, #0284c7); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px;">
               <i class="fa-solid fa-wand-magic-sparkles"></i>
             </div>
             <div>
-              <h3 style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a; margin:0;">
+              <h3 id="matrix-gen-title" style="font-family:var(--font-heading); font-size:18px; font-weight:700; color:#0f172a; margin:0;">
                 Tạo đề kiểm tra / bài tập theo Ma trận
               </h3>
               <p style="font-size:12px; color:#64748b; margin:0;">
@@ -4857,13 +4864,13 @@ async function openMatrixGeneratorModal() {
               </p>
             </div>
           </div>
-          <button id="matrix-gen-close-btn" style="background:none; border:none; font-size:20px; color:#94a3b8; cursor:pointer; padding:4px;">
+          <button type="button" id="matrix-gen-close-btn" aria-label="Đóng hộp thoại tạo đề theo ma trận" style="background:none; border:none; font-size:20px; color:#94a3b8; cursor:pointer; padding:4px;">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
 
         <!-- Body with Tabs: Step 1 Matrix Config / Step 2 Preview -->
-        <div id="matrix-gen-step1" style="padding:20px 24px; overflow-y:auto; flex:1;">
+        <div id="matrix-gen-step1" class="matrix-gen-body" style="padding:20px 24px; overflow-y:auto; flex:1;">
           <section aria-label="Mẫu ma trận" style="padding:12px; margin-bottom:16px; border:1px solid #cbd5e1; border-radius:8px;">
             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
               <input id="matrix-template-name" aria-label="Tên mẫu ma trận" placeholder="Tên mẫu (tối đa 80 ký tự)" maxlength="80" style="flex:1; min-width:160px; padding:8px;" />
@@ -4940,7 +4947,7 @@ async function openMatrixGeneratorModal() {
               ` : ''}
 
               <!-- Tree View Container -->
-              <div id="gen-scope-tree-container" tabindex="0" role="region" aria-label="Cây phân cấp Lớp Chương Bài" style="max-height:300px; min-height:120px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; padding:10px;">
+               <div id="gen-scope-tree-container" tabindex="0" role="region" aria-label="Cây phân cấp Lớp Chương Bài và Dạng bài" style="max-height:300px; min-height:120px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; padding:10px;">
                 <!-- Dynamically rendered tree -->
               </div>
             </div>
@@ -5253,7 +5260,7 @@ async function openMatrixGeneratorModal() {
         </div>
 
         <!-- Footer -->
-        <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:flex-end; gap:12px;">
+        <div class="matrix-gen-footer" style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:flex-end; gap:12px;">
           <button id="matrix-gen-cancel-btn" class="btn-secondary" style="padding:9px 18px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer;">
             Đóng
           </button>
@@ -5569,7 +5576,7 @@ async function openMatrixGeneratorModal() {
         <div class="tree-lesson-node" data-lesson-id="${l.id}" style="padding:3px 0;">
           <div style="display:flex; align-items:center; gap:6px;">
             ${types.length > 0 ? `
-              <button type="button" class="btn-tree-expand-lesson" data-lesson-id="${l.id}" aria-expanded="${isLExpanded ? 'true' : 'false'}" title="${isLExpanded ? 'Thu gọn dạng bài' : 'Mở rộng dạng bài'}" style="border:1px solid #e2e8f0; background:#ffffff; cursor:pointer; color:#64748b; font-size:9px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px; flex-shrink:0;">
+               <button type="button" class="btn-tree-expand-lesson" data-lesson-id="${l.id}" aria-controls="tree-lesson-children-${l.id}" aria-expanded="${isLExpanded ? 'true' : 'false'}" title="${isLExpanded ? 'Thu gọn dạng bài' : 'Mở rộng dạng bài'}" style="border:1px solid #e2e8f0; background:#ffffff; cursor:pointer; color:#64748b; font-size:9px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px; flex-shrink:0;">
                 <i class="fa-solid ${isLExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} tree-chevron-lesson-${l.id}"></i>
               </button>
             ` : `<span style="width:20px; height:20px; display:inline-block; flex-shrink:0;"></span>`}
@@ -5680,7 +5687,7 @@ async function openMatrixGeneratorModal() {
       chHtml += `
         <div class="tree-chapter-node" data-chapter-id="${ch.id}" data-class-id="${clId}" style="margin-bottom:6px; border:1px solid #f1f5f9; border-radius:6px; background:#ffffff; overflow:hidden;">
           <div style="padding:6px 10px; display:flex; align-items:center; gap:8px; background:#f8fafc;">
-            <button type="button" class="btn-tree-expand-chapter" data-chapter-id="${ch.id}" title="${isChExpanded ? 'Thu gọn' : 'Mở rộng bài học'}" style="border:1px solid #e2e8f0; background:#ffffff; cursor:pointer; color:#64748b; font-size:10px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px; transition:all 0.15s ease;">
+             <button type="button" class="btn-tree-expand-chapter" data-chapter-id="${ch.id}" aria-controls="tree-chapter-children-${ch.id}" aria-expanded="${isChExpanded ? 'true' : 'false'}" title="${isChExpanded ? 'Thu gọn' : 'Mở rộng bài học'}" style="border:1px solid #e2e8f0; background:#ffffff; cursor:pointer; color:#64748b; font-size:10px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px; transition:all 0.15s ease;">
               <i class="fa-solid ${isChExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} tree-chevron-chapter-${ch.id}"></i>
             </button>
             <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; font-size:12.5px; color:#334155; margin:0; flex:1;">
@@ -5724,6 +5731,7 @@ async function openMatrixGeneratorModal() {
             chChevron.classList.add('fa-chevron-right')
           }
           chBtn.title = 'Mở rộng bài học'
+          chBtn.setAttribute('aria-expanded', 'false')
           return
         }
 
@@ -5734,6 +5742,7 @@ async function openMatrixGeneratorModal() {
           chChevron.classList.add('fa-chevron-down')
         }
         chBtn.title = 'Thu gọn'
+        chBtn.setAttribute('aria-expanded', 'true')
 
         if (!lBox.children.length || lBox.innerHTML.includes('fa-spinner')) {
           await loadAndRenderLessons(chId, lBox, clId)
@@ -5787,7 +5796,7 @@ async function openMatrixGeneratorModal() {
       treeHtml += `
         <div class="tree-class-node" data-class-id="${c.id}" style="border:1px solid #e2e8f0; border-radius:8px; margin-bottom:8px; background:#ffffff; overflow:hidden;">
           <div style="padding:8px 12px; display:flex; align-items:center; gap:8px; background:#f8fafc; border-bottom:1px solid ${isExpanded ? '#e2e8f0' : 'transparent'};">
-            <button type="button" class="btn-tree-expand-class" data-class-id="${c.id}" aria-expanded="${isExpanded ? 'true' : 'false'}" title="${isExpanded ? 'Thu gọn' : 'Mở rộng chương & bài'}" style="border:1px solid #cbd5e1; background:#ffffff; cursor:pointer; color:#475569; font-size:11px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; border-radius:4px; transition:all 0.15s ease;">
+             <button type="button" class="btn-tree-expand-class" data-class-id="${c.id}" aria-controls="tree-class-children-${c.id}" aria-expanded="${isExpanded ? 'true' : 'false'}" title="${isExpanded ? 'Thu gọn' : 'Mở rộng chương & bài'}" style="border:1px solid #cbd5e1; background:#ffffff; cursor:pointer; color:#475569; font-size:11px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; border-radius:4px; transition:all 0.15s ease;">
               <i class="fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} tree-chevron-class-${c.id}"></i>
             </button>
             <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; font-size:13px; color:#1e293b; margin:0; flex:1;">

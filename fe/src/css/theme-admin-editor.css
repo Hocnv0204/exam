@@ -44,6 +44,29 @@
   color: var(--adm-text-muted);
 }
 
+/* Desktop đã ẩn top-navbar khi sidebar dùng icon rail. Không tiếp tục trừ
+   chiều cao navbar cũ, nếu không sẽ tạo một dải trống lớn ở cuối màn hình. */
+@media (min-width: 1025px) {
+  .app-layout.admin-dark[data-route="create-homework"] .content-body {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-layout.admin-dark[data-route="create-homework"] .content-body .split-homework-layout {
+    height: calc(100vh - 32px);
+  }
+
+  .app-layout.admin-dark[data-route="create-homework"] .content-body .question-column {
+    max-height: calc(100vh - 32px);
+  }
+
+  .app-layout.admin-dark[data-route="create-homework"] .content-body #create-hw-left-pane .interactive-creator-wrapper {
+    height: auto !important;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
 /* =========================================================================
    1. BASE LAYOUT & TYPOGRAPHY
    ========================================================================= */
@@ -205,16 +228,24 @@
   box-shadow: 0 2px 8px rgba(2, 6, 23, 0.25) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*="color:#0f172a"],
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*="color:#334155"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style^="color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=" color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=";color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style^="color:#334155"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=" color:#334155"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=";color:#334155"] {
   color: var(--adm-text) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*="color:#64748b"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style^="color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=" color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=";color:#64748b"] {
   color: var(--adm-text-dim) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*="color:#059669"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style^="color:#059669"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=" color:#059669"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-pdf-attachment-bar [style*=";color:#059669"] {
   color: var(--adm-success-soft) !important;
 }
 
@@ -298,7 +329,9 @@
   border-radius: 10px !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body #interactive-preview-container [style*="color:#0f172a"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body #interactive-preview-container [style^="color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body #interactive-preview-container [style*=" color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body #interactive-preview-container [style*=";color:#0f172a"] {
   color: var(--adm-text) !important;
 }
 
@@ -362,7 +395,9 @@
   padding-bottom: 10px;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-header [style*="color:#0f172a"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-header [style^="color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-header [style*=" color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-header [style*=";color:#0f172a"] {
   color: var(--adm-text) !important;
 }
 
@@ -449,11 +484,15 @@
   background: rgba(56, 189, 248, 0.08) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style*="color:#334155"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style^="color:#334155"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style*=" color:#334155"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style*=";color:#334155"] {
   color: var(--adm-text) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style*="color:#64748b"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style^="color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style*=" color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .image-paste-zone [style*=";color:#64748b"] {
   color: var(--adm-text-dim) !important;
 }
 
@@ -519,11 +558,15 @@
   border-color: var(--adm-border) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*="color:#334155"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style^="color:#334155"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*=" color:#334155"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*=";color:#334155"] {
   color: var(--adm-text-muted) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*="color:#15803d"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style^="color:#15803d"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*=" color:#15803d"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*=";color:#15803d"],
 .app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*="background:#dcfce7"] {
   background: var(--adm-success-bg) !important;
   color: var(--adm-success-soft) !important;
@@ -537,7 +580,9 @@
   color: #e2e8f0 !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*="color:#0284c7"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style^="color:#0284c7"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*=" color:#0284c7"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*=";color:#0284c7"] {
   color: var(--adm-accent-soft) !important;
 }
 
@@ -546,7 +591,9 @@
    ========================================================================= */
 
 /* Question Map (#hw-question-map) */
-.app-layout.admin-dark[data-route="create-homework"] .content-body #hw-question-map [style*="color:#475569"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body #hw-question-map [style^="color:#475569"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body #hw-question-map [style*=" color:#475569"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body #hw-question-map [style*=";color:#475569"] {
   color: var(--adm-text-dim) !important;
 }
 
@@ -643,7 +690,9 @@
   border: 1px solid rgba(251, 191, 36, 0.35) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body [style*="color:#92400e"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style^="color:#92400e"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*=" color:#92400e"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*=";color:#92400e"],
 .app-layout.admin-dark[data-route="create-homework"] .content-body #assign-selected-count {
   color: var(--adm-warning-soft) !important;
 }
@@ -694,7 +743,9 @@
   border: 1px solid var(--adm-border) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body [style*="color:#1e293b"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style^="color:#1e293b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*=" color:#1e293b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*=";color:#1e293b"] {
   color: var(--adm-text) !important;
 }
 
@@ -705,7 +756,9 @@
   border: 2px solid #1e3a52 !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body [style*="color:#0369a1"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style^="color:#0369a1"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*=" color:#0369a1"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*=";color:#0369a1"] {
   color: var(--adm-accent-soft) !important;
 }
 
@@ -790,7 +843,9 @@
   border-bottom-color: var(--adm-border) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body #answer-matrix-container [style*="color:#0f172a"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body #answer-matrix-container [style^="color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body #answer-matrix-container [style*=" color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body #answer-matrix-container [style*=";color:#0f172a"] {
   color: var(--adm-text) !important;
 }
 
@@ -889,13 +944,19 @@
   color: #0f172a !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*="color:#0f172a"],
-.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*="color: #0f172a"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style^="color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*=" color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*=";color:#0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style^="color: #0f172a"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*=" color: #0f172a"] {
   color: #0f172a !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*="color:#64748b"],
-.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*="color: #64748b"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style^="color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*=" color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*=";color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style^="color: #64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body .pdf-viewer-container .pdf-toolbar [style*=" color: #64748b"] {
   color: #64748b !important;
 }
 
@@ -1043,7 +1104,9 @@ body:has(.app-layout.admin-dark[data-route="create-homework"]) #interactive-moda
   color: var(--adm-border) !important;
 }
 
-.app-layout.admin-dark[data-route="create-homework"] .content-body [style*="border:1px dashed #cbd5e1"] [style*="color:#64748b"] {
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*="border:1px dashed #cbd5e1"] [style^="color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*="border:1px dashed #cbd5e1"] [style*=" color:#64748b"],
+.app-layout.admin-dark[data-route="create-homework"] .content-body [style*="border:1px dashed #cbd5e1"] [style*=";color:#64748b"] {
   color: var(--adm-text-dim) !important;
 }
 

@@ -1083,21 +1083,23 @@ async function loadInprogressDrafts() {
     }
     card.style.display = 'block'
     container.innerHTML = `
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:8px;">
+      <div class="mc-drafts-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap:8px;">
         ${drafts.map(d => `
-          <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#ffffff; border:1px solid #fde68a; border-radius:10px;">
-            <div style="flex:1 1 auto; min-width:0;">
-              <div style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${d.title || ''}">${d.title || 'Bài tập'}</div>
-              <div style="font-size:11px; color:#64748b; margin-top:2px;">
+          <div class="mc-draft-row" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#ffffff; border:1px solid #fde68a; border-radius:10px;">
+            <div class="mc-homework-info" style="flex:1 1 auto; min-width:0;">
+              <div class="mc-homework-title" style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${d.title || ''}">${d.title || 'Bài tập'}</div>
+              <div class="mc-homework-meta" style="font-size:11px; color:#64748b; margin-top:2px;">
                 ${d.className ? `<span style="color:#0066cc; font-weight:600;">${d.className}</span> • ` : ''}Đã làm ${d.answeredCount || 0} câu • ${d.updatedAt ? new Date(d.updatedAt).toLocaleString('vi-VN') : ''}
               </div>
             </div>
-            <button class="btn-primary" onclick="window.location.hash='#homework-attempt?homeworkId=${d.homeworkId}'" style="width:auto; flex-shrink:0; padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; background:#d97706; border-color:#d97706;">
-              Tiếp tục
-            </button>
-            <button class="btn-secondary btn-discard-draft" data-id="${d.homeworkId}" title="Xóa bản nháp" style="flex-shrink:0; padding:6px 9px; font-size:12px; border-radius:8px; cursor:pointer; color:#ef4444; border-color:#fecaca; background:#fff5f5;">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+            <div class="mc-draft-actions">
+              <button class="btn-primary" onclick="window.location.hash='#homework-attempt?homeworkId=${d.homeworkId}'" style="width:auto; flex-shrink:0; padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; background:#d97706; border-color:#d97706;">
+                Tiếp tục
+              </button>
+              <button class="btn-secondary btn-discard-draft" data-id="${d.homeworkId}" title="Xóa bản nháp" aria-label="Xóa bản nháp" style="flex-shrink:0; padding:6px 9px; font-size:12px; border-radius:8px; cursor:pointer; color:#ef4444; border-color:#fecaca; background:#fff5f5;">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
           </div>
         `).join('')}
       </div>
@@ -1173,17 +1175,17 @@ async function loadLatestHomeworksAll() {
       return
     }
     container.innerHTML = `
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:4px 24px;">
+      <div class="mc-latest-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap:4px 24px;">
         ${sorted.map((hw, idx) => {
           const isExam = hw.type === 'EXAM'
           const isOverdue = hw.deadline ? new Date() > new Date(hw.deadline) : false
           const hwTitle = hw.title || hw.lessonTitle || 'Bài tập'
           return `
-          <div style="display:flex; align-items:center; gap:10px; padding:8px 4px; ${idx > 0 ? 'border-top:1px solid #e2e8f0;' : ''}">
+          <div class="mc-latest-row" style="display:flex; align-items:center; gap:10px; padding:8px 4px; ${idx > 0 ? 'border-top:1px solid #e2e8f0;' : ''}">
             ${idx === 0 ? '<span style="font-size:10px; font-weight:800; color:#ffffff; background:#ef4444; padding:2px 7px; border-radius:6px; flex-shrink:0;">MỚI</span>' : ''}
-            <div style="flex:1 1 auto; min-width:0;">
-              <span style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" title="${hwTitle}">${hwTitle}</span>
-              <span style="font-size:11px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">
+            <div class="mc-homework-info" style="flex:1 1 auto; min-width:0;">
+              <span class="mc-homework-title" style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" title="${hwTitle}">${hwTitle}</span>
+              <span class="mc-homework-meta" style="font-size:11px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">
                 <span style="color:#0066cc; font-weight:600;">${hw.className || ''}</span> • ${isExam ? 'Bài thi' : 'Luyện tập'}${hw.deadline ? ` • <span style="color:${isOverdue ? '#b91c1c' : '#64748b'};">Hạn: ${new Date(hw.deadline).toLocaleDateString('vi-VN')}</span>` : ''}
               </span>
             </div>

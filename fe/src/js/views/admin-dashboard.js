@@ -5,6 +5,7 @@ import { openTopupModal, isTopupModalOpen } from '../components/topup-modal.js'
 import { showToast } from '../components/toast.js'
 import { api } from '../api.js'
 import { state } from '../state.js'
+import { isDarkTheme } from '../theme.js'
 import {
   ZERO_BALANCE_PAGE_SIZE,
   parseZeroBalanceCount,
@@ -44,10 +45,22 @@ let studentFilterState = {
 }
 
 /**
- * Palette màu cho Chart.js trên nền navy (admin-dark).
- * Giúp nhãn, lưới và viền biểu đồ tương phản cao, dễ đọc trên nền tối.
+ * Palette màu cho Chart.js, bám theo theme đang bật: nền navy khi tối và
+ * nền trắng khi sáng để nhãn, lưới và viền biểu đồ luôn đủ tương phản.
  */
 export function getAdminChartPalette() {
+  if (!isDarkTheme()) {
+    return {
+      surfaceColor: '#ffffff',
+      gridColor: 'rgba(15, 23, 42, 0.07)',
+      tickColor: '#475569',
+      legendTextColor: '#0f172a',
+      emptyBg: '#f1f5f9',
+      emptyBorder: '#cbd5e1',
+      accentCyan: '#0284c7',
+      accentGold: '#b45309'
+    }
+  }
   return {
     surfaceColor: '#1f2937',                 // Nền thẻ card biểu đồ
     gridColor: 'rgba(255, 255, 255, 0.08)',  // Đường kẻ lưới x/y
@@ -57,6 +70,42 @@ export function getAdminChartPalette() {
     emptyBorder: '#475569',                  // Viền fallback khi chưa có dữ liệu
     accentCyan: '#38bdf8',                   // Màu đường xu hướng
     accentGold: '#fbbf24'                    // Màu nhãn tiêu đề trục
+  }
+}
+
+// Update only existing canvas instances. Re-entering the router would replace
+// the whole dashboard, including filters, pending requests and open dialogs.
+export function updateAdminChartTheme() {
+  const Chart = window.Chart
+  if (!Chart?.getChart) return
+  const palette = getAdminChartPalette()
+  for (const id of ['chart-monthly-revenue', 'chart-tuition-doughnut', 'chart-grade-dist', 'chart-activity-trend']) {
+    const canvas = document.getElementById(id)
+    const chart = canvas && Chart.getChart(canvas)
+    if (!chart) continue
+    for (const scale of Object.values(chart.options.scales || {})) {
+      if (scale.ticks) scale.ticks.color = palette.tickColor
+      if (scale.grid && scale.grid.display !== false) scale.grid.color = palette.gridColor
+    }
+    if (chart.options.plugins?.legend?.labels) chart.options.plugins.legend.labels.color = palette.legendTextColor
+    if (chart.config.type === 'doughnut') {
+      chart.data.datasets[0].borderColor = palette.surfaceColor
+      if (id === 'chart-tuition-doughnut' && !((state.dashboard?.overview?.totalPaidTuitionFee || 0) + (state.dashboard?.overview?.totalUnpaidTuitionFee || 0))) {
+        chart.data.datasets[0].backgroundColor = [palette.emptyBg, palette.emptyBorder]
+      }
+      if (id === 'chart-grade-dist' && chart.data.datasets[0].backgroundColor?.length === 1) {
+        chart.data.datasets[0].backgroundColor = [palette.emptyBg]
+      }
+    }
+    if (id === 'chart-activity-trend') {
+      const line = chart.data.datasets.find(dataset => dataset.type === 'line')
+      if (line) {
+        line.borderColor = palette.accentCyan
+        line.pointBackgroundColor = palette.accentCyan
+        line.pointBorderColor = palette.surfaceColor
+      }
+    }
+    chart.update('none')
   }
 }
 
