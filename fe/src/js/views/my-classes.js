@@ -1,4 +1,5 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
+import mascotUrl from '../../assets/mascot-study.svg'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
@@ -114,10 +115,10 @@ export function renderMyClassesView() {
       : newestLessonsAll.filter(l => l.chapterId === studentSelectedChapterId)
 
     return `
-      <div class="app-layout">
+      <div class="app-layout navy-student student-class-detail">
         ${renderSidebar('my-classes')}
         <div class="main-content">
-          ${renderNavbar('Nền tảng / Bảng điều khiển')}
+          ${renderNavbar('Học tập / Lớp học của tôi / ' + (selectedClass?.name || ''))}
           <div class="content-body">
             ${activeLesson ? '' : `
               <!-- Back Button & Page Header -->
@@ -550,19 +551,25 @@ export function renderMyClassesView() {
 
   // Case 2: List of All Classes for Student
   return `
-    <div class="app-layout">
+    <div class="app-layout navy-student student-class-list">
       ${renderSidebar('my-classes')}
       <div class="main-content">
-        ${renderNavbar('Nền tảng / Bảng điều khiển')}
+        ${renderNavbar('Học tập / Lớp học của tôi')}
         <div class="content-body">
+          <div class="navy-hero">
+            <img src="${typeof mascotUrl !== 'undefined' ? mascotUrl : ''}" alt="Linh vật học tập">
+            <div>
+              <h1>Lớp học của tôi</h1>
+              <p>Chọn lớp để xem bài học, bài tập và tiến độ thực tế của bạn.</p>
+            </div>
+          </div>
           <div class="page-header">
             <div>
-              <h1 class="page-title">Lớp học của tôi</h1>
+              <h2 class="page-title">Danh sách lớp học</h2>
               <p class="page-description">Danh sách các lớp học đã đăng ký. Nhấn vào lớp để xem bài học và bài tập chi tiết.</p>
             </div>
             <div style="display:flex; gap:12px;">
               <button class="btn-secondary" id="btn-replay-tour"><i class="fa-solid fa-circle-question"></i> Hướng dẫn</button>
-              <button class="btn-secondary"><i class="fa-solid fa-sliders"></i> Bộ lọc</button>
             </div>
           </div>
 
@@ -589,7 +596,7 @@ export function renderMyClassesView() {
           <!-- Classes Cards Grid -->
           <div class="grid-4" id="tour-class-grid" style="margin-bottom:28px;">
             ${classes.map(c => `
-              <div class="class-card select-class-card" data-id="${c.id}" style="cursor:pointer; padding: 20px;">
+              <div class="class-card select-class-card" role="link" tabindex="0" aria-label="Mở lớp ${escapeHtml(c.name)}" data-id="${c.id}" style="cursor:pointer; padding: 20px;">
                 <div class="class-card-body" style="padding: 0;">
                   <h3 class="class-title" style="margin-bottom: 12px;">${c.name}</h3>
 
@@ -723,6 +730,12 @@ export function bindMyClassesEvents() {
     card.addEventListener('click', () => {
       const id = card.getAttribute('data-id')
       window.location.hash = `#my-classes?classId=${id}`
+    })
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        card.click()
+      }
     })
   })
 

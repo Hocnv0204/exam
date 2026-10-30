@@ -2,6 +2,12 @@
  * Universal Scoring Engine (Client-side & Isomorphic Logic)
  * Supports dynamic point calculation, True/False non-linear ratio grading,
  * short-answer normalization with decimal commas and tolerance, and final score normalization.
+ *
+ * ESSAY (tự luận) là loại câu chờ chấm thủ công: client không tự so khớp văn bản,
+ * không cộng điểm và không tính là sai khách quan. `gradeQuestionLocally` trả
+ * score 0, isCorrect false, correctAnswerSummary null, feedback "Chờ giáo viên chấm".
+ * `gradeExamLocally` bỏ qua câu ESSAY khi tăng wrongCount để không làm sai lệch
+ * thống kê câu sai; điểm tự luận do backend/giáo viên cập nhật sau.
  */
 
 export const TF_TIER_RATIO = {
@@ -95,7 +101,15 @@ export function gradeQuestionLocally(input) {
   let wrongCount = 0
   let statementGrades = undefined
 
-  if (questionType === 'MULTIPLE_CHOICE') {
+  const normalizedType = String(questionType || '').toUpperCase()
+
+  if (normalizedType === 'ESSAY' || normalizedType === 'TL') {
+    // Chờ giáo viên chấm: không tự so khớp văn bản, không tính là sai khách quan.
+    correctAnswerSummary = null
+    feedback = 'Chờ giáo viên chấm'
+    correctCount = 0
+    wrongCount = 0
+  } else if (questionType === 'MULTIPLE_CHOICE') {
     correctAnswerSummary = mcAnswer
     if (givenAnswer?.type === 'MULTIPLE_CHOICE' && givenAnswer.value) {
       const formattedGiven = String(givenAnswer.value).trim().toUpperCase()
@@ -241,9 +255,11 @@ export function gradeExamLocally(items, options = {}) {
 
     rawEarned += qRes.scoreEarned
     rawMax += (item.points !== undefined && item.points !== null ? Number(item.points) : 1.0)
+    const itemType = String(item.questionType || item.question_type || '').toUpperCase()
+    const isPendingEssay = itemType === 'ESSAY' || itemType === 'TL'
     if (qRes.isCorrect) {
       correctCount += 1
-    } else {
+    } else if (!isPendingEssay) {
       wrongCount += 1
     }
   }
@@ -283,7 +299,7 @@ export function calculateExamRawMax(questions) {
   const sum = questions.reduce((acc, q) => {
     const p = q.points !== undefined && q.points !== null && !isNaN(Number(q.points))
       ? Number(q.points)
-      : (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25))
+      : (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : ((q.questionType === 'ESSAY' || q.questionType === 'TL') ? 1.0 : 0.25)))
     return acc + p
   }, 0)
   return Number(sum.toFixed(4))
@@ -301,6 +317,7 @@ export function applyExamPreset(questions, presetKey) {
       if (q.questionType === 'MULTIPLE_CHOICE') q.points = 0.25
       else if (q.questionType === 'TRUE_FALSE') q.points = 1.0
       else if (q.questionType === 'SHORT_ANSWER') q.points = 0.5
+      else if (q.questionType === 'ESSAY' || q.questionType === 'TL') q.points = 1.0
       else q.points = 0.25
     })
   } else if (presetKey === 'THPT_KHTN') {
@@ -308,6 +325,7 @@ export function applyExamPreset(questions, presetKey) {
       if (q.questionType === 'MULTIPLE_CHOICE') q.points = 0.25
       else if (q.questionType === 'TRUE_FALSE') q.points = 1.0
       else if (q.questionType === 'SHORT_ANSWER') q.points = 0.25
+      else if (q.questionType === 'ESSAY' || q.questionType === 'TL') q.points = 1.0
       else q.points = 0.25
     })
   } else if (presetKey === 'EQUAL_10') {

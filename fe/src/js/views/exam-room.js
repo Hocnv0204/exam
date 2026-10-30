@@ -9,7 +9,8 @@ import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 let studentAnswers = {
   mc: {}, // { 1: 'A', 2: 'B', ... }
   tf: {}, // { 1: { a: true, b: false, c: true, d: false }, ... }
-  sa: {}  // { 1: '9.8', ... }
+  sa: {},
+  essay: {}  // { 1: 'Văn bản nhiều dòng', ... }
 }
 let isDraftRestored = false
 let saDebounceTimer = null
@@ -177,12 +178,14 @@ export function renderExamRoomView() {
     Object.keys(savedDraft.answers.mc || {}).length > 0 ||
     Object.keys(savedDraft.answers.tf || {}).length > 0 ||
     Object.keys(savedDraft.answers.sa || {}).length > 0
+    || Object.keys(savedDraft.answers.essay || {}).length > 0
   ))
 
   studentAnswers = {
     mc: savedDraft?.answers?.mc || {},
     tf: savedDraft?.answers?.tf || {},
-    sa: savedDraft?.answers?.sa || {}
+    sa: savedDraft?.answers?.sa || {},
+    essay: savedDraft?.answers?.essay || {}
   }
 
   // Parse questions
@@ -192,7 +195,8 @@ export function renderExamRoomView() {
     const rawType = (q.question_type || q.questionType || '').toUpperCase()
     const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
     const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
-    const questionType = isTf ? 'TRUE_FALSE' : (isSa ? 'SHORT_ANSWER' : 'MULTIPLE_CHOICE')
+    const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+    const questionType = isTf ? 'TRUE_FALSE' : (isEssay ? 'ESSAY' : (isSa ? 'SHORT_ANSWER' : 'MULTIPLE_CHOICE'))
 
     let promptText = pObj.text || q.content || (typeof q.prompt === 'string' && !q.prompt.trim().startsWith('{') ? q.prompt : '') || `Câu hỏi số ${qNum}`
     let options = []
@@ -225,7 +229,7 @@ export function renderExamRoomView() {
         stmtText = stmtText.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
         return { id: k, text: stmtText }
       })
-    } else if (!isSa) {
+    } else if (!isSa && !isEssay) {
       let rawOptions = pObj.options.length > 0 ? pObj.options : (q.options || [])
       if (Array.isArray(rawOptions) && rawOptions.length > 0) {
         options = rawOptions.map((opt, idx) => {
@@ -244,7 +248,7 @@ export function renderExamRoomView() {
       id: q.id,
       questionNumber: qNum,
       questionType,
-      points: q.points || (questionType === 'TRUE_FALSE' ? 1.0 : (questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
+      points: q.points || (questionType === 'TRUE_FALSE' ? 1.0 : (questionType === 'SHORT_ANSWER' ? 0.5 : 1.0)),
       promptText,
       imageUrl: pObj.imageUrl || '',
       options,
@@ -262,6 +266,8 @@ export function renderExamRoomView() {
       const tf = studentAnswers.tf[qNum] || {}
       if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answeredCount++
     } else if (q.questionType === 'SHORT_ANSWER' && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
+      answeredCount++
+    } else if (q.questionType === 'ESSAY' && studentAnswers.essay[qNum] && String(studentAnswers.essay[qNum]).trim() !== '') {
       answeredCount++
     }
   })
@@ -431,6 +437,7 @@ function renderExamQuestionCards(parsedQuestions) {
     if (q.questionType === 'MULTIPLE_CHOICE') newSection = 'PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D)'
     else if (q.questionType === 'TRUE_FALSE') newSection = 'PHẦN II: TRẮC NGHIỆM ĐÚNG / SAI (4 Ý a, b, c, d)'
     else if (q.questionType === 'SHORT_ANSWER') newSection = 'PHẦN III: TRẢ LỜI NGẮN (ĐIỀN KẾT QUẢ SỐ)'
+    else if (q.questionType === 'ESSAY') newSection = 'PHẦN IV: TỰ LUẬN (NHẬP VĂN BẢN)'
 
     if (newSection !== currentSection) {
       currentSection = newSection
@@ -457,7 +464,7 @@ function renderExamQuestionCards(parsedQuestions) {
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-weight:700; font-size:15px; color:#0f172a;">Câu ${qNum}:</span>
             <span style="background:#f1f5f9; color:#475569; font-size:12px; font-weight:600; padding:2px 8px; border-radius:6px;">
-              (${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25))} điểm)
+              (${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 1.0))} điểm)
             </span>
           </div>
           <button type="button" class="btn-flag-question ${isFlagged ? 'active' : ''}" data-qnum="${qNum}" style="background:transparent; border:none; color:${isFlagged ? '#f59e0b' : '#94a3b8'}; cursor:pointer; font-size:12.5px; font-weight:600; display:inline-flex; align-items:center; gap:5px;" title="Đánh dấu để xem lại">
@@ -517,6 +524,11 @@ function renderExamQuestionCards(parsedQuestions) {
               `
             }).join('')}
           </div>
+        ` : (q.questionType === 'ESSAY' ? `
+          <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:14px 16px;">
+            <label style="display:block; font-size:12.5px; font-weight:600; color:#6b21a8; margin-bottom:8px;">Nhập câu trả lời tự luận:</label>
+            <textarea class="student-interactive-essay-input" data-qnum="${qNum}" rows="7" placeholder="Nhập câu trả lời của em..." style="width:100%; resize:vertical; line-height:1.5;">${escapeHtml(studentAnswers.essay[qNum] || '')}</textarea>
+          </div>
         ` : `
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px;">
             <label style="display:block; font-size:12.5px; font-weight:600; color:#475569; margin-bottom:8px;">
@@ -524,7 +536,7 @@ function renderExamQuestionCards(parsedQuestions) {
             </label>
             <input type="text" class="student-interactive-sa-input" data-qnum="${qNum}" value="${studentAnswers.sa[qNum] || ''}" placeholder="Điền đáp án số (ví dụ: 2.67 hoặc -5)...">
           </div>
-        `)}
+        `))}
       </article>
     `
   }).join('')
@@ -700,6 +712,21 @@ export function bindExamRoomEvents() {
       }, 300)
     })
   })
+  document.querySelectorAll('.student-interactive-essay-input').forEach(input => {
+    input.addEventListener('focus', (e) => {
+      if (!examStarted) { e.target.blur(); showToast('Vui lòng đọc và xác nhận quy chế phòng thi để bắt đầu làm bài!', 'warning') }
+    })
+    input.addEventListener('input', (e) => {
+      if (!examStarted) { e.target.value = ''; return }
+      const qNum = parseInt(input.dataset.qnum, 10)
+      const val = e.target.value
+      studentAnswers.essay[qNum] = val
+      updatePaletteButton(qNum, !!val.trim())
+      updateExamProgress(questions.length)
+      clearTimeout(saDebounceTimer)
+      saDebounceTimer = setTimeout(() => saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds), 500)
+    })
+  })
 
   // Quick jump palette buttons
   document.querySelectorAll('.exam-nav-btn').forEach(btn => {
@@ -755,6 +782,8 @@ export function bindExamRoomEvents() {
         if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answered++
       } else if (q.question_type === 'SHORT_ANSWER' && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
         answered++
+      } else if (q.question_type === 'ESSAY' && studentAnswers.essay[qNum] && String(studentAnswers.essay[qNum]).trim() !== '') {
+        answered++
       }
     })
 
@@ -772,6 +801,7 @@ export function bindExamRoomEvents() {
       const rawType = (q.question_type || q.questionType || '').toUpperCase()
       const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (Array.isArray(q.statements) && q.statements.length > 0)
       const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+      const isEssay = rawType === 'ESSAY' || rawType === 'TL'
 
       if (isTf) {
         const tfObj = studentAnswers.tf[qNum] || {}
@@ -786,6 +816,8 @@ export function bindExamRoomEvents() {
           if (b !== undefined) valObj[k] = b
         })
         return { questionId: q.id, givenAnswer: { type: 'TRUE_FALSE', value: valObj } }
+      } else if (isEssay) {
+        return { questionId: q.id, givenAnswer: { type: 'ESSAY', value: String(studentAnswers.essay[qNum] || '') } }
       } else if (isSa) {
         return {
           questionId: q.id,
@@ -913,6 +945,8 @@ export function bindExamRoomEvents() {
         const tf = studentAnswers.tf[qNum] || {}
         if (!['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) unansweredCount++
       } else if (q.question_type === 'SHORT_ANSWER' && (!studentAnswers.sa[qNum] || String(studentAnswers.sa[qNum]).trim() === '')) {
+        unansweredCount++
+      } else if (q.question_type === 'ESSAY' && (!studentAnswers.essay[qNum] || String(studentAnswers.essay[qNum]).trim() === '')) {
         unansweredCount++
       }
     })
@@ -1377,6 +1411,11 @@ export function bindExamRoomEvents() {
       } else if (ans.givenAnswer?.type === 'SHORT_ANSWER' && ans.givenAnswer.value) {
         studentAnswers.sa[qNum] = ans.givenAnswer.value
         const inp = document.querySelector(`.student-interactive-sa-input[data-qnum="${qNum}"]`)
+        if (inp) inp.value = ans.givenAnswer.value
+        updatePaletteButton(qNum, true)
+      } else if (ans.givenAnswer?.type === 'ESSAY' && ans.givenAnswer.value) {
+        studentAnswers.essay[qNum] = ans.givenAnswer.value
+        const inp = document.querySelector(`.student-interactive-essay-input[data-qnum="${qNum}"]`)
         if (inp) inp.value = ans.givenAnswer.value
         updatePaletteButton(qNum, true)
       }

@@ -1,5 +1,7 @@
 import { api } from '../api.js'
 import { openModal } from '../components/modal.js'
+import { showToast } from '../components/toast.js'
+import { state } from '../state.js'
 import { renderMarkdown, renderMath } from '../utils/exam-parser.js'
 
 const escapeHtml = value => String(value ?? '')
@@ -11,7 +13,67 @@ const dateText = value => {
   return date && !Number.isNaN(date.getTime()) ? date.toLocaleString('vi-VN') : '—'
 }
 
+// Trả về '' khi thiếu/hỏng hạn nộp để không ghi "undefined" vào tin nhắn.
+const deadlineText = value => {
+  const date = value ? new Date(value) : null
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString('vi-VN') : ''
+}
+
 const numberText = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('vi-VN') : '0'
+
+/**
+ * Base URL tuyệt đối của SPA (origin + thư mục đang phục vụ index.html).
+ * Hash routing nên pathname luôn trỏ về entry hiện tại — khớp homework-mgmt.js.
+ */
+function getAppBaseUrl() {
+  const { origin, pathname } = window.location
+  const path = (pathname || '/').replace(/\/index\.html?$/i, '/')
+  return `${origin}${path || '/'}`
+}
+
+/**
+ * Link bài tập dành cho học sinh (không phải link sửa/chi tiết của giáo viên):
+ * - Bài thi (EXAM): #exam-room?homeworkId=...
+ * - Loại khác: #homework-attempt?homeworkId=...
+ */
+function buildStudentHomeworkUrl(homeworkId, type) {
+  if (!homeworkId) return ''
+  const route = type === 'EXAM' ? 'exam-room' : 'homework-attempt'
+  return `${getAppBaseUrl()}#${route}?homeworkId=${encodeURIComponent(homeworkId)}`
+}
+
+// Copy text với fallback cho trình duyệt cũ / iframe không có quyền clipboard.
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch { /* Chuyển sang fallback bên dưới. */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch { return false }
+}
+
+const COPY_BUTTON_STYLE = 'width:auto;min-height:44px;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:8px;cursor:pointer;white-space:normal;text-align:left;'
+
+// Hai nút copy chỉ dành cho giáo viên ADMIN; dữ liệu lấy từ homework đang mở.
+function renderCopyActions(canCopy) {
+  if (!canCopy) return ''
+  return `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;padding-top:14px;border-top:1px dashed #cbd5e1;">
+      <button type="button" class="btn-secondary class-hw-copy-btn" data-copy-kind="link" aria-label="Sao chép link bài tập cho học sinh" title="Sao chép link bài tập cho học sinh" style="${COPY_BUTTON_STYLE}"><i class="fa-solid fa-link" aria-hidden="true"></i> Copy link bài tập</button>
+      <button type="button" class="btn-secondary class-hw-copy-btn" data-copy-kind="reminder" aria-label="Sao chép tin nhắn nhắc học sinh nộp bài" title="Sao chép tin nhắn nhắc học sinh nộp bài" style="${COPY_BUTTON_STYLE}"><i class="fa-solid fa-bell" aria-hidden="true"></i> Copy tin nhắn nhắc nộp bài</button>
+    </div>`
+}
 
 function parsePrompt(prompt) {
   let parsed = prompt && typeof prompt === 'object' ? prompt : null
@@ -109,7 +171,8 @@ function renderWrongQuestion(q, totalAttempts) {
 }
 
 /** Dữ liệu hiển thị chỉ lấy từ API đã giới hạn theo lớp + đúng bài tập. */
-export function renderClassHomeworkHistory(data, tab = 'submitted') {
+export function renderClassHomeworkHistory(data, tab = 'submitted', options = {}) {
+  const { homework = null, canCopy = false } = options
   const history = Array.isArray(data?.history) ? data.history : []
   const missing = Array.isArray(data?.unsubmittedStudents) ? data.unsubmittedStudents : []
   const wrong = Array.isArray(data?.wrongQuestionsSummary) ? data.wrongQuestionsSummary : []
@@ -142,6 +205,7 @@ export function renderClassHomeworkHistory(data, tab = 'submitted') {
         <span>Điểm TB: <strong>${numberText(stats.averageScore)}</strong></span>
         <span>Đạt: <strong>${numberText(stats.passRate)}%</strong></span>
       </div>
+      ${renderCopyActions(canCopy && Boolean(homework?.id))}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px;">
       ${[
@@ -180,16 +244,62 @@ export function openClassHomeworkHistoryModal(classId, homework) {
   let closed = false
   let result = null
   let tab = 'submitted'
+  let copying = false
   const root = () => document.querySelector(`[data-class-hw-history-token="${token}"]`)
+
+  // Tin nhắn nhắc nộp: dữ liệu thật từ homework + stats, không bịa số liệu.
+  const buildReminderText = url => {
+    const title = String(homework.title || '').trim()
+    if (!title || !url) return ''
+    const deadline = deadlineText(homework.deadline || result?.submissionStats?.deadline)
+    return `Nhắc nộp bài: ${title}.${deadline ? ` Hạn nộp: ${deadline}.` : ''} Link làm bài: ${url}`
+  }
+
+  const handleCopy = async kind => {
+    if (copying || (kind !== 'link' && kind !== 'reminder')) return
+    copying = true
+    try {
+      const url = buildStudentHomeworkUrl(homework.id, homework.type)
+      if (!url) {
+        showToast('Không tạo được link bài tập.', 'error')
+        return
+      }
+      const isLink = kind === 'link'
+      const text = isLink ? url : buildReminderText(url)
+      if (!text) {
+        showToast('Thiếu thông tin bài tập để sao chép.', 'error')
+        return
+      }
+      const ok = await copyTextToClipboard(text)
+      showToast(ok
+        ? (isLink ? 'Đã sao chép link bài tập. Gửi cho học sinh để làm bài.' : 'Đã sao chép tin nhắn nhắc nộp bài. Gửi cho học sinh chưa nộp.')
+        : 'Không sao chép được vào clipboard. Vui lòng thử lại.',
+      ok ? 'success' : 'error')
+    } catch {
+      showToast('Không sao chép được vào clipboard. Vui lòng thử lại.', 'error')
+    } finally {
+      copying = false
+    }
+  }
 
   const render = () => {
     const element = root()
     if (!element || !result || closed) return
-    element.innerHTML = renderClassHomeworkHistory(result, tab)
+    element.innerHTML = renderClassHomeworkHistory(result, tab, {
+      homework,
+      canCopy: state.user?.role === 'ADMIN',
+    })
     renderMath(element)
     element.querySelectorAll('.class-hw-history-tab').forEach(button => {
       button.onclick = () => { tab = button.dataset.tab; render() }
     })
+    // Event delegation: còn hiệu lực sau mỗi lần re-render theo tab.
+    element.onclick = event => {
+      const button = event.target?.closest?.('.class-hw-copy-btn')
+      if (!button || !element.contains(button)) return
+      event.preventDefault()
+      handleCopy(button.dataset.copyKind)
+    }
   }
 
   const load = async () => {

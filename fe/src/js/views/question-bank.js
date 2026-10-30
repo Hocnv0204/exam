@@ -3,6 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { MATRIX_TEMPLATE_LIMITS, sanitizeMatrixTemplate, parseMatrixTemplate, matrixScopePaths, reconcileMatrixTemplate, matrixTemplateStore } from '../utils/matrix-template.js'
 import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
 import { parseExamMarkdown, renderMath, renderMarkdown, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, compressImage } from '../utils/exam-parser.js'
 import { resolveBatchQuestionsTaxonomy, resolveSingleQuestion, normalizeTaxonomyText } from '../utils/qb-metadata-resolver.js'
@@ -3895,6 +3896,7 @@ async function openImportMarkdownModal() {
     const mc = parsedQuestions.filter(q => q.questionType === 'MULTIPLE_CHOICE').length
     const tf = parsedQuestions.filter(q => q.questionType === 'TRUE_FALSE').length
     const sa = parsedQuestions.filter(q => q.questionType === 'SHORT_ANSWER').length
+    const essay = parsedQuestions.filter(q => q.questionType === 'ESSAY').length
 
     const nb = parsedQuestions.filter(q => q.difficulty === 'NHAN_BIET').length
     const th = parsedQuestions.filter(q => q.difficulty === 'THONG_HIEU').length
@@ -3907,7 +3909,7 @@ async function openImportMarkdownModal() {
     document.getElementById('md-cnt-mc').textContent = `${mc} Trắc nghiệm`
     document.getElementById('md-cnt-tf').textContent = `${tf} Đúng/Sai`
     document.getElementById('md-cnt-sa').textContent = `${sa} Trả lời ngắn`
-    document.getElementById('md-cnt-total').textContent = `Tổng: ${parsedQuestions.length} câu`
+    document.getElementById('md-cnt-total').textContent = `Tổng: ${parsedQuestions.length} câu${essay ? ` · ${essay} Tự luận` : ''}`
 
     // Chẩn đoán khối hình (bbt/graph/geo3d) — lỗi thì chặn lưu, cảnh báo thì vẫn lưu
     const diagramIssues = collectDiagramIssuesFor(parsedQuestions)
@@ -4040,7 +4042,7 @@ async function openImportMarkdownModal() {
     let html = ''
     parsedQuestions.forEach((q, idx) => {
       const diag = validateQuestionDiagrams(q)
-      const typeLabel = q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : 'Trắc nghiệm')
+    const typeLabel = q.questionType === 'TRUE_FALSE' ? 'Đúng/Sai' : (q.questionType === 'SHORT_ANSWER' ? 'Trả lời ngắn' : (q.questionType === 'ESSAY' ? 'Tự luận' : 'Trắc nghiệm'))
       const displayNumber = q.questionNumber || idx + 1
       const isEditingSource = idx === activeSourceEditorIndex
 
@@ -4766,6 +4768,9 @@ async function openImportFromHomeworkModal() {
 // Modal 3: Tạo Đề thi ngẫu nhiên theo Ma trận
 // ========================================================
 async function openMatrixGeneratorModal() {
+  // Invariant: saved templates cannot change the generator's constantOnly: true
+  // scope contract. Only Constant taxonomy leaves can be restored below.
+  if (state.user?.role !== 'ADMIN' || !state.user?.id) return
   const modalContainer = document.getElementById('qb-modal-container')
   if (!modalContainer) return
 
@@ -4859,6 +4864,21 @@ async function openMatrixGeneratorModal() {
 
         <!-- Body with Tabs: Step 1 Matrix Config / Step 2 Preview -->
         <div id="matrix-gen-step1" style="padding:20px 24px; overflow-y:auto; flex:1;">
+          <section aria-label="Mẫu ma trận" style="padding:12px; margin-bottom:16px; border:1px solid #cbd5e1; border-radius:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <input id="matrix-template-name" aria-label="Tên mẫu ma trận" placeholder="Tên mẫu (tối đa 80 ký tự)" maxlength="80" style="flex:1; min-width:160px; padding:8px;" />
+              <button type="button" id="matrix-template-save" class="btn-secondary">Lưu mẫu</button>
+              <button type="button" id="matrix-template-export" class="btn-secondary">Xuất JSON</button>
+              <button type="button" id="matrix-template-import" class="btn-secondary">Nhập JSON</button>
+              <input type="file" id="matrix-template-file" accept=".json,application/json" hidden />
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+              <select id="matrix-template-list" aria-label="Mẫu đã lưu" style="flex:1; min-width:160px; padding:8px;"></select>
+              <button type="button" id="matrix-template-use" class="btn-secondary">Dùng mẫu</button>
+              <button type="button" id="matrix-template-delete" class="btn-secondary">Xóa mẫu</button>
+            </div>
+            <p id="matrix-template-status" role="status" style="font-size:12px; margin:8px 0 0; color:#475569;">Chỉ lưu cấu hình nguồn và ma trận trên trình duyệt này, riêng cho tài khoản admin; không lưu câu hỏi hay thông tin bài tập.</p>
+          </section>
           
           <!-- Scope Selection Box -->
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:18px;">
@@ -5251,7 +5271,13 @@ async function openMatrixGeneratorModal() {
     </div>
   `
 
-  const closeModal = () => { modalContainer.innerHTML = '' }
+   const matrixModal = document.getElementById('matrix-gen-backdrop')
+   const templateAdminId = state.user?.role === 'ADMIN' ? state.user.id : null
+   const isCurrentMatrixModal = () => matrixModal?.isConnected && document.getElementById('matrix-gen-backdrop') === matrixModal && state.user?.id === templateAdminId && state.user?.role === 'ADMIN'
+   let rollRequestId = 0
+   let rolling = false
+   let availabilityReady = false
+   const closeModal = () => { rollRequestId++; modalContainer.innerHTML = '' }
   document.getElementById('matrix-gen-close-btn')?.addEventListener('click', closeModal)
   document.getElementById('matrix-gen-cancel-btn')?.addEventListener('click', closeModal)
   document.getElementById('matrix-gen-backdrop')?.addEventListener('click', closeModal)
@@ -6188,6 +6214,7 @@ async function openMatrixGeneratorModal() {
   }
 
   const updateMatrixSum = () => {
+    clearMatrixPreview()
     const mc = Number(mcInput?.value) || 0
     const tf = Number(tfInput?.value) || 0
     const sa = Number(saInput?.value) || 0
@@ -6198,6 +6225,7 @@ async function openMatrixGeneratorModal() {
     if (pointsEl) pointsEl.textContent = points
     updateSubMatchStatuses()
     updateAvailBadgesAndAlerts(generatorState.availableStats || { mc: 0, tf: 0, sa: 0, total: 0 })
+    updateGenerateButton()
   }
 
   mcInput?.addEventListener('input', () => handleMainPartInput('mc'))
@@ -6330,9 +6358,161 @@ async function openMatrixGeneratorModal() {
   // Discard responses for earlier selections so a slow request cannot overwrite
   // the counts shown for the currently selected scope.
   let availabilityRequestId = 0
+  function clearMatrixPreview() {
+    rollRequestId++
+    rolling = false
+    generatorState.previewQuestions = []
+    generatorState.rejectedIds = []
+    generatorState.borrowAlerts = []
+    generatorState.currentScope = null
+    document.getElementById('preview-questions-container')?.replaceChildren()
+  }
+
+  function collectMatrixTemplate() {
+    const scope = {
+      scopeType: 'MULTI', gradeBlock: generatorState.gradeBlock,
+      classIds: [...generatorState.selectedClassIds], chapterIds: [...generatorState.selectedChapterIds],
+      lessonIds: [...generatorState.selectedLessonIds], typeIds: [...generatorState.selectedTypeIds]
+    }
+    scope.paths = matrixScopePaths(scope, constantTaxonomyState)
+    const matrix = Object.fromEntries(['mc', 'tf', 'sa'].map(part => [part, {
+      total: Number(document.getElementById(`gen-matrix-${part}`).value),
+      distribution: Object.fromEntries(['nb', 'th', 'vd', 'vdc'].map(d => [d, Number(document.getElementById(`gen-${part}-${d}`).value)]))
+    }]))
+    return sanitizeMatrixTemplate({ version: 1, name: document.getElementById('matrix-template-name').value.trim() || 'Ma trận', scope, matrix,
+      options: { advanced: advancedToggle.checked, borrow: document.getElementById('gen-matrix-borrow').checked, balanced: document.getElementById('gen-matrix-balanced').checked } })
+  }
+
+  function updateGenerateButton() {
+    const button = document.getElementById('btn-roll-preview')
+    if (!button || !isCurrentMatrixModal()) return
+    let valid = false
+    try { reconcileMatrixTemplate(collectMatrixTemplate(), constantTaxonomyState); valid = true } catch { /* incomplete form */ }
+    button.disabled = rolling || !availabilityReady || !valid || !(generatorState.availableStats?.total > 0)
+    button.style.width = 'auto'
+    if (!rolling) button.innerHTML = '<i class="fa-solid fa-dice"></i> Bốc ngẫu nhiên & Xem trước'
+  }
+
+  const templateStatus = document.getElementById('matrix-template-status')
+  const templateList = document.getElementById('matrix-template-list')
+  let templateImportRequestId = 0
+  const templateMessage = message => { if (isCurrentMatrixModal()) templateStatus.textContent = message }
+  const getTemplateStore = () => {
+    if (!isCurrentMatrixModal()) throw new Error('Phiên admin đã thay đổi. Vui lòng mở lại màn hình.')
+    let storage
+    try { storage = window.localStorage } catch { throw new Error('Bộ nhớ trình duyệt bị chặn; không thể lưu/nạp mẫu trên thiết bị này.') }
+    return matrixTemplateStore(storage, templateAdminId)
+  }
+  function refreshTemplateList() {
+    templateList.replaceChildren()
+    try {
+      const templates = getTemplateStore().read()
+      if (!templates.length) templateList.add(new Option('Chưa có mẫu đã lưu', ''))
+      templates.forEach(t => templateList.add(new Option(t.name, t.name)))
+      document.getElementById('matrix-template-use').disabled = !templates.length
+      document.getElementById('matrix-template-delete').disabled = !templates.length
+    } catch (err) {
+      templateList.add(new Option('Không đọc được kho mẫu', ''))
+      document.getElementById('matrix-template-use').disabled = true
+      document.getElementById('matrix-template-delete').disabled = true
+      templateMessage(err.message)
+    }
+  }
+  document.getElementById('matrix-template-save').addEventListener('click', () => {
+    try {
+      if (!document.getElementById('matrix-template-name').value.trim()) throw new Error('Vui lòng nhập tên mẫu.')
+      const template = reconcileMatrixTemplate(collectMatrixTemplate(), constantTaxonomyState)
+      getTemplateStore().save(template)
+      refreshTemplateList()
+      templateList.value = template.name
+      templateMessage('Đã lưu mẫu trên trình duyệt này. Không tạo bài tập.')
+    } catch (err) { templateMessage(err.message) }
+  })
+  document.getElementById('matrix-template-use').addEventListener('click', () => {
+    try {
+      const selected = getTemplateStore().read().find(t => t.name === templateList.value)
+      if (!selected) throw new Error('Chưa chọn mẫu.')
+      const template = reconcileMatrixTemplate(selected, constantTaxonomyState)
+      clearMatrixPreview()
+      generatorState.gradeBlock = template.scope.gradeBlock
+      scopeGradeBlockSel.value = template.scope.gradeBlock
+      // Only saved leaves are restored. Newly added children are NOT selected.
+      generatorState.selectedClassIds = []
+      generatorState.selectedChapterIds = []
+      generatorState.selectedLessonIds = template.scope.paths.filter(p => !p.typeId).map(p => p.lessonId)
+      generatorState.selectedTypeIds = template.scope.paths.filter(p => p.typeId).map(p => p.typeId)
+      recomputeParentSelections()
+      treeDataCache.expandedClasses.clear()
+      treeDataCache.expandedChapters.clear()
+      treeDataCache.expandedLessons.clear()
+      document.getElementById('matrix-template-name').value = template.name
+      for (const part of ['mc', 'tf', 'sa']) {
+        document.getElementById(`gen-matrix-${part}`).value = template.matrix[part].total
+        for (const d of ['nb', 'th', 'vd', 'vdc']) document.getElementById(`gen-${part}-${d}`).value = template.matrix[part].distribution[d]
+      }
+      advancedToggle.checked = template.options.advanced
+      document.querySelectorAll('.matrix-difficulty-subpanel').forEach(p => { p.style.display = template.options.advanced ? 'block' : 'none' })
+      document.getElementById('gen-matrix-borrow').checked = template.options.borrow
+      document.getElementById('gen-matrix-balanced').checked = template.options.balanced
+      availabilityReady = false
+      renderTreeForGradeBlock(generatorState.gradeBlock)
+      refreshTreeSelectionUI()
+      updateMatrixSum()
+      checkLiveAvailability()
+      templateMessage('Đã áp dụng đúng các mục nguồn đã lưu; đang kiểm tra lại số câu khả dụng. Không khôi phục tên bài tập/hạn nộp.')
+    } catch (err) { templateMessage(err.message) }
+  })
+  document.getElementById('matrix-template-delete').addEventListener('click', () => {
+    try {
+      const name = templateList.value
+      if (!name || !window.confirm(`Xóa mẫu “${name}” trên trình duyệt này?`)) return
+      getTemplateStore().remove(name)
+      refreshTemplateList()
+      templateMessage('Đã xóa mẫu.')
+    } catch (err) { templateMessage(err.message) }
+  })
+  document.getElementById('matrix-template-export').addEventListener('click', () => {
+    try {
+      if (!isCurrentMatrixModal()) return
+      const template = reconcileMatrixTemplate(collectMatrixTemplate(), constantTaxonomyState)
+      const url = URL.createObjectURL(new Blob([JSON.stringify(template)], { type: 'application/json' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'mau-ma-tran.json'
+      link.click()
+      URL.revokeObjectURL(url)
+      templateMessage('Đã xuất cấu hình hiện tại; không chứa câu hỏi, đáp án hay thông tin bài tập.')
+    } catch (err) { templateMessage(err.message) }
+  })
+  const templateFile = document.getElementById('matrix-template-file')
+  document.getElementById('matrix-template-import').addEventListener('click', () => templateFile.click())
+  templateFile.addEventListener('change', async () => {
+    const importRequestId = ++templateImportRequestId
+    const file = templateFile.files?.[0]
+    templateFile.value = ''
+    if (!file) return
+    try {
+      if (file.size > MATRIX_TEMPLATE_LIMITS.bytes) throw new Error('Tệp JSON vượt giới hạn 64 KB.')
+      templateMessage('Đang đọc và kiểm tra tệp mẫu...')
+      const text = await file.text()
+      if (!isCurrentMatrixModal() || importRequestId !== templateImportRequestId) return
+      const template = reconcileMatrixTemplate(parseMatrixTemplate(text), constantTaxonomyState)
+      getTemplateStore().save(template)
+      refreshTemplateList()
+      templateList.value = template.name
+      templateMessage('Đã nhập vào kho mẫu. Bấm Dùng mẫu để áp dụng; chưa thay đổi cấu hình hoặc tạo bài tập.')
+    } catch (err) { if (importRequestId === templateImportRequestId) templateMessage(err.message) }
+  })
+  refreshTemplateList()
+  for (const input of [advancedToggle, document.getElementById('gen-matrix-borrow'), document.getElementById('gen-matrix-balanced')]) {
+    input.addEventListener('change', () => { clearMatrixPreview(); updateGenerateButton() })
+  }
   // Live availability function (supports both QUICK and MULTI mode)
   async function checkLiveAvailability() {
     const requestId = ++availabilityRequestId
+    clearMatrixPreview()
+    availabilityReady = false
+    updateGenerateButton()
     try {
       const hasSelection = hasScopeSelection()
 
@@ -6362,12 +6542,14 @@ async function openMatrixGeneratorModal() {
       }
 
       const res = await api.checkQuestionBankAvailability(params)
-      if (requestId === availabilityRequestId && document.getElementById('matrix-gen-backdrop') && res) {
+      if (requestId === availabilityRequestId && isCurrentMatrixModal() && res) {
         generatorState.availableStats = res
+        availabilityReady = true
         updateAvailBadgesAndAlerts(res)
+        updateGenerateButton()
       }
     } catch (e) {
-      if (requestId === availabilityRequestId && document.getElementById('matrix-gen-backdrop')) {
+      if (requestId === availabilityRequestId && isCurrentMatrixModal()) {
         generatorState.availableStats = { mc: 0, tf: 0, sa: 0, total: 0, byTypeAndDifficulty: {} }
         updateAvailBadgesAndAlerts(generatorState.availableStats)
         const totalEl = document.getElementById('avail-total')
@@ -6393,6 +6575,9 @@ async function openMatrixGeneratorModal() {
   const step2 = document.getElementById('matrix-gen-step2')
 
   btnRollPreview?.addEventListener('click', async () => {
+    if (!isCurrentMatrixModal() || rolling || !availabilityReady || btnRollPreview.disabled) return
+    try { reconcileMatrixTemplate(collectMatrixTemplate(), constantTaxonomyState) } catch (err) { return showToast(err.message, 'warning') }
+    const rollId = ++rollRequestId
     const hasAnySelection = hasScopeSelection()
     if (!hasAnySelection) {
       return showToast('Vui lòng chọn ít nhất một Lớp học, Chương học, Bài học hoặc Dạng bài trong cây phân cấp!', 'warning')
@@ -6423,6 +6608,7 @@ async function openMatrixGeneratorModal() {
     }
 
     btnRollPreview.disabled = true
+    rolling = true
     btnRollPreview.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang bốc câu...'
     generatorState.rejectedIds = []
 
@@ -6488,6 +6674,8 @@ async function openMatrixGeneratorModal() {
         previewOnly: true
       })
 
+      if (!isCurrentMatrixModal() || rollId !== rollRequestId) return
+
       generatorState.previewQuestions = res.previewQuestions || []
       generatorState.borrowAlerts = res.borrowAlerts || []
 
@@ -6521,10 +6709,12 @@ async function openMatrixGeneratorModal() {
 
       renderPreviewQuestionsList()
     } catch (err) {
-      showToast('Lỗi khi bốc đề: ' + err.message, 'error')
+      if (isCurrentMatrixModal() && rollId === rollRequestId) showToast('Lỗi khi bốc đề: ' + err.message, 'error')
     } finally {
-      btnRollPreview.disabled = false
-      btnRollPreview.innerHTML = '<i class="fa-solid fa-dice"></i> Bốc ngẫu nhiên & Xem trước'
+      if (isCurrentMatrixModal() && rollId === rollRequestId) {
+        rolling = false
+        updateGenerateButton()
+      }
     }
   })
 

@@ -1,0 +1,1137 @@
+/* =========================================================================
+   Theme Admin Analytics & Reviews (theme-admin-analytics.css)
+   -------------------------------------------------------------------------
+   Chuyển các admin light islands còn sót sang giao diện navy:
+   1) Admin Dashboard: Chart cards (.dash-chart-card), canvas container và
+      Chart.js labels / grid / legend trên nền navy;
+   2) Student Report khi ADMIN xem (.app-layout.admin-dark[data-route="student-report"]):
+      hero banner, share panel, KPI cards, trend comparison, chart wrap, topic
+      breakdown, bảng lượt nộp, loading / error / empty states;
+      Báo cáo chia sẻ công khai (#shared-report / .public-report-layout) và
+      báo cáo khi HỌC SINH xem (role STUDENT, không có .admin-dark) giữ nguyên
+      giao diện sáng 100%;
+   3) Assignment Review khi ADMIN xem (.app-layout.admin-dark[data-route="assignment-review"]):
+      header actions, summary banner card, nhật ký vi phạm (#exam-logs-container),
+      nhật ký cộng điểm (#question-award-logs-container), question cards, options
+      (trắc nghiệm, đúng/sai, trả lời ngắn), lời giải chi tiết, navigator sidebar;
+      PDF viewer pane / iframe / canvas mockup giữ nguyên nền sáng chữ tối;
+      học sinh và người học thử (trial) giữ nguyên hành vi hiện tại.
+   ========================================================================= */
+
+/* =========================================================================
+   0. Biến màu dùng chung cho các vùng Analytics & Review
+   ========================================================================= */
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"],
+  .app-layout.admin-dark[data-route="student-report"],
+  .app-layout.admin-dark[data-route="assignment-review"]
+) {
+  --adm-bg: #111827;
+  --adm-surface: #1f2937;
+  --adm-surface-soft: #243244;
+  --adm-surface-strong: #182335;
+  --adm-border: #334155;
+  --adm-border-hover: #475569;
+  --adm-text: #f8fafc;
+  --adm-text-muted: #cbd5e1;
+  --adm-text-dim: #94a3b8;
+  --adm-accent: #38bdf8;
+  --adm-accent-soft: #7dd3fc;
+  --adm-accent-glow: rgba(56, 189, 248, 0.25);
+  --adm-card-shadow: 0 10px 26px rgba(2, 6, 23, 0.35);
+}
+
+/* =========================================================================
+   1. ADMIN DASHBOARD: Chart Cards & Containers
+   ========================================================================= */
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card {
+  background: var(--adm-surface) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 16px !important;
+  color: var(--adm-text-muted) !important;
+  box-shadow: var(--adm-card-shadow) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card:hover {
+  border-color: var(--adm-border-hover) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card .dash-chart-title {
+  color: var(--adm-text) !important;
+  font-weight: 700 !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card .dash-chart-desc {
+  color: var(--adm-text-dim) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-header [style*="font-size:12px"],
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-header [style*="font-size: 12px"] {
+  color: var(--adm-text-muted) !important;
+}
+
+/* Canvas biểu đồ: nền navy đồng bộ thẻ card */
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card canvas {
+  background: var(--adm-surface) !important;
+  border-radius: 8px;
+}
+
+/* Khối mini stats bên dưới biểu đồ tỷ lệ thu học phí */
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card [style*="border-top:1px solid #f1f5f9"],
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card [style*="border-top: 1px solid #f1f5f9"] {
+  border-top-color: var(--adm-border) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card [style*="width:1px; background:#e2e8f0"],
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card [style*="width: 1px; background: #e2e8f0"] {
+  background: var(--adm-border) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card [style*="color:#64748b"],
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .dash-chart-card [style*="color: #64748b"] {
+  color: var(--adm-text-dim) !important;
+}
+
+/* Thanh bộ lọc và bảng chi tiết điểm danh / học phí */
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card [style*="background:#f8fafc"],
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card [style*="background: #f8fafc"] {
+  background: var(--adm-surface-strong) !important;
+  border-color: var(--adm-border) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card :is(input.form-input, select.form-input) {
+  background: #0f172a !important;
+  color: var(--adm-text) !important;
+  border-color: var(--adm-border) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card select.form-input option {
+  background: var(--adm-surface);
+  color: var(--adm-text);
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card #dash-stu-pagination {
+  border-top-color: var(--adm-border) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card .data-table thead th {
+  background: var(--adm-surface-strong) !important;
+  color: var(--adm-text-muted) !important;
+  border-bottom-color: var(--adm-border) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card .data-table td {
+  border-bottom-color: var(--adm-surface-soft) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card .data-table td [style*="color:#0f172a"] {
+  color: var(--adm-text) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card .data-table td [style*="color:#334155"] {
+  color: var(--adm-text-muted) !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card .data-table td [style*="color:#3730a3"] {
+  color: #a5b4fc !important;
+}
+
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card [style*="background:#e2e8f0; height:8px"],
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"]
+) .content-body .card [style*="background: #e2e8f0; height: 8px"] {
+  background: var(--adm-border) !important;
+}
+
+/* =========================================================================
+   2. STUDENT REPORT: Khi ADMIN xem (#student-report)
+   ========================================================================= */
+.app-layout.admin-dark[data-route="student-report"] .content-body {
+  background: var(--adm-bg) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+/* Hero Section */
+.app-layout.admin-dark[data-route="student-report"] .report-hero {
+  background: linear-gradient(135deg, var(--adm-surface) 0%, var(--adm-surface-strong) 100%) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--adm-card-shadow) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-hero-title {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-hero-meta {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-hero-meta i {
+  color: var(--adm-accent) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-hero-badge.report-trend-chip--improving {
+  background: rgba(16, 185, 129, 0.18) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-hero-badge.report-trend-chip--declining {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-hero-badge.report-trend-chip--stable {
+  background: rgba(148, 163, 184, 0.15) !important;
+  color: var(--adm-text-muted) !important;
+  border: 1px solid var(--adm-border) !important;
+}
+
+/* Share Panel (Chỉ ADMIN thấy) */
+.app-layout.admin-dark[data-route="student-report"] .report-share-panel {
+  background: var(--adm-surface-strong) !important;
+  border: 1px dashed var(--adm-accent) !important;
+  border-radius: 16px !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-desc {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-expiry label {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-expiry .form-input,
+.app-layout.admin-dark[data-route="student-report"] .report-share-link-input {
+  background: #0f172a !important;
+  color: var(--adm-text) !important;
+  border: 1px solid var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-expiry .form-input option {
+  background: var(--adm-surface);
+  color: var(--adm-text);
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-status {
+  color: var(--adm-accent-soft) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-status--error {
+  color: #f87171 !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-status--success {
+  color: #34d399 !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-created-title {
+  color: #34d399 !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-list-title {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-list-msg,
+.app-layout.admin-dark[data-route="student-report"] .report-share-hint {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-item {
+  background: var(--adm-bg) !important;
+  border: 1px solid var(--adm-border) !important;
+  color: var(--adm-text-muted) !important;
+  border-radius: 10px;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-share-item--empty {
+  color: var(--adm-text-dim) !important;
+  background: transparent !important;
+  border-style: dashed !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] #report-share-qr-img {
+  background: #ffffff !important;
+  padding: 6px;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 8px;
+}
+
+/* Sections generic */
+.app-layout.admin-dark[data-route="student-report"] .report-section {
+  background: var(--adm-surface) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--adm-card-shadow) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-section-title {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-section-title i {
+  color: var(--adm-accent) !important;
+}
+
+/* KPI Cards */
+.app-layout.admin-dark[data-route="student-report"] .report-kpi {
+  background: var(--adm-bg) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 12px !important;
+  color: var(--adm-text-muted) !important;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.25) !important;
+  transition: border-color 0.2s ease;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi:hover {
+  border-color: var(--adm-border-hover) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi-label {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi-value {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi-sub {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi--blue .report-kpi-icon {
+  background: rgba(2, 132, 199, 0.2) !important;
+  color: var(--adm-accent) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi--green .report-kpi-icon {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi--amber .report-kpi-icon {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #fbbf24 !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-kpi--rose .report-kpi-icon {
+  background: rgba(244, 63, 94, 0.2) !important;
+  color: #fb7185 !important;
+}
+
+/* Trend comparison block */
+.app-layout.admin-dark[data-route="student-report"] .report-trend-chip--improving {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-trend-chip--declining {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-trend-chip--stable {
+  background: rgba(148, 163, 184, 0.15) !important;
+  color: var(--adm-text-muted) !important;
+  border: 1px solid var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-trend-row {
+  background: var(--adm-bg) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 10px;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-trend-row-label {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-half-val {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-trend-row-vals i {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-delta--up {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-delta--down {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Score Trend Chart Section */
+.app-layout.admin-dark[data-route="student-report"] .report-chart-legend {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-chart-legend > span {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-dot {
+  border: 2px solid var(--adm-surface) !important;
+  box-shadow: 0 0 0 1px var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-chart-wrap canvas {
+  background: var(--adm-surface-strong) !important;
+  border-radius: 10px;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-chart-note {
+  color: var(--adm-text-dim) !important;
+}
+
+/* Topic Breakdown */
+.app-layout.admin-dark[data-route="student-report"] .report-topic-row {
+  background: var(--adm-bg) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 12px;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-topic-head strong {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-topic-head span {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-topic-bar-track {
+  background: var(--adm-surface-soft) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-topic-foot {
+  color: var(--adm-text-dim) !important;
+}
+
+/* Submissions Table */
+.app-layout.admin-dark[data-route="student-report"] .report-table-responsive {
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 12px;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-table thead tr {
+  background: var(--adm-surface-strong) !important;
+  border-bottom: 1px solid var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-table th {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-table td {
+  border-bottom: 1px solid var(--adm-surface-soft) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-td-title strong {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-td-meta {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-muted {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-badge--best {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-badge--late {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-badge--bonus {
+  background: rgba(56, 189, 248, 0.2) !important;
+  color: var(--adm-accent) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-badge--pass {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-badge--fail {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
+}
+
+/* Loading / Error / Empty States */
+.app-layout.admin-dark[data-route="student-report"] .report-state-box {
+  background: var(--adm-surface) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--adm-card-shadow) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-state-box.report-state-error {
+  background: var(--adm-surface) !important;
+  border-color: #ef4444 !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-state-title {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-state-desc {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-empty-banner {
+  background: rgba(2, 132, 199, 0.18) !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  color: var(--adm-accent-soft) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .report-empty-inline {
+  color: var(--adm-text-dim) !important;
+}
+
+/* Nút quay lại đầu trang báo cáo */
+.app-layout.admin-dark[data-route="student-report"] .content-body a.btn-secondary {
+  background: var(--adm-surface) !important;
+  border: 1px solid var(--adm-border) !important;
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="student-report"] .content-body a.btn-secondary:hover {
+  border-color: var(--adm-accent) !important;
+}
+
+/* =========================================================================
+   3. ASSIGNMENT REVIEW: Khi ADMIN xem (#assignment-review)
+   ========================================================================= */
+.app-layout.admin-dark[data-route="assignment-review"] .content-body {
+  background: var(--adm-bg) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+/* Header & Action buttons */
+.app-layout.admin-dark[data-route="assignment-review"] .page-header .page-title {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .page-header .page-description {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #view-exam-logs-btn {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  color: #f87171 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #view-exam-logs-btn:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #download-pdf-btn,
+.app-layout.admin-dark[data-route="assignment-review"] .page-header .btn-secondary {
+  background: var(--adm-surface) !important;
+  border: 1px solid var(--adm-border) !important;
+  color: var(--adm-text) !important;
+}
+
+/* Summary / Overview Banner Card */
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card.card {
+  background: linear-gradient(135deg, var(--adm-surface) 0%, var(--adm-surface-strong) 100%) !important;
+  border: 1px solid var(--adm-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--adm-card-shadow) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="color:#0f172a"],
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="color: #0f172a"] {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="color:#64748b"],
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="color: #64748b"] {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="height:1px; background:#e2e8f0"],
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="height: 1px; background: #e2e8f0"] {
+  background: var(--adm-border) !important;
+}
+
+/* Các ô điểm thành phần theo dạng câu */
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="background:#f8fafc"],
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="background: #f8fafc"] {
+  background: var(--adm-bg) !important;
+  border-color: var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="color:#1e293b"],
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="color: #1e293b"] {
+  color: var(--adm-text) !important;
+}
+
+/* Khối Đúng / Sai trong banner */
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="background:#fafafa"],
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="background: #fafafa"] {
+  background: var(--adm-bg) !important;
+  border-color: var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="background:#e5e5e5"],
+.app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card [style*="background: #e5e5e5"] {
+  background: var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #review-total-score {
+  color: var(--adm-accent) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #review-total-score span {
+  color: var(--adm-accent-soft) !important;
+}
+
+/* Compact summary bar (khi mở chế độ split PDF) */
+.app-layout.admin-dark[data-route="assignment-review"] .review-compact-summary {
+  background: var(--adm-surface) !important;
+  border: 1px solid var(--adm-border) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-compact-summary [style*="color: #64748b"] {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #review-compact-total-score {
+  color: var(--adm-accent) !important;
+}
+
+/* Khối nhật ký giám sát vi phạm (#exam-logs-container) */
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="background:#fef2f2"],
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="background: #fef2f2"] {
+  background: var(--adm-surface) !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  border-radius: 12px;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container h4 {
+  color: #f87171 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="background:#fee2e2"],
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="background: #fee2e2"] {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #fca5a5 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="background:#ffffff"],
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="background: #ffffff"] {
+  background: var(--adm-bg) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="color:#64748b"],
+.app-layout.admin-dark[data-route="assignment-review"] #exam-logs-container [style*="color: #64748b"] {
+  color: var(--adm-text-dim) !important;
+}
+
+/* Khối nhật ký cộng điểm theo câu (#question-award-logs-container) */
+.app-layout.admin-dark[data-route="assignment-review"] .question-award-logs-section {
+  background: var(--adm-surface) !important;
+  border: 1px dashed #f59e0b !important;
+  border-radius: 10px;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .question-award-logs-section [style*="color:#b45309"],
+.app-layout.admin-dark[data-route="assignment-review"] .question-award-logs-section [style*="color: #b45309"] {
+  color: #fbbf24 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .question-award-log-items [style*="background:#fef3c7"],
+.app-layout.admin-dark[data-route="assignment-review"] .question-award-log-items [style*="background: #fef3c7"] {
+  background: var(--adm-bg) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  color: #fde68a !important;
+}
+
+/* Tiêu đề phân phần câu hỏi (Section Headers: Phần I, II, III) */
+.app-layout.admin-dark[data-route="assignment-review"] .review-section-header {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.25) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-section-header[style*="linear-gradient(135deg, #eff6ff"] {
+  background: linear-gradient(135deg, var(--adm-surface) 0%, #1e3a8a 100%) !important;
+  border: 1.5px solid #3b82f6 !important;
+  color: #93c5fd !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-section-header[style*="linear-gradient(135deg, #f0fdf4"] {
+  background: linear-gradient(135deg, var(--adm-surface) 0%, #064e3b 100%) !important;
+  border: 1.5px solid #10b981 !important;
+  color: #6ee7b7 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-section-header[style*="linear-gradient(135deg, #fefce8"] {
+  background: linear-gradient(135deg, var(--adm-surface) 0%, #78350f 100%) !important;
+  border: 1.5px solid #f59e0b !important;
+  color: #fde68a !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-section-header [style*="background:#ffffff"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-section-header [style*="background: #ffffff"] {
+  background: #0f172a !important;
+}
+
+/* Thẻ câu hỏi (Question Cards) */
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card {
+  background: var(--adm-surface) !important;
+  border-color: var(--adm-border) !important;
+  box-shadow: var(--adm-card-shadow) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .interactive-prompt-text,
+.app-layout.admin-dark[data-route="assignment-review"] .question-prompt-text {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color:#0f172a"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color: #0f172a"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color:#1e293b"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color: #1e293b"] {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color:#334155"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color: #334155"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color:#475569"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color: #475569"] {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color:#64748b"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="color: #64748b"] {
+  color: var(--adm-text-dim) !important;
+}
+
+/* Các phương án Trắc nghiệm (Multiple Choice options) */
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="border:1.5px solid #e2e8f0"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="border: 1.5px solid #e2e8f0"] {
+  background: var(--adm-bg) !important;
+  border-color: var(--adm-border) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background:#ffffff"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background: #ffffff"] {
+  background: var(--adm-bg) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background:#f0fdf4"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background: #f0fdf4"] {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: #10b981 !important;
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background:#fef2f2"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background: #fef2f2"] {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: #ef4444 !important;
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background:#f1f5f9"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="background: #f1f5f9"] {
+  background: var(--adm-border) !important;
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="border-top:1px dashed"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-question-card [style*="border-top: 1px dashed"] {
+  border-top-color: var(--adm-border) !important;
+}
+
+/* Khối Lời giải chi tiết (Solutions & Explanation) */
+.app-layout.admin-dark[data-route="assignment-review"] .solution-explanation-box.review-explanation-card {
+  background: var(--adm-surface-strong) !important;
+  border: 1px solid #1e3a8a !important;
+  border-left: 4px solid var(--adm-accent) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .solution-explanation-box [style*="color:#1d4ed8"],
+.app-layout.admin-dark[data-route="assignment-review"] .solution-explanation-box [style*="color: #1d4ed8"] {
+  color: var(--adm-accent) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .solution-explanation-box .explanation-content,
+.app-layout.admin-dark[data-route="assignment-review"] .solution-explanation-box .explanation-text {
+  color: var(--adm-text-muted) !important;
+}
+
+/* Sơ đồ câu hỏi (Navigator Sidebar) */
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card {
+  background: var(--adm-surface) !important;
+  border: 1px solid var(--adm-border) !important;
+  box-shadow: var(--adm-card-shadow) !important;
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card h3 {
+  color: var(--adm-text) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card h3 i {
+  color: var(--adm-accent) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card [style*="background:#f1f5f9"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card [style*="background: #f1f5f9"] {
+  background: var(--adm-bg) !important;
+  color: var(--adm-text-dim) !important;
+  border: 1px solid var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card [style*="color:#475569"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card [style*="color: #475569"] {
+  color: var(--adm-text-muted) !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card [style*="border-top:1px solid #f1f5f9"],
+.app-layout.admin-dark[data-route="assignment-review"] .review-navigator-card [style*="border-top: 1px solid #f1f5f9"] {
+  border-top-color: var(--adm-border) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+/* Các ô số câu trong sơ đồ điều hướng */
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background:#dcfce7"],
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background: #dcfce7"] {
+  background: rgba(16, 185, 129, 0.22) !important;
+  color: #34d399 !important;
+  border-color: #10b981 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background:#fee2e2"],
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background: #fee2e2"] {
+  background: rgba(239, 68, 68, 0.22) !important;
+  color: #f87171 !important;
+  border-color: #ef4444 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background:#fef3c7"],
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background: #fef3c7"] {
+  background: rgba(245, 158, 11, 0.22) !important;
+  color: #fbbf24 !important;
+  border-color: #f59e0b !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.15);
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Scrollbar thanh điều hướng sticky */
+.app-layout.admin-dark[data-route="assignment-review"] .review-sidebar-col {
+  scrollbar-color: var(--adm-border) transparent;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-sidebar-col::-webkit-scrollbar-thumb {
+  background: var(--adm-border);
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .review-sidebar-col::-webkit-scrollbar-thumb:hover {
+  background: var(--adm-border-hover);
+}
+
+/* =========================================================================
+   4. PDF VIEWER & IFRAME: BẮT BUỘC GIỮ NỀN SÁNG CHỮ TỐI (LIGHT ISLAND)
+   ========================================================================= */
+.app-layout.admin-dark[data-route="assignment-review"] #pdf-preview-pane,
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-viewer-container,
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-iframe-wrapper,
+.app-layout.admin-dark[data-route="assignment-review"] #pdf-canvas-container,
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-page-mockup {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  color-scheme: light !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-toolbar {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-toolbar * {
+  color: #0f172a !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-utility-bar,
+.app-layout.admin-dark[data-route="assignment-review"] #pdf-canvas-container [style*="background:#f8fafc"] {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  color-scheme: light !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-toolbar i.fa-file-pdf {
+  color: #ef4444 !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-page-mockup {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] .pdf-page-canvas {
+  background: #ffffff !important;
+  color-scheme: light !important;
+}
+
+.app-layout.admin-dark[data-route="assignment-review"] iframe {
+  background: #ffffff !important;
+  color-scheme: light !important;
+}
+
+/* =========================================================================
+   5. FOCUS RINGS & PREFERS-REDUCED-MOTION
+   ========================================================================= */
+:is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout[data-route="admin-dashboard"],
+  .app-layout.admin-dark[data-route="student-report"],
+  .app-layout.admin-dark[data-route="assignment-review"]
+) :is(button, a, input, select, textarea, [tabindex], .nav-grid-item):focus-visible {
+  outline: 3px solid var(--adm-accent) !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(
+    .app-layout.admin-dark[data-route="admin-dashboard"],
+    .app-layout[data-route="admin-dashboard"],
+    .app-layout.admin-dark[data-route="student-report"],
+    .app-layout.admin-dark[data-route="assignment-review"]
+  ) * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================================
+   6. RESPONSIVE PATTERNS (360px, 390px, 768px, 1024px, 1440px)
+   ========================================================================= */
+@media (max-width: 1024px) {
+  .app-layout.admin-dark[data-route="student-report"] .report-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout.admin-dark[data-route="student-report"] .report-hero {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .app-layout.admin-dark[data-route="student-report"] .report-trend-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] #review-layout-wrapper {
+    grid-template-columns: 1fr !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] #questions-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] #questions-grid > div:first-child {
+    grid-column: 1 / -1 !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] .review-sidebar-col {
+    position: static !important;
+    max-height: none !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] .pdf-controls-slot {
+    flex: 1 1 auto !important;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] .pdf-utility-bar button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-layout.admin-dark[data-route="student-report"] .report-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .app-layout.admin-dark[data-route="student-report"] .report-share-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] #overview-banner-card {
+    padding: 16px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .app-layout.admin-dark[data-route="student-report"] .content-body,
+  .app-layout.admin-dark[data-route="assignment-review"] .content-body,
+  :is(.app-layout.admin-dark[data-route="admin-dashboard"], .app-layout[data-route="admin-dashboard"]) .content-body {
+    padding: 12px 10px !important;
+    margin: 8px 4px !important;
+    border-radius: 12px !important;
+  }
+
+  .app-layout.admin-dark[data-route="student-report"] .report-hero-title {
+    font-size: 18px !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] .page-header .page-title {
+    font-size: 18px !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 12px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .app-layout.admin-dark[data-route="student-report"] .content-body,
+  .app-layout.admin-dark[data-route="assignment-review"] .content-body,
+  :is(.app-layout.admin-dark[data-route="admin-dashboard"], .app-layout[data-route="admin-dashboard"]) .content-body {
+    padding: 8px 6px !important;
+    margin: 4px 2px !important;
+  }
+
+  .app-layout.admin-dark[data-route="assignment-review"] .question-nav-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}

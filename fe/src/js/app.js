@@ -24,8 +24,33 @@ import { renderExamRoomView, bindExamRoomEvents } from './views/exam-room.js'
 import { renderExamProctoringView, bindExamProctoringEvents } from './views/exam-proctoring.js'
 import { renderTuitionLedgerView, bindTuitionLedgerEvents } from './views/tuition-ledger.js'
 import { renderActivityLogsView, bindActivityLogsEvents } from './views/activity-logs.js'
+import { renderWeeklyCalendarView, bindWeeklyCalendarEvents } from './views/weekly-calendar.js'
+import { renderQuestionAppealsView, bindQuestionAppealsEvents } from './views/question-appeals.js'
 import { showTrialRegistrationModal } from './components/modal.js'
 import { sortClassChaptersLessons } from './utils/student-lesson-sort.js'
+
+// Admin routes whose legacy light markup is re-themed to navy by the admin themes.
+// Public/student report and grading surfaces remain unchanged because the class is role-gated.
+const adminDarkRoutes = new Set([
+  'admin-dashboard',
+  'students',
+  'grade-blocks',
+  'classes-admin',
+  'curriculum',
+  'create-homework',
+  'admin-history',
+  'homework-mgmt',
+  'question-bank',
+  'question-appeals',
+  'exam-proctoring',
+  'tuition-ledger',
+  'activity-logs',
+  'trial-management',
+  'class-details',
+  'student-details',
+  'student-report',
+  'assignment-review'
+])
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
@@ -36,6 +61,8 @@ const routes = {
   'roadmap-11': { render: renderTrialView, bind: bindTrialEvents },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
   'my-homeworks': { render: renderMyHomeworksView, bind: bindMyHomeworksEvents },
+  'weekly-calendar': { render: renderWeeklyCalendarView, bind: bindWeeklyCalendarEvents },
+  'question-appeals': { render: renderQuestionAppealsView, bind: bindQuestionAppealsEvents },
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
   'create-homework': { render: renderCreateHwView, bind: bindCreateHwEvents },
@@ -134,7 +161,7 @@ async function router() {
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user && !isPublicSharedReport) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'question-appeals', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management']
     const studentOnlyRoutes = ['my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
@@ -427,13 +454,18 @@ async function router() {
   const app = document.getElementById('app')
   if (app) {
     app.innerHTML = route.render()
-    route.bind()
-
-    // Auto-hide sidebar on entering all pages
+    // Keep desktop navigation visible; start with a closed drawer on touch widths.
     const layout = app.querySelector('.app-layout')
     if (layout) {
-      layout.classList.add('sidebar-collapsed')
+      layout.dataset.route = hash
+      layout.dataset.role = state.user?.role || 'GUEST'
+      layout.classList.toggle('admin-dark', state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash))
+      if (window.innerWidth <= 1024) layout.classList.add('sidebar-collapsed')
+      const toggle = layout.querySelector('#sidebar-toggle-btn')
+      toggle?.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))
+      toggle?.setAttribute('aria-label', layout.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
     }
+    route.bind()
   }
 }
 
@@ -447,6 +479,8 @@ document.addEventListener('click', (e) => {
     const layout = document.querySelector('.app-layout')
     if (layout) {
       layout.classList.toggle('sidebar-collapsed')
+      toggleBtn.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))
+      toggleBtn.setAttribute('aria-label', layout.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
     }
     return
   }
@@ -457,6 +491,7 @@ document.addEventListener('click', (e) => {
     const layout = document.querySelector('.app-layout')
     if (layout) {
       layout.classList.add('sidebar-collapsed')
+      document.getElementById('sidebar-toggle-btn')?.setAttribute('aria-expanded', 'false')
     }
     return
   }
@@ -468,7 +503,19 @@ document.addEventListener('click', (e) => {
     if (layout && !layout.classList.contains('sidebar-collapsed') && sidebar) {
       if (!sidebar.contains(e.target) && !e.target.closest('#sidebar-toggle-btn')) {
         layout.classList.add('sidebar-collapsed')
+        document.getElementById('sidebar-toggle-btn')?.setAttribute('aria-expanded', 'false')
       }
     }
+  }
+})
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || window.innerWidth > 1024) return
+  const layout = document.querySelector('.app-layout')
+  if (layout && !layout.classList.contains('sidebar-collapsed')) {
+    layout.classList.add('sidebar-collapsed')
+    const toggle = document.getElementById('sidebar-toggle-btn')
+    toggle?.setAttribute('aria-expanded', 'false')
+    toggle?.focus()
   }
 })

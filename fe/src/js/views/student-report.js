@@ -638,7 +638,8 @@ function trendXLabel(a, idx) {
 // - Chống che nhau: giữ nhãn của điểm best trước, rồi đến các lượt thường theo thứ tự thời
 //   gian; nhãn chồng lên nhãn đã giữ thì thử lật vị trí, vẫn chồng thì bỏ qua (giá trị vẫn
 //   xem được qua tooltip và bảng lượt nộp).
-// - Pill nền trắng mờ + chữ đậm slate-900: đọc được cả trên cột xanh nhạt lẫn đường nét đứt.
+// - Pill đổi palette theo workspace: admin navy dùng nền slate/chữ sáng; báo cáo
+//   public và học sinh vẫn dùng nền trắng/chữ tối như trước.
 // - HiDPI: Chart.js đã scale context theo devicePixelRatio nên plugin vẽ bằng tọa độ chart
 //   là nét trên màn Retina; font-family lấy từ canvas để đồng bộ font của app.
 const reportDataLabelsPlugin = {
@@ -648,6 +649,7 @@ const reportDataLabelsPlugin = {
     if (!lineMeta || !lineMeta.data || !lineMeta.data.length) return
     const { ctx, chartArea } = chart
     if (!chartArea) return
+    const palette = reportChartPalette(chart.canvas)
     const lineData = chart.data.datasets[1]?.data || []
     const bestFlags = chart.data.datasets[1]?.reportBestFlags || []
 
@@ -723,15 +725,47 @@ const reportDataLabelsPlugin = {
         ctx.quadraticCurveTo(left, top, left + r, top)
         ctx.closePath()
       }
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+      ctx.fillStyle = palette.labelBackground
       ctx.fill()
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.45)'
+      ctx.strokeStyle = palette.labelBorder
       ctx.lineWidth = 1
       ctx.stroke()
-      ctx.fillStyle = '#0f172a'
+      ctx.fillStyle = palette.labelText
       ctx.fillText(k.text, cx, cy + 0.5)
     }
     ctx.restore()
+  }
+}
+
+function reportChartPalette(canvas) {
+  const isAdminDark = Boolean(canvas?.closest('.app-layout.admin-dark[data-route="student-report"]'))
+  if (!isAdminDark) {
+    return {
+      text: '#64748b',
+      legend: '#475569',
+      grid: '#f1f5f9',
+      line: 'rgba(100, 116, 139, 0.55)',
+      pointBorder: '#ffffff',
+      labelBackground: 'rgba(255, 255, 255, 0.92)',
+      labelBorder: 'rgba(100, 116, 139, 0.45)',
+      labelText: '#0f172a',
+      tooltipBackground: 'rgba(15, 23, 42, 0.94)',
+      tooltipText: '#ffffff',
+      tooltipBorder: 'rgba(148, 163, 184, 0.4)'
+    }
+  }
+  return {
+    text: '#cbd5e1',
+    legend: '#e2e8f0',
+    grid: 'rgba(148, 163, 184, 0.18)',
+    line: 'rgba(125, 211, 252, 0.72)',
+    pointBorder: '#1f2937',
+    labelBackground: 'rgba(30, 41, 59, 0.96)',
+    labelBorder: 'rgba(125, 211, 252, 0.55)',
+    labelText: '#f8fafc',
+    tooltipBackground: 'rgba(15, 23, 42, 0.98)',
+    tooltipText: '#f8fafc',
+    tooltipBorder: 'rgba(56, 189, 248, 0.5)'
   }
 }
 
@@ -743,6 +777,7 @@ function renderScoreTrendChart(scoreTrend) {
     try { oldChart.destroy() } catch (e) {}
   }
   reportChartInstance = null
+  const palette = reportChartPalette(canvas)
 
   const trend = addDisplayAttemptNumbers([...(scoreTrend || [])].map((a, idx) => ({ ...a, _idx: idx })))
   const labels = trend.map((a, idx) => trendXLabel(a, idx))
@@ -796,13 +831,13 @@ function renderScoreTrendChart(scoreTrend) {
           type: 'line',
           label: 'Từng lượt nộp',
           data: scores,
-          borderColor: 'rgba(100, 116, 139, 0.55)',
+          borderColor: palette.line,
           borderWidth: 2,
           borderDash: [6, 4],
           pointRadius: 5,
           pointHoverRadius: 8,
           pointBackgroundColor: pointColors,
-          pointBorderColor: '#ffffff',
+          pointBorderColor: palette.pointBorder,
           pointBorderWidth: 2,
           pointStyle,
           reportBestFlags: trend.map(a => Boolean(a.isBest)),
@@ -819,9 +854,14 @@ function renderScoreTrendChart(scoreTrend) {
         legend: {
           display: true,
           position: 'bottom',
-          labels: { usePointStyle: true, boxWidth: 8, font: { size: 11, weight: 600 }, color: '#475569' }
+          labels: { usePointStyle: true, boxWidth: 8, font: { size: 11, weight: 600 }, color: palette.legend }
         },
         tooltip: {
+          backgroundColor: palette.tooltipBackground,
+          titleColor: palette.tooltipText,
+          bodyColor: palette.tooltipText,
+          borderColor: palette.tooltipBorder,
+          borderWidth: 1,
           callbacks: {
             title: (items) => {
               const a = trend[items[0]?.dataIndex]
@@ -859,11 +899,11 @@ function renderScoreTrendChart(scoreTrend) {
         y: {
           beginAtZero: true,
           max: 10.5,
-          ticks: { stepSize: 2, color: '#64748b', font: { size: 11, weight: 600 } },
-          grid: { color: '#f1f5f9' }
+          ticks: { stepSize: 2, color: palette.text, font: { size: 11, weight: 600 } },
+          grid: { color: palette.grid }
         },
         x: {
-          ticks: { autoSkip: true, autoSkipPadding: 8, maxRotation: 0, color: '#64748b', font: { size: 11, weight: 600 } },
+          ticks: { autoSkip: true, autoSkipPadding: 8, maxRotation: 0, color: palette.text, font: { size: 11, weight: 600 } },
           grid: { display: false }
         }
       }

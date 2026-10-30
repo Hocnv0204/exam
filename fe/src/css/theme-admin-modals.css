@@ -1,0 +1,711 @@
+/* =========================================================================
+   Admin navy — MODAL/POPUP theme (#admin-dark)
+   -------------------------------------------------------------------------
+   Theme navy cho TOÀN BỘ popup mở từ route ADMIN:
+
+   - #modal-container   : modal chung render bởi components/modal.js
+     (điểm danh, thêm/sửa lớp, học sinh, học phí, khôi phục bài, topup,
+      publish, preview PDF ngoài create-homework, ...)
+   - #qb-modal-container: các modal riêng của Ngân hàng câu hỏi
+     (matrix generator "Tạo đề theo Ma trận", taxonomy, import...)
+
+   #modal-container nằm ở document.body (NGOÀI .app-layout) nên không thể
+   scope bằng .app-layout.admin-dark — dùng body:has(.app-layout.admin-dark).
+   #qb-modal-container nằm trong view question-bank nên cũng dùng cùng cổng
+   để đồng bộ hành vi (tránh một dòng riêng).
+
+   Vai trò (role-gated): .app-layout.admin-dark chỉ được gắn cho ADMIN tại
+   route quản trị (xem app.js adminDarkRoutes), vì vậy guest/student/report
+   không có gì đổi.
+
+   CASCADE:
+   - File này được chèn TRƯỚC theme-admin-editor.css. Toàn bộ một loại modal
+     create-homework (sửa MD, nhập JSON, PDF preview) đã có theme riêng trong
+     editor file và phải giữ "light island" cho vùng PDF, nên mọi rule ở đây
+     loại trừ data-route="create-homework" (:not(...)). Không thêm rule nào
+     chạm #interactive-pdf-modal-container.
+   - Mapping inline-style dùng !important theo đúng pattern theme-admin.css
+     (inline style luôn thắng CSS thường).
+
+   Palette giống theme-admin.css: surface #1f2937 / soft #243244 /
+   strong #182335 / border #334155 / text #f8fafc · #cbd5e1 · #94a3b8.
+   ========================================================================= */
+
+/* ---------- Token cho modal (kế thừa vào #modal-container / #qb-...) ---- */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) {
+  --adm-modal-surface: #1f2937;
+  --adm-modal-surface-soft: #243244;
+  --adm-modal-surface-strong: #182335;
+  --adm-modal-border: #334155;
+  --adm-modal-text: #f8fafc;
+  --adm-modal-text-muted: #cbd5e1;
+  --adm-modal-text-dim: #94a3b8;
+  --adm-modal-accent: #7dd3fc;
+  --adm-modal-primary: #0284c7;
+}
+
+/* =========================================================================
+   1. SHELL CHUNG — #modal-container (components/modal.js)
+   ========================================================================= */
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-backdrop {
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content {
+  background: var(--adm-modal-surface);
+  border-color: var(--adm-modal-border);
+  color: var(--adm-modal-text-muted);
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.6);
+  color-scheme: dark;
+}
+
+/* Header (div đầu) & footer (div cuối) của openModal có inline border sáng */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content > div:first-child {
+  border-bottom-color: var(--adm-modal-border) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content > div:last-child {
+  border-top-color: var(--adm-modal-border) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content :is(h1, h2, h3, h4) {
+  color: var(--adm-modal-text);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-close-btn {
+  color: var(--adm-modal-text-dim);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-close-btn:hover {
+  color: var(--adm-modal-text);
+}
+
+/* Nút hành động ngoài footer (Hủy / Xác nhận) */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content .btn-secondary,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content .btn-primary {
+  min-height: 40px;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content .btn-primary {
+  background: var(--adm-modal-primary);
+  border-color: var(--adm-modal-primary);
+  color: #ffffff;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container .modal-content .btn-primary:hover {
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+}
+
+/* =========================================================================
+   2. CÁC MODAL TỰ RENDER — #qb-modal-container (question-bank, matrix...)
+   ========================================================================= */
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .modal-backdrop {
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .modal-content {
+  background: var(--adm-modal-surface);
+  border-color: var(--adm-modal-border);
+  color: var(--adm-modal-text-muted);
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.6);
+  color-scheme: dark;
+}
+
+/* Import Markdown có nhiều nền inline dạng gradient/light. Nếu chỉ map màu
+   chữ sang palette navy mà bỏ sót các gradient này sẽ tạo chữ sáng trên nền
+   trắng (đặc biệt ở header, summary và preview). Đồng bộ các vùng cấu trúc
+   của popup về surface navy; các badge/tint vẫn được giữ bởi battery mapping
+   bên dưới. */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop .modal-content > div:first-child,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop .modal-content > div:nth-child(2),
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop #md-parse-summary,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop #md-preview-pane,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop #md-preview-pane > div:first-child,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop #md-preview-questions-list,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop .modal-content > div:last-child {
+  background: var(--adm-modal-surface-strong) !important;
+  color: var(--adm-modal-text-muted) !important;
+  border-color: var(--adm-modal-border) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop #md-parse-summary,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop #md-preview-pane {
+  background: var(--adm-modal-surface) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container #import-md-backdrop #md-editor-textarea {
+  background: var(--adm-modal-surface) !important;
+  color: var(--adm-modal-text) !important;
+  border-color: var(--adm-modal-border) !important;
+}
+
+/* =========================================================================
+   3. FORM, BẢNG, CARD, BADGE — áp cho cả hai container
+   ========================================================================= */
+
+/* Gộp selector để tránh lặp: hai cổng modal được đưa về cùng danh sách. */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content .card {
+  background: var(--adm-modal-surface);
+  border-color: var(--adm-modal-border);
+  color: var(--adm-modal-text-muted);
+  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.35);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  background: var(--adm-modal-surface-soft);
+  color: var(--adm-modal-text);
+  border-color: var(--adm-modal-border);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(input, textarea)::placeholder {
+  color: var(--adm-modal-text-dim);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content .form-label-floating {
+  background: var(--adm-modal-surface-soft);
+  color: var(--adm-modal-accent);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content select option {
+  background: var(--adm-modal-surface);
+  color: var(--adm-modal-text-muted);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content .btn-secondary {
+  background: var(--adm-modal-surface-soft);
+  color: var(--adm-modal-text);
+  border-color: var(--adm-modal-border);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content .btn-secondary:hover {
+  background: #2f4057;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content code {
+  background: var(--adm-modal-surface-strong);
+  color: var(--adm-modal-text);
+}
+
+/* Tables (data-table / md-table / table tuỳ modal) */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) {
+  color: var(--adm-modal-text-muted);
+  border-color: var(--adm-modal-border);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) :is(th, td) {
+  border-color: var(--adm-modal-border);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) th {
+  background: var(--adm-modal-surface-strong);
+  color: var(--adm-modal-text-muted);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) td {
+  color: #e2e8f0;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) tbody tr:hover {
+  background: var(--adm-modal-surface-soft);
+}
+
+/* Status badges (cùng bảng màu theme-admin.css) */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-active,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-graded,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-finance,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-deadline-pending,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-present,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-paid {
+  background: rgba(52, 211, 153, 0.16) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(52, 211, 153, 0.4) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-inactive,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-absent,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-waived {
+  background: var(--adm-modal-surface-soft) !important;
+  color: var(--adm-modal-text-muted) !important;
+  border-color: var(--adm-modal-border) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-submitted,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-academic,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-class-grade,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-status-in-progress {
+  background: rgba(56, 189, 248, 0.16) !important;
+  color: #7dd3fc !important;
+  border-color: rgba(56, 189, 248, 0.4) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-status-not-started,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-deadline-overdue {
+  background: rgba(248, 113, 113, 0.16) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(248, 113, 113, 0.4) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-unpaid,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-pending {
+  background: rgba(251, 191, 36, 0.16) !important;
+  color: #fcd34d !important;
+  border-color: rgba(251, 191, 36, 0.4) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-paused {
+  background: rgba(251, 146, 60, 0.16) !important;
+  color: #fdba74 !important;
+  border-color: rgba(251, 146, 60, 0.4) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .badge-period {
+  background: var(--adm-modal-primary) !important;
+  color: #ffffff !important;
+}
+
+/* =========================================================================
+   4. MAPPING INLINE-STYLE (header/footer/body viết style="..." màu sáng)
+   -------------------------------------------------------------------------
+   Thứ tự buộc phải: neutral TRƯỚC, tinted SAU (cùng !important, cùng độ
+   cụ thể → khai báo sau thắng khi prefix "#fff" đè nhau như #fff5f5).
+   ========================================================================= */
+
+/* --- Chữ trung tính --- */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#0f172a"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color: #0f172a"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#111827"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#1e293b"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color: #1e293b"] {
+  color: #f1f5f9 !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#334155"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#374151"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#475569"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color: #475569"] {
+  color: #e2e8f0 !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#64748b"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color: #64748b"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#6b7280"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#94a3b8"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#9ca3af"] {
+  color: #cbd5e1 !important;
+}
+
+/* --- Chữ accent/tint --- */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#0066cc"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color: #0066cc"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#0284c7"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#0369a1"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#2563eb"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#1d4ed8"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#1e40af"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#0ea5e9"] {
+  color: #7dd3fc !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#14532d"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#166534"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#15803d"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#059669"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#10b981"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#047857"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#065f46"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#22c55e"] {
+  color: #6ee7b7 !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#dc2626"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#b91c1c"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#991b1b"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#ef4444"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#e11d48"] {
+  color: #fca5a5 !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#92400e"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#78350f"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#b45309"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#c2410c"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#d97706"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#f59e0b"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#ea580c"] {
+  color: #fcd34d !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#581c87"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#6b21a8"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#7e22ce"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#9333ea"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#be185d"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#7c3aed"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#8b5cf6"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#6366f1"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#4f46e5"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="color:#4338ca"] {
+  color: #c4b5fd !important;
+}
+
+/* --- Nền trung tính (đặt TRƯỚC các nền tinted) --- */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#ffffff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #ffffff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background-color:#ffffff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background-color: #ffffff"] {
+  background: var(--adm-modal-surface) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f8fafc"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #f8fafc"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f1f5f9"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #f1f5f9"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f5f5f5"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f3f4f6"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#e2e8f0"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #e2e8f0"] {
+  background: var(--adm-modal-surface-soft) !important;
+}
+
+/* --- Nền tinted (SAU neutral để thắng match trùng prefix như #fff5f5) --- */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#eff6ff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#e0f2fe"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#dbeafe"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#bae6fd"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f0f9ff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#e8f2ff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #f0f9ff"] {
+  background: rgba(56, 189, 248, 0.14) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f0fdf4"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#ecfdf5"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#dcfce7"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#d1fae5"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#e6f9ed"] {
+  background: rgba(52, 211, 153, 0.14) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fef2f2"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fee2e2"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fff1f2"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fff5f5"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#ffe4e6"] {
+  background: rgba(248, 113, 113, 0.14) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fffbeb"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fef3c7"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fff7ed"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#ffedd5"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fef9c3"] {
+  background: rgba(251, 191, 36, 0.14) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#faf5ff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f3e8ff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#ede9fe"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#e0e7ff"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#fdf2f8"] {
+  background: rgba(167, 139, 250, 0.14) !important;
+}
+
+/* --- Viền inline sáng → viền navy (bare-substring như theme-admin.css;
+       chỉ ảnh hưởng thuộc tính border-color nên không phá màu chữ) --- */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="#e2e8f0"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="#cbd5e1"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="#dbe2ef"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="#e5e7eb"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="#d1d5db"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="#f1f5f9"] {
+  border-color: var(--adm-modal-border) !important;
+}
+
+/* =========================================================================
+   5. MODAL ĐIỂM DANH (class-details.js — roster class-based, KHÔNG inline)
+   ========================================================================= */
+
+/* PDF preview là light island có chủ đích. Rule này đứng sau battery remap
+   inline ở trên để canvas trang PDF không bị đổi thành nền navy. */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container {
+  background: #475569 !important;
+  color: #0f172a !important;
+  color-scheme: light;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container .pdf-utility-bar {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container [style*="background:#f8fafc"] {
+  background: #f8fafc !important;
+  color: #334155 !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container .pdf-utility-bar :is(button, span, i),
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container [style*="color:#0f172a"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container [style*="color:#334155"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container [style*="color:#475569"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container [style*="color:#64748b"] {
+  color: #334155 !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #modal-container #modal-pdf-container .pdf-page-canvas {
+  background: #ffffff !important;
+  color-scheme: light;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .attendance-roster-item {
+  background: var(--adm-modal-surface-strong);
+  border-color: var(--adm-modal-border);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .attendance-roster-item:hover {
+  background: var(--adm-modal-surface-soft);
+  border-color: #475569;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .attendance-roster-item.present {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.45);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .attendance-student-name {
+  color: var(--adm-modal-text);
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .attendance-student-sub {
+  color: var(--adm-modal-text-muted);
+}
+
+/* Danh sách học sinh & ghi chú — input riêng của modal điểm danh */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #attendance-session-date-input,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #attendance-session-note {
+  background: var(--adm-modal-surface-soft) !important;
+  border-color: var(--adm-modal-border) !important;
+  color: var(--adm-modal-text) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #attendance-roster-list::-webkit-scrollbar,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #gen-scope-tree-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #attendance-roster-list::-webkit-scrollbar-thumb,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #gen-scope-tree-container::-webkit-scrollbar-thumb {
+  background: #3b4a5f;
+  border-radius: 3px;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #attendance-roster-list::-webkit-scrollbar-track,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #gen-scope-tree-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* =========================================================================
+   6. MODAL MA TRẬN (question-bank.js — tree, template bar, preview)
+   ========================================================================= */
+
+/* Thanh cuộn cây đã ở trên; cây nền inline #ffffff → map neutral.
+   Node cây & lớp: */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .tree-class-node {
+  background: var(--adm-modal-surface) !important;
+  border-color: var(--adm-modal-border) !important;
+}
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .tree-empty-state {
+  color: var(--adm-modal-text-dim);
+}
+
+/* Template bar — trạng thái lưu mẫu luôn đọc được trên nền tối */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) #matrix-template-status {
+  color: var(--adm-modal-text-dim) !important;
+}
+
+/* Chip "Có: n" trong subpanel mức độ */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .sub-avail-chip {
+  color: var(--adm-modal-text-dim) !important;
+}
+
+/* Nút "Đổi nhanh / 3 gợi ý" trong preview (không thuộc .btn-secondary) */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .btn-swap-question {
+  background: var(--adm-modal-surface-soft) !important;
+  border-color: var(--adm-modal-border) !important;
+  color: var(--adm-modal-text) !important;
+}
+
+/* Footer ma trận: nền strip #f8fafc inline → strong để tách với body */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .modal-content > div:last-child {
+  background: var(--adm-modal-surface-strong) !important;
+  border-top-color: var(--adm-modal-border) !important;
+}
+
+/* =========================================================================
+   7. LOADING / ERROR / EMPTY STATE trong modal
+   ========================================================================= */
+
+/* Khối dashed rỗng (empty) */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content [style*="border:1px dashed #cbd5e1"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content [style*="border: 1px dashed #cbd5e1"],
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content [style*="border:2px dashed #cbd5e1"] {
+  background: var(--adm-modal-surface-strong) !important;
+  border-color: var(--adm-modal-border) !important;
+  color: var(--adm-modal-text-dim) !important;
+}
+
+/* Spinner: chữ màu inline accent đã map ở battery 4 (#0284c7 → #7dd3fc).
+   Khối lỗi kiểu border #fecaca / background #fff1f2 → map tint đỏ. */
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content .fa-spinner,
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content .fa-circle-notch {
+  color: var(--adm-modal-accent);
+}
+
+/* =========================================================================
+   8. ACCESSIBILITY — focus, touch target, reduced motion
+   ========================================================================= */
+
+body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--adm-modal-accent);
+  outline-offset: 2px;
+}
+
+/* Touch: mục tiêu chạm >=44px cho nút hành động chính. Các nút toggle nhỏ
+   của cây (btn-tree-expand-*, btn-auto-distribute, sub-input) giữ kích
+   thước gọn để dây không vỡ layout khi bọc trong lưới 4 cột. */
+@media (pointer: coarse), (max-width: 768px) {
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================================
+   9. RESPONSIVE (360 / 390 / 768 / 1024)
+   -------------------------------------------------------------------------
+   Breakpoint ≤768px: styles.css đã đưa .modal-content về bottom-sheet
+   (padding 20px 16px, max-height 85vh). Ở đây chỉ xử lý matrix modal 2 cột
+   (khối phụ 4 mức độ) và hàng nút footer xuống dòng gọn trên màn hẹp.
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .modal-content {
+    max-height: 85vh !important;
+  }
+
+  /* Subpanel 4 cột mức độ nhận thức → 2 cột trên màn hẹp */
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .matrix-difficulty-subpanel > div:last-child {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content {
+    padding: 18px 14px;
+  }
+
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .modal-content {
+    padding: 0;
+  }
+
+  /* Footer matrix xếp dọc, nút full-width dễ chạm */
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .modal-content > div:last-child {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  body:has(.app-layout.admin-dark:not([data-route="create-homework"])) #qb-modal-container .modal-content > div:last-child button {
+    width: 100%;
+  }
+}
+
+/* =========================================================================
+   10. SUB-MODAL CHỌN CÂU THAY THẾ
+   question-bank tạo node này trực tiếp dưới body, ngoài #qb-modal-container.
+   ========================================================================= */
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap > div {
+  background: rgba(2, 6, 23, 0.78) !important;
+  backdrop-filter: blur(6px);
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap > div > div,
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="background:#f8fafc"],
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="background:#ffffff"] {
+  background: var(--adm-modal-surface) !important;
+  border-color: var(--adm-modal-border) !important;
+  color: var(--adm-modal-text-muted) !important;
+  color-scheme: dark;
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="color:#0f172a"],
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="color:#1e293b"] {
+  color: var(--adm-modal-text) !important;
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="color:#475569"],
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="color:#64748b"],
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="color:#94a3b8"] {
+  color: var(--adm-modal-text-muted) !important;
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="background:#eff6ff"] {
+  background: rgba(56, 189, 248, 0.14) !important;
+  color: #7dd3fc !important;
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="background:#f0fdf4"] {
+  background: rgba(52, 211, 153, 0.14) !important;
+  color: #6ee7b7 !important;
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="background:#fff7ed"] {
+  background: rgba(251, 146, 60, 0.14) !important;
+  color: #fdba74 !important;
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap [style*="background:#fdf2f8"] {
+  background: rgba(244, 114, 182, 0.14) !important;
+  color: #f9a8d4 !important;
+}
+
+body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap :is(button, [tabindex]):focus-visible {
+  outline: 3px solid var(--adm-modal-accent);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(.app-layout.admin-dark[data-route="question-bank"]) #candidate-picker-modal-wrap * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

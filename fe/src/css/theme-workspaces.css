@@ -1,0 +1,255 @@
+/* Dark navigation shell with high-contrast work surfaces for data-heavy views.
+   The exercise and exam views intentionally avoid decorative illustration/motion. */
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) {
+  --bg-app: #111827;
+  --bg-card: #1f2937;
+  --border-color: #334155;
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+  --primary: #38bdf8;
+  --primary-hover: #7dd3fc;
+  background: #111827;
+  color: #f8fafc;
+}
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .main-content { background: #111827; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .sidebar,
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar {
+  background: #161f30;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .sidebar {
+  padding-bottom: max(22px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .brand-logo { color: #7dd3fc; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .brand-logo i {
+  color: #38bdf8;
+  filter: drop-shadow(0 2px 8px #38bdf866);
+}
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-section-title { color: #94a3b8; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item { color: #cbd5e1; min-height: 44px; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item:hover,
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item:focus-visible {
+  background: #273549;
+  color: #f8fafc;
+}
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item.active {
+  color: #111827;
+  background: #38bdf8;
+  box-shadow: 0 4px 18px #38bdf833;
+}
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .nav-item.active i { color: #111827 !important; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-profile-chip { color: #f8fafc; cursor: default; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-avatar-circle { background: #38bdf8; color: #111827; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) #sidebar-toggle-btn {
+  min-height: 44px;
+  min-width: 44px;
+  color: #e2e8f0 !important;
+}
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) #sidebar-toggle-btn:hover { background: #273549; color: #f8fafc; }
+.navbar-breadcrumb { color: #cbd5e1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(52vw, 680px); }
+/* Public/guest screens keep the original light navigation. */
+.app-layout[data-role="GUEST"] .navbar-breadcrumb,
+.app-layout.public-report-layout .navbar-breadcrumb { color: #475569; }
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .sidebar :is(a, button, [role="link"]):focus-visible,
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar button:focus-visible {
+  outline: 3px solid #7dd3fc;
+  outline-offset: 2px;
+}
+
+/* Legacy student/result forms have extensive inline dark text on light cards.
+   Keep these work surfaces light rather than sacrificing readability.
+   Admin routes opt into the navy palette below via .admin-dark. */
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body,
+.app-layout.student-class-detail .content-body,
+.app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body,
+.app-layout[data-route="homework-attempt"] .content-body,
+.app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body {
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 18px;
+  margin: 18px;
+  min-width: 0;
+}
+
+.app-layout.student-class-detail .content-body .card,
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body .card,
+.app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body .card,
+.app-layout[data-route="homework-attempt"] .content-body .card,
+.app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body .card {
+  background: #fff !important;
+  border-color: #dbe4ee !important;
+  color: #0f172a !important;
+}
+
+.app-layout.student-class-detail .content-body {
+  --navy-text: #0f172a;
+  --navy-muted: #64748b;
+  --navy-card: #ffffff;
+  --navy-border: #cbd5e1;
+  --navy-accent: #0284c7;
+}
+.app-layout.student-class-detail .content-body .btn-secondary {
+  background: #fff;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+.app-layout.student-class-detail .content-body .btn-secondary:hover {
+  background: #f8fafc;
+  color: #0369a1;
+  border-color: #7dd3fc;
+}
+.app-layout.student-class-detail .content-body :is(input, select, textarea) {
+  background: #fff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+.app-layout.student-class-detail .content-body input::placeholder { color: #64748b; }
+.app-layout.student-class-detail .content-body .btn-primary {
+  background: #0284c7;
+  color: #fff;
+  border-color: #0284c7;
+}
+.app-layout.student-class-detail .content-body a { color: #0369a1; }
+.app-layout.student-class-detail .content-body :is(h1, h2, h3, h4, p, label),
+.app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body .page-title,
+.app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body .page-title,
+.app-layout[data-route="homework-attempt"] .content-body .page-title,
+.app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body .page-title {
+  color: #0f172a;
+}
+
+.app-layout.student-class-detail .content-body [style*="color:#0f172a"],
+.app-layout.student-class-detail .content-body [style*="color:#334155"],
+.app-layout.student-class-detail .content-body [style*="color:#475569"],
+.app-layout.student-class-detail .content-body [style*="color:#64748b"] { color: inherit !important; }
+
+/* Dashboard shell; chart cards and canvas palette are completed by
+   theme-admin-analytics.css when the ADMIN route opts into .admin-dark. */
+.app-layout[data-route="admin-dashboard"] .dash-kpi-card {
+  background: #1f2937;
+  border-color: #334155;
+  box-shadow: 0 10px 26px #060d1b25;
+}
+.app-layout[data-route="admin-dashboard"] .dash-kpi-card:hover {
+  border-color: #38bdf8;
+}
+.app-layout[data-route="admin-dashboard"] .dash-kpi-value,
+.app-layout[data-route="admin-dashboard"] .dash-section-title {
+  color: #f8fafc;
+}
+.app-layout[data-route="admin-dashboard"] .content-body .page-title {
+  color: #f8fafc;
+}
+.app-layout[data-route="admin-dashboard"] .content-body .page-description {
+  color: #cbd5e1;
+}
+.app-layout[data-route="admin-dashboard"] .dash-section-badge {
+  border-color: #475569;
+}
+.app-layout[data-route="admin-dashboard"] .dash-kpi-label,
+.app-layout[data-route="admin-dashboard"] .dash-kpi-subtext,
+.app-layout[data-route="admin-dashboard"] .dash-kpi-value [style*="color:#64748b"] {
+  color: #cbd5e1 !important;
+}
+.app-layout[data-route="admin-dashboard"] .dash-chart-card {
+  background: #f8fafc;
+  border-color: #334155;
+  color: #0f172a;
+  min-width: 0;
+}
+.app-layout[data-route="admin-dashboard"] .dash-chart-card .dash-chart-title { color: #0f172a; }
+.app-layout[data-route="admin-dashboard"] .dash-chart-card .dash-chart-desc { color: #475569; }
+
+/* Timer, answer choices and autosave must remain predictable and readable. */
+.exam-room-layout {
+  background: #111827;
+  min-height: 100dvh;
+  color: #f8fafc;
+}
+.exam-room-layout .exam-room-body,
+.exam-room-layout .interactive-q-card {
+  color: #0f172a;
+}
+.exam-room-layout .interactive-q-card,
+.app-layout[data-route="homework-attempt"] .interactive-q-card {
+  background: #fff;
+  border-color: #cbd5e1;
+}
+.exam-room-layout .exam-option-card,
+.app-layout[data-route="homework-attempt"] .exam-option-card {
+  min-height: 44px;
+}
+.exam-room-layout .exam-nav-btn,
+.app-layout[data-route="homework-attempt"] .exam-nav-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 1100px) {
+  .exam-top-toolbar {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    row-gap: 8px;
+  }
+  .exam-top-toolbar > div:first-child { flex: 1 1 100%; }
+  .exam-top-toolbar > div:last-child {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .exam-top-toolbar #exam-violations-pill,
+  .exam-top-toolbar .timer-box { white-space: nowrap; }
+}
+
+@media (max-width: 768px) {
+  .navbar-breadcrumb { max-width: 40vw; font-size: 12px; }
+  .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar { padding-inline: 12px; }
+  .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .user-profile-chip > span { display: none; }
+  .app-layout:not([data-role="GUEST"]):not(.public-report-layout) .top-navbar-right { gap: 6px; }
+  .app-layout.student-class-detail .content-body,
+  .app-layout:not([data-role="GUEST"]):not(.public-report-layout):not(.navy-student):not(.admin-dark):not([data-route="admin-dashboard"]) .content-body,
+  .app-layout[data-role="ADMIN"]:not(.admin-dark):not([data-route="admin-dashboard"]):not([data-route="weekly-calendar"]) .content-body,
+  .app-layout[data-route="homework-attempt"] .content-body,
+  .app-layout[data-route="assignment-review"]:not(.admin-dark) .content-body,
+  .app-layout.admin-dark .content-body {
+    margin: 8px;
+    border-radius: 14px;
+    padding: 16px !important;
+  }
+  .app-layout[data-route="admin-dashboard"] .dash-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  }
+  .app-layout[data-route="admin-dashboard"] .dash-chart-card {
+    overflow-x: auto;
+  }
+  .exam-room-layout .exam-room-body { padding-inline: 12px; }
+}
+
+@media (max-width: 640px) {
+  .app-layout .admin-impersonate-btn {
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 6px !important;
+    margin-right: 0 !important;
+  }
+  .app-layout .admin-impersonate-btn span { display: none; }
+  .exam-top-toolbar { padding: 8px 12px; row-gap: 6px; }
+  /* Keep the exam title, timer and violation warning; drop decorative labels. */
+  .exam-top-toolbar .brand-logo span { display: none; }
+  .exam-top-toolbar > div:last-child > div:first-child { display: none !important; }
+  .exam-top-toolbar > div:last-child { justify-content: space-between; }
+  .exam-top-toolbar > div:first-child { gap: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exam-room-layout *,
+  .app-layout[data-route="homework-attempt"] * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

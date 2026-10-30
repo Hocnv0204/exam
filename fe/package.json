@@ -11,6 +11,9 @@
     "test:topup": "node scripts/test-topup.mjs",
     "test:diagrams": "node scripts/test-diagrams.mjs",
     "test:matrix-scope": "node scripts/test-matrix-scope.mjs",
+    "test:matrix-templates": "node scripts/test-matrix-templates.mjs",
+    "test:weekly-calendar": "node --test scripts/test-weekly-calendar.mjs",
+    "test:question-appeals": "node scripts/test-question-appeals.mjs",
     "test:constant-sync": "node scripts/test-constant-taxonomy-sync.mjs",
     "test:curriculum-search": "node scripts/test-curriculum-search.mjs",
     "test:admin-history": "node scripts/test-admin-history-filter.mjs",
@@ -19,7 +22,7 @@
     "test:homework-pdf-policy": "node scripts/test-homework-pdf-policy.mjs",
     "test:student-lesson-sort": "node scripts/test-student-lesson-sort.mjs",
     "test:curriculum-state": "node scripts/test-curriculum-state.mjs",
-    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && npm run test:constant-sync && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs && node scripts/test-student-report-share.mjs && node scripts/test-trial-management.mjs && npm run test:qb-scope && npm run test:homework-pdf-policy && npm run test:student-lesson-sort && npm run test:curriculum-state",
+    "test": "node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && npm run test:matrix-templates && npm run test:weekly-calendar && npm run test:question-appeals && npm run test:constant-sync && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs && node scripts/test-student-report-share.mjs && node scripts/test-trial-management.mjs && npm run test:qb-scope && npm run test:homework-pdf-policy && npm run test:student-lesson-sort && npm run test:curriculum-state",
     "test:qb-scope": "node scripts/test-qb-constant-scope.mjs"
   },
   "devDependencies": {

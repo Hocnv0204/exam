@@ -5,7 +5,7 @@ import { openModal } from '../components/modal.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
-import { renderMath, renderMarkdown, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE } from '../utils/exam-parser.js'
+import { renderMath, renderMarkdown, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, getDefaultQuestionPoints } from '../utils/exam-parser.js'
 import { calculateExamRawMax, applyExamPreset, EXAM_PRESETS } from '../utils/scoring-engine.js'
 
 // In-memory state for building the answer matrix
@@ -229,10 +229,10 @@ function renderInteractiveCardsHtml() {
       const qNum = q.questionNumber || (idx + 1)
       const typeLabel = q.questionType === 'MULTIPLE_CHOICE'
         ? 'Phần I: Trắc nghiệm ABCD'
-        : (q.questionType === 'TRUE_FALSE' ? 'Phần II: Đúng / Sai' : 'Phần III: Trả lời ngắn')
+        : (q.questionType === 'TRUE_FALSE' ? 'Phần II: Đúng / Sai' : (q.questionType === 'ESSAY' ? 'Phần IV: Tự luận' : 'Phần III: Trả lời ngắn'))
       const typeColor = q.questionType === 'MULTIPLE_CHOICE'
         ? '#0066cc'
-        : (q.questionType === 'TRUE_FALSE' ? '#0284c7' : '#4f46e5')
+        : (q.questionType === 'TRUE_FALSE' ? '#0284c7' : (q.questionType === 'ESSAY' ? '#9333ea' : '#4f46e5'))
 
       return `
         <div class="interactive-q-card" data-qindex="${qIndex}" data-qnum="${qNum}" tabindex="0">
@@ -249,7 +249,7 @@ function renderInteractiveCardsHtml() {
               </button>
               <div style="font-size:12px; color:#64748b; display:flex; align-items:center; gap:5px;">
                 <span>Điểm:</span>
-                <input type="number" step="0.25" min="0" value="${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25))}" data-qindex="${qIndex}" data-qnum="${qNum}" class="q-points-input" style="width:55px; padding:2px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="number" step="0.25" min="0" value="${q.points || getDefaultQuestionPoints(q.questionType)}" data-qindex="${qIndex}" data-qnum="${qNum}" class="q-points-input" style="width:55px; padding:2px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px;">
               </div>
             </div>
           </div>
@@ -315,6 +315,10 @@ function renderInteractiveCardsHtml() {
                 `
               }).join('')}
             </div>
+          ` : (q.questionType === 'ESSAY' ? `
+            <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:8px; padding:10px 14px; margin-bottom:10px; color:#6b21a8; font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-pen-to-square"></i> Câu tự luận — học sinh trả lời bằng văn bản, giáo viên chấm thủ công. Không cần đáp án số.
+            </div>
           ` : `
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
               <div style="font-size:13px; font-weight:600; color:#334155;">
@@ -324,7 +328,7 @@ function renderInteractiveCardsHtml() {
                 Dung sai cho phép: <strong>&plusmn; ${q.saTolerance || 0}</strong>
               </div>
             </div>
-          `)}
+          `))}
 
           <!-- Explanation (Lời giải) -->
           ${q.explanation ? `
@@ -1116,7 +1120,7 @@ export function bindCreateHwEvents() {
               const done = hasAnswerKey(q)
               const num = q.questionNumber
               return `
-                <div class="hw-map-cell" data-qnum="${num}" title="Câu ${num} — ${done ? 'đã có đáp án' : 'thiếu đáp án'}" style="
+                <div class="hw-map-cell" role="button" tabindex="0" aria-label="Câu ${num} — ${done ? 'đã có đáp án' : 'thiếu đáp án'}" data-qnum="${num}" title="Câu ${num} — ${done ? 'đã có đáp án' : 'thiếu đáp án'}" style="
                   background:${done ? '#dcfce7' : '#fef3c7'};
                   color:${done ? '#16a34a' : '#d97706'};
                   border:1px solid ${done ? '#10b981' : '#f59e0b'};
@@ -1136,7 +1140,7 @@ export function bindCreateHwEvents() {
         mapEl.querySelectorAll('.hw-map-cell').forEach(c => c.classList.remove('hw-map-active'))
         cell.classList.add('hw-map-active')
         if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
           const prevOutline = target.style.outline
           const prevBg = target.style.background
           target.style.outline = '2px solid #0066cc'
@@ -1147,6 +1151,11 @@ export function bindCreateHwEvents() {
             cell.classList.remove('hw-map-active')
           }, 1600)
         }
+      })
+      cell.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        cell.click()
       })
     })
   }

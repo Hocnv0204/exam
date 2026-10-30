@@ -6,6 +6,11 @@ import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 import { buildAwardLogSectionHtml } from '../utils/question-award-logs.js'
 import { api } from '../api.js'
+import { questionAppealReviewContext, renderQuestionAppealSlot, bindReviewQuestionAppeals } from './question-appeals.js'
+
+const escapeReviewText = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 
 export function renderAssignmentReviewView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
@@ -71,6 +76,8 @@ export function renderAssignmentReviewView() {
   const showSolutions = state.user?.role === 'ADMIN' || (result.showSolutions !== false && result.show_solutions !== false && sub.showSolutions !== false && sub.show_solutions !== false)
   // Nhật ký cộng điểm theo câu: backend chỉ trả questionAwardLogs cho admin (bài thật).
   const isAdminReview = state.user?.role === 'ADMIN' && !isTrial && !sub.is_trial && !sub.isTrial
+  const fromAppeals = isAdminReview && new URLSearchParams(window.location.hash.split('?')[1] || '').get('from') === 'question-appeals'
+  const appealContext = questionAppealReviewContext(result, state.user, state.token, window.location.hash)
   const awardLogs = isAdminReview && Array.isArray(result.questionAwardLogs) ? result.questionAwardLogs : []
   
   const rawAnswers = result.questionReview ? result.questionReview.map(q => ({
@@ -80,6 +87,8 @@ export function renderAssignmentReviewView() {
     given_answer: q.givenAnswer !== undefined ? q.givenAnswer : q.given_answer,
     correct_answer: q.correctAnswerSummary !== undefined ? q.correctAnswerSummary : q.correct_answer,
     statementGrades: q.statementGrades,
+    teacherFeedback: q.teacherFeedback,
+    gradingStatus: q.gradingStatus,
     questionNumber: q.questionNumber !== undefined ? q.questionNumber : q.question_number,
     questions: {
       question_number: q.questionNumber !== undefined ? q.questionNumber : q.question_number,
@@ -113,6 +122,8 @@ export function renderAssignmentReviewView() {
       given_answer: ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer,
       correct_answer: ans.correct_answer !== undefined ? ans.correct_answer : ans.correctAnswerSummary,
       statementGrades: ans.statementGrades || qObj.statementGrades || ans.given_answer?.statementGrades || ans.givenAnswer?.statementGrades,
+      teacherFeedback: ans.teacherFeedback || ans.teacher_feedback || null,
+      gradingStatus: ans.gradingStatus || ans.grading_status || (qType === 'ESSAY' ? 'PENDING' : 'AUTO_GRADED'),
       rawQuestionNumber: Number(qNum) || (idx + 1),
       questions: {
         question_number: Number(qNum) || (idx + 1),
@@ -182,7 +193,7 @@ export function renderAssignmentReviewView() {
     const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
     const points = ans.pointsPossible !== undefined && ans.pointsPossible !== null
       ? Number(ans.pointsPossible)
-      : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)))
+                     : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 1.0)))
 
     if (qType === 'MULTIPLE_CHOICE') {
       mcEarned += score
@@ -230,7 +241,7 @@ export function renderAssignmentReviewView() {
     }
 
     return `
-      <div class="nav-grid-item" data-target-id="${anchorId}" data-qnum="${ans.rawQuestionNumber}" style="
+      <div class="nav-grid-item" role="button" tabindex="0" aria-label="Xem câu ${displayNum}" data-target-id="${anchorId}" data-qnum="${ans.rawQuestionNumber}" style="
         background:${navBg}; 
         color:${navColor}; 
         border: 1px solid ${navBorder};
@@ -288,8 +299,8 @@ export function renderAssignmentReviewView() {
                 </a>
                 ` : ''}
               ` : ''}
-              <button class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : (state.user?.role === 'ADMIN' ? '#admin-history' : '#history')}'" style="cursor:pointer; white-space:nowrap;">
-                <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại bài học thử' : (state.user?.role === 'ADMIN' ? 'Quay lại danh sách nộp bài' : 'Quay lại lịch sử')}
+              <button class="btn-secondary" onclick="window.location.hash='${isTrial ? '#trial' : (fromAppeals ? '#question-appeals' : (state.user?.role === 'ADMIN' ? '#admin-history' : '#history'))}'" style="cursor:pointer; white-space:nowrap;">
+                <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Quay lại bài học thử' : (fromAppeals ? 'Quay lại hộp thư' : (state.user?.role === 'ADMIN' ? 'Quay lại danh sách nộp bài' : 'Quay lại lịch sử'))}
               </button>
             </div>
           </div>
@@ -438,7 +449,7 @@ export function renderAssignmentReviewView() {
                   const rawNum = ans.rawQuestionNumber || ans.questions?.question_number || (idx + 1)
                   const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
                   const qType = ans.questions?.question_type || ans.questionType
-                  const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (qType === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : 'TRẢ LỜI NGẮN')
+                   const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'TRẮC NGHIỆM' : (qType === 'TRUE_FALSE' ? 'ĐÚNG/SAI' : (qType === 'ESSAY' ? 'TỰ LUẬN' : 'TRẢ LỜI NGẮN'))
                   const pointsPossible = ans.pointsPossible !== undefined && ans.pointsPossible !== null
                     ? Number(ans.pointsPossible)
                     : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)))
@@ -469,7 +480,7 @@ export function renderAssignmentReviewView() {
                     const val = givenAnswer?.value || {}
                     const renderVal = (v) => v === true ? 'Đ' : (v === false ? 'S' : '_')
                     givenStr = `a: ${renderVal(val.a)}, b: ${renderVal(val.b)}, c: ${renderVal(val.c)}, d: ${renderVal(val.d)}`
-                  } else {
+                   } else if (qType === 'SHORT_ANSWER') {
                     givenStr = givenAnswer?.value !== null && givenAnswer?.value !== undefined && givenAnswer?.value !== '' ? String(givenAnswer.value) : 'Không trả lời'
                   }
 
@@ -508,8 +519,17 @@ export function renderAssignmentReviewView() {
                   const qStatements = ans.questions?.statements || ans.statements || null
                   const qExplanation = ans.questions?.explanation || ans.explanation || null
 
-                  let reviewBody = ''
-                  if (qType === 'TRUE_FALSE') {
+                   let reviewBody = ''
+                   if (qType === 'ESSAY') {
+                     const pending = ans.gradingStatus !== 'MANUALLY_GRADED'
+                     reviewBody = `
+                       <div style="display:flex; flex-direction:column; gap:10px;">
+                         <div style="padding:14px 16px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; white-space:pre-wrap; line-height:1.55; color:#1e293b;">${escapeReviewText(givenAnswer?.value || 'Không trả lời')}</div>
+                         <div style="padding:10px 14px; background:${pending ? '#fff7ed' : '#f0fdf4'}; border:1px solid ${pending ? '#fed7aa' : '#bbf7d0'}; border-radius:8px; color:${pending ? '#9a3412' : '#166534'}; font-weight:700;">${pending ? 'Chờ chấm tự luận' : `Đã chấm: ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm`}</div>
+                         ${ans.teacherFeedback ? `<div style="padding:10px 14px; background:#f8fafc; border-radius:8px; white-space:pre-wrap;"><strong>Nhận xét:</strong> ${escapeReviewText(ans.teacherFeedback)}</div>` : ''}
+                         ${isAdminReview && ans.id ? `<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><input class="essay-score-input" data-answer-id="${ans.id}" type="number" min="0" max="${pointsPossible}" step="0.01" value="${scoreEarned}" style="width:100px; padding:7px;" placeholder="Điểm"><input class="essay-feedback-input" data-answer-id="${ans.id}" value="${escapeReviewText(ans.teacherFeedback || '')}" style="min-width:220px; flex:1; padding:7px;" placeholder="Nhận xét / rubric"><button type="button" class="btn-primary grade-essay-btn" data-answer-id="${ans.id}" style="width:auto!important; padding:7px 12px;">Lưu chấm</button></div>` : ''}
+                       </div>`
+                   } else if (qType === 'TRUE_FALSE') {
                     let tfObj = givenAnswer?.value !== undefined ? givenAnswer.value : givenAnswer
                     if (typeof tfObj === 'string') {
                       try { tfObj = JSON.parse(tfObj) } catch {}
@@ -760,6 +780,7 @@ export function renderAssignmentReviewView() {
                       ${reviewBody}
 
                       ${explanationHtml}
+                      ${appealContext ? renderQuestionAppealSlot(ans.id, ans.rawQuestionNumber, qType) : ''}
                     </div>
                   `
                 }).join('')
@@ -849,7 +870,18 @@ export function bindAssignmentReviewEvents() {
   const reviewContainer = document.getElementById('questions-grid') || document.querySelector('.content-body')
   if (reviewContainer) {
     renderMath(reviewContainer)
+    const reviewParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
+    const requestedNumber = Number(reviewParams.get('questionNumber'))
+    if (state.user?.role === 'ADMIN' && reviewParams.get('from') === 'question-appeals' && Number.isInteger(requestedNumber) && requestedNumber > 0) {
+      reviewContainer.querySelectorAll('.review-question-card').forEach(card => {
+        if (card.dataset.legacyId === `review-question-${requestedNumber}`) {
+          card.scrollIntoView?.({ block: 'center' })
+        }
+      })
+    }
   }
+  const appealContext = questionAppealReviewContext(reviewResult, state.user, state.token, window.location.hash)
+  if (appealContext) bindReviewQuestionAppeals(reviewContainer, appealContext.submissionId)
 
   // Fetch and display exam logs if user is admin
   const logsContainer = document.getElementById('exam-logs-container')
@@ -1008,6 +1040,29 @@ export function bindAssignmentReviewEvents() {
         } catch (err) {
           import('../components/toast.js').then(({ showToast }) => showToast(err.message || 'Không thể cộng điểm. Vui lòng thử lại sau.', 'error'))
           btn.disabled = false
+        }
+      }
+    })
+
+    document.querySelectorAll('.grade-essay-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (btn.disabled) return
+        const answerId = btn.dataset.answerId
+        const scoreInput = document.querySelector(`.essay-score-input[data-answer-id="${answerId}"]`)
+        const feedbackInput = document.querySelector(`.essay-feedback-input[data-answer-id="${answerId}"]`)
+        btn.disabled = true
+        try {
+          const result = await api.gradeEssay(sub.id, answerId, Number(scoreInput?.value || 0), feedbackInput?.value || '')
+          const answer = (reviewResult.answers || []).find(a => a.id === answerId)
+          if (answer) { answer.score_earned = result.scoreEarned; answer.scoreEarned = result.scoreEarned; answer.teacherFeedback = result.feedback; answer.gradingStatus = result.gradingStatus }
+          const badge = document.querySelector(`[data-score-badge="${answerId}"]`)
+          if (badge) badge.innerHTML = `<i class="fa-solid fa-check"></i> ${formatScore(result.scoreEarned)} điểm`
+          btn.textContent = 'Đã lưu'
+          btn.disabled = false
+          import('../components/toast.js').then(({ showToast }) => showToast('Đã lưu điểm và nhận xét tự luận.', 'success'))
+        } catch (err) {
+          btn.disabled = false
+          import('../components/toast.js').then(({ showToast }) => showToast(err.message || 'Không thể lưu chấm tự luận.', 'error'))
         }
       }
     })
@@ -1170,7 +1225,7 @@ export function bindAssignmentReviewEvents() {
         (qNum && document.getElementById(`review-question-${qNum}`)) ||
         (qNum && document.querySelector(`[data-legacy-id="review-question-${qNum}"]`))
       if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
         
         // Brief flash highlight on target question card
         questionCards.forEach(c => c.classList.remove('highlight-target'))
@@ -1181,6 +1236,11 @@ export function bindAssignmentReviewEvents() {
         navItems.forEach(ni => ni.classList.remove('active-nav-question'))
         item.classList.add('active-nav-question')
       }
+    })
+    item.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      item.click()
     })
   })
 

@@ -12,7 +12,8 @@ import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 let studentAnswers = {
   mc: {}, // { 1: 'A', 2: 'B', ... }
   tf: {}, // { 1: { a: true, b: false, c: true, d: false }, ... }
-  sa: {}  // { 1: '9.8', ... }
+  sa: {}, // { 1: '9.8', ... }
+  essay: {} // { 1: 'Văn bản nhiều dòng', ... }
 }
 let isDraftRestored = false
 let saDebounceTimer = null
@@ -112,6 +113,7 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
     if (q.questionType === 'MULTIPLE_CHOICE') newSection = 'PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D)'
     else if (q.questionType === 'TRUE_FALSE') newSection = 'PHẦN II: TRẮC NGHIỆM ĐÚNG / SAI (4 Ý a, b, c, d)'
     else if (q.questionType === 'SHORT_ANSWER') newSection = 'PHẦN III: TRẢ LỜI NGẮN (ĐIỀN KẾT QUẢ SỐ)'
+    else if (q.questionType === 'ESSAY') newSection = 'PHẦN IV: TỰ LUẬN (NHẬP VĂN BẢN)'
 
     if (newSection !== currentSection) {
       currentSection = newSection
@@ -139,7 +141,7 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-weight:700; font-size:15px; color:#0f172a;">Câu ${qNum}:</span>
             <span class="badge" style="background:#f1f5f9; color:#475569; font-size:12px; font-weight:600;">
-              (${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25))} điểm)
+              (${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 1.0))} điểm)
             </span>
           </div>
           <button type="button" class="btn-flag-question ${isFlagged ? 'active' : ''}" data-qnum="${qNum}" style="background:transparent; border:none; color:${isFlagged ? '#f59e0b' : '#94a3b8'}; cursor:pointer; font-size:12.5px; font-weight:600; display:inline-flex; align-items:center; gap:5px; transition:all 0.15s ease;" title="Đánh dấu để xem lại sau">
@@ -199,6 +201,11 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
               `
             }).join('')}
           </div>
+        ` : (q.questionType === 'ESSAY' ? `
+          <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:8px; padding:12px 14px;">
+            <label style="display:block; font-size:12px; font-weight:600; color:#6b21a8; margin-bottom:6px;">Nhập câu trả lời tự luận:</label>
+            <textarea class="form-input student-interactive-essay-input" data-qnum="${qNum}" rows="6" placeholder="Nhập câu trả lời của em..." style="width:100%; resize:vertical; font-size:14px; line-height:1.5; background:#ffffff; color:#0f172a;">${escapeHtml(studentAnswers.essay[qNum] || '')}</textarea>
+          </div>
         ` : `
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">
@@ -206,7 +213,7 @@ function renderInteractiveSolverQuestionCards(parsedQuestions) {
             </label>
             <input type="text" class="form-input student-interactive-sa-input" data-qnum="${qNum}" value="${studentAnswers.sa[qNum] || ''}" placeholder="Điền đáp án số (ví dụ: 2.67 hoặc -5)..." style="font-size:14px; padding:8px 12px; background:#ffffff; font-weight:600; color:#0f172a; max-width:320px;">
           </div>
-        `)}
+        `))}
       </div>
     `
   }).join('')
@@ -223,6 +230,8 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
       const tf = studentAnswers.tf[qNum] || {}
       if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answeredCount++
     } else if (q.questionType === 'SHORT_ANSWER' && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
+      answeredCount++
+    } else if (q.questionType === 'ESSAY' && studentAnswers.essay[qNum] && String(studentAnswers.essay[qNum]).trim() !== '') {
       answeredCount++
     }
   })
@@ -328,6 +337,8 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
                       isPartial = answeredCount > 0 && answeredCount < 4
                     } else if (q.questionType === 'SHORT_ANSWER') {
                       isAnswered = studentAnswers.sa[qNum] !== undefined && String(studentAnswers.sa[qNum]).trim() !== ''
+                    } else if (q.questionType === 'ESSAY') {
+                      isAnswered = studentAnswers.essay[qNum] !== undefined && String(studentAnswers.essay[qNum]).trim() !== ''
                     }
 
                     return `
@@ -412,6 +423,9 @@ function countAnswered() {
   })
   Object.values(studentAnswers.sa || {}).forEach(v => {
     if (String(v ?? '').trim() !== '') n++
+  })
+  Object.values(studentAnswers.essay || {}).forEach(v => {
+    if (String(v || '').trim()) answered++
   })
   return n
 }
@@ -533,7 +547,7 @@ export function renderHomeworkSolverView() {
   if (serverDraft?.updated_at &&
       (!savedDraft?.updatedAt || new Date(serverDraft.updated_at) > new Date(savedDraft.updatedAt))) {
     savedDraft = {
-      answers: serverDraft.answers || { mc: {}, tf: {}, sa: {} },
+       answers: serverDraft.answers || { mc: {}, tf: {}, sa: {}, essay: {} },
       timeLeft: serverDraft.time_left_seconds,
       updatedAt: serverDraft.updated_at
     }
@@ -542,13 +556,15 @@ export function renderHomeworkSolverView() {
   isDraftRestored = !!(savedDraft && savedDraft.answers && (
     Object.keys(savedDraft.answers.mc || {}).length > 0 ||
     Object.keys(savedDraft.answers.tf || {}).length > 0 ||
-    Object.keys(savedDraft.answers.sa || {}).length > 0
+     Object.keys(savedDraft.answers.sa || {}).length > 0 ||
+     Object.keys(savedDraft.answers.essay || {}).length > 0
   ))
 
   studentAnswers = {
     mc: savedDraft?.answers?.mc || {},
     tf: savedDraft?.answers?.tf || {},
-    sa: savedDraft?.answers?.sa || {}
+     sa: savedDraft?.answers?.sa || {},
+     essay: savedDraft?.answers?.essay || {}
   }
 
   // Separate questions by type
@@ -572,12 +588,15 @@ export function renderHomeworkSolverView() {
     const rawType = (q.question_type || q.questionType || '').toUpperCase()
     const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
     const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+    const isEssay = rawType === 'ESSAY' || rawType === 'TL'
 
     if (isTf && studentAnswers.tf[qNum] === undefined) {
       studentAnswers.tf[qNum] = {}
     } else if (isSa && studentAnswers.sa[qNum] === undefined) {
       studentAnswers.sa[qNum] = ''
-    } else if (!isTf && !isSa && studentAnswers.mc[qNum] === undefined) {
+    } else if (isEssay && studentAnswers.essay[qNum] === undefined) {
+      studentAnswers.essay[qNum] = ''
+    } else if (!isTf && !isSa && !isEssay && studentAnswers.mc[qNum] === undefined) {
       studentAnswers.mc[qNum] = null
     }
   })
@@ -591,7 +610,8 @@ export function renderHomeworkSolverView() {
       const rawType = (q.question_type || q.questionType || '').toUpperCase()
       const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
       const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
-      const questionType = isTf ? 'TRUE_FALSE' : (isSa ? 'SHORT_ANSWER' : 'MULTIPLE_CHOICE')
+      const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+      const questionType = isTf ? 'TRUE_FALSE' : (isEssay ? 'ESSAY' : (isSa ? 'SHORT_ANSWER' : 'MULTIPLE_CHOICE'))
 
       let promptText = pObj.text || q.content || (typeof q.prompt === 'string' && !q.prompt.trim().startsWith('{') ? q.prompt : '') || `Câu hỏi số ${qNum}`
       let options = []
@@ -628,7 +648,7 @@ export function renderHomeworkSolverView() {
           stmtText = stmtText.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
           return { id: k, text: stmtText }
         })
-      } else if (!isSa) {
+      } else if (!isSa && !isEssay) {
         let rawOptions = pObj.options.length > 0 ? pObj.options : (q.options || [])
         if (Array.isArray(rawOptions) && rawOptions.length > 0) {
           options = rawOptions.map((opt, idx) => {
@@ -652,7 +672,7 @@ export function renderHomeworkSolverView() {
         id: q.id,
         questionNumber: qNum,
         questionType,
-        points: q.points || (questionType === 'TRUE_FALSE' ? 1.0 : (questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)),
+        points: q.points || (questionType === 'TRUE_FALSE' ? 1.0 : (questionType === 'SHORT_ANSWER' ? 0.5 : 1.0)),
         promptText,
         imageUrl: pObj.imageUrl || '',
         options,
@@ -972,13 +992,16 @@ export function bindHomeworkSolverEvents() {
         const rawType = (q.question_type || q.questionType || '').toUpperCase()
         const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
         const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
-        const isMc = !isTf && !isSa
+        const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+        const isMc = !isTf && !isSa && !isEssay
 
         if (isMc && studentAnswers.mc[qNum]) answered++
         else if (isTf) {
           const tf = studentAnswers.tf[qNum] || {}
           if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answered++
         } else if (isSa && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
+          answered++
+        } else if (isEssay && studentAnswers.essay[qNum] && String(studentAnswers.essay[qNum]).trim() !== '') {
           answered++
         }
       })
@@ -1101,6 +1124,17 @@ export function bindHomeworkSolverEvents() {
         saDebounceTimer = setTimeout(() => {
           saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
         }, 500)
+      })
+    })
+    document.querySelectorAll('#interactive-solver-container .student-interactive-essay-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const qNum = parseInt(input.getAttribute('data-qnum'), 10)
+        const val = e.target.value
+        studentAnswers.essay[qNum] = val
+        document.getElementById(`nav-btn-q-${qNum}`)?.classList.toggle('answered', !!val.trim())
+        updateInteractiveProgress()
+        clearTimeout(saDebounceTimer)
+        saDebounceTimer = setTimeout(() => saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds), 500)
       })
     })
 
@@ -1304,7 +1338,8 @@ export function bindHomeworkSolverEvents() {
       const rawType = (q.question_type || q.questionType || '').toUpperCase()
       const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
       const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
-      const isMc = !isTf && !isSa
+      const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+      const isMc = !isTf && !isSa && !isEssay
 
       if (isMc) {
         return {
@@ -1333,6 +1368,8 @@ export function bindHomeworkSolverEvents() {
             value: valObj
           }
         }
+      } else if (isEssay) {
+        return { questionId: q.id, givenAnswer: { type: 'ESSAY', value: String(studentAnswers.essay[qNum] || '') } }
       } else {
         return {
           questionId: q.id,

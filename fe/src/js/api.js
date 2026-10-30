@@ -450,6 +450,12 @@ export const api = {
   createClass: (data) => request('create-class', { method: 'POST', body: JSON.stringify(data) }),
   updateClass: (data) => request('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),
   getClasses: (params = '') => request(`create-class${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
+  getWeeklyCalendar: (params = {}, options = {}) => {
+    const sp = new URLSearchParams()
+    if (params.weekStart) sp.set('weekStart', params.weekStart)
+    if (params.classId) sp.set('classId', params.classId)
+    return request(`weekly-calendar?${sp.toString()}`, { ...options, method: 'GET', silent: true })
+  },
   deleteClass: (classId) => request(`create-class?classId=${classId}`, { method: 'DELETE' }),
   removeStudentFromClass: (classId, studentId) => request('create-class?action=remove-student', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
   getGradeBlocks: (params = {}) => request(`create-class?action=get-grade-blocks${params?.includeStats ? '&includeStats=true' : ''}`, { method: 'GET' }),
@@ -602,6 +608,7 @@ export const api = {
   getExamSessions: (homeworkId, options = {}) => request(`exam-session?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
   reopenSubmission: (homeworkId, studentId, resetTimer, resetAnswers, options = {}) => request(`reopen-submission`, { method: 'POST', body: JSON.stringify({ homeworkId, studentId, resetTimer, resetAnswers }), ...options }),
   awardQuestionPoints: (submissionId, answerId, options = {}) => request('reopen-submission?action=award-question', { method: 'POST', body: JSON.stringify({ submissionId, answerId }), ...options }),
+  gradeEssay: (submissionId, answerId, score, feedback = '', options = {}) => request('reopen-submission?action=grade-essay', { method: 'POST', body: JSON.stringify({ submissionId, answerId, score, feedback }), ...options }),
   setBonus: (data) => request(`reopen-submission?action=set-bonus`, { method: 'POST', body: JSON.stringify(data) }),
   initExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }), silent: true, ...options }),
   heartbeatExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'heartbeat', homeworkId, sessionToken }), silent: true, ...options }),
@@ -624,6 +631,17 @@ export const api = {
     }
     return request(`student-history${qs}`, { method: 'GET', ...options })
   },
+  listQuestionAppeals: (params = {}, options = {}) => {
+    const sp = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== '') sp.set(key, String(value))
+    }
+    const qs = sp.toString()
+    return request(`question-appeals${qs ? `?${qs}` : ''}`, { method: 'GET', ...options })
+  },
+  createQuestionAppeal: (data) => request('question-appeals', { method: 'POST', body: JSON.stringify(data) }),
+  replyQuestionAppeal: (data) => request('question-appeals', { method: 'PATCH', body: JSON.stringify({ ...data, action: 'reply' }) }),
+  closeQuestionAppeal: (data) => request('question-appeals', { method: 'PATCH', body: JSON.stringify({ ...data, action: 'close' }) }),
   // Báo cáo tiến độ học sinh (scope=report) — GET student-history?scope=report...
   // Respone: { scope, studentId, classId, period, summary, comparison, scoreTrend, topicBreakdown, submissions }
   // Wrapper riêng thay vì gọi getStudentHistory để caller cũ (params string) giữ nguyên hành vi.

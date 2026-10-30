@@ -5,7 +5,7 @@ export function renderSidebar(currentRoute) {
   const role = state.user?.role || 'STUDENT'
 
   return `
-    <aside class="sidebar">
+    <aside class="sidebar" id="app-sidebar" aria-label="Điều hướng chính">
       <div class="brand-logo" onclick="window.location.hash='${isGuest ? '#roadmap' : (role === 'ADMIN' ? '#admin-dashboard' : '#my-classes')}'" style="cursor:pointer;">
         <i class="fa-solid fa-graduation-cap"></i>
         <span>EduPortal</span>
@@ -27,6 +27,9 @@ export function renderSidebar(currentRoute) {
         </div>
       ` : (role === 'ADMIN' ? `
         <div class="nav-section-title">Quản trị viên</div>
+        <a class="nav-item ${currentRoute === 'weekly-calendar' ? 'active' : ''}" href="#weekly-calendar" style="text-decoration:none;">
+          <i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Lịch tuần
+        </a>
         <div class="nav-item ${currentRoute === 'admin-dashboard' ? 'active' : ''}" onclick="window.location.hash='#admin-dashboard'">
           <i class="fa-solid fa-table-cells-large"></i> Dashboard
         </div>
@@ -51,6 +54,9 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'admin-history' ? 'active' : ''}" onclick="window.location.hash='#admin-history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài
         </div>
+        <a class="nav-item ${currentRoute === 'question-appeals' ? 'active' : ''}" href="#question-appeals" style="text-decoration:none;">
+          <i class="fa-solid fa-comments" aria-hidden="true"></i> Hỏi về câu đã nộp
+        </a>
         <div class="nav-item ${currentRoute === 'tuition-ledger' ? 'active' : ''}" onclick="window.location.hash='#tuition-ledger'">
           <i class="fa-solid fa-receipt"></i> Sổ giao dịch học phí
         </div>
@@ -59,6 +65,9 @@ export function renderSidebar(currentRoute) {
         </div>
       ` : `
         <div class="nav-section-title">Dành cho học sinh</div>
+        <a class="nav-item ${currentRoute === 'weekly-calendar' ? 'active' : ''}" href="#weekly-calendar" style="text-decoration:none;">
+          <i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Lịch tuần
+        </a>
         <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
           <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình Hóa 12 (Bứt phá 8+)
         </div>
@@ -86,6 +95,20 @@ export function renderSidebar(currentRoute) {
 }
 
 export function bindSidebarEvents() {
+  // The legacy menu contains click-driven rows. Make them operable with a keyboard
+  // without changing their existing routes or active-state styling.
+  document.querySelectorAll?.('.sidebar .nav-item').forEach(item => {
+    if (item.classList.contains('active')) item.setAttribute('aria-current', 'page')
+    if (item.tagName === 'A') return
+    item.setAttribute('role', 'link')
+    item.tabIndex = 0
+    item.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        item.click()
+      }
+    })
+  })
   document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
     if (!state.token) {
       window.location.hash = '#login'

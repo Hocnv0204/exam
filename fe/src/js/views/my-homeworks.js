@@ -1,4 +1,5 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
+import mascotUrl from '../../assets/mascot-study.svg'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { openModal } from '../components/modal.js'
@@ -39,14 +40,21 @@ let totalPages = 1
 
 export function renderMyHomeworksView() {
   return `
-    <div class="app-layout">
+    <div class="app-layout navy-student">
       ${renderSidebar('my-homeworks')}
       <div class="main-content">
         ${renderNavbar('Học tập / Bài tập của tôi')}
         <div class="content-body">
+          <div class="navy-hero">
+            <img src="${typeof mascotUrl !== 'undefined' ? mascotUrl : ''}" alt="Linh vật học tập">
+            <div>
+              <h1>Bài tập của tôi</h1>
+              <p>Theo dõi bài chưa làm, đã làm và các bài cần xem lại.</p>
+            </div>
+          </div>
           <div class="page-header" style="margin-bottom:16px;">
             <div>
-              <h1 class="page-title">Bài tập của tôi</h1>
+              <h2 class="page-title">Danh sách bài tập</h2>
               <p class="page-description">Tất cả bài tập và bài thi được giao theo lớp của bạn — gồm cả bài đã làm (điểm số, làm lại) và bài chưa làm.</p>
             </div>
             <div style="display:flex; gap:12px;">
@@ -59,7 +67,7 @@ export function renderMyHomeworksView() {
           <div class="card" id="tour-myhw-filter" style="margin:0 0 16px 0; padding:14px 16px;">
             <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
               <div style="display:flex; background:#f1f5f9; border-radius:10px; padding:3px; gap:4px;">
-                <button type="button" class="myhw-status-btn" data-status="all" style="border:none; padding:6px 14px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">Tất cả</button>
+                 <button type="button" class="myhw-status-btn ${filterStatus === 'all' ? 'active' : ''}" data-status="all" aria-pressed="${filterStatus === 'all'}" style="border:none; padding:6px 14px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">Tất cả</button>
                 <button type="button" class="myhw-status-btn" data-status="todo" style="border:none; padding:6px 14px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">Chưa làm</button>
                 <button type="button" class="myhw-status-btn" data-status="done" style="border:none; padding:6px 14px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">Đã làm</button>
               </div>
@@ -90,8 +98,8 @@ export function renderMyHomeworksView() {
 function paintStatusButtons() {
   document.querySelectorAll('.myhw-status-btn').forEach(b => {
     const active = b.getAttribute('data-status') === filterStatus
-    b.style.background = active ? '#0066cc' : 'transparent'
-    b.style.color = active ? '#ffffff' : '#475569'
+    b.classList.toggle('active', active)
+    b.setAttribute('aria-pressed', String(active))
   })
 }
 

@@ -43,6 +43,23 @@ let studentFilterState = {
   pageSize: 10
 }
 
+/**
+ * Palette màu cho Chart.js trên nền navy (admin-dark).
+ * Giúp nhãn, lưới và viền biểu đồ tương phản cao, dễ đọc trên nền tối.
+ */
+export function getAdminChartPalette() {
+  return {
+    surfaceColor: '#1f2937',                 // Nền thẻ card biểu đồ
+    gridColor: 'rgba(255, 255, 255, 0.08)',  // Đường kẻ lưới x/y
+    tickColor: '#cbd5e1',                    // Nhãn trục toạ độ x/y
+    legendTextColor: '#f8fafc',              // Chữ chú thích (legend)
+    emptyBg: '#334155',                      // Nền fallback khi chưa có dữ liệu
+    emptyBorder: '#475569',                  // Viền fallback khi chưa có dữ liệu
+    accentCyan: '#38bdf8',                   // Màu đường xu hướng
+    accentGold: '#fbbf24'                    // Màu nhãn tiêu đề trục
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Ô thống kê "Học sinh có số dư 0 đ" (role = 'STUDENT' AND balance = 0)
 //
@@ -1313,6 +1330,7 @@ export function bindAdminDashboardEvents() {
   setTimeout(() => {
     if (!window.Chart) return
 
+    const palette = getAdminChartPalette()
     const overview = state.dashboard?.overview || {}
     let monthlyStats = state.dashboard?.monthlyStats || []
     const scoreDistribution = state.dashboard?.scoreDistribution || {
@@ -1390,11 +1408,15 @@ export function bindAdminDashboardEvents() {
           },
           scales: {
             x: {
-              grid: { display: false }
+              grid: { display: false },
+              ticks: { color: palette.tickColor, font: { weight: '600' } }
             },
             y: {
               beginAtZero: true,
+              grid: { color: palette.gridColor },
               ticks: {
+                color: palette.tickColor,
+                font: { weight: '600' },
                 callback: (val) => {
                   if (val >= 1e6) return (val / 1e6).toFixed(1) + ' tr'
                   if (val >= 1e3) return (val / 1e3).toFixed(0) + ' k'
@@ -1426,9 +1448,9 @@ export function bindAdminDashboardEvents() {
           datasets: [
             {
               data: hasData ? [totalPaid, totalUnpaid] : [1, 0],
-              backgroundColor: hasData ? ['#10b981', '#ef4444'] : ['#e2e8f0', '#cbd5e1'],
+              backgroundColor: hasData ? ['#10b981', '#ef4444'] : [palette.emptyBg, palette.emptyBorder],
               borderWidth: 2,
-              borderColor: '#ffffff',
+              borderColor: palette.surfaceColor,
               hoverOffset: 4
             }
           ]
@@ -1442,6 +1464,7 @@ export function bindAdminDashboardEvents() {
               position: 'bottom',
               labels: {
                 boxWidth: 12,
+                color: palette.legendTextColor,
                 font: { size: 12, weight: '600' },
                 padding: 12
               }
@@ -1492,9 +1515,9 @@ export function bindAdminDashboardEvents() {
               data: totalGraded > 0 ? gradeCounts : [0, 0, 0, 0, 1],
               backgroundColor: totalGraded > 0
                 ? ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444']
-                : ['#e2e8f0'],
+                : [palette.emptyBg],
               borderWidth: 2,
-              borderColor: '#ffffff'
+              borderColor: palette.surfaceColor
             }
           ]
         },
@@ -1507,6 +1530,7 @@ export function bindAdminDashboardEvents() {
               position: 'right',
               labels: {
                 boxWidth: 12,
+                color: palette.legendTextColor,
                 font: { size: 12, weight: '500' },
                 padding: 10
               }
@@ -1543,13 +1567,13 @@ export function bindAdminDashboardEvents() {
               type: 'line',
               label: 'Đường xu hướng',
               data: sessionData,
-              borderColor: '#0284c7',
+              borderColor: palette.accentCyan,
               borderWidth: 2.5,
               cubicInterpolationMode: 'monotone',
               tension: 0.3,
               fill: false,
-              pointBackgroundColor: '#0284c7',
-              pointBorderColor: '#ffffff',
+              pointBackgroundColor: palette.accentCyan,
+              pointBorderColor: palette.surfaceColor,
               pointBorderWidth: 2,
               pointRadius: 5,
               pointHoverRadius: 7,
@@ -1586,18 +1610,24 @@ export function bindAdminDashboardEvents() {
           },
           scales: {
             x: {
-              grid: { display: false }
+              grid: { display: false },
+              ticks: { color: palette.tickColor, font: { weight: '600' } }
             },
             y: {
               beginAtZero: true,
               grace: '15%',
+              grid: { color: palette.gridColor },
               title: {
                 display: true,
                 text: 'Số buổi dạy',
-                color: '#d97706',
+                color: palette.accentGold,
                 font: { size: 11, weight: 'bold' }
               },
-              ticks: { precision: 0 }
+              ticks: {
+                color: palette.tickColor,
+                font: { weight: '600' },
+                precision: 0
+              }
             }
           }
         }

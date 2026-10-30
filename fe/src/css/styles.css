@@ -1297,11 +1297,8 @@ select.form-input {
     right: 0;
     bottom: 0;
     background: rgba(15, 23, 42, 0.5);
-  padding: 12px 20px;
-  border-radius: 10px;
-  font-size: 14px;
-  box-shadow: var(--shadow-md);
-  transition: all 0.3s ease;
+    z-index: 900;
+  }
 }
 
 .modal-backdrop {
@@ -1645,7 +1642,6 @@ select.form-input {
   .responsive-padding {
     padding: 16px !important;
   }
-}
 }
 
 

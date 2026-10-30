@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img" aria-label="Linh vật học sinh đang học bài">
+  <defs>
+    <linearGradient id="sky" x2="1" y2="1"><stop stop-color="#7dd3fc"/><stop offset="1" stop-color="#38bdf8"/></linearGradient>
+    <linearGradient id="hood" x2="1" y2="1"><stop stop-color="#586b9d"/><stop offset="1" stop-color="#37466f"/></linearGradient>
+  </defs>
+  <rect width="240" height="180" rx="24" fill="#1b2a40"/>
+  <path d="M16 136c27-18 41-4 60-17M180 27c23-14 38-5 48 7" fill="none" stroke="#334f6d" stroke-width="2" stroke-linecap="round"/>
+  <path d="M191 41l3-8 3 8 8 3-8 3-3 8-3-8-8-3zM42 54l2-5 2 5 5 2-5 2-2 5-2-5-5-2z" fill="#7dd3fc"/>
+  <!-- Side-swept hair and a simple, expressive school mascot face. -->
+  <path d="M82 77c-7-38 15-58 41-58 30 0 48 23 43 59l-6 8-72-1z" fill="#172033"/>
+  <path d="M90 70c0-23 14-40 34-40 21 0 34 16 34 40v12c0 23-16 38-34 38s-34-15-34-38z" fill="#ffd3b6"/>
+  <path d="M88 71c3-39 28-53 56-43 14 5 22 17 22 38-10 0-17-5-24-13-13 10-30 16-54 18z" fill="#202e49"/>
+  <path d="M101 78c4-4 10-4 14 0m21 0c4-4 10-4 14 0" fill="none" stroke="#273449" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="110" cy="85" r="2.6" fill="#273449"/><circle cx="144" cy="85" r="2.6" fill="#273449"/>
+  <path d="M122 101c5 4 10 4 15 0" fill="none" stroke="#ba6b68" stroke-width="2.5" stroke-linecap="round"/>
+  <ellipse cx="99" cy="97" rx="7" ry="3" fill="#ef9c9c" opacity=".48"/><ellipse cx="152" cy="97" rx="7" ry="3" fill="#ef9c9c" opacity=".48"/>
+  <path d="M75 166c2-36 20-53 44-56l7 8 8-8c24 3 43 20 45 56" fill="url(#hood)" stroke="#7d91c0" stroke-width="2"/>
+  <path d="M117 113l9 16 9-16m-9 16v25" fill="none" stroke="#9aadd4" stroke-width="2"/>
+  <!-- Open notebook is the focal point, not a reward/premium badge. -->
+  <path d="M70 131c23-6 37-3 54 2v31c-17-6-34-7-54-2zm54 2c16-5 31-8 54-2v31c-20-5-37-4-54 2z" fill="#e8f7ff" stroke="url(#sky)" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M124 133v31M78 140l35 1m-35 7 30 1m24-7 36-2m-36 10 27-2" stroke="#91adc3" stroke-width="2" stroke-linecap="round"/>
+  <path d="M63 160c4-7 11-9 19-6m101 6c-4-7-11-9-19-6" fill="none" stroke="#ffd3b6" stroke-width="8" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,582 @@
+/* =========================================================================
+   Admin navy — page-specific patches (#admin-dark)
+   -------------------------------------------------------------------------
+   File này load SAU theme-admin.css và chỉ bổ sung những chỗ mà base
+   theme-admin.css (scoped .app-layout.admin-dark .content-body) chưa với tới:
+   1) exam-proctoring render trong .content-container (KHÔNG phải
+      .content-body) nên mọi override base của admin-dark không áp được;
+   2) các khối class-based hard-code nền sáng trong styles.css (curriculum
+      panels, attendance roster, report launcher) chưa được base phủ;
+   3) select chuyển lớp nhanh của chi tiết lớp (inline nền sáng + chữ tối,
+      dễ thành chữ trắng trên nền trắng ở một số trình duyệt);
+   4) một số inline color/border tint mà theme-admin.css chưa liệt kê;
+   5) responsive còn hụt ở khoảng 360/390/480/639px.
+   Không đổi markup/logic/data. Reports, chấm bài (assignment-review), PDF,
+   public/guest giữ nguyên nền sáng.
+   ========================================================================= */
+
+/* =========================================================================
+   1. Chi tiết lớp — select chuyển lớp nhanh (#quick-class-switcher)
+   Inline style của select là nền sáng + chữ tối; trên nền navy nó dễ thành
+   "chữ trắng trên nền trắng". Ép tường minh theo ID kèm <option> để dropdown
+   của hệ điều hành cũng đọc được.
+   ========================================================================= */
+.app-layout.admin-dark .content-body #quick-class-switcher {
+  background-color: var(--adm-surface-soft) !important;
+  color: var(--adm-text) !important;
+  border-color: var(--adm-border) !important;
+  box-shadow: none;
+}
+
+.app-layout.admin-dark .content-body #quick-class-switcher:hover {
+  border-color: var(--adm-accent) !important;
+}
+
+.app-layout.admin-dark .content-body #quick-class-switcher option {
+  background-color: #1f2937;
+  color: #f1f5f9;
+}
+
+/* =========================================================================
+   2. Chương trình học (curriculum) — các panel class-based trong styles.css
+   Base admin-dark chỉ remap inline style; các lớp .curriculum-* đặt nền
+   sáng bằng CSS thuần nên cần skin riêng theo từng khối.
+   ========================================================================= */
+.app-layout.admin-dark .content-body .curriculum-chapter-card {
+  background: var(--adm-surface);
+  border-color: var(--adm-border);
+  box-shadow: 0 1px 3px rgba(2, 6, 23, 0.35);
+}
+
+.app-layout.admin-dark .content-body .curriculum-chapter-card:hover {
+  border-color: #475569;
+}
+
+/* Selected chapter dùng gradient sáng hard-code trong styles.css. */
+.app-layout.admin-dark .content-body .curriculum-chapter-card.is-selected {
+  border-color: var(--adm-accent);
+  background: linear-gradient(180deg, #16324a 0%, #1b2a3d 100%);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.app-layout.admin-dark .content-body .curriculum-chapter-header {
+  background: var(--adm-surface-strong);
+  color: var(--adm-text);
+}
+
+.app-layout.admin-dark .content-body .curriculum-chapter-header:hover {
+  background: var(--adm-surface-soft);
+}
+
+.app-layout.admin-dark .content-body .curriculum-lessons-list {
+  background: var(--adm-surface-strong);
+  border-top-color: var(--adm-border);
+}
+
+.app-layout.admin-dark .content-body .curriculum-lesson-item {
+  background: var(--adm-surface-soft);
+  border-color: var(--adm-border);
+  color: var(--adm-text-muted);
+}
+
+.app-layout.admin-dark .content-body .curriculum-lesson-item:hover {
+  background: #2b3d55;
+  border-color: #475569;
+}
+
+.app-layout.admin-dark .content-body .curriculum-lesson-item.active {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: var(--adm-accent);
+  box-shadow: none;
+}
+
+.app-layout.admin-dark .content-body .curriculum-lesson-item.active .lesson-title-text {
+  color: var(--adm-accent-soft);
+}
+
+.app-layout.admin-dark .content-body .curriculum-content-panel {
+  background: var(--adm-surface);
+  border-color: var(--adm-border);
+  box-shadow: 0 1px 4px rgba(2, 6, 23, 0.35);
+}
+
+/* Thanh breadcrumb + chip phím tắt tìm kiếm */
+.app-layout.admin-dark .content-body .curriculum-breadcrumb {
+  background: var(--adm-surface-soft);
+  border-color: var(--adm-border);
+  color: var(--adm-text-muted);
+}
+
+.app-layout.admin-dark .content-body .curriculum-bc-link {
+  color: var(--adm-accent-soft);
+}
+
+.app-layout.admin-dark .content-body .curriculum-bc-current {
+  color: var(--adm-text);
+}
+
+.app-layout.admin-dark .content-body .curriculum-bc-sep {
+  color: var(--adm-text-dim);
+}
+
+.app-layout.admin-dark .content-body .curriculum-search-shortcut {
+  background: var(--adm-surface-strong);
+  border-color: var(--adm-border);
+  color: var(--adm-text-dim);
+}
+
+/* Kết quả tìm kiếm là dropdown nổi; nền sáng sẽ thành "đảo trắng". */
+.app-layout.admin-dark .content-body .curriculum-search-results-panel {
+  background: var(--adm-surface);
+  border-color: var(--adm-border);
+  box-shadow: 0 12px 28px -4px rgba(2, 6, 23, 0.6);
+}
+
+.app-layout.admin-dark .content-body .curriculum-search-chapter-header {
+  background: var(--adm-surface-strong);
+  color: var(--adm-text-muted);
+  border-color: var(--adm-border);
+}
+
+.app-layout.admin-dark .content-body .curriculum-search-result-item {
+  border-bottom-color: var(--adm-border);
+  color: var(--adm-text-muted);
+}
+
+.app-layout.admin-dark .content-body .curriculum-search-result-item:hover,
+.app-layout.admin-dark .content-body .curriculum-search-result-item.highlighted {
+  background: var(--adm-surface-soft);
+}
+
+/* Vệt highlight tìm kiếm: vàng đặc trên nền tối quá chói, hạ xuống tint. */
+.app-layout.admin-dark .content-body .curriculum-search-mark {
+  background: rgba(250, 204, 21, 0.22);
+  color: #fde047;
+}
+
+/* =========================================================================
+   3. Điểm danh trong chi tiết lớp (tab Điểm danh) — roster class-based
+   ========================================================================= */
+.app-layout.admin-dark .content-body .attendance-roster-item {
+  background: var(--adm-surface);
+  border-color: var(--adm-border);
+}
+
+.app-layout.admin-dark .content-body .attendance-roster-item:hover {
+  background: var(--adm-surface-soft);
+  border-color: #475569;
+}
+
+.app-layout.admin-dark .content-body .attendance-roster-item.present {
+  background: rgba(52, 211, 153, 0.14);
+  border-color: rgba(52, 211, 153, 0.45);
+}
+
+.app-layout.admin-dark .content-body .attendance-student-name {
+  color: var(--adm-text);
+}
+
+.app-layout.admin-dark .content-body .attendance-student-sub {
+  color: var(--adm-text-muted);
+}
+
+/* =========================================================================
+   4. Chi tiết học sinh (student-details) — ô chọn khoảng ngày báo cáo
+   (report-launch-*)
+   ========================================================================= */
+.app-layout.admin-dark .content-body .report-launch-fields {
+  background: var(--adm-surface-soft);
+  border-color: var(--adm-border);
+}
+
+.app-layout.admin-dark .content-body .report-launch-field label {
+  color: var(--adm-text-muted);
+}
+
+/* Chi tiết bài học — hàng video vẫn dùng nền sáng từ .lw-video-card. */
+.app-layout.admin-dark .content-body .lw-video-card {
+  background: var(--adm-surface-soft);
+  border-color: var(--adm-border);
+  color: var(--adm-text-muted);
+}
+
+.app-layout.admin-dark .content-body .lw-video-card .lw-video-icon {
+  background: var(--adm-surface-strong);
+  border-color: var(--adm-border);
+}
+
+.app-layout.admin-dark .content-body .lw-video-card .lw-video-name {
+  color: var(--adm-text);
+}
+
+.app-layout.admin-dark .content-body .lw-video-card .lw-video-url {
+  color: var(--adm-text-dim);
+}
+
+.app-layout.admin-dark .content-body .lw-video-card .btn-secondary {
+  background: var(--adm-surface-strong);
+  color: var(--adm-text);
+  border-color: var(--adm-border);
+}
+
+/* =========================================================================
+   5. Inline color tối còn thiếu (theme-admin.css chưa liệt kê các tông rất
+   đậm: nâu/đỏ/rêu/xanh tím). Chỉ remap TEXT, không đụng gradient trang trí.
+   ========================================================================= */
+.app-layout.admin-dark .content-body [style*="color:#7f1d1d"],
+.app-layout.admin-dark .content-body [style*="color: #7f1d1d"] {
+  color: #fca5a5 !important;
+}
+
+.app-layout.admin-dark .content-body [style*="color:#78350f"],
+.app-layout.admin-dark .content-body [style*="color:#9a3412"],
+.app-layout.admin-dark .content-body [style*="color: #9a3412"] {
+  color: #fdba74 !important;
+}
+
+.app-layout.admin-dark .content-body [style*="color:#14532d"],
+.app-layout.admin-dark .content-body [style*="color:#065f46"] {
+  color: #6ee7b7 !important;
+}
+
+.app-layout.admin-dark .content-body [style*="color:#1e3a8a"],
+.app-layout.admin-dark .content-body [style*="color:#075985"] {
+  color: #7dd3fc !important;
+}
+
+.app-layout.admin-dark .content-body [style*="color:#3730a3"],
+.app-layout.admin-dark .content-body [style*="color:#4f46e5"],
+.app-layout.admin-dark .content-body [style*="color: #4f46e5"],
+.app-layout.admin-dark .content-body [style*="color:#6b21a8"],
+.app-layout.admin-dark .content-body [style*="color:#581c87"] {
+  color: #c4b5fd !important;
+}
+
+.app-layout.admin-dark .content-body [style*="color:#db2777"],
+.app-layout.admin-dark .content-body [style*="color:#be185d"] {
+  color: #f9a8d4 !important;
+}
+
+/* Nền indigo nhạt (chip trạng thái trong ngân hàng câu hỏi). */
+.app-layout.admin-dark .content-body [style*="background:#eef2ff"],
+.app-layout.admin-dark .content-body [style*="background: #eef2ff"] {
+  background: rgba(167, 139, 250, 0.14) !important;
+}
+
+/* =========================================================================
+   6. Viền tint nhạt (thẻ KPI, chip trạng thái, thẻ tổng hợp) — trên nền tối
+   viền pastel sáng làm thẻ giống "ảo ảnh sáng"; hạ về tint tối tương ứng.
+   Chỉ đổi border-color, không đổi nền/chữ.
+   ========================================================================= */
+.app-layout.admin-dark .content-body [style*="#bbf7d0"],
+.app-layout.admin-dark .content-body [style*="#a7f3d0"],
+.app-layout.admin-dark .content-body [style*="#86efac"] {
+  border-color: rgba(52, 211, 153, 0.45) !important;
+}
+
+.app-layout.admin-dark .content-body [style*="#fecaca"],
+.app-layout.admin-dark .content-body [style*="#f87171"] {
+  border-color: rgba(248, 113, 113, 0.45) !important;
+}
+
+.app-layout.admin-dark .content-body [style*="#bfdbfe"],
+.app-layout.admin-dark .content-body [style*="#bae6fd"],
+.app-layout.admin-dark .content-body [style*="#93c5fd"] {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+}
+
+.app-layout.admin-dark .content-body [style*="#fde68a"] {
+  border-color: rgba(251, 191, 36, 0.45) !important;
+}
+
+.app-layout.admin-dark .content-body [style*="#fed7aa"] {
+  border-color: rgba(251, 146, 60, 0.45) !important;
+}
+
+.app-layout.admin-dark .content-body [style*="#c7d2fe"],
+.app-layout.admin-dark .content-body [style*="#ddd6fe"],
+.app-layout.admin-dark .content-body [style*="#d8b4fe"] {
+  border-color: rgba(167, 139, 250, 0.45) !important;
+}
+
+/* =========================================================================
+   7. Loading / error / empty — các trạng thái base chưa phủ đủ
+   ========================================================================= */
+/* Spinner nhúng (div tròn + animation:spin) của trang Quản lý học thử:
+   rule viền chung trong theme-admin.css ép cả 4 cạnh nên vòng quay mất
+   contrast; khôi phục màu viền tương phản. Cần !important vì rule kia cũng
+   là !important, và selector này cụ thể hơn (2 attribute + element). */
+.app-layout.admin-dark .content-body div[style*="border-radius:50%"][style*="animation:spin"] {
+  border-color: var(--adm-border) !important;
+  border-top-color: var(--adm-accent) !important;
+}
+
+/* Hộp thư khiếu nại: các nút lỗi/alert không có class màu. */
+.app-layout.admin-dark .content-body #appeal-inbox-error:not(:empty),
+.app-layout.admin-dark .content-body [data-appeal-error]:not(:empty),
+.app-layout.admin-dark .content-body [data-appeal-row-error]:not(:empty) {
+  color: #fca5a5;
+}
+
+.app-layout.admin-dark .content-body #appeal-inbox-list [role="status"],
+.app-layout.admin-dark .content-body [data-question-appeal-answer] [role="status"] {
+  color: var(--adm-text-muted);
+}
+
+/* =========================================================================
+   8. Exam giám sát thi — TRANG NÀY DÙNG .content-container
+   (exam-proctoring.js render ngoài .content-body nên toàn bộ override của
+   theme-admin.css không áp được; khôi phục cùng bảng màu tại đây.)
+   ========================================================================= */
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container {
+  color: var(--adm-text-muted);
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container :is(h1, h2, h3, h4) {
+  color: var(--adm-text);
+}
+
+/* --- Form & nút trong vùng giám sát --- */
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container
+  :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  background: var(--adm-surface-soft);
+  color: var(--adm-text);
+  border-color: var(--adm-border);
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container
+  :is(input, textarea)::placeholder {
+  color: var(--adm-text-dim);
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container .btn-secondary {
+  background: var(--adm-surface-soft);
+  color: var(--adm-text);
+  border-color: var(--adm-border);
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container .btn-secondary:hover {
+  background: #2f4057;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+/* --- Bảng thuần (không dùng class .data-table) --- */
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container table {
+  color: var(--adm-text-muted);
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container :is(th, td) {
+  border-color: var(--adm-border);
+}
+
+/* --- Remap inline color tối (text) --- */
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#0f172a"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color: #0f172a"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#1e293b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#334155"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color: #334155"] {
+  color: #f1f5f9 !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#475569"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#64748b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color: #64748b"] {
+  color: #cbd5e1 !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#94a3b8"] {
+  color: var(--adm-text-dim) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#0284c7"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#2563eb"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#1d4ed8"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#1e40af"] {
+  color: #7dd3fc !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#059669"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#10b981"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#047857"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#065f46"] {
+  color: #6ee7b7 !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#d97706"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#b45309"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#92400e"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#c2410c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#9a3412"] {
+  color: #fcd34d !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#dc2626"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#b91c1c"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#991b1b"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#ef4444"] {
+  color: #fca5a5 !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#4f46e5"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="color:#4338ca"] {
+  color: #c4b5fd !important;
+}
+
+/* --- Remap inline nền sáng (thẻ KPI, hàng bảng, header tab) ---
+   Chỉ liệt kê đúng hex xuất hiện trong view; không dùng tiền tố "#fff" vì
+   sẽ khớp nhầm #fffbeb / #fff1f2 của các nhóm tint bên dưới. */
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#ffffff"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background: #ffffff"] {
+  background: var(--adm-surface) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#f8fafc"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background: #f8fafc"] {
+  background: var(--adm-surface-soft) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#f1f5f9"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background: #f1f5f9"] {
+  background: var(--adm-surface-strong) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#ecfdf5"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#d1fae5"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#f0fdf4"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#dcfce7"] {
+  background: rgba(52, 211, 153, 0.14) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#eff6ff"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#e0f2fe"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#dbeafe"] {
+  background: rgba(56, 189, 248, 0.14) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#fffbeb"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#fef3c7"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#fff7ed"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#ffedd5"] {
+  background: rgba(251, 191, 36, 0.14) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#fef2f2"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#fee2e2"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#fff1f2"] {
+  background: rgba(248, 113, 113, 0.14) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#e0e7ff"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="background:#ede9fe"] {
+  background: rgba(167, 139, 250, 0.14) !important;
+}
+
+/* --- Remap inline viền sáng + viền tint trong giám sát thi --- */
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#e2e8f0"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#cbd5e1"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#f1f5f9"] {
+  border-color: var(--adm-border) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#bbf7d0"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#a7f3d0"] {
+  border-color: rgba(52, 211, 153, 0.45) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#fecaca"],
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#f87171"] {
+  border-color: rgba(248, 113, 113, 0.45) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#bfdbfe"] {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#fde68a"] {
+  border-color: rgba(251, 191, 36, 0.45) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#fed7aa"] {
+  border-color: rgba(251, 146, 60, 0.45) !important;
+}
+
+.app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="#c7d2fe"] {
+  border-color: rgba(167, 139, 250, 0.45) !important;
+}
+
+/* =========================================================================
+   9. Responsive cho trang quản trị (360 / 390 / 480 / 768 / 1024 / 1440)
+   ========================================================================= */
+
+/* KPI 5 thẻ của chi tiết lớp: base dùng repeat(5,1fr) và chỉ có band
+   640–899px được sửa; dưới 640px các thẻ bóp về ~60px. */
+@media (max-width: 639px) {
+  .app-layout.admin-dark .content-body .class-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .app-layout.admin-dark .content-body .class-kpi-card {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-layout.admin-dark .content-body .class-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-layout.admin-dark .content-body #quick-class-switcher {
+    max-width: 100%;
+  }
+}
+
+/* Giám sát thi */
+@media (max-width: 1024px) {
+  .app-layout.admin-dark[data-route="exam-proctoring"] .content-container {
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout.admin-dark[data-route="exam-proctoring"] .content-container {
+    padding: 16px 12px;
+  }
+
+  .app-layout.admin-dark[data-route="exam-proctoring"] .content-container :is(h1, h2) {
+    font-size: 19px;
+  }
+
+  /* Thanh điều khiển: tab + ô tìm kiếm xếp chồng thay vì ép 260px cố định. */
+  .app-layout.admin-dark[data-route="exam-proctoring"] .content-container > div > div:first-child,
+  .app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="position:relative; width:260px"] {
+    width: 100% !important;
+  }
+
+  .app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="minmax(200px, 1fr)"] {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-layout.admin-dark[data-route="exam-proctoring"] .content-container [style*="minmax(200px, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Các bảng wide của trang quản trị giữ cuộn ngang thay vì tràn màn hình. */
+@media (max-width: 390px) {
+  .app-layout.admin-dark .content-body .table-responsive {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-layout.admin-dark .content-body .class-top-actions {
+    flex-direction: column;
+  }
+
+  .app-layout.admin-dark .content-body .class-top-actions :is(a, button) {
+    width: 100%;
+    justify-content: center;
+  }
+}

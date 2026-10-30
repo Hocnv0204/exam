@@ -4,8 +4,21 @@
  * - Part I: Multiple Choice ABCD (1 correct option with *)
  * - Part II: True / False (4 statements a, b, c, d with * for true)
  * - Part III: Short Answer (numeric fill-in with tolerance)
+ * - Part IV: Essay (tự luận, multiline text, chờ giáo viên chấm)
  * - Optional Constant taxonomy tag: [DẠNG BÀI: Tên dạng bài]
  */
+
+/**
+ * Điểm mặc định theo loại câu. ESSAY dùng 1.0 điểm nếu không có `points` tường minh.
+ * Lưu ý: UI luôn ưu tiên `q.points` trước khi dùng fallback này.
+ */
+export function getDefaultQuestionPoints(questionType) {
+  const type = String(questionType || '').toUpperCase()
+  if (type === 'TRUE_FALSE' || type === 'TF') return 1.0
+  if (type === 'SHORT_ANSWER' || type === 'SA') return 0.5
+  if (type === 'ESSAY' || type === 'TL') return 1.0
+  return 0.25
+}
 
 export const MATH_TEMPLATE = `# TEMPLATE ĐỀ THI MÔN TOÁN HỌC (CHUẨN BỘ GD&ĐT)
 
@@ -491,7 +504,15 @@ export function parseMetadataTags(textStr, target) {
     const lessonMatch = rawContent.match(/^(?:BÀI\s*HỌC|BAI\s*HOC|BÀI|BAI|LESSON)\s*[:=]\s*(.+)$/i)
 
     if (taxonomyMatch) {
-      target.questionTypeTag = taxonomyMatch[1].trim()
+      const taxonomyKey = rawContent.split(/[:=]/)[0].replace(/\s+/g, ' ').trim().toUpperCase()
+      const taxonomyValue = taxonomyMatch[1].trim()
+      // QUESTION_TYPE: TL/ESSAY là loại câu (không phải Dạng bài Constant).
+      // Các biến thể DẠNG BÀI/QB_TYPE vẫn giữ nguyên hành vi cũ.
+      if (taxonomyKey === 'QUESTION_TYPE' && /^(TL|ESSAY)$/i.test(taxonomyValue)) {
+        target.questionType = 'ESSAY'
+      } else {
+        target.questionTypeTag = taxonomyValue
+      }
       restStr = tagMatch[2].trim()
       matchedAny = true
     } else if (classMatch) {
@@ -517,6 +538,10 @@ export function parseMetadataTags(textStr, target) {
       matchedAny = true
     } else if (rawUpper === 'SA' || rawUpper === 'TLN' || rawUpper === 'SHORT_ANSWER') {
       target.questionType = 'SHORT_ANSWER'
+      restStr = tagMatch[2].trim()
+      matchedAny = true
+    } else if (rawUpper === 'TL' || rawUpper === 'ESSAY' || rawUpper === 'TỰ LUẬN' || rawUpper === 'TU_LUAN') {
+      target.questionType = 'ESSAY'
       restStr = tagMatch[2].trim()
       matchedAny = true
     } else if (rawUpper === 'MC' || rawUpper === 'MULTIPLE_CHOICE') {
@@ -692,6 +717,10 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       })
     } else if (currentQ.questionType === 'SHORT_ANSWER') {
       currentQ.saAnswer = currentQ.saAnswer !== undefined ? String(currentQ.saAnswer).trim() : ''
+    } else if (currentQ.questionType === 'ESSAY') {
+      // ESSAY không bắt buộc đáp án; chỉ chuẩn hóa guidance/answer nếu tác giả có nhập.
+      currentQ.essayGuidance = String(currentQ.essayGuidance || '').trim()
+      currentQ.essayAnswer = String(currentQ.essayAnswer || '').trim()
     }
 
     questions.push(currentQ)
@@ -759,6 +788,11 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       currentSectionType = 'SHORT_ANSWER'
       continue
     }
+    if (/^===\s*PHẦN\s*IV\b/i.test(trimmed) || /^#+\s*PHẦN\s*IV\b/i.test(trimmed)) {
+      flushCurrentQuestion()
+      currentSectionType = 'ESSAY'
+      continue
+    }
 
     // Check Question Start: [Câu 1], [Câu 1] [TF] [THONG_HIEU], [Câu 1] [NB], Câu 1:, Câu 1.
     const qMatch = trimmed.match(/^\[(?:Câu|Bài)\s*(\d+)\](.*)$/i) ||
@@ -792,11 +826,13 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
         tfAnswers: {},
         saAnswer: '',
         saTolerance: 0,
+        essayGuidance: '',
+        essayAnswer: '',
         explanationLines: [],
         hasImagePlaceholder: false,
         imageUrl: '',
         diagnostics: [],
-        points: qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)
+        points: getDefaultQuestionPoints(qType)
       }
 
       // Áp metadata pending (dòng tag đứng riêng trước header này) trước, rồi thẻ
@@ -813,7 +849,7 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       rest = headerTagsRes.rest
 
       // Recalculate default points if questionType changed from tags
-      currentQ.points = currentQ.questionType === 'TRUE_FALSE' ? 1.0 : (currentQ.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)
+      currentQ.points = getDefaultQuestionPoints(currentQ.questionType)
 
       // Strip leading punctuation (: . -) before prompt
       const sameLinePrompt = rest.replace(/^[:.-]\s*/, '').trim()
@@ -894,6 +930,26 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       }
     }
 
+    // In PROMPT mode: ESSAY là câu tự luận nhiều dòng. [Hướng dẫn nhập đáp án: ...]
+    // là guidance/metadata (không phải nội dung đề) và không bắt buộc [Đáp án].
+    if (currentQ.questionType === 'ESSAY') {
+      const guideMatch = trimmed.match(/^\[Hướng dẫn nhập đáp án(?:\s*[:：]\s*([^\]]*))?\]/i)
+      if (guideMatch) {
+        const guideText = (guideMatch[1] || '').trim()
+        if (guideText) {
+          currentQ.essayGuidance = currentQ.essayGuidance
+            ? `${currentQ.essayGuidance}\n${guideText}`
+            : guideText
+        }
+        continue
+      }
+      const essayAnsMatch = trimmed.match(/^\[(?:Đáp án|ĐA|KQ)[:\s]*([^\]]*)\]/i)
+      if (essayAnsMatch) {
+        currentQ.essayAnswer = essayAnsMatch[1].trim()
+        continue
+      }
+    }
+
     // Dòng tag metadata đứng riêng: NHẬN DIỆN TRƯỚC KHI append vào phương án.
     // - Chưa mở phương án nào (vùng header/đề): tag thuộc câu hiện tại.
     // - Đã mở phương án: tag KHÔNG thuộc phương án đang mở — giữ vào pending cho
@@ -904,7 +960,7 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
       if (!currentOption) {
         const lineTagRes = parseMetadataTags(trimmed, currentQ)
         if (lineTagRes.matchedAny) {
-          currentQ.points = currentQ.questionType === 'TRUE_FALSE' ? 1.0 : (currentQ.questionType === 'SHORT_ANSWER' ? 0.5 : 0.25)
+          currentQ.points = getDefaultQuestionPoints(currentQ.questionType)
           const restLinePrompt = lineTagRes.rest.replace(/^[:.-]\s*/, '').trim()
           if (restLinePrompt) {
             currentQ.promptLines.push(restLinePrompt)
@@ -1035,7 +1091,8 @@ export function formatQuestionToMarkdown(q) {
   const rawType = (q.questionType || q.question_type || 'MULTIPLE_CHOICE').toUpperCase()
   const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF'
   const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
-  const isMc = !isTf && !isSa
+  const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+  const isMc = !isTf && !isSa && !isEssay
 
   let diffTag = ''
   const rawDiff = (q.difficulty || '').toUpperCase()
@@ -1047,6 +1104,7 @@ export function formatQuestionToMarkdown(q) {
   let headerTag = `[Câu ${qNum}]`
   if (isTf) headerTag = `[Câu ${qNum}] [TF]${diffTag}`
   else if (isSa) headerTag = `[Câu ${qNum}] [SA]${diffTag}`
+  else if (isEssay) headerTag = `[Câu ${qNum}] [TL]${diffTag}`
   else headerTag = `[Câu ${qNum}]${diffTag}`
 
   const classTag = q.classTag || q.gradeTag || q.metadata?.classTag
@@ -1144,6 +1202,8 @@ export function formatQuestionToMarkdown(q) {
       lines.push(`[Dung sai: ${tolerance}]`)
     }
   }
+  // ESSAY: không emit [Đáp án:] và không emit đáp án số. Đáp án tự luận (nếu có)
+  // chỉ là dữ liệu tham khảo, việc chấm do giáo viên thực hiện.
 
   // Explanation
   let explanation = (q.explanation || '').trim()
@@ -1179,6 +1239,10 @@ export function formatExamToMarkdown(questions) {
     const t = (q.questionType || q.question_type || '').toUpperCase()
     return t === 'SHORT_ANSWER' || t === 'SA'
   })
+  const essay = questions.filter(q => {
+    const t = (q.questionType || q.question_type || '').toUpperCase()
+    return t === 'ESSAY' || t === 'TL'
+  })
 
   const sections = []
 
@@ -1190,6 +1254,9 @@ export function formatExamToMarkdown(questions) {
   }
   if (sa.length > 0) {
     sections.push('=== PHẦN III: TRẮC NGHIỆM TRẢ LỜI NGẮN (ĐIỀN SỐ) ===\n\n' + sa.map(formatQuestionToMarkdown).join('\n\n'))
+  }
+  if (essay.length > 0) {
+    sections.push('=== PHẦN IV: TỰ LUẬN (ESSAY) ===\n\n' + essay.map(formatQuestionToMarkdown).join('\n\n'))
   }
 
   return sections.join('\n\n\n')

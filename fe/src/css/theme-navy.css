@@ -1,0 +1,263 @@
+/* EduPortal navy/sky-blue student dashboard theme (phase 1).
+   Scoped to student dashboard views only; does not affect exam/public roadmap/login. */
+.app-layout.navy-student {
+  --navy-bg: #111827;
+  --navy-card: #1f2937;
+  --navy-border: #334155;
+  --navy-accent: #38bdf8;
+  --navy-text: #e5e7eb;
+  --navy-muted: #94a3b8;
+  background: var(--navy-bg);
+  color: var(--navy-text);
+}
+
+.app-layout.navy-student .main-content {
+  background: var(--navy-bg);
+  color: var(--navy-text);
+}
+
+.app-layout.navy-student .content-body {
+  color: var(--navy-text);
+}
+
+.app-layout.navy-student .page-title,
+.app-layout.navy-student .page-description,
+.app-layout.navy-student .content-body h1,
+.app-layout.navy-student .content-body h2,
+.app-layout.navy-student .content-body h3,
+.app-layout.navy-student .content-body h4,
+.app-layout.navy-student .content-body p,
+.app-layout.navy-student .content-body label,
+.app-layout.navy-student .wc-meta,
+.app-layout.navy-student .wc-note {
+  color: var(--navy-text);
+}
+
+.app-layout.navy-student .page-description,
+.app-layout.navy-student .wc-meta {
+  color: var(--navy-muted);
+}
+
+.app-layout.navy-student .card {
+  background: var(--navy-card) !important;
+  border-color: var(--navy-border) !important;
+  color: var(--navy-text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+
+.app-layout.navy-student .card:hover {
+  border-color: var(--navy-accent);
+}
+
+.app-layout.navy-student input,
+.app-layout.navy-student select,
+.app-layout.navy-student textarea {
+  background: #0f172a;
+  color: var(--navy-text);
+  border: 1px solid var(--navy-border);
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+}
+
+.app-layout.navy-student input::placeholder {
+  color: var(--navy-muted);
+}
+
+.app-layout.navy-student input:focus,
+.app-layout.navy-student select:focus,
+.app-layout.navy-student textarea:focus {
+  outline: 3px solid var(--navy-accent);
+  outline-offset: 2px;
+  border-color: var(--navy-accent);
+}
+
+.app-layout.navy-student button,
+.app-layout.navy-student .btn-primary,
+.app-layout.navy-student .btn-secondary {
+  min-height: 44px;
+}
+
+.app-layout.navy-student .btn-primary {
+  background: var(--navy-accent);
+  color: #0b1220;
+  border-color: var(--navy-accent);
+}
+
+.app-layout.navy-student .btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.app-layout.navy-student .btn-secondary {
+  background: transparent;
+  color: var(--navy-text);
+  border: 1px solid var(--navy-border);
+}
+
+.app-layout.navy-student .btn-secondary:hover {
+  border-color: var(--navy-accent);
+  color: var(--navy-accent);
+}
+
+.app-layout.navy-student a {
+  color: var(--navy-accent);
+}
+
+.app-layout.navy-student a:focus-visible,
+.app-layout.navy-student button:focus-visible,
+.app-layout.navy-student select:focus-visible,
+.app-layout.navy-student input:focus-visible {
+  outline: 3px solid var(--navy-accent);
+  outline-offset: 3px;
+}
+
+/* Weekly calendar */
+.app-layout.navy-student #weekly-calendar-root .wc-day {
+  background: var(--navy-card);
+  border-color: var(--navy-border);
+  color: var(--navy-text);
+}
+
+.app-layout.navy-student #weekly-calendar-root .wc-event {
+  background: rgba(56, 189, 248, .12);
+  border-left-color: var(--navy-accent);
+  color: var(--navy-text);
+}
+
+.app-layout.navy-student #weekly-calendar-root .wc-event.session {
+  background: rgba(34, 197, 94, .12);
+  border-left-color: #4ade80;
+}
+
+.app-layout.navy-student #weekly-calendar-root .wc-note {
+  background: rgba(51, 65, 85, .5);
+  border-color: var(--navy-border);
+  color: var(--navy-text);
+}
+
+.app-layout.navy-student #weekly-calendar-root select {
+  background: #0f172a;
+  color: var(--navy-text);
+  border-color: var(--navy-border);
+}
+
+/* Only remap text inside dark student cards, not status badges or light
+   lesson-detail surfaces. Global attribute overrides invert legacy alerts. */
+.app-layout.navy-student .myhw-card [style*="color:#0f172a"],
+.app-layout.navy-student .myhw-card [style*="color:#334155"],
+.app-layout.navy-student .myhw-card [style*="color:#475569"],
+.app-layout.navy-student .myhw-card [style*="color:#64748b"],
+.app-layout.navy-student #myhw-stats [style*="color:#0f172a"],
+.app-layout.navy-student #myhw-stats [style*="color:#64748b"],
+.app-layout.student-class-list .class-card [style*="color:#64748b"],
+.app-layout.student-class-list #tour-latest-hw [style*="color:#64748b"] {
+  color: var(--navy-text) !important;
+}
+
+.app-layout.student-class-list .class-card [style*="color:#0066cc"],
+.app-layout.student-class-list .class-card [style*="color:#0284c7"] {
+  color: var(--navy-accent) !important;
+}
+
+/* Class-list tiles are not .card; explicitly skin their surfaces. */
+.app-layout.student-class-list .class-card {
+  background: var(--navy-card);
+  border-color: var(--navy-border);
+  color: var(--navy-text);
+}
+.app-layout.student-class-list .class-card:hover { border-color: var(--navy-accent); }
+.app-layout.student-class-list .class-title { color: #f8fafc; }
+.app-layout.student-class-list .class-footer,
+.app-layout.student-class-list .class-teacher { color: #cbd5e1; }
+.app-layout.student-class-list .enter-class-btn { color: #7dd3fc; }
+.app-layout.navy-student .myhw-status-btn { background: transparent; color: #cbd5e1; }
+.app-layout.navy-student .myhw-status-btn.active { background: #38bdf8; color: #0b1220; }
+.app-layout.navy-student #tour-myhw-filter > div > div:first-child { background: #0f172a !important; }
+.app-layout.navy-student #myhw-pagination [data-myhw-page] { color: #0f172a; }
+.app-layout.navy-student #myhw-pagination [data-myhw-page][disabled] { opacity: .55 !important; }
+.app-layout.navy-student #myhw-pagination [data-myhw-page]:focus-visible,
+.app-layout.student-class-list .class-card:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 2px; }
+.app-layout.navy-student #weekly-calendar-root .wc-day [style*="color:#64748b"] {
+  color: #cbd5e1 !important;
+}
+
+/* Hero / empty state */
+.app-layout.navy-student .navy-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1f2937 0%, #1e3a5f 100%);
+  border: 1px solid var(--navy-border);
+}
+
+.app-layout.navy-student .navy-hero img {
+  width: 96px;
+  height: 72px;
+  flex-shrink: 0;
+}
+
+.app-layout.navy-student .navy-hero h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  color: #f8fafc;
+}
+
+.app-layout.navy-student .navy-hero p {
+  margin: 0;
+  color: var(--navy-muted);
+}
+
+.app-layout.navy-student .navy-empty {
+  text-align: center;
+  padding: 40px 20px;
+  border: 1px dashed var(--navy-border);
+  border-radius: 16px;
+  background: rgba(31, 41, 55, .6);
+}
+
+.app-layout.navy-student .navy-empty img {
+  width: 120px;
+  height: 90px;
+  margin-bottom: 12px;
+}
+
+.app-layout.navy-student .navy-empty h2 {
+  margin: 0 0 6px;
+  color: #f8fafc;
+}
+
+.app-layout.navy-student .navy-empty p {
+  color: var(--navy-muted);
+  margin: 0 0 16px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .app-layout.navy-student *,
+  .app-layout.navy-student *::before,
+  .app-layout.navy-student *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .app-layout.navy-student .navy-hero {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (max-width: 390px) {
+  .app-layout.navy-student .navy-hero img {
+    width: 72px;
+    height: 54px;
+  }
+}
