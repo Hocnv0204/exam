@@ -1,7 +1,7 @@
 import { state } from './state.js'
 import { api } from './api.js'
-// Applies the saved dark/light preference before the first render.
-import { isDarkTheme } from './theme.js'
+// Applies the saved global and student preferences before the first render.
+import { isDarkTheme, getTheme, getStudentTheme } from './theme.js'
 import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
 import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
@@ -75,17 +75,38 @@ const studentDarkRoutes = new Set([
 function applyThemeClasses(layout, hash) {
   if (!layout) return
   const dark = isDarkTheme()
-  const isStudentDark = state.user?.role === 'STUDENT' && studentDarkRoutes.has(hash)
-  layout.classList.toggle('admin-dark',
-    dark && ((state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash)) || isStudentDark))
-  layout.classList.toggle('navy-student', dark && isStudentDark)
+  const studentRoute = state.user?.role === 'STUDENT' && studentDarkRoutes.has(hash)
+  const isStudentDark = studentRoute && getStudentTheme() === 'dark'
+  // Student preference is independent of the global theme used by admin/public.
+  layout.classList.toggle('admin-dark', (dark && state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash)) || isStudentDark)
+  layout.classList.toggle('navy-student', isStudentDark)
+  layout.classList.toggle('pastel-student', studentRoute && getStudentTheme() === 'pastel')
+}
+
+function applyExamThemeClasses(layout, hash) {
+  const studentRoute = state.user?.role === 'STUDENT' && hash === 'exam-room'
+  layout.classList.toggle('navy-student', studentRoute && getStudentTheme() === 'dark')
+  layout.classList.toggle('pastel-student', studentRoute && getStudentTheme() === 'pastel')
+}
+
+function syncDocumentTheme(hash) {
+  // The legacy dark CSS also targets signed-in layouts without .admin-dark.
+  // A student's light/pastel choice must therefore use the light base palette,
+  // while the independently saved global theme remains intact for other roles.
+  const studentRoute = state.user?.role === 'STUDENT' &&
+    (studentDarkRoutes.has(hash) || hash === 'exam-room')
+  const effective = studentRoute
+    ? (getStudentTheme() === 'dark' ? 'dark' : 'light')
+    : getTheme()
+  document.documentElement.dataset.theme = effective
+  document.documentElement.style.colorScheme = effective
 }
 
 function syncThemeClassesToDom() {
   const hash = (window.location.hash || '').replace(/^#/, '').split('?')[0]
+  syncDocumentTheme(hash)
   document.querySelectorAll('.app-layout').forEach(el => applyThemeClasses(el, hash))
-  const dark = isDarkTheme()
-  document.querySelectorAll('.exam-room-layout').forEach(el => el.classList.toggle('navy-student', dark))
+  document.querySelectorAll('.exam-room-layout').forEach(el => applyExamThemeClasses(el, hash))
 }
 
 document.addEventListener('eduportal:themechange', () => {
@@ -498,6 +519,7 @@ async function router() {
 
   const app = document.getElementById('app')
   if (app) {
+    syncDocumentTheme(hash)
     app.innerHTML = route.render()
     // Keep desktop navigation visible; start with a closed drawer on touch widths.
     const layout = app.querySelector('.app-layout')
@@ -508,16 +530,41 @@ async function router() {
       // on hover. Touch widths keep the existing drawer behaviour below.
       layout.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && !!state.token)
       applyThemeClasses(layout, hash)
-      // exam-room renders its own root; keep its dark skin in sync too.
-      app.querySelectorAll('.exam-room-layout').forEach(el => el.classList.toggle('navy-student', isDarkTheme()))
       if (window.innerWidth <= 1024) layout.classList.add('sidebar-collapsed')
       const toggle = layout.querySelector('#sidebar-toggle-btn')
       toggle?.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))
       toggle?.setAttribute('aria-label', layout.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
     }
+    // Exam room has its own root, with or without a surrounding app layout.
+    app.querySelectorAll('.exam-room-layout').forEach(el => applyExamThemeClasses(el, hash))
     route.bind()
   }
 }
+
+// Several student views replace #app directly when a filter changes. Restore
+// the router's theme/role hooks on the new root without rerendering its state.
+window.addEventListener('DOMContentLoaded', () => {
+  const app = document.getElementById('app')
+  if (!app) return
+  let lastLayout = app.firstElementChild
+  new MutationObserver(() => {
+    const layout = app.firstElementChild
+    if (!layout || layout === lastLayout) return
+    lastLayout = layout
+    const hash = (window.location.hash || '').replace(/^#/, '').split('?')[0]
+    const shell = layout.matches('.app-layout') ? layout : null
+    if (shell) {
+      shell.dataset.route = hash
+      shell.dataset.role = state.user?.role || 'GUEST'
+      shell.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && !!state.token)
+      if (window.innerWidth <= 1024) shell.classList.add('sidebar-collapsed')
+      const toggle = shell.querySelector('#sidebar-toggle-btn')
+      toggle?.setAttribute('aria-expanded', String(!shell.classList.contains('sidebar-collapsed')))
+      toggle?.setAttribute('aria-label', shell.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
+    }
+    syncThemeClassesToDom()
+  }).observe(app, { childList: true })
+})
 
 window.addEventListener('hashchange', router)
 window.addEventListener('DOMContentLoaded', router)

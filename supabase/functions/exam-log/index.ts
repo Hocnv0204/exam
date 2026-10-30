@@ -40,7 +40,9 @@ export function createExamLogHandler({ requireAuth, handleCors, jsonResponse, er
         const classId = homework.lessons?.chapters?.class_id
         if (!isTrial) {
           if (!classId) return errorResponse('Failed to verify exam class', 500)
-          const { data: enrollment, error } = await db.from('student_classes').select('id')
+          // student_classes dùng khóa kép (student_id, class_id) — không có cột id;
+          // PK đảm bảo tối đa 1 dòng nên maybeSingle an toàn, không cần lo trùng lặp.
+          const { data: enrollment, error } = await db.from('student_classes').select('student_id, class_id, status')
             .eq('student_id', user.id).eq('class_id', classId).eq('status', 'ACTIVE').maybeSingle()
           if (error) return errorResponse('Failed to verify enrollment', 500)
           if (!enrollment) return errorResponse('Forbidden: You are not enrolled in the class for this exam', 403)

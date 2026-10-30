@@ -4,7 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark light">
-  <script>try { var t = localStorage.getItem('eduportal-theme'); document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark' } catch (_) { document.documentElement.dataset.theme = 'dark' } document.documentElement.style.colorScheme = document.documentElement.dataset.theme</script>
+  <script>
+    try {
+      var globalTheme = localStorage.getItem('eduportal-theme') === 'light' ? 'light' : 'dark'
+      var savedStudentTheme = localStorage.getItem('eduportal-student-theme')
+      var studentTheme = ['dark', 'light', 'pastel'].includes(savedStudentTheme) ? savedStudentTheme : globalTheme
+      var savedUser = null
+      try { savedUser = JSON.parse(localStorage.getItem('edu_user') || 'null') } catch (_) {}
+      var route = location.hash.slice(1).split('?')[0]
+      var studentRoute = ['my-classes', 'my-homeworks', 'weekly-calendar', 'homework-attempt', 'assignment-review', 'history', 'student-report', 'exam-room'].includes(route)
+      document.documentElement.dataset.studentTheme = studentTheme
+      document.documentElement.dataset.theme = savedUser?.role === 'STUDENT' && studentRoute
+        ? (studentTheme === 'dark' ? 'dark' : 'light') : globalTheme
+    } catch (_) {
+      document.documentElement.dataset.theme = 'dark'
+      document.documentElement.dataset.studentTheme = 'dark'
+    }
+    document.documentElement.style.colorScheme = document.documentElement.dataset.theme
+  </script>
   <title>EduPortal - Hệ Thống Quản Lý Bài Tập Về Nhà Trực Tuyến</title>
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
@@ -25,6 +42,7 @@
   <link rel="stylesheet" href="/src/css/theme-admin-modals.css">
   <link rel="stylesheet" href="/src/css/theme-admin-editor.css">
   <link rel="stylesheet" href="/src/css/theme-public.css">
+  <link rel="stylesheet" href="/src/css/theme-student-pastel.css">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- KaTeX & mhchem (Math & Chemistry rendering) -->

@@ -3,11 +3,26 @@ import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 
 const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')
+const BOT_USERNAME = Deno.env.get('TELEGRAM_BOT_USERNAME')?.replace(/^@/, '').toLowerCase()
 if (!BOT_TOKEN) {
   console.warn('[telegram-bot] TELEGRAM_BOT_TOKEN not set')
 }
 
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN || ''}`
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+class TelegramDeliveryError extends Error {
+  constructor(readonly method: string, readonly status: number, readonly retryable: boolean) {
+    super(`Telegram ${method} failed (HTTP ${status || 'network'})`)
+  }
+}
+
+function parseCommand(text: unknown): { name: string; args: string } | null {
+  if (typeof text !== 'string') return null
+  const match = /^\/([a-z][a-z0-9_]*)(?:@([a-z][a-z0-9_]*))?(?=\s|$)(?:\s+([\s\S]*))?$/i.exec(text.trim())
+  if (!match || (match[2] && BOT_USERNAME && match[2].toLowerCase() !== BOT_USERNAME)) return null
+  return { name: match[1].toLowerCase(), args: (match[3] || '').trim() }
+}
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -20,25 +35,28 @@ serve(async (req: Request) => {
 
     const body = await req.json()
     const serviceRoleClient = createServiceRoleClient()
-    const message = body.message || body.edited_message
-    const callback = body.callback_query
+    const message = body && typeof body === 'object' && (body.message || body.edited_message)
+    const callback = body && typeof body === 'object' && body.callback_query
 
     // Nút bấm từ inline keyboard (chọn lớp khi /link, /baitap)
     if (callback) {
       try {
         await handleCallback(serviceRoleClient, callback)
       } catch (e) {
-        const errMsg = (e as Error)?.message || 'Unknown error'
-        console.error('[telegram-bot] callback failed:', errMsg)
+        if (e instanceof TelegramDeliveryError) throw e
+        console.error('[telegram-bot] callback failed')
         try {
           const cid = String(callback.message?.chat?.id || '')
-          if (cid) await sendMessage(cid, `❌ Xử lý nút bấm thất bại: ${escapeTelegramHtml(errMsg.slice(0, 200))}`)
-        } catch { /* bỏ qua lỗi gửi */ }
+          if (cid) await sendMessage(cid, '❌ Xử lý nút bấm thất bại. Vui lòng thử lại sau.')
+        } catch (sendError) {
+          if (sendError instanceof TelegramDeliveryError) throw sendError
+          throw e
+        }
       }
       return jsonResponse({ ok: true })
     }
 
-    if (!message) {
+    if (!message || typeof message !== 'object' || !message.chat || !Number.isSafeInteger(message.chat.id)) {
       return jsonResponse({ ok: true })
     }
 
@@ -59,24 +77,23 @@ serve(async (req: Request) => {
     const chat = message.chat
     const chatId = String(chat.id)
     const chatTitle = chat.title || chat.username || `Chat ${chatId}`
-    const text = message.text || message.caption || ''
-    const trimmed = text.trim()
+    const command = parseCommand(message.text)
 
     // /start
-    if (trimmed === '/start') {
+    if (command?.name === 'start') {
       await sendMessage(chatId, `Chào mừng bạn đến với Exam Telegram Bot!\n\nĐể liên kết nhóm/kênh với một lớp học, hãy gõ:\n/link — rồi bấm chọn lớp trong danh sách.\n\nSau khi liên kết, dùng lệnh:\n/chuabai - Thống kê lớp đã liên kết\n/baitap - Chọn lớp bất kỳ để thống kê\n/kiemtra - Kiểm tra nhóm này đang liên kết với lớp nào\n\nLưu ý: Bot cần được thêm vào nhóm/kênh với quyền gửi tin nhắn.`)
       return jsonResponse({ ok: true })
     }
 
     // /link — không tham số: hiện nút chọn lớp; có tham số: liên kết trực tiếp (giữ tương thích cũ)
-    if (trimmed === '/link') {
+    if (command?.name === 'link' && !command.args) {
       await handleLinkMenu(serviceRoleClient, chatId)
       return jsonResponse({ ok: true })
     }
-    if (trimmed.startsWith('/link ')) {
-      const classId = trimmed.slice(6).trim()
-      if (!classId) {
-        await sendMessage(chatId, 'Vui lòng cung cấp class_id. Ví dụ: /link 123e4567-e89b-12d3-a456-426614174000')
+    if (command?.name === 'link') {
+      const classId = command.args
+      if (!UUID.test(classId)) {
+        await sendMessage(chatId, 'class_id không hợp lệ. Ví dụ: /link 123e4567-e89b-12d3-a456-426614174000')
         return jsonResponse({ ok: true })
       }
 
@@ -87,7 +104,7 @@ serve(async (req: Request) => {
         .single()
 
       if (classError || !cls) {
-        await sendMessage(chatId, `❌ Không tìm thấy lớp học với class_id: ${classId}`)
+        await sendMessage(chatId, '❌ Không tìm thấy lớp học với class_id đã cung cấp.')
         return jsonResponse({ ok: true })
       }
 
@@ -104,8 +121,8 @@ serve(async (req: Request) => {
         )
 
       if (upsertError) {
-        console.error('[telegram-bot] upsert telegram_configs failed:', upsertError.message)
-        await sendMessage(chatId, `❌ Lỗi khi liên kết lớp học: ${upsertError.message}`)
+        console.error('[telegram-bot] upsert telegram_configs failed')
+        await sendMessage(chatId, '❌ Lỗi khi liên kết lớp học. Vui lòng thử lại sau.')
         return jsonResponse({ ok: true })
       }
 
@@ -115,19 +132,19 @@ serve(async (req: Request) => {
     // /chuabai — thống kê học sinh chưa nộp / nộp muộn bài quá hạn của lớp
     // đã liên kết với nhóm chat này (nhận lớp theo chat_id, không theo tham số
     // để tránh lộ dữ liệu lớp khác).
-    if (trimmed === '/chuabai' || trimmed.startsWith('/chuabai ')) {
+    if (command?.name === 'chuabai') {
       await handleMissedReport(serviceRoleClient, chatId)
       return jsonResponse({ ok: true })
     }
 
     // /baitap — hiện danh sách lớp để chọn, bấm lớp nào thống kê lớp đó
-    if (trimmed === '/baitap') {
+    if (command?.name === 'baitap') {
       await handleReportMenu(serviceRoleClient, chatId)
       return jsonResponse({ ok: true })
     }
 
     // /kiemtra — tự chẩn đoán: nhóm này đang liên kết với lớp nào
-    if (trimmed === '/kiemtra') {
+    if (command?.name === 'kiemtra') {
       const { data: rows } = await serviceRoleClient
         .from('telegram_configs')
         .select('class_id, is_enabled, classes(name)')
@@ -145,32 +162,40 @@ serve(async (req: Request) => {
 
     return jsonResponse({ ok: true })
   } catch (err: unknown) {
+    if (err instanceof TelegramDeliveryError) {
+      console.error('[telegram-bot] delivery failed:', err.method, err.status, err.retryable ? 'retryable' : 'permanent')
+      return err.retryable ? errorResponse('Telegram temporarily unavailable', 503) : jsonResponse({ ok: false, error: 'Telegram delivery rejected' })
+    }
     const error = err as Error
-    console.error('[telegram-bot] Error:', error.message)
-    return errorResponse(error.message || 'Internal Server Error', 500)
+    console.error('[telegram-bot] handler failed:', error?.name || 'Unknown error')
+    return errorResponse('Internal Server Error', 500)
   }
 })
 
+async function telegramRequest(method: string, payload: Record<string, unknown>): Promise<void> {
+  if (!BOT_TOKEN) throw new TelegramDeliveryError(method, 0, true)
+  let response: Response
+  try {
+    response = await fetch(`${TELEGRAM_API}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  } catch {
+    throw new TelegramDeliveryError(method, 0, true)
+  }
+  // Telegram can return ok:false even if the HTTP transport succeeded. Never log its body:
+  // it may contain message text, chat details or other user-supplied data.
+  let result: { ok?: boolean; error_code?: number } | null = null
+  try { result = await response.json() } catch { /* malformed response */ }
+  if (!response.ok || result?.ok !== true) {
+    const status = response.status >= 400 ? response.status : result?.error_code || 0
+    throw new TelegramDeliveryError(method, status, ![400, 401, 403, 404].includes(status))
+  }
+}
+
 async function sendMessage(chatId: string, text: string): Promise<void> {
-  if (!BOT_TOKEN) {
-    console.warn('[telegram-bot] Missing bot token, skip sendMessage')
-    return
-  }
-
-  const resp = await fetch(`${TELEGRAM_API}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-    }),
-  })
-
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => '')
-    console.error('[telegram-bot] sendMessage failed:', resp.status, errText)
-  }
+  await telegramRequest('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML' })
 }
 
 // /link (không tham số): hiện danh sách lớp dạng nút bấm để giáo viên chọn,
@@ -235,17 +260,9 @@ async function sendMessageWithKeyboard(
   text: string,
   keyboard: Array<Array<{ text: string; callback_data: string }>>,
 ): Promise<void> {
-  if (!BOT_TOKEN) return
-  await fetch(`${TELEGRAM_API}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: keyboard },
-    }),
-  }).catch((e) => console.error('[telegram-bot] send keyboard failed:', (e as Error)?.message))
+  await telegramRequest('sendMessage', {
+    chat_id: chatId, text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard },
+  })
 }
 
 // Xử lý khi giáo viên bấm nút chọn lớp (link: liên kết nhóm, report: thống kê).
@@ -256,9 +273,10 @@ async function handleCallback(
   const chatId = String(callback.message?.chat?.id || '')
   const messageId = callback.message?.message_id
   const data = callback.data || ''
-  if (!chatId || (!data.startsWith('link:') && !data.startsWith('report:'))) return
+  if (!chatId || typeof callback.id !== 'string' || (!data.startsWith('link:') && !data.startsWith('report:'))) return
 
   const classId = data.slice(data.indexOf(':') + 1)
+  if (!UUID.test(classId)) return
   const { data: cls } = await svc
     .from('classes')
     .select('id, name')
@@ -276,9 +294,9 @@ async function handleCallback(
     try {
       await sendMissedReportForClass(svc, chatId, classId, className)
     } catch (e) {
-      const errMsg = (e as Error)?.message || 'Unknown error'
-      console.error('[telegram-bot] report failed:', errMsg)
-      await sendMessage(chatId, `❌ Thống kê lớp ${escapeTelegramHtml(className)} thất bại: ${escapeTelegramHtml(errMsg.slice(0, 200))}`)
+      if (e instanceof TelegramDeliveryError) throw e
+      console.error('[telegram-bot] report failed')
+      await sendMessage(chatId, `❌ Thống kê lớp ${escapeTelegramHtml(className)} thất bại. Vui lòng thử lại sau.`)
     }
     return
   }
@@ -307,21 +325,11 @@ async function handleCallback(
 }
 
 async function answerCallback(callbackQueryId: string, text: string): Promise<void> {
-  if (!BOT_TOKEN) return
-  await fetch(`${TELEGRAM_API}/answerCallbackQuery`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
-  }).catch(() => {})
+  await telegramRequest('answerCallbackQuery', { callback_query_id: callbackQueryId, text })
 }
 
 async function editBotMessage(chatId: string, messageId: number, text: string): Promise<void> {
-  if (!BOT_TOKEN) return
-  await fetch(`${TELEGRAM_API}/editMessageText`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML' }),
-  }).catch((e) => console.error('[telegram-bot] edit message failed:', (e as Error)?.message))
+  await telegramRequest('editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML' })
 }
 
 function escapeTelegramHtml(str: string): string {

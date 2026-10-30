@@ -21,7 +21,7 @@ serve(async (req: Request) => {
       return errorResponse('Validation error', 400, validation.error.format())
     }
 
-    const { homeworkId, durationSecondsTaken, sessionToken, guestName, disqualified } = validation.data
+    const { homeworkId, durationSecondsTaken, sessionToken, guestName, guestPhone, disqualified } = validation.data
     let answers = validation.data.answers
     const serviceRoleClient = createServiceRoleClient()
 
@@ -130,15 +130,13 @@ serve(async (req: Request) => {
         // Once disqualified, grade only the frozen server draft, not caller answers.
         answers = Array.isArray(session.draft_answers) ? session.draft_answers : []
       }
-      const cutoff = Math.min(
-        homework.deadline ? new Date(homework.deadline).getTime() : Infinity,
-        new Date(session.created_at).getTime() + Number(homework.duration_minutes) * 60000
-      )
+      // The homework due date affects late grading, never this attempt's timer.
+      // The RPC remains authoritative for expiry and idempotent replay.
+      const cutoff = new Date(session.created_at).getTime() + Number(homework.duration_minutes) * 60000
       if (!Number.isFinite(cutoff)) return errorResponse('Invalid exam duration', 500)
       if (session.status === 'ACTIVE' && Date.now() >= cutoff) {
-        if (Date.now() > cutoff + 90000)
-          return errorResponse('EXAM_EXPIRED', 403)
-        // A late request may only submit the last server-persisted draft.
+        // After the timer, grade only the saved server draft. RPC enforces the
+        // 90-second bound, including a concurrent submission/replay race.
         answers = Array.isArray(session.draft_answers) ? session.draft_answers : []
       }
     }
@@ -386,29 +384,46 @@ serve(async (req: Request) => {
         if (classIdOfHomework) {
           classIdsToSearch.push(classIdOfHomework)
         } else if (homework.lesson_id) {
-          const { data: lessonData } = await serviceRoleClient
+          const { data: lessonData, error: lessonError } = await serviceRoleClient
             .from('lessons')
             .select('chapter_id, chapters(class_id)')
             .eq('id', homework.lesson_id)
             .maybeSingle()
+          if (lessonError) {
+            console.warn('[submit-homework] Telegram notification: class_lookup_error')
+            return
+          }
           const resolvedCid = (lessonData?.chapters as any)?.class_id
           if (resolvedCid) classIdsToSearch.push(resolvedCid)
         }
 
-        if (classIdsToSearch.length === 0) return
+        if (classIdsToSearch.length === 0) {
+          console.warn('[submit-homework] Telegram notification: class_unresolved')
+          return
+        }
 
         // 2. Fetch all enabled telegram configs for these classes
-        const { data: tgConfigs } = await serviceRoleClient
+        const { data: tgConfigs, error: configError } = await serviceRoleClient
           .from('telegram_configs')
           .select('class_id, chat_id, chat_title, is_enabled')
           .in('class_id', classIdsToSearch)
           .eq('is_enabled', true)
 
-        if (!tgConfigs || tgConfigs.length === 0) return
+        if (configError) {
+          console.warn('[submit-homework] Telegram notification: config_query_error')
+          return
+        }
+        if (!tgConfigs || tgConfigs.length === 0) {
+          console.warn('[submit-homework] Telegram notification: config_missing')
+          return
+        }
 
         // Deduplicate target chat IDs
         const targetChatIds = [...new Set(tgConfigs.map(c => c.chat_id).filter(Boolean))]
-        if (targetChatIds.length === 0) return
+        if (targetChatIds.length === 0) {
+          console.warn('[submit-homework] Telegram notification: config_missing_chat')
+          return
+        }
 
         // 3. Resolve student name and class name
         const effectiveClassId = classIdOfHomework || classIdsToSearch[0]
@@ -504,18 +519,26 @@ serve(async (req: Request) => {
             `⏳ <b>Thời gian làm bài:</b> ${durationFormatted}${lateLine}`
         }
 
-        await Promise.all(targetChatIds.map((chatId) => sendTelegramNotification(chatId, message)))
-      } catch (notifyErr: any) {
-        console.error('[submit-homework] Error sending notification:', notifyErr?.message)
+        const results = await Promise.allSettled(targetChatIds.map((chatId) => sendTelegramNotification(chatId, message)))
+        for (const result of results) {
+          if (result.status === 'rejected') console.warn('[submit-homework] Telegram notification: send_network_error')
+        }
+      } catch {
+        console.warn('[submit-homework] Telegram notification: unexpected_error')
       }
     }
 
     // Send notification in background without blocking response
     // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
-    if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
-      EdgeRuntime.waitUntil(sendNotification())
-    } else {
-      sendNotification().catch((e) => console.warn('[submit-homework] Background notify error:', e))
+    try {
+      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+        EdgeRuntime.waitUntil(sendNotification())
+      } else {
+        void sendNotification()
+      }
+    } catch {
+      // Never turn an accepted submission into a retryable error due to notification scheduling.
+      console.warn('[submit-homework] Telegram notification: scheduling_error')
     }
 
     // Ghi log thời gian làm bài (chạy nền, bỏ qua khách vãng lai không có user id)
@@ -604,7 +627,7 @@ function escapeHtmlForTelegram(str: string): string {
 async function sendTelegramNotification(chatId: string, text: string): Promise<void> {
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
   if (!botToken) {
-    console.warn('[submit-homework] TELEGRAM_BOT_TOKEN not set, skip notification')
+    console.warn('[submit-homework] Telegram notification: token_missing')
     return
   }
 
@@ -618,8 +641,18 @@ async function sendTelegramNotification(chatId: string, text: string): Promise<v
     }),
   })
 
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => '')
-    console.error('[submit-homework] Telegram sendMessage failed:', resp.status, errText)
+  // Telegram can return HTTP 200 with ok:false; never log its raw body or request URL.
+  let result: unknown
+  try {
+    result = await resp.json()
+  } catch {
+    console.warn('[submit-homework] Telegram notification: send_invalid_response', resp.status)
+    return
+  }
+  const payload = result && typeof result === 'object' ? result as { ok?: unknown; error_code?: unknown } : null
+  if (!resp.ok || payload?.ok !== true) {
+    const errorCode = typeof payload?.error_code === 'number' && Number.isInteger(payload.error_code)
+      ? payload.error_code : null
+    console.warn('[submit-homework] Telegram notification: send_api_error', resp.status, errorCode)
   }
 }

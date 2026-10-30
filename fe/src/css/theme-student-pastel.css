@@ -1,0 +1,303 @@
+/* Student-only rose theme. Keep selectors gated by both the preference and the
+   route class: admin, guest, public reports and trial screens remain untouched.
+   Modal markup lives under body, outside the app layout. */
+html[data-student-theme="pastel"] .app-layout.pastel-student,
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student,
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container {
+  --pastel-bg: #fff7fb;
+  --pastel-card: #ffffff;
+  --pastel-soft: #fceaf2;
+  --pastel-soft-hover: #f9dce9;
+  --pastel-border: #e8c9d8;
+  --pastel-text: #312338;
+  --pastel-muted: #604d60;
+  --pastel-accent: #a51450;
+  --pastel-accent-hover: #83103f;
+  --pastel-danger: #a61b32;
+  --pastel-shadow: 0 6px 22px rgba(88, 36, 67, .08);
+  color-scheme: light;
+}
+
+/* Shell, navigation and content. The stronger specificity also wins if the
+   global admin preference is dark while this student's preference is pastel. */
+html[data-student-theme="pastel"] .app-layout.pastel-student {
+  --bg-app: var(--pastel-bg);
+  --bg-card: var(--pastel-card);
+  --border-color: var(--pastel-border);
+  --text-main: var(--pastel-text);
+  --text-muted: var(--pastel-muted);
+  --primary: var(--pastel-accent);
+  --primary-hover: var(--pastel-accent-hover);
+  background: var(--pastel-bg) !important;
+  color: var(--pastel-text) !important;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.main-content, .content-body) {
+  background: var(--pastel-bg) !important; /* global dark workspace has a longer selector */
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .content-body {
+  min-width: 0;
+  border-radius: 18px;
+  margin: 18px;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.sidebar, .top-navbar) {
+  background: #fffafd !important;
+  border-color: var(--pastel-border) !important;
+  color: var(--pastel-text) !important;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.brand-logo, .brand-logo i, .navbar-breadcrumb, .notification-btn) {
+  color: var(--pastel-accent) !important;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.nav-section-title, .breadcrumb) { color: var(--pastel-muted); }
+html[data-student-theme="pastel"] .app-layout.pastel-student .nav-item { color: var(--pastel-text) !important; }
+html[data-student-theme="pastel"] .app-layout.pastel-student .nav-item:is(:hover, :focus-visible) {
+  background: var(--pastel-soft) !important;
+  color: var(--pastel-accent-hover) !important;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .nav-item.active {
+  background: var(--pastel-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(165, 20, 80, .18);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .nav-item.active i { color: #fff !important; }
+html[data-student-theme="pastel"] .app-layout.pastel-student .user-profile-chip { color: var(--pastel-text) !important; }
+html[data-student-theme="pastel"] .app-layout.pastel-student .user-avatar-circle {
+  background: var(--pastel-accent) !important;
+  color: #fff !important;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student #sidebar-toggle-btn { color: var(--pastel-text) !important; }
+html[data-student-theme="pastel"] .app-layout.pastel-student #sidebar-toggle-btn:hover { background: var(--pastel-soft); }
+
+/* Shared typography, surfaces, controls and feedback states. */
+html[data-student-theme="pastel"] .app-layout.pastel-student .content-body :is(h1, h2, h3, h4, h5, h6, .page-title) {
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.page-description, .report-hero-meta, .report-kpi-label, .report-kpi-sub, .report-chart-note, .report-chart-legend, .wc-meta, .mc-homework-meta) {
+  color: var(--pastel-muted);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.card, .class-card, .report-section, .report-hero, .report-kpi, .report-topic-row, .report-trend-row, .interactive-q-card, .interactive-exam-sidebar, .review-navigator-card, .md-table) {
+  background: var(--pastel-card) !important; /* workspace card uses !important */
+  color: var(--pastel-text);
+  border-color: var(--pastel-border) !important;
+  box-shadow: var(--pastel-shadow);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.class-card, .interactive-q-card):hover { border-color: var(--pastel-accent) !important; }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.class-title, .class-title-heading, .report-hero-title, .report-section-title, .report-kpi-value, .mc-homework-title, .interactive-q-prompt, .tf-statement-text) {
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.class-footer, .class-teacher, .class-list-hint, .report-topic-sub) { color: var(--pastel-muted); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(a, .enter-class-btn, .report-section-title i) { color: var(--pastel-accent); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.btn-primary, .btn-primary-sm) {
+  background: var(--pastel-accent);
+  border-color: var(--pastel-accent);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(165, 20, 80, .18);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.btn-primary, .btn-primary-sm):hover {
+  background: var(--pastel-accent-hover);
+  border-color: var(--pastel-accent-hover);
+  color: #fff;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .btn-secondary {
+  background: var(--pastel-card);
+  color: var(--pastel-accent);
+  border-color: var(--pastel-border);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .btn-secondary:hover {
+  background: var(--pastel-soft);
+  border-color: var(--pastel-accent);
+  color: var(--pastel-accent-hover);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  background: #fff;
+  border-color: var(--pastel-border);
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(input, textarea)::placeholder { color: var(--pastel-muted); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(button, a, input, select, textarea, [role="button"]):focus-visible {
+  outline: 3px solid var(--pastel-accent);
+  outline-offset: 2px;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.data-table, .md-table) { color: var(--pastel-text); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.data-table, .md-table) th {
+  background: var(--pastel-soft);
+  border-color: var(--pastel-border);
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.data-table, .md-table) td { border-color: var(--pastel-border); color: var(--pastel-text); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.data-table, .md-table) tr:hover td { background: #fff2f8; }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.skeleton-bar, .loading-skeleton) {
+  background: linear-gradient(90deg, #f9e7ef 25%, #fff 50%, #f9e7ef 75%);
+  background-size: 200% 100%;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.report-inline-error, [role="alert"]) { color: var(--pastel-danger); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.badge-period, .badge-submitted) { background: var(--pastel-soft); color: var(--pastel-accent-hover); }
+
+/* My classes, homework list and weekly calendar. The latter injects its own
+   stylesheet after the linked theme; root-qualified selectors win that order. */
+html[data-student-theme="pastel"] .app-layout.pastel-student .navy-hero {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 24px;
+  margin-bottom: 20px;
+  border: 1px solid var(--pastel-border);
+  border-radius: 16px;
+  background: linear-gradient(115deg, #fff 0%, #fce7f0 100%);
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .navy-hero img { width: 96px; height: 72px; flex-shrink: 0; }
+html[data-student-theme="pastel"] .app-layout.pastel-student .navy-hero h1 { margin: 0 0 6px; font-size: 22px; }
+html[data-student-theme="pastel"] .app-layout.pastel-student .navy-hero p { margin: 0; color: var(--pastel-muted); }
+html[data-student-theme="pastel"] .app-layout.pastel-student .navy-empty {
+  padding: 40px 20px;
+  text-align: center;
+  border: 1px dashed var(--pastel-border);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--pastel-muted);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .navy-empty img { width: 120px; height: 90px; }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.chapter-card-item, .mc-lesson-card, .mc-draft-row, .myhw-card) {
+  background: var(--pastel-card) !important; /* legacy inline backgrounds */
+  border-color: var(--pastel-border) !important;
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .chapter-lessons-body { background: var(--pastel-bg) !important; }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.mc-lesson-selected, .mc-tab-active) {
+  background: var(--pastel-soft) !important;
+  border-color: var(--pastel-accent) !important;
+  color: var(--pastel-accent-hover);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .mc-toggle-btn { background: var(--pastel-soft); border-color: var(--pastel-border); color: var(--pastel-text); }
+html[data-student-theme="pastel"] .app-layout.pastel-student .myhw-status-btn { background: #fff; color: var(--pastel-text); }
+html[data-student-theme="pastel"] .app-layout.pastel-student .myhw-status-btn.active { background: var(--pastel-accent); color: #fff; }
+html[data-student-theme="pastel"] .app-layout.pastel-student #tour-myhw-filter > div > div:first-child { background: var(--pastel-soft) !important; }
+html[data-student-theme="pastel"] .app-layout.pastel-student #weekly-calendar-root :is(.wc-day, .wc-note) {
+  background: #fff;
+  border-color: var(--pastel-border);
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student #weekly-calendar-root .wc-day[aria-current="date"] { border-color: var(--pastel-accent); }
+html[data-student-theme="pastel"] .app-layout.pastel-student #weekly-calendar-root .wc-event {
+  background: var(--pastel-soft);
+  border-left-color: var(--pastel-accent);
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student #weekly-calendar-root .wc-event.session {
+  background: #effaf3;
+  border-left-color: #166534;
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student #weekly-calendar-root .wc-meta { color: var(--pastel-muted); }
+html[data-student-theme="pastel"] .app-layout.pastel-student #weekly-calendar-root select { border-color: var(--pastel-border); }
+
+/* Homework solver and review: light question paper and high-contrast answers.
+   Keep PDF canvas/iframe white; never recolor graded correctness/violation UI. */
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.interactive-q-card, .interactive-exam-sidebar, .review-question-card) {
+  background: #fff;
+  border-color: var(--pastel-border);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .exam-option-card {
+  background: #fff;
+  border-color: var(--pastel-border);
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .exam-option-card:hover { background: var(--pastel-soft); border-color: var(--pastel-accent); }
+html[data-student-theme="pastel"] .app-layout.pastel-student .exam-option-card.selected {
+  background: var(--pastel-soft);
+  border-color: var(--pastel-accent);
+  color: var(--pastel-accent-hover);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .exam-option-card.selected .exam-opt-badge,
+html[data-student-theme="pastel"] .app-layout.pastel-student .exam-nav-btn.answered { background: var(--pastel-accent); border-color: var(--pastel-accent); color: #fff; }
+html[data-student-theme="pastel"] .app-layout.pastel-student .exam-nav-btn.partial { background: var(--pastel-soft); border-color: var(--pastel-accent); color: var(--pastel-accent-hover); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.tf-statement-row, .image-paste-zone, .exam-mode-switch) { background: var(--pastel-bg); border-color: var(--pastel-border); }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.pdf-viewer-container, .pdf-iframe-wrapper, .pdf-page-canvas, iframe) { color-scheme: light; }
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.pdf-page-canvas, .pdf-iframe-wrapper iframe) { background: #fff; }
+
+/* History and report cards/charts: JS owns canvas colors, not CSS. */
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.report-hero, .class-banner-card) {
+  background: linear-gradient(115deg, #fff 0%, #fce7f0 100%) !important;
+  border-color: var(--pastel-border);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student :is(.report-kpi, .report-topic-row, .report-trend-row, .report-trend-chip--stable) {
+  background: #fffafd;
+  border-color: var(--pastel-border);
+}
+html[data-student-theme="pastel"] .app-layout.pastel-student .report-chart-note { color: var(--pastel-muted); }
+
+/* The modal is a sibling of the layout. Gate on the active student root rather
+   than on the global document alone, so admin/guest modals are never restyled. */
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container .modal-backdrop {
+  background: rgba(49, 35, 56, .48);
+}
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container .modal-content {
+  background: #fff;
+  border-color: var(--pastel-border);
+  color: var(--pastel-text);
+  box-shadow: 0 22px 60px rgba(49, 35, 56, .23);
+  color-scheme: light;
+}
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container .modal-content :is(h1, h2, h3, h4) { color: var(--pastel-text); }
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container .modal-content :is(.btn-primary, .btn-primary-sm) {
+  background: var(--pastel-accent);
+  border-color: var(--pastel-accent);
+  color: #fff;
+}
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container .modal-content .btn-secondary {
+  background: #fff;
+  border-color: var(--pastel-border);
+  color: var(--pastel-accent);
+}
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container .modal-content :is(input, select, textarea) {
+  background: #fff;
+  border-color: var(--pastel-border);
+  color: var(--pastel-text);
+}
+html[data-student-theme="pastel"] body:has(.pastel-student) #modal-container .modal-content :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid var(--pastel-accent);
+  outline-offset: 2px;
+}
+
+/* Exam room: visual skin only, no change to timer/violation handling or
+   answered/flagged semantics. Retain dark red on light danger surfaces. */
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student { background: var(--pastel-bg); color: var(--pastel-text); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .exam-top-toolbar {
+  background: #fffafd;
+  border-color: var(--pastel-border);
+  box-shadow: var(--pastel-shadow);
+}
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .exam-top-toolbar h1 { color: var(--pastel-text) !important; /* inline title color */ }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student :is(.exam-room-body, .interactive-q-prompt) { color: var(--pastel-text); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student :is(.interactive-q-card, .exam-sidebar-palette) {
+  background: #fff !important;
+  border-color: var(--pastel-border) !important;
+  box-shadow: var(--pastel-shadow);
+}
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .exam-option-card { background: #fff; border-color: var(--pastel-border); color: var(--pastel-text); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .exam-option-card:hover { background: var(--pastel-soft); border-color: var(--pastel-accent); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .exam-option-card.selected { background: var(--pastel-soft); border-color: var(--pastel-accent); color: var(--pastel-accent-hover); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student :is(.exam-option-card.selected .exam-opt-badge, .exam-nav-btn.answered) { background: var(--pastel-accent); border-color: var(--pastel-accent); color: #fff; }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .exam-nav-btn.partial { background: var(--pastel-soft); border-color: var(--pastel-accent); color: var(--pastel-accent-hover); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student :is(.tf-statement-row, .image-paste-zone) { background: var(--pastel-bg); border-color: var(--pastel-border); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student :is(.exam-toolbar-back, .btn-secondary) { background: #fff; color: var(--pastel-accent); border-color: var(--pastel-border); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .btn-primary { background: var(--pastel-accent); border-color: var(--pastel-accent); color: #fff; }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student :is(.timer-box, #exam-violations-pill) { color: var(--pastel-text); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student #exam-violations-pill[style*="color:#dc2626"],
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student .timer-box[style*="color:#dc2626"] { color: var(--pastel-danger); }
+html[data-student-theme="pastel"] .exam-room-layout.pastel-student :is(button, a, input, textarea, .exam-option-card):focus-visible {
+  outline: 3px solid var(--pastel-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  html[data-student-theme="pastel"] .app-layout.pastel-student .content-body { margin: 8px; padding: 16px; }
+  html[data-student-theme="pastel"] .app-layout.pastel-student .navy-hero { flex-direction: column; text-align: center; }
+  html[data-student-theme="pastel"] .app-layout.pastel-student :is(.mc-latest-row, .mc-draft-row) { flex-wrap: wrap; min-width: 0; }
+  html[data-student-theme="pastel"] .app-layout.pastel-student :is(.mc-homework-title, .mc-homework-meta) { white-space: normal; overflow-wrap: anywhere; }
+  html[data-student-theme="pastel"] .exam-room-layout.pastel-student .exam-room-body { padding-inline: 12px; }
+}
+@media (max-width: 390px) {
+  html[data-student-theme="pastel"] .app-layout.pastel-student .navy-hero img { width: 72px; height: 54px; }
+}

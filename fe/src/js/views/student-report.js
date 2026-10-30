@@ -740,9 +740,24 @@ const reportDataLabelsPlugin = {
 }
 
 function reportChartPalette(canvas) {
-  // Dark palette when the report is viewed on a dark surface: admin-dark for
-  // ADMIN, navy-student for STUDENT (2026-10-30). Public shared reports keep
-  // the light palette.
+  // Scope to the mounted report, not the global preference: public reports
+  // remain light even when the student's private workspace uses pastel.
+  if (canvas?.closest('.app-layout.pastel-student[data-route="student-report"]')) {
+    return {
+      text: '#765d78',
+      legend: '#624c68',
+      grid: '#efdee9',
+      line: 'rgba(147, 74, 154, 0.78)',
+      pointBorder: '#fff8fc',
+      labelBackground: 'rgba(255, 248, 252, 0.96)',
+      labelBorder: 'rgba(147, 74, 154, 0.5)',
+      labelText: '#523356',
+      tooltipBackground: 'rgba(67, 38, 72, 0.96)',
+      tooltipText: '#fff8fc',
+      tooltipBorder: 'rgba(229, 177, 215, 0.7)'
+    }
+  }
+  // Admin/student navy uses a dark surface; public reports keep light colors.
   const isDark = Boolean(canvas?.closest('.app-layout.admin-dark[data-route="student-report"], .app-layout.navy-student'))
   if (!isDark) {
     return {

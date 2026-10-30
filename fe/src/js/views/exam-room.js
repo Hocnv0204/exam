@@ -4,10 +4,13 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
-import { isDarkTheme, renderThemeToggle } from '../theme.js'
+import { getStudentTheme, renderStudentThemePicker } from '../theme.js'
 
-// The exam room has no .app-layout root, so its dark skin is opted in here.
-const examShell = () => `exam-room-layout${isDarkTheme() ? ' navy-student' : ''}`
+// The exam room has no .app-layout root; app.js updates this shell on theme changes.
+const examShell = () => {
+  const theme = getStudentTheme()
+  return `exam-room-layout${theme === 'dark' ? ' navy-student' : theme === 'pastel' ? ' pastel-student' : ''}`
+}
 
 // Student's current answers state for exam
 let studentAnswers = {
@@ -320,7 +323,7 @@ export function renderExamRoomView() {
         </div>
 
         <div class="exam-toolbar-actions" style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-          ${renderThemeToggle('exam-theme-toggle')}
+          ${renderStudentThemePicker('exam-student-theme-picker')}
           <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#475569; background:#f8fafc; padding:6px 12px; border-radius:8px; border:1px solid #e2e8f0;">
             <i class="fa-solid fa-user-graduate" style="color:#0284c7;"></i>
             <strong style="color:#0f172a;">${escapeHtml(studentFullName)}</strong>
@@ -1012,15 +1015,15 @@ export function bindExamRoomEvents() {
     } catch (err) {
       console.error('Submit failed:', err)
       const expiredOnServer = String(err?.message || '').includes('EXAM_EXPIRED')
-      showToast(expiredOnServer ? 'Máy chủ báo đã hết hạn nộp bài.' : 'Chưa xác nhận được kết quả nộp bài.', 'error')
+      showToast(expiredOnServer ? 'Máy chủ báo phiên thi đã hết giờ.' : 'Chưa xác nhận được kết quả nộp bài.', 'error')
 
        {
          openModal(
-          expiredOnServer ? 'BÀI THI ĐÃ HẾT HẠN' : 'CHƯA XÁC NHẬN KẾT QUẢ NỘP BÀI',
+          expiredOnServer ? 'PHIÊN THI ĐÃ HẾT GIỜ' : 'CHƯA XÁC NHẬN KẾT QUẢ NỘP BÀI',
           `
             <div style="text-align:center; padding:12px; color:#ef4444;">
               <i class="fa-solid fa-triangle-exclamation" style="font-size:44px; margin-bottom:12px;"></i>
-               <p style="font-size:15px; color:#1e293b; font-weight:600; margin-bottom:8px;">${expiredOnServer ? 'Máy chủ từ chối bài nộp quá hạn.' : 'Chưa biết yêu cầu nộp bài đã được xử lý hay chưa.'}</p>
+               <p style="font-size:15px; color:#1e293b; font-weight:600; margin-bottom:8px;">${expiredOnServer ? 'Máy chủ từ chối vì thời lượng phiên thi đã hết; hạn nộp bài tập không ngăn nộp muộn.' : 'Chưa biết yêu cầu nộp bài đã được xử lý hay chưa.'}</p>
               <p style="font-size:13px; color:#64748b; line-height:1.5; margin-bottom:12px;">
                  Chi tiết: ${escapeHtml(err.message || 'Lỗi mạng')}.<br>
                   ${expired ? 'Những thay đổi chưa được máy chủ xác nhận trước lúc hết giờ có thể không nằm trong bài nộp.<br>' : ''}
@@ -1581,7 +1584,7 @@ export function bindExamRoomEvents() {
         console.warn('Cannot resume existing token, presenting rules modal:', e)
         if (String(e?.message || '').includes('EXAM_EXPIRED')) {
           disableAllInputs()
-          openModal('BÀI THI ĐÃ HẾT HẠN', '<p>Máy chủ báo phiên thi đã hết hạn. Hãy kiểm tra kết quả trong lớp học hoặc liên hệ giáo viên.</p>',
+          openModal('PHIÊN THI ĐÃ HẾT GIỜ', '<p>Máy chủ báo thời lượng phiên thi đã hết. Hãy kiểm tra kết quả trong lớp học hoặc liên hệ giáo viên.</p>',
             () => { window.location.hash = '#my-classes'; return true }, { confirmLabel: 'Kiểm tra trong lớp học', showCancel: false })
           return
         }

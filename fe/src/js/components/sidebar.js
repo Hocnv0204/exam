@@ -1,5 +1,5 @@
 import { state, logout } from '../state.js'
-import { renderThemeToggle } from '../theme.js'
+import { renderThemeToggle, renderStudentThemePicker } from '../theme.js'
 
 export function renderSidebar(currentRoute) {
   const isGuest = !state.token
@@ -84,7 +84,7 @@ export function renderSidebar(currentRoute) {
       `)}
 
       <div style="margin-top:auto; padding-top:20px; border-top:1px solid var(--border-color);">
-        ${renderThemeToggle('sidebar-theme-toggle')}
+        ${state.user?.role === 'STUDENT' ? renderStudentThemePicker('sidebar-theme-toggle') : renderThemeToggle('sidebar-theme-toggle')}
         <div class="nav-item" id="sidebar-logout-btn">
           <i class="fa-solid ${isGuest ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket'}"></i> ${isGuest ? 'Đăng nhập' : 'Đăng xuất'}
         </div>

@@ -1,8 +1,15 @@
 /**
  * Tour hướng dẫn newbie: spotlight từng khu vực + tooltip giải thích.
- * Dùng cho giao diện học sinh, tự chạy 1 lần duy nhất mỗi tour (localStorage).
+ * Dùng cho giao diện học sinh.
+ *
+ * - Tour dashboard chỉ tự mở ở lần đăng nhập đầu tiên (cờ server auto_intro_pending
+ *   được login tiêu thụ một lần; xem claimAutoIntro bên dưới).
+ * - Tour bài tập / bài học chỉ mở khi bấm nút "Hướng dẫn" (không auto).
+ * - Server (seen_tours) là nguồn ưu tiên cho trạng thái đã xem; localStorage chỉ
+ *   là lớp chống lặp trong cùng trình duyệt.
  */
 const SEEN_PREFIX = 'edu_tour_seen_'
+const AUTO_INTRO_PREFIX = 'edu_auto_intro_consumed_'
 
 async function getServerSeen() {
   try {
@@ -48,6 +55,128 @@ export function resetTour(key) {
   try {
     localStorage.removeItem(SEEN_PREFIX + key)
   } catch {}
+}
+
+/* -------------------------------------------------------------------------
+ * Auto intro một lần cho học sinh.
+ *
+ * Server quyết định "có phải lần đăng nhập đầu tiên" bằng cờ
+ * profiles.auto_intro_pending (login trả user.autoIntro = true đúng 1 lần).
+ * Ở client, các marker dưới đây chỉ để chống mở lặp khi reload/mở tab mới
+ * trong cùng trình duyệt; không dùng làm nguồn quyết định eligibility.
+ * ---------------------------------------------------------------------- */
+
+const memoryConsumed = new Set()
+let scheduledIntroTimer = null
+let routeListenerInstalled = false
+
+function safeStorage(name) {
+  try {
+    const store = typeof globalThis !== 'undefined' ? globalThis[name] : null
+    return store && typeof store.getItem === 'function' ? store : null
+  } catch {
+    return null
+  }
+}
+
+function isConsumedIn(store, key) {
+  try {
+    return store?.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markConsumedIn(store, key) {
+  try {
+    store?.setItem(key, '1')
+  } catch {}
+}
+
+/** Chỉ học sinh được server cấp autoIntro mới đủ điều kiện tự mở tour. */
+export function isAutoIntroEligible(user) {
+  return Boolean(user && user.role === 'STUDENT' && user.autoIntro === true)
+}
+
+/**
+ * Tiêu thụ lượt auto intro một lần. Trả false nếu không đủ điều kiện hoặc
+ * trình duyệt này đã mở rồi (chống reload/mở tab lặp).
+ * `opts.stores` chỉ dùng cho test.
+ */
+export function claimAutoIntro(user, opts = {}) {
+  if (!isAutoIntroEligible(user)) return false
+  const userId = user && user.id != null ? String(user.id) : ''
+  if (!userId) return false
+
+  const key = AUTO_INTRO_PREFIX + userId
+  const stores = Array.isArray(opts.stores)
+    ? opts.stores.filter(Boolean)
+    : [safeStorage('sessionStorage'), safeStorage('localStorage')].filter(Boolean)
+
+  if (memoryConsumed.has(userId)) return false
+  if (stores.some(store => isConsumedIn(store, key))) return false
+
+  memoryConsumed.add(userId)
+  stores.forEach(store => markConsumedIn(store, key))
+  return true
+}
+
+function currentRouteHash() {
+  try {
+    return typeof window !== 'undefined' && window.location ? String(window.location.hash || '') : ''
+  } catch {
+    return ''
+  }
+}
+
+/** Huỷ timer auto tour đang chờ (đổi route / view bị thay thế). */
+export function cancelScheduledIntro() {
+  if (scheduledIntroTimer !== null) {
+    clearTimeout(scheduledIntroTimer)
+    scheduledIntroTimer = null
+  }
+}
+
+function ensureRouteChangeCancels() {
+  if (routeListenerInstalled) return
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return
+  routeListenerInstalled = true
+  window.addEventListener('hashchange', () => {
+    cancelScheduledIntro()
+    endActiveTour()
+  })
+}
+
+/**
+ * Hẹn mở tour auto sau `delay` ms, có chống stale:
+ * - Chỉ chạy nếu hash hiện tại vẫn là hash lúc bind view.
+ * - Chỉ chạy nếu guard element (view đã render) còn trong DOM.
+ * - Không chồng lên tour đang mở; mỗi lúc chỉ có 1 timer.
+ *
+ * opts: { user, key, delay, hash, guard, start (test), stores (test) }
+ */
+export function scheduleAutoIntroTour(steps, opts = {}) {
+  const expectedHash = typeof opts.hash === 'string' ? opts.hash : currentRouteHash()
+  const guard = opts.guard || null
+
+  // Stale async: view cũ bind xong sau khi đã đổi route/render view mới.
+  if (currentRouteHash() !== expectedHash) return false
+  if (guard && guard.isConnected === false) return false
+
+  cancelScheduledIntro()
+  ensureRouteChangeCancels()
+
+  const delay = Number.isFinite(opts.delay) ? Math.max(0, opts.delay) : 800
+  scheduledIntroTimer = setTimeout(() => {
+    scheduledIntroTimer = null
+    if (currentRouteHash() !== expectedHash) return
+    if (guard && guard.isConnected === false) return
+    if (typeof document !== 'undefined' && document.getElementById('newbie-tour-overlay')) return
+    if (!claimAutoIntro(opts.user, opts)) return
+    const start = typeof opts.start === 'function' ? opts.start : startTour
+    start(steps, opts.key ? { key: opts.key } : {})
+  }, delay)
+  return true
 }
 
 let activeTourCleanup = null

@@ -870,3 +870,145 @@ html[data-theme="dark"] .theme-public-page .content-body .card {
     right: 12px;
   }
 }
+
+/* Student-only three-way preference. Keep the native select/popup, including
+   keyboard support, while showing a 44px palette target in compact chrome. */
+.student-theme-picker {
+  --student-picker-bg: #fff;
+  --student-picker-border: #cbd5e1;
+  --student-picker-ink: #0f172a;
+  --student-picker-focus: #0284c7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  color: var(--student-picker-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.navy-student .student-theme-picker {
+  --student-picker-bg: #1f2937;
+  --student-picker-border: #475569;
+  --student-picker-ink: #f8fafc;
+  --student-picker-focus: #7dd3fc;
+}
+
+.pastel-student .student-theme-picker {
+  --student-picker-bg: #fff8fc;
+  --student-picker-border: #d9a8cb;
+  --student-picker-ink: #523356;
+  --student-picker-focus: #924e91;
+}
+
+.student-theme-picker select {
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px 26px 8px 10px;
+  border: 1px solid var(--student-picker-border);
+  border-radius: 10px;
+  background: var(--student-picker-bg);
+  color: var(--student-picker-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.student-theme-picker select:focus-visible,
+.student-theme-picker:focus-within {
+  outline: 3px solid var(--student-picker-focus);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.sidebar .student-theme-picker.sidebar-theme-toggle {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.sidebar .student-theme-picker select { flex: 1 1 auto; }
+.top-navbar .student-theme-picker > span { white-space: nowrap; }
+.exam-top-toolbar .student-theme-picker { flex: 0 0 auto; }
+.exam-top-toolbar .student-theme-picker > span { display: none; }
+
+@media (min-width: 1025px) {
+  .app-layout:not(.sidebar-hover-expand) .sidebar .student-theme-picker { display: none; }
+  .app-layout.sidebar-hover-expand .sidebar:not(:hover):not(:focus-within) .student-theme-picker {
+    position: relative;
+    width: 44px;
+    height: 44px;
+  }
+  .app-layout.sidebar-hover-expand .sidebar:not(:hover):not(:focus-within) .student-theme-picker > span { display: none; }
+  .app-layout.sidebar-hover-expand .sidebar:not(:hover):not(:focus-within) .student-theme-picker::before {
+    content: '🎨';
+    position: absolute;
+    left: 0;
+    width: 44px;
+    text-align: center;
+    pointer-events: none;
+  }
+  .app-layout.sidebar-hover-expand .sidebar:not(:hover):not(:focus-within) .student-theme-picker select {
+    width: 44px;
+    flex: none;
+    opacity: 0;
+  }
+  .app-layout.sidebar-hover-expand .sidebar:hover .student-theme-picker,
+  .app-layout.sidebar-hover-expand .sidebar:focus-within .student-theme-picker { flex-wrap: wrap; }
+  .app-layout.sidebar-hover-expand .sidebar:hover .student-theme-picker select,
+  .app-layout.sidebar-hover-expand .sidebar:focus-within .student-theme-picker select { flex-basis: 100%; }
+}
+
+@media (max-width: 1024px) {
+  .sidebar .student-theme-picker { display: none; }
+  .top-navbar .student-theme-picker {
+    position: relative;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+  }
+  .top-navbar .student-theme-picker > span { display: none; }
+  .top-navbar .student-theme-picker::before {
+    content: '🎨';
+    position: absolute;
+    left: 0;
+    width: 44px;
+    text-align: center;
+    pointer-events: none;
+  }
+  .top-navbar .student-theme-picker select { width: 44px; opacity: 0; }
+}
+
+@media (min-width: 376px) and (max-width: 640px) {
+  .exam-top-toolbar .student-theme-picker {
+    position: relative;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+  }
+  .exam-top-toolbar .student-theme-picker::before {
+    content: '🎨';
+    position: absolute;
+    width: 44px;
+    text-align: center;
+    pointer-events: none;
+  }
+  .exam-top-toolbar .student-theme-picker select { width: 44px; opacity: 0; }
+}
+
+@media (max-width: 375px) {
+  .exam-top-toolbar .exam-toolbar-actions > .student-theme-picker {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: 100%;
+  }
+  .exam-top-toolbar .student-theme-picker select { width: 100%; }
+}
+
+/* The student may choose light independently of the site's dark preference. */
+html[data-theme="dark"] .exam-room-layout:not(.navy-student):not(.pastel-student) {
+  background: #f4f7fc;
+  color: #0f172a;
+}

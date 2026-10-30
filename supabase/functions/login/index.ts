@@ -55,7 +55,7 @@ serve(async (req: Request) => {
     // 1. Parallel: Try signIn with synthetic email + fetch profile
     const profilePromise = serviceRoleClient
       .from('profiles')
-      .select('id, username, full_name, role, class_id, is_locked, seen_tours')
+      .select('id, username, full_name, role, class_id, is_locked, seen_tours, auto_intro_pending')
       .eq('username', username)
       .maybeSingle()
 
@@ -94,6 +94,27 @@ serve(async (req: Request) => {
       sessionData = retrySignIn.data
     }
 
+    // Tour giới thiệu dashboard: chỉ học sinh, chỉ lần đăng nhập đầu tiên.
+    // Tiêu thụ cờ bằng compare-and-set (UPDATE ... WHERE auto_intro_pending = true)
+    // để nhiều tab/thiết bị đăng nhập đồng thời không cùng nhận autoIntro.
+    // Lỗi DB -> fail closed: không claim auto intro, nhưng không chặn đăng nhập.
+    let autoIntro = false
+    if (profile.role === 'STUDENT' && (profile as any).auto_intro_pending === true) {
+      const { data: consumed, error: consumeError } = await serviceRoleClient
+        .from('profiles')
+        .update({ auto_intro_pending: false })
+        .eq('id', profile.id)
+        .eq('role', 'STUDENT')
+        .eq('auto_intro_pending', true)
+        .select('id')
+        .maybeSingle()
+      if (consumeError) {
+        console.warn('[login] auto intro consume failed:', consumeError.message)
+      } else if (consumed) {
+        autoIntro = true
+      }
+    }
+
     // Get all classIds for students
     let classIds: string[] = []
     if (profile.role === 'STUDENT') {
@@ -129,6 +150,7 @@ serve(async (req: Request) => {
         role: profile.role,
         classId: profile.class_id || (classIds[0] || null),
         classIds,
+        autoIntro,
         seenTours: Array.isArray((profile as any).seen_tours) ? (profile as any).seen_tours : [],
       },
     })

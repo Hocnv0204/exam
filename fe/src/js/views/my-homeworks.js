@@ -245,13 +245,6 @@ async function maybeStartMyhwTour() {
   document.getElementById('btn-replay-myhw-tour')?.addEventListener('click', () => startTour(myhwTourSteps()))
 }
 
-async function autoStartMyhwTour() {
-  const { startTour, hasSeenTour } = await import('../utils/tour.js')
-  if (!(await hasSeenTour('student-myhw'))) {
-    startTour(myhwTourSteps(), { key: 'student-myhw' })
-  }
-}
-
 async function fetchMyHomeworks() {
   const listEl = document.getElementById('myhw-list')
   if (listEl) {
@@ -307,7 +300,6 @@ export async function bindMyHomeworksEvents() {
   }
 
   await fetchMyHomeworks()
-  autoStartMyhwTour()
 
   document.querySelectorAll('.myhw-status-btn').forEach(b => {
     b.addEventListener('click', () => {

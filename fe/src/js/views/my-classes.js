@@ -1135,11 +1135,8 @@ function lessonTourSteps() {
 }
 
 async function maybeStartLessonTour() {
-  const { startTour, hasSeenTour } = await import('../utils/tour.js')
+  const { startTour } = await import('../utils/tour.js')
   document.getElementById('btn-replay-lesson-tour')?.addEventListener('click', () => startTour(lessonTourSteps()))
-  if (!(await hasSeenTour('student-lesson'))) {
-    setTimeout(() => startTour(lessonTourSteps(), { key: 'student-lesson' }), 800)
-  }
 }
 
 function dashboardTourSteps() {
@@ -1152,11 +1149,24 @@ function dashboardTourSteps() {
 }
 
 async function maybeStartDashboardTour() {
-  const { startTour, hasSeenTour } = await import('../utils/tour.js')
+  // Chụp hash + guard NGAY khi bind view để async import xong không hẹn tour
+  // cho một view đã bị thay thế (stale async).
+  const boundHash = window.location.hash
+  const guard = document.getElementById('tour-latest-hw')
+  const { startTour, scheduleAutoIntroTour } = await import('../utils/tour.js')
+
+  // Hướng dẫn thủ công luôn hoạt động, kể cả sau auto và khi danh sách rỗng.
   document.getElementById('btn-replay-tour')?.addEventListener('click', () => startTour(dashboardTourSteps()))
-  if (!(await hasSeenTour('student-dashboard'))) {
-    setTimeout(() => startTour(dashboardTourSteps(), { key: 'student-dashboard' }), 800)
-  }
+
+  // Chỉ dashboard tự mở tour, và chỉ khi login server trả autoIntro = true
+  // (lần đăng nhập đầu tiên). My-homeworks / lesson tours không auto.
+  scheduleAutoIntroTour(dashboardTourSteps(), {
+    user: state.user,
+    key: 'student-dashboard',
+    hash: boundHash,
+    guard,
+    delay: 800
+  })
 }
 
 async function loadLatestHomeworksAll() {

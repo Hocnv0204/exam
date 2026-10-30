@@ -12,34 +12,72 @@ const sandbox = { console, URL, Request, Response, serve() {}, requireAuth() {},
 vm.runInNewContext(compiled, sandbox)
 const create = sandbox.module.exports.createExamLogHandler
 
+// Oracle độc lập: mô phỏng PostgREST — bảng student_classes chỉ có khóa kép
+// (student_id, class_id) + status, KHÔNG có cột id. Chọn cột không tồn tại phải
+// trả về lỗi SQL missing-column giống thật để regression test tự thất bại nếu
+// code quay lại .select('id').
+const TABLE_COLUMNS = {
+  homeworks: ['id', 'type', 'is_published', 'max_violations', 'lessons'],
+  student_classes: ['student_id', 'class_id', 'status'],
+  homework_targets: ['student_id', 'homework_id'],
+  exam_logs: ['id', 'session_id', 'attempt_no', 'action', 'event_id', 'counted', 'reason', 'severity',
+    'server_timestamp', 'created_at', 'student_id', 'profiles'],
+  exam_sessions: ['id', 'draft_answers', 'session_token', 'auto_submit_state', 'auto_submission_id']
+}
+function missingColumn(table, columns) {
+  const known = TABLE_COLUMNS[table]
+  if (!known || !columns) return null
+  let depth = 0, cur = '', parts = []
+  for (const ch of columns) {
+    if (ch === '(') depth++
+    if (ch === ')') depth--
+    if (ch === ',' && depth === 0) { parts.push(cur); cur = '' } else cur += ch
+  }
+  if (cur) parts.push(cur)
+  for (const part of parts) {
+    const name = part.split(/[!(]/)[0].trim()
+    if (name && !known.includes(name)) return name
+  }
+  return null
+}
+
 function fixture() {
   const logs = [], calls = []
   let state = 'READY', submissionId = null, token = 'secret', status = 'ACTIVE', outcome = { data: { submissionId: id(99) } }
   let errorTable = null
   const classId = id(4)
+  let enrollment = { student_id: studentId, class_id: classId, status: 'ACTIVE' }
+  let targets = []
   const homework = { id: homeworkId, type: 'EXAM', is_published: true, max_violations: 2,
     lessons: { is_trial: false, chapters: { class_id: classId } } }
   const session = { id: sessionId, draft_answers: [], session_token: token }
   const db = {
     from(table) {
       const filters = []
-      let update = null, range = null, count = false
+      let update = null, range = null, count = false, selectedColumns = null
       const q = {
-        select(_columns, options) { count = options?.count === 'exact'; return q },
+        select(_columns, options) { selectedColumns = _columns; count = options?.count === 'exact'; return q },
         eq(key, value) { filters.push([key, value]); return q },
         order() { return q },
         range(a, b) { range = [a, b]; return q },
         update(value) { update = value; return q },
         maybeSingle: async () => {
+          const missing = missingColumn(table, selectedColumns)
+          if (missing) return { data: null, error: { message: `column ${table}.${missing} does not exist`, code: '42703' } }
           if (errorTable === table) return { data: null, error: { message: 'database failure' } }
           if (table === 'homeworks') return { data: homework, error: null }
-          if (table === 'student_classes') return { data: { id: id(5) }, error: null }
+          if (table === 'student_classes') {
+            const row = enrollment && filters.every(([k, v]) => enrollment[k] === v) ? enrollment : null
+            return { data: row, error: null }
+          }
           if (table === 'exam_sessions') return { data: filters.some(([k, v]) => k === 'session_token' && v !== token)
             ? null : { ...session, auto_submit_state: state, auto_submission_id: submissionId }, error: null }
           return { data: null, error: null }
         },
         then(resolve, reject) {
-          let data = table === 'homework_targets' ? [] : table === 'exam_logs' ? logs : []
+          const missing = missingColumn(table, selectedColumns)
+          if (missing) return Promise.resolve({ data: null, error: { message: `column ${table}.${missing} does not exist`, code: '42703' } }).then(resolve, reject)
+          let data = table === 'homework_targets' ? targets : table === 'exam_logs' ? logs : []
           if (errorTable === table) return Promise.resolve({ data: null, error: { message: 'database failure' } }).then(resolve, reject)
           if (update && table === 'exam_sessions' && filters.every(([k, v]) => k !== 'auto_submit_state' || v === state)) {
             state = update.auto_submit_state
@@ -84,6 +122,7 @@ function fixture() {
   errorResponse: (error, status) => Response.json({ error }, { status }),
   submitInvoker: async (_db, args) => { calls.push(args); return typeof outcome === 'function' ? outcome() : outcome } })
   return { logs, calls, setOutcome: value => { outcome = value }, setError: value => { errorTable = value },
+    setEnrollment: value => { enrollment = value }, setTargets: value => { targets = value },
     state: () => state, setStatus: value => { status = value },
     async request(body, query = '', auth = 'student', method = 'POST') {
       const res = await handler(new Request(`https://example.invalid/exam-log${query}`, {
@@ -162,6 +201,52 @@ const post = (action, eventId, extra = {}) => ({ homeworkId, action, eventId, se
   f.setOutcome({ data: { submissionId: id(77) } })
   assert.equal((await f.request(post('DEVTOOLS', 'b'))).data.autoSubmitted, true)
   assert.equal(f.calls.length, 2)
+}
+{
+  // Regression: student_classes không có cột id (khóa kép student_id + class_id).
+  // Mock trả lỗi missing-column như PostgREST nên nếu code quay lại .select('id'),
+  // các case dưới đây sẽ fail tại status 200/403/500 kỳ vọng.
+  assert.equal(missingColumn('student_classes', 'id'), 'id', 'mock must reject nonexistent id column')
+  assert.equal(missingColumn('student_classes', 'student_id, class_id, status'), null)
+  const f = fixture()
+  const enrolled = await f.request(post('LEAVE_TAB', 'enrolled-ok'))
+  assert.equal(enrolled.status, 200, 'enrolled ACTIVE student must pass verification')
+  assert.equal(enrolled.data.log.action, 'LEAVE_TAB')
+  f.setEnrollment(null)
+  const absent = await f.request(post('LEAVE_TAB', 'absent-1'))
+  assert.equal(absent.status, 403)
+  assert.match(absent.error, /not enrolled/)
+  assert.equal(f.logs.length, 1, 'absent student must not record any event')
+  f.setEnrollment({ student_id: studentId, class_id: id(4), status: 'PAUSED' })
+  const paused = await f.request(post('LEAVE_TAB', 'paused-1'))
+  assert.equal(paused.status, 403)
+  assert.match(paused.error, /not enrolled/)
+  f.setEnrollment({ student_id: studentId, class_id: id(4242), status: 'ACTIVE' })
+  const otherClass = await f.request(post('LEAVE_TAB', 'other-class-1'))
+  assert.equal(otherClass.status, 403)
+  assert.match(otherClass.error, /not enrolled/)
+}
+{
+  // Lỗi DB khi kiểm tra enrollment -> 500 Failed to verify enrollment (không nuốt lỗi).
+  const f = fixture()
+  f.setError('student_classes')
+  const dbError = await f.request(post('LEAVE_TAB', 'db-err-1'))
+  assert.equal(dbError.status, 500)
+  assert.match(dbError.error, /Failed to verify enrollment/)
+  assert.equal(f.logs.length, 0)
+}
+{
+  // Homework targets: học sinh không được gán -> 403; được gán -> 200; không có target nào -> 200.
+  const f = fixture()
+  f.setTargets([{ homework_id: homeworkId, student_id: id(31) }])
+  const notAssigned = await f.request(post('LEAVE_TAB', 'target-forbidden-1'))
+  assert.equal(notAssigned.status, 403)
+  assert.match(notAssigned.error, /not assigned/)
+  assert.equal(f.logs.length, 0)
+  f.setTargets([{ homework_id: homeworkId, student_id: studentId }])
+  const assigned = await f.request(post('LEAVE_TAB', 'target-allowed-1'))
+  assert.equal(assigned.status, 200)
+  assert.equal(assigned.data.log.action, 'LEAVE_TAB')
 }
 const sql = readFileSync(new URL('../migrations/20261030020000_standardize_exam_logs.sql', import.meta.url), 'utf8')
 assert.match(sql, /FOR UPDATE/)

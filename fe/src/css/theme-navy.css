@@ -459,6 +459,24 @@ html[data-theme="dark"] .app-layout.student-class-list .class-card:focus-visible
   background: rgba(248, 113, 113, 0.14) !important;
 }
 
+/* True/False rows carry inline white/green/red backgrounds while the dark
+   text remap below turns their statement text pale. Keep the whole row dark
+   in every selection state so the statement (including inline math) is legible. */
+.exam-room-layout.navy-student .tf-statement-row {
+  background: var(--navy-surface-soft) !important;
+  border-color: var(--navy-border) !important;
+}
+
+.exam-room-layout.navy-student .tf-statement-row:has(.tf-toggle-btn[data-val="true"].active) {
+  background: #173d3d !important;
+  border-color: #34d399 !important;
+}
+
+.exam-room-layout.navy-student .tf-statement-row:has(.tf-toggle-btn[data-val="false"].active) {
+  background: #422d3a !important;
+  border-color: #f87171 !important;
+}
+
 .exam-room-layout.navy-student [style*="background:#fffbeb"],
 .exam-room-layout.navy-student [style*="background:#fef3c7"],
 .exam-room-layout.navy-student [style*="background:#fff7ed"] {

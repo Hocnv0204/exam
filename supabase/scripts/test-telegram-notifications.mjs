@@ -192,7 +192,7 @@ assert.equal(persistedLessonClone.notices[0].lesson_id, 'lesson-b', 'route by pe
 // Execute the actual submission-routing code through the config lookup. A student in B
 // must never cause homework A to search B, even when A has no Telegram configuration.
 const submissionSource = readFileSync(new URL('../functions/submit-homework/index.ts', import.meta.url), 'utf8')
-const routing = submissionSource.slice(submissionSource.indexOf('const classIdsToSearch:'), submissionSource.indexOf('if (!tgConfigs || tgConfigs.length === 0) return'))
+const routing = submissionSource.slice(submissionSource.indexOf('const classIdsToSearch:'), submissionSource.indexOf('if (!tgConfigs || tgConfigs.length === 0) {'))
 const routingCode = transformSync(`async function route(serviceRoleClient, classIdOfHomework, homework, user) { ${routing}; return tgConfigs }`, { loader: 'ts' }).code
 for (const [knownClass, homework, enrolled] of [
   ['a', {}, { classId: 'b', classIds: ['a', 'b'] }],
@@ -206,4 +206,88 @@ for (const [knownClass, homework, enrolled] of [
   const result = await context.route(db, knownClass, homework, enrolled)
   assert.ok(!result || result.length === 0, 'no fallback into other enrolled groups')
 }
-console.log('Telegram notifications PASS: event matrix, HTML/time/bounds, class isolation, dedupe, fail-soft, waitUntil, create/update/retry/write failures, partial clone, submission/trial scoping (all mocked)')
+
+// Exercise the actual submit handler, including the pre-write path and background task.
+const submitCode = transformSync(submissionSource.replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, ''), { loader: 'ts', format: 'cjs' }).code
+async function submitCase({ type = 'PRACTICE', trial = false, classId = 'a', configs = routingSeed.telegram_configs,
+  fail = () => false, token = 'fake-token', telegram = async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }),
+  atomicResult = { id: 'submission', submitted_at: '2026-10-29T00:00:00Z', already_submitted: false, total_score: 1 },
+  atomicError = null, waitUntil = true } = {}) {
+  const db = database({
+    homeworks: [{ id: 'hw', title: 'Mock', lesson_id: 'lesson-a', lessons: { is_trial: trial, chapters: classId ? { class_id: classId } : null },
+      is_published: true, type, max_score: 10, pass_score: 5, show_solutions: true, duration_minutes: 60 }],
+    exam_sessions: [{ id: 'session', session_token: 'session-token', homework_id: 'hw', student_id: 'student',
+      created_at: new Date().toISOString(), status: 'ACTIVE', attempt_no: 1 }],
+    questions: [{ id: 'q', homework_id: 'hw', question_number: 1, question_type: 'MULTIPLE_CHOICE', points: 1 }],
+    question_answers: [{ question_id: 'q', mc_answer: 'A' }],
+    lessons: classId ? [] : [{ id: 'lesson-a', chapters: null }],
+    telegram_configs: configs, profiles: [{ id: 'student', full_name: 'Student' }],
+    classes: [{ id: 'a', name: 'Class A' }],
+  }, fail)
+  const rpcCalls = []
+  db.rpc = async (name) => { rpcCalls.push(name); return { data: atomicResult, error: atomicError } }
+  let handler
+  const tasks = [], posts = [], logs = []
+  const logger = { warn: (...args) => logs.push(args.join(' ')), error: (...args) => logs.push(args.join(' ')) }
+  const runtime = waitUntil ? { waitUntil: task => tasks.push(task) } : undefined
+  vm.runInNewContext(submitCode, {
+    serve: fn => { handler = fn }, console: logger, Date, Promise, Set, Math, Number, String,
+    EdgeRuntime: runtime, Deno: { env: { get: () => token } },
+    fetch: async (url, options) => { posts.push({ url, ...JSON.parse(options.body) }); return telegram() },
+    requireStudent: async () => ({ user: { id: 'student', classIds: ['a'] } }),
+    createServiceRoleClient: () => db,
+    handleCors: () => null, jsonResponse: (data, status = 200) => ({ data, status }),
+    errorResponse: (message, status) => ({ message, status }),
+    submitHomeworkSchema: { safeParse: data => ({ success: true, data }) },
+    gradeExam: () => ({ totalScore: 1, correctCount: 1, wrongCount: 0, rawEarned: 1, rawMax: 1,
+      isNormalized: false, questionResults: [{ isCorrect: true, scoreEarned: 1 }] }),
+  })
+  const response = await handler({ method: 'POST', headers: { get: () => trial ? null : 'Bearer mock' },
+    json: async () => ({ homeworkId: 'hw', answers: [], guestPhone: '012345', sessionToken: 'session-token' }) })
+  await Promise.allSettled(tasks)
+  return { response, posts, logs: logs.join('\n'), db, rpcCalls, tasks }
+}
+for (const type of ['PRACTICE', 'EXAM']) {
+  const result = await submitCase({ type })
+  assert.equal(result.response.status, 200, type)
+  assert.equal(result.posts.length, 1, type)
+  assert.equal(result.tasks.length, 3, 'notification, activity and draft work scheduled')
+  assert.equal(result.rpcCalls.length, type === 'EXAM' ? 1 : 0)
+  assert.equal(result.db.calls.filter(c => c.table === 'submissions' && c.op === 'insert').length, type === 'EXAM' ? 0 : 1)
+}
+const already = await submitCase({ type: 'EXAM', atomicResult: { id: 'submission', already_submitted: true, total_score: 1 } })
+assert.equal(already.response.status, 200)
+assert.equal(already.posts.length, 0, 'atomic replay does not notify again')
+assert.equal(already.db.calls.filter(c => c.table === 'submissions' && c.op === 'insert').length, 0)
+const rejectedWrite = await submitCase({ type: 'EXAM', atomicError: { message: 'SUBMISSION_CONFLICT' } })
+assert.equal(rejectedWrite.response.status, 409)
+assert.equal(rejectedWrite.posts.length, 0)
+assert.equal(rejectedWrite.tasks.length, 0)
+const trial = await submitCase({ trial: true })
+assert.equal(trial.response.status, 200, 'guestPhone bound before writing')
+assert.equal(trial.posts.length, 1)
+const missing = await submitCase({ configs: [] })
+assert.equal(missing.posts.length, 0)
+assert.match(missing.logs, /config_missing/)
+const queryError = await submitCase({ fail: table => table === 'telegram_configs' })
+assert.match(queryError.logs, /config_query_error/)
+const noClass = await submitCase({ classId: null })
+assert.match(noClass.logs, /class_unresolved/)
+const lessonError = await submitCase({ classId: null, fail: table => table === 'lessons' })
+assert.match(lessonError.logs, /class_lookup_error/)
+for (const [telegram, reason] of [
+  [async () => ({ ok: false, status: 403, json: async () => ({ ok: false, error_code: 403, description: 'private data' }) }), /send_api_error 403 403/],
+  [async () => ({ ok: true, status: 200, json: async () => ({ ok: false, error_code: 400, description: 'private data' }) }), /send_api_error 200 400/],
+  [async () => ({ ok: true, status: 200, json: async () => { throw Error('private data') } }), /send_invalid_response 200/],
+  [async () => { throw Error('secret private data') }, /send_network_error/],
+]) {
+  const failed = await submitCase({ telegram })
+  assert.equal(failed.response.status, 200)
+  assert.equal(failed.posts.length, 1, 'never retry ambiguous sends')
+  assert.match(failed.logs, reason)
+  assert.doesNotMatch(failed.logs, /fake-token|private data|012345|Student|Class A|-1/)
+}
+const absentToken = await submitCase({ token: null })
+assert.equal(absentToken.posts.length, 0)
+assert.match(absentToken.logs, /token_missing/)
+console.log('Telegram notifications PASS: event matrix, create/update, submit PRACTICE/EXAM/trial, atomic replay, routing, errors and safe diagnostics (all mocked)')
