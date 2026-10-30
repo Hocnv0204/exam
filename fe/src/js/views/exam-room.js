@@ -4,7 +4,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
-import { getStudentTheme, renderStudentThemePicker } from '../theme.js'
+import { getStudentTheme, renderStudentThemeToggle } from '../theme.js'
 
 // The exam room has no .app-layout root; app.js updates this shell on theme changes.
 const examShell = () => {
@@ -323,7 +323,7 @@ export function renderExamRoomView() {
         </div>
 
         <div class="exam-toolbar-actions" style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-          ${renderStudentThemePicker('exam-student-theme-picker')}
+          ${renderStudentThemeToggle('exam-student-theme-toggle')}
           <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#475569; background:#f8fafc; padding:6px 12px; border-radius:8px; border:1px solid #e2e8f0;">
             <i class="fa-solid fa-user-graduate" style="color:#0284c7;"></i>
             <strong style="color:#0f172a;">${escapeHtml(studentFullName)}</strong>

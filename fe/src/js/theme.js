@@ -3,6 +3,11 @@
 const STORAGE_KEY = 'eduportal-theme'
 const STUDENT_STORAGE_KEY = 'eduportal-student-theme'
 const DEFAULT_THEME = 'dark'
+// Students only ever get the navy dark skin or the rose pastel skin. The old
+// 'light' value (and any unknown/missing one) maps back to navy dark, always
+// independent of the global admin/public dark/light preference.
+const STUDENT_THEMES = ['dark', 'pastel']
+const DEFAULT_STUDENT_THEME = 'dark'
 const CHANGE_EVENT = 'eduportal:themechange'
 let currentTheme
 let studentPreference = readStudentPreference()
@@ -11,19 +16,26 @@ function normalizeTheme(value) {
   return value === 'light' || value === 'dark' ? value : DEFAULT_THEME
 }
 
+function normalizeStudentTheme(value) {
+  return value === 'pastel' ? 'pastel' : DEFAULT_STUDENT_THEME
+}
+
 function readStoredTheme() {
   try { return normalizeTheme(localStorage.getItem(STORAGE_KEY)) } catch (_) { return DEFAULT_THEME }
 }
 
 function readStudentPreference() {
   try {
-    const value = localStorage.getItem(STUDENT_STORAGE_KEY)
-    return ['dark', 'light', 'pastel'].includes(value) ? value : null
-  } catch (_) { return null }
+    const stored = localStorage.getItem(STUDENT_STORAGE_KEY)
+    const normalized = normalizeStudentTheme(stored)
+    // Persist the migration so a legacy 'light'/unknown value cannot resurface.
+    if (stored !== normalized) localStorage.setItem(STUDENT_STORAGE_KEY, normalized)
+    return normalized
+  } catch (_) { return DEFAULT_STUDENT_THEME }
 }
 
 export function getStudentTheme() {
-  return studentPreference || getTheme()
+  return STUDENT_THEMES.includes(studentPreference) ? studentPreference : DEFAULT_STUDENT_THEME
 }
 
 function notifyThemeChange() {
@@ -32,40 +44,64 @@ function notifyThemeChange() {
   }))
 }
 
-export function updateStudentThemePicker() {
-  const selected = getStudentTheme()
-  document.querySelectorAll?.('[data-student-theme-picker]').forEach(picker => {
-    picker.value = selected
+// The student switch reuses the admin toggle pattern: a real <button> whose
+// icon/label describe the mode it switches TO, so no popup and no rerender.
+function studentToggleTargets() {
+  const current = getStudentTheme()
+  const toPastel = current === 'dark'
+  return {
+    current,
+    toPastel,
+    iconClass: toPastel ? 'fa-palette' : 'fa-moon',
+    label: toPastel ? 'Hồng pastel' : 'Giao diện tối',
+    action: toPastel ? 'Chuyển sang giao diện hồng pastel' : 'Chuyển sang giao diện tối'
+  }
+}
+
+export function updateStudentThemeToggle() {
+  const { toPastel, iconClass, label, action } = studentToggleTargets()
+  document.querySelectorAll?.('[data-student-theme-toggle]').forEach((btn) => {
+    btn.setAttribute('aria-label', action)
+    btn.setAttribute('title', action)
+    btn.setAttribute('aria-pressed', String(!toPastel))
+    const icon = btn.querySelector('i')
+    if (icon) icon.className = `fa-solid ${iconClass}`
+    const text = btn.querySelector('.theme-toggle-label')
+    if (text) text.textContent = label
   })
 }
 
-export function renderStudentThemePicker(extraClass = '') {
-  const selected = getStudentTheme()
-  return `<label class="student-theme-picker${extraClass ? ` ${extraClass}` : ''}">
-    <span>Giao diện học sinh</span>
-    <select data-student-theme-picker aria-label="Giao diện học sinh">
-      <option value="dark"${selected === 'dark' ? ' selected' : ''}>Tối</option>
-      <option value="light"${selected === 'light' ? ' selected' : ''}>Sáng</option>
-      <option value="pastel"${selected === 'pastel' ? ' selected' : ''}>Hồng pastel</option>
-    </select>
-  </label>`
+export function renderStudentThemeToggle(extraClass = '') {
+  const { toPastel, iconClass, label, action } = studentToggleTargets()
+  return `
+    <button type="button" class="theme-toggle student-theme-toggle${extraClass ? ` ${extraClass}` : ''}" data-student-theme-toggle
+      aria-label="${action}" title="${action}" aria-pressed="${!toPastel}">
+      <i class="fa-solid ${iconClass}" aria-hidden="true"></i>
+      <span class="theme-toggle-label">${label}</span>
+    </button>
+  `
 }
 
 function applyStudentPreference(preference) {
   const previous = getStudentTheme()
-  studentPreference = preference
+  studentPreference = normalizeStudentTheme(preference)
   const next = getStudentTheme()
   document.documentElement.dataset.studentTheme = next
-  updateStudentThemePicker()
+  updateStudentThemeToggle()
   if (previous !== next) notifyThemeChange()
   return next
 }
 
 export function setStudentTheme(theme) {
-  // Invalid values must not replace a valid preference.
-  if (!['dark', 'light', 'pastel'].includes(theme)) return getStudentTheme()
+  // 'light' and unknown values are no longer part of the student palette; they
+  // must not replace a valid navy/pastel preference.
+  if (!STUDENT_THEMES.includes(theme)) return getStudentTheme()
   try { localStorage.setItem(STUDENT_STORAGE_KEY, theme) } catch (_) {}
   return applyStudentPreference(theme)
+}
+
+export function toggleStudentTheme() {
+  return setStudentTheme(getStudentTheme() === 'dark' ? 'pastel' : 'dark')
 }
 
 export function getTheme() {
@@ -86,7 +122,7 @@ export function applyTheme(theme = getTheme()) {
   document.documentElement.style.colorScheme = next
   document.documentElement.dataset.studentTheme = getStudentTheme()
   updateToggleButtons()
-  updateStudentThemePicker()
+  updateStudentThemeToggle()
   if ((previous && previous !== next) || previousStudent !== getStudentTheme()) notifyThemeChange()
   return next
 }
@@ -131,22 +167,23 @@ export function updateToggleButtons() {
   })
 }
 
-// Delegated once so views can re-render the button without rebinding.
+// Delegated once so views can re-render the button without rebinding. The
+// student switch is its own control: toggling only repaints classes/attributes
+// (never a route), so exam drafts and answers stay in memory.
 document.addEventListener('click', (event) => {
+  if (event.target.closest?.('[data-student-theme-toggle]')) {
+    toggleStudentTheme()
+    return
+  }
   if (!event.target.closest?.('[data-theme-toggle]')) return
   toggleTheme()
 })
 
-document.addEventListener('change', event => {
-  if (!event.target.matches?.('[data-student-theme-picker]')) return
-  setStudentTheme(event.target.value)
-  updateStudentThemePicker()
-})
-
 window.addEventListener('storage', (event) => {
   if (event.key === STUDENT_STORAGE_KEY || event.key === null) {
+    // Cross-tab writes are normalized too: a legacy 'light' maps to navy dark.
     applyStudentPreference(event.key === null ? readStudentPreference()
-      : (['dark', 'light', 'pastel'].includes(event.newValue) ? event.newValue : null))
+      : normalizeStudentTheme(event.newValue))
   }
   if (event.key !== STORAGE_KEY && event.key !== null) return
   applyTheme(event.key === STORAGE_KEY ? normalizeTheme(event.newValue) : readStoredTheme())

@@ -2,7 +2,7 @@ import { state } from '../state.js'
 import { showToast } from './toast.js'
 import { api } from '../api.js'
 import { isImpersonating } from '../utils/impersonate.js'
-import { renderThemeToggle, renderStudentThemePicker } from '../theme.js'
+import { renderThemeToggle, renderStudentThemeToggle } from '../theme.js'
 
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
 
@@ -33,7 +33,7 @@ export function renderNavbar(breadcrumbText = 'Nền tảng / Bảng điều khi
   // Guest exercise routes use the same navbar, so the control is available
   // there too (the guest sidebar switch is hidden at touch widths).
   const themeToggle = options.themeToggle === false ? '' : (state.user?.role === 'STUDENT'
-    ? renderStudentThemePicker('navbar-theme-toggle') : renderThemeToggle('navbar-theme-toggle'))
+    ? renderStudentThemeToggle('navbar-theme-toggle') : renderThemeToggle('navbar-theme-toggle'))
 
   return `
     ${impersonating ? `

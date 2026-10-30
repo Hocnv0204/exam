@@ -7,8 +7,9 @@
   <script>
     try {
       var globalTheme = localStorage.getItem('eduportal-theme') === 'light' ? 'light' : 'dark'
-      var savedStudentTheme = localStorage.getItem('eduportal-student-theme')
-      var studentTheme = ['dark', 'light', 'pastel'].includes(savedStudentTheme) ? savedStudentTheme : globalTheme
+      // Student skin is limited to navy dark / rose pastel. A legacy 'light'
+      // or unknown value must never flash the light palette before CSS loads.
+      var studentTheme = localStorage.getItem('eduportal-student-theme') === 'pastel' ? 'pastel' : 'dark'
       var savedUser = null
       try { savedUser = JSON.parse(localStorage.getItem('edu_user') || 'null') } catch (_) {}
       var route = location.hash.slice(1).split('?')[0]

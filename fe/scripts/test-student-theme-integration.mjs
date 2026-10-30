@@ -22,18 +22,46 @@ globalThis.window = { location: { hash: '#student-report' }, addEventListener: (
 const { state } = await import('../src/js/state.js')
 const { renderExamRoomView } = await import('../src/js/views/exam-room.js')
 const { updateReportChartTheme } = await import('../src/js/views/student-report.js')
-const { setStudentTheme, renderStudentThemePicker } = await import('../src/js/theme.js')
+const { setStudentTheme, toggleStudentTheme, renderStudentThemeToggle, getStudentTheme } = await import('../src/js/theme.js')
 state.user = { id: 'fixture', role: 'STUDENT' }
 state.currentHomework = null // No real exam/API/session is opened.
 assert.match(renderExamRoomView(), /exam-room-layout pastel-student/)
-assert.match(renderStudentThemePicker('exam-student-theme-picker'), /data-student-theme-picker/)
+
+// The exam toolbar carries the shared two-way button, never a native select.
+const examToggle = renderStudentThemeToggle('exam-student-theme-toggle')
+assert.match(examToggle, /data-student-theme-toggle/)
+assert.match(examToggle, /class="theme-toggle student-theme-toggle exam-student-theme-toggle"/)
+assert.doesNotMatch(examToggle, /sáng|<select|data-student-theme-picker/i)
 const examSource = readFileSync(new URL('../src/js/views/exam-room.js', import.meta.url), 'utf8')
-assert.match(examSource, /renderStudentThemePicker\('exam-student-theme-picker'\)/)
-assert.doesNotMatch(examSource, /renderThemeToggle/, 'exam uses the student picker, not the global binary toggle')
+assert.match(examSource, /renderStudentThemeToggle\('exam-student-theme-toggle'\)/)
+assert.doesNotMatch(examSource, /renderThemeToggle|student-theme-picker|renderStudentThemePicker/,
+  'exam uses the student toggle, not the global binary toggle nor the old picker')
+
+// Toggling only flips the shell class: no rerender, so answers/drafts survive.
+toggleStudentTheme()
+assert.equal(getStudentTheme(), 'dark')
+assert.match(renderExamRoomView(), /exam-room-layout navy-student/)
+toggleStudentTheme()
+assert.match(renderExamRoomView(), /exam-room-layout pastel-student/)
+setStudentTheme('invalid')
+assert.equal(getStudentTheme(), 'pastel', 'invalid input cannot replace the valid mode')
 setStudentTheme('light')
-assert.match(renderExamRoomView(), /class="exam-room-layout"/)
+assert.equal(getStudentTheme(), 'pastel', "a legacy 'light' cannot return to the student palette")
+assert.equal(saved.get('eduportal-student-theme'), 'pastel')
+assert.equal(saved.get('eduportal-theme'), 'dark', 'the student control cannot change the global theme')
 setStudentTheme('dark')
 assert.match(renderExamRoomView(), /exam-room-layout navy-student/)
+
+// Compact styling: no dead picker rules, and the button keeps a 44px target in
+// the navbar and the exam toolbar at phone widths.
+const cssSource = readFileSync(new URL('../src/css/theme-public.css', import.meta.url), 'utf8')
+assert.doesNotMatch(cssSource, /student-theme-picker/, 'the dead three-way picker CSS is removed')
+assert.match(cssSource, /\.top-navbar \.student-theme-toggle \{[^}]*min-width: 44px;[^}]*min-height: 44px;/,
+  'the navbar toggle keeps a 44px touch target at touch widths')
+assert.match(cssSource, /\.exam-top-toolbar \.student-theme-toggle \{[^}]*min-width: 44px;[^}]*min-height: 44px;/,
+  'the exam toolbar toggle keeps a 44px touch target at phone widths')
+assert.match(cssSource, /\.app-layout\.sidebar-hover-expand \.sidebar-theme-toggle \{[^}]*min-height: 44px;/,
+  'the collapsed rail reuses the shared 44px icon target')
 
 const chart = {
   data: { datasets: [{}, {}] },
