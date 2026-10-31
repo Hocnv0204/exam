@@ -225,6 +225,28 @@ body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-r
   border-color: var(--adm-modal-border);
 }
 
+/* Input bị khóa bởi coupling Loại bài tập <-> Số lần làm / Giới hạn vi phạm
+   (homework-config-fields.js, popup "Tạo đề từ ngân hàng" và ma trận).
+   Coupling gắn class `hw-config-locked` thay vì ghi inline backgroundColor —
+   ghi style qua CSSOM chuẩn hoá attribute sang rgb() và làm mất chuỗi
+   `background:#ffffff` bắt mapping nền navy, khiến input disabled thành chữ
+   sáng (#f8fafc) trên nền gần trắng. Rule thường + class thắng inline
+   `background:#ffffff` nhờ !important; hai mức nền:
+   - light (rule thường, file này luôn được nạp): giữ nguyên look cũ #f1f5f9;
+   - dark admin/student (rule có cổng body:has): nền muted navy, chữ muted. */
+:is(#modal-container, #qb-modal-container) input.hw-config-locked {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+  opacity: 1;
+}
+
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) input.hw-config-locked {
+  background: var(--adm-modal-surface-strong) !important;
+  border-color: var(--adm-modal-border) !important;
+  color: var(--adm-modal-text-muted) !important;
+}
+
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(input, textarea)::placeholder {
   color: var(--adm-modal-text-dim);
 }

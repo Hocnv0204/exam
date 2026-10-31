@@ -24,6 +24,14 @@ export function renderWeeklyCalendarView() {
             </div>
           </div>
           <style>
+            /* Admin also uses this page, but the shared navy-hero skin is
+               student-only. Keep its mascot bounded and give admin a compact
+               light hero matching the calendar's light day cards. */
+            #weekly-calendar-root .navy-hero img {width:96px;height:72px;object-fit:contain;flex-shrink:0}
+            .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero {display:flex;align-items:center;gap:20px;padding:20px 24px;margin-bottom:20px;border:1px solid #cbd5e1;border-radius:16px;background:#fff}
+            .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero h1 {margin:0 0 6px;font-size:22px;color:#0f172a}
+            .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero p {margin:0;color:#475569}
+            @media(max-width:768px) {.app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero {flex-direction:column;text-align:center}}
             #weekly-calendar-root .wc-toolbar {display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:16px 0}
             #weekly-calendar-root button {width:auto;min-height:44px}
             #weekly-calendar-root select {max-width:100%;min-height:44px;padding:6px;border:1px solid #cbd5e1;border-radius:8px}

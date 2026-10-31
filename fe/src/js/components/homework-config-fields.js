@@ -87,23 +87,21 @@ export function bindHomeworkTypeCoupling(typeSelectId, attemptsInputId, violatio
   const attemptsInput = document.getElementById(attemptsInputId)
   const violationsInput = violationsInputId ? document.getElementById(violationsInputId) : null
   if (!typeSelect || !attemptsInput) return
+  // Khóa/mở bằng class `hw-config-locked` thay vì ghi inline backgroundColor:
+  // ghi style qua CSSOM khiến browser chuẩn hoá TOÀN BỘ attribute sang dạng
+  // rgb(), làm mất chuỗi `background:#ffffff` mà theme-admin-modals.css dùng
+  // để map nền input về navy — hậu quả input khóa (disabled) thành near-white
+  // trên nền gần trắng trong admin tối. Nền disabled do CSS scoped quyết định.
+  const setLocked = (input, locked) => {
+    if (!input) return
+    input.disabled = locked
+    input.classList.toggle('hw-config-locked', locked)
+  }
   const handleTypeChange = () => {
-    if (typeSelect.value === 'EXAM') {
-      attemptsInput.value = 1
-      attemptsInput.disabled = true
-      attemptsInput.style.backgroundColor = '#f1f5f9'
-      if (violationsInput) {
-        violationsInput.disabled = false
-        violationsInput.style.backgroundColor = '#ffffff'
-      }
-    } else {
-      attemptsInput.disabled = false
-      attemptsInput.style.backgroundColor = '#ffffff'
-      if (violationsInput) {
-        violationsInput.disabled = true
-        violationsInput.style.backgroundColor = '#f1f5f9'
-      }
-    }
+    const isExam = typeSelect.value === 'EXAM'
+    if (isExam) attemptsInput.value = 1
+    setLocked(attemptsInput, isExam) // EXAM => đúng 1 lần làm (khóa)
+    if (violationsInput) setLocked(violationsInput, !isExam) // PRACTICE => khóa giới hạn vi phạm
   }
   typeSelect.addEventListener('change', handleTypeChange)
   handleTypeChange()
