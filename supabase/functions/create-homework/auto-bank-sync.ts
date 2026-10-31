@@ -1,15 +1,20 @@
 /**
- * Đồng bộ câu hỏi từ bài tập Markdown interactive sang Ngân hàng câu hỏi Constant.
+ * Đồng bộ câu hỏi từ bài tập Markdown interactive sang Ngân hàng câu hỏi.
  *
  * Nguyên tắc nghiệp vụ:
  * - Chỉ đồng bộ câu hỏi có source = MARKDOWN_INTERACTIVE (không tự động áp dụng cho PDF manual
  *   hoặc caller cũ chưa gửi source).
- * - Target Constant lấy theo phân cấp bài học động của bài tập: Khối/Lớp -> Chương -> Bài.
- *   Mọi cấp phải khớp DUY NHẤT sau chuẩn hóa; không tự tạo taxonomy, không đoán khi mơ hồ.
- * - Dạng bài: dùng metadata [DẠNG BÀI] nếu khớp duy nhất trong bài học Constant; nếu không
- *   khớp/mơ hồ thì dùng Dạng bài "Khác" có sẵn. Không bao giờ tạo Dạng bài mới.
- * - Chống trùng bằng content_hash trong phạm vi (qb_lesson_id, content_hash) — đúng unique
- *   index uq_qb_constant_lesson_hash. Câu cùng nội dung ở bài Constant khác vẫn được lưu.
+ * - Metadata phân loại của TỪNG câu là nguồn taxonomy ưu tiên; một batch có thể trộn nhiều
+ *   Khối/Môn/Chương/Bài. Câu khớp DUY NHẤT Constant thì lưu Constant (Khối/Lớp -> Bài).
+ * - Câu không có Constant tương ứng được lưu row động (qb_* NULL) theo Khối/Môn đã xác minh;
+ *   raw Chương/Bài/Dạng bài vẫn giữ trong prompt.metadata. Không tự tạo taxonomy, không đoán
+ *   khi mơ hồ, không gán nhầm Khối hoặc bài học.
+ * - Dạng bài Constant: dùng metadata [DẠNG BÀI] nếu khớp duy nhất trong bài học Constant;
+ *   nếu không khớp/mơ hồ thì dùng Dạng bài "Khác" có sẵn. Không bao giờ tạo Dạng bài mới.
+ * - Chống trùng Constant theo (qb_lesson_id, content_hash); chống trùng row động theo
+ *   (grade_block, content_hash) với qb_lesson_id IS NULL (đúng các partial unique index).
+ * - summary.target chỉ có giá trị khi các câu đã chuẩn bị dùng đúng MỘT Constant target;
+ *   batch trộn nhiều target trả null để UI không hiển thị sai một bài học duy nhất.
  * - Hàm này KHÔNG được làm hỏng việc lưu bài tập: mọi lỗi đồng bộ đều trả về summary
  *   created/skipped/unsynced/failed để caller báo cho Admin, không throw ra ngoài.
  */
@@ -86,9 +91,40 @@ export type QuestionBankSyncAdapter = {
     lessonId: string,
     hashes: string[]
   ) => Promise<Array<{ qb_lesson_id?: string | null; content_hash?: string | null }>>
+  /** Chống trùng cho câu fallback động: đúng phạm vi (grade_block, content_hash) với qb_lesson_id NULL. */
+  loadExistingDynamicHashes: (
+    gradeBlock: string,
+    hashes: string[]
+  ) => Promise<
+    Array<{
+      grade_block?: string | null
+      qb_lesson_id?: string | null
+      content_hash?: string | null
+    }>
+  >
   insertRows: (rows: Record<string, unknown>[]) => Promise<{
     error?: { message?: string; code?: string } | null
   }>
+}
+
+export type QuestionTaxonomyTags = {
+  classTag: string | null
+  gradeTag: string | null
+  subjectTag: string | null
+  chapterTag: string | null
+  lessonTag: string | null
+  questionTypeTag: string | null
+}
+
+export type QuestionClassification =
+  | { success: true; grade: number; subject: 'Toán' | 'Hóa'; gradeBlock: string }
+  | { success: false; kind: 'missing' | 'contradictory'; error: string }
+
+export type DynamicFallbackIds = {
+  classId: string | null
+  chapterId: string | null
+  lessonId: string | null
+  sourceDynamicLessonId: string | null
 }
 
 export type AutoBankSyncSummary = {
@@ -252,12 +288,13 @@ export function resolveQuestionMetadataConflict(
   classes: ConstantClassRow[] = []
 ): string | null {
   // Hỗ trợ cả tag top-level lẫn tag nằm trong prompt.metadata (dữ liệu Markdown cũ).
-  const promptMetadata = asObject(parsePromptObject(question).metadata) || {}
-  const classTag = question.classTag || promptMetadata.classTag || null
-  const gradeTag = question.gradeTag || promptMetadata.gradeTag || null
-  const subjectTag = question.subjectTag || promptMetadata.subjectTag || null
-  const chapterTag = question.chapterTag || promptMetadata.chapterTag || null
-  const lessonTag = question.lessonTag || promptMetadata.lessonTag || null
+  const {
+    classTag,
+    gradeTag,
+    subjectTag,
+    chapterTag,
+    lessonTag,
+  } = extractQuestionTaxonomyTags(question)
 
   const targetBlockKey = canonicalGradeBlock(target.gradeBlock)
   const targetGrade =
@@ -575,6 +612,255 @@ export function resolveQuestionTypeForBank(
   }
 }
 
+function firstNonEmptyTag(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (value === undefined || value === null) continue
+    const text = String(value).trim()
+    if (text) return text
+  }
+  return null
+}
+
+/**
+ * Metadata phân loại của TỪNG câu là nguồn taxonomy ưu tiên. Hỗ trợ cả field top-level
+ * lẫn prompt.metadata (dữ liệu Markdown cũ bị stringify/lồng nhau), đặc biệt questionTypeTag.
+ */
+export function extractQuestionTaxonomyTags(q: SyncQuestionInput): QuestionTaxonomyTags {
+  const promptMetadata = asObject(parsePromptObject(q).metadata) || {}
+  return {
+    classTag: firstNonEmptyTag(q.classTag, promptMetadata.classTag),
+    gradeTag: firstNonEmptyTag(q.gradeTag, promptMetadata.gradeTag),
+    subjectTag: firstNonEmptyTag(q.subjectTag, promptMetadata.subjectTag),
+    chapterTag: firstNonEmptyTag(q.chapterTag, promptMetadata.chapterTag),
+    lessonTag: firstNonEmptyTag(q.lessonTag, promptMetadata.lessonTag),
+    questionTypeTag: firstNonEmptyTag(q.questionTypeTag, promptMetadata.questionTypeTag),
+  }
+}
+
+function hasBothSubjectsInText(value: unknown): boolean {
+  const words = new Set(normalizeTaxonomyText(value).split(/[^a-z0-9]+/).filter(Boolean))
+  const hasToan = words.has('toan') || words.has('math')
+  const hasHoa = words.has('hoa') || words.has('chem') || words.has('chemistry')
+  return hasToan && hasHoa
+}
+
+/** Khối hiển thị chuẩn, thống nhất "Toán-11" và "11-Toán" về "11-Toán". */
+export function formatCanonicalGradeBlock(grade: number, subject: 'Toán' | 'Hóa'): string {
+  return `${grade}-${subject}`
+}
+
+/** Biến thể thứ tự Khối/Môn ngược ("Toán-11") để truy vấn dữ liệu cũ đã lưu trước khi chuẩn hóa. */
+function alternateGradeBlockOrder(gradeBlock: string): string | null {
+  const grade = extractGradeLevel(gradeBlock)
+  const subject = normalizeSubject(gradeBlock)
+  if (!grade || !subject) return null
+  const canonical = formatCanonicalGradeBlock(grade, subject)
+  const alternate = gradeBlock === canonical ? `${subject}-${grade}` : canonical
+  return alternate === gradeBlock ? null : alternate
+}
+
+/**
+ * Chuẩn hóa + kiểm tra mâu thuẫn metadata cấp câu. Thiếu Lớp/Môn phải fail closed,
+ * tuyệt đối không fallback Khối 12 hay môn Toán.
+ */
+export function classifyQuestionTaxonomy(tags: QuestionTaxonomyTags): QuestionClassification {
+  const identityTags = [tags.classTag, tags.gradeTag, tags.subjectTag].filter(
+    (value): value is string => !!value
+  )
+
+  for (const raw of identityTags) {
+    if (hasBothSubjectsInText(raw)) {
+      return {
+        success: false,
+        kind: 'contradictory',
+        error: `Metadata phân loại "${raw}" mơ hồ: vừa có Toán vừa có Hóa`,
+      }
+    }
+  }
+
+  const gradeCandidates = [tags.classTag, tags.gradeTag]
+    .map((value) => extractGradeLevel(value))
+    .filter((value): value is number => value !== null)
+  const distinctGrades = Array.from(new Set(gradeCandidates))
+  if (distinctGrades.length > 1) {
+    return {
+      success: false,
+      kind: 'contradictory',
+      error: `Metadata Lớp/Khối mâu thuẫn: ${distinctGrades.join(' và ')}`,
+    }
+  }
+
+  const subjectCandidates = [tags.classTag, tags.gradeTag, tags.subjectTag]
+    .map((value) => normalizeSubject(value))
+    .filter((value): value is 'Toán' | 'Hóa' => value !== null)
+  const distinctSubjects = Array.from(new Set(subjectCandidates))
+  if (distinctSubjects.length > 1) {
+    return {
+      success: false,
+      kind: 'contradictory',
+      error: `Metadata Môn mâu thuẫn: ${distinctSubjects.join(' và ')}`,
+    }
+  }
+
+  const grade = distinctGrades[0] ?? null
+  const subject = distinctSubjects[0] ?? null
+  if (grade === null && subject === null) {
+    return {
+      success: false,
+      kind: 'missing',
+      error: 'Câu hỏi thiếu metadata [LỚP] và [MÔN] để xác định Khối/Lớp Ngân hàng',
+    }
+  }
+  if (grade === null) {
+    return {
+      success: false,
+      kind: 'missing',
+      error: `Có môn "${subject}" nhưng thiếu metadata [LỚP] (ví dụ: [LỚP: 11])`,
+    }
+  }
+  if (subject === null) {
+    return {
+      success: false,
+      kind: 'missing',
+      error: `Có lớp "${grade}" nhưng thiếu metadata [MÔN] (ví dụ: [MÔN: Toán] hoặc [MÔN: Hóa])`,
+    }
+  }
+
+  return {
+    success: true,
+    grade,
+    subject,
+    gradeBlock: formatCanonicalGradeBlock(grade, subject),
+  }
+}
+
+/**
+ * Tìm đúng một Lớp Constant theo Khối/Môn đã xác minh. classTag chỉ dùng để phá mơ hồ
+ * khi khớp chính xác tên lớp/khối; không đoán theo thứ tự dữ liệu trả về.
+ */
+export function resolveConstantClassForMetadata(
+  classification: Extract<QuestionClassification, { success: true }>,
+  classTag: string | null,
+  classes: ConstantClassRow[]
+): {
+  status: 'resolved' | 'absent' | 'ambiguous'
+  targetClass: ConstantClassRow | null
+  error: string | null
+} {
+  const expectedBlock = canonicalGradeBlock(classification.gradeBlock)
+  const classRows = (classes || []).filter(Boolean)
+  const matchesBlock = (cl: ConstantClassRow): boolean => {
+    if (!expectedBlock) return false
+    // grade_block là nguồn phân loại của Constant; tên lớp không được ghi đè
+    // một grade_block khác khối/môn.
+    return canonicalGradeBlock(cl.grade_block) === expectedBlock
+  }
+
+  // [LỚP: 11] là nhãn khối, KHÔNG phải tên riêng của một lớp Constant.
+  // Tương tự "Toán-11" chỉ định khối/môn, không chọn lớp 11A hay 11B.
+  const normalizedTag = normalizeTaxonomyText(classTag).replace(/^(lop|khoi)\s+/, '')
+  const genericTags = new Set([
+    String(classification.grade),
+    `${classification.grade}-${normalizeTaxonomyText(classification.subject)}`,
+    `${normalizeTaxonomyText(classification.subject)}-${classification.grade}`,
+    `${classification.grade} ${normalizeTaxonomyText(classification.subject)}`,
+    `${normalizeTaxonomyText(classification.subject)} ${classification.grade}`,
+  ])
+  const isGenericBlockTag = genericTags.has(normalizedTag)
+
+  if (classTag && !isGenericBlockTag) {
+    const tagNorm = normalizeTaxonomyText(classTag)
+    const exact = classRows.filter((cl) => {
+      const nameNorm = normalizeTaxonomyText(cl.name)
+      const blockNorm = normalizeTaxonomyText(cl.grade_block)
+      return (!!nameNorm && tagNorm === nameNorm) || (!!blockNorm && tagNorm === blockNorm)
+    })
+    if (exact.length === 1) {
+      if (!matchesBlock(exact[0])) {
+        return {
+          status: 'ambiguous',
+          targetClass: null,
+          error: `Metadata Lớp "${classTag}" thuộc Khối "${exact[0].grade_block}" khác Khối/Môn đã xác minh "${classification.gradeBlock}"`,
+        }
+      }
+      return { status: 'resolved', targetClass: exact[0], error: null }
+    }
+    if (exact.length > 1) {
+      return {
+        status: 'ambiguous',
+        targetClass: null,
+        error: `Metadata Lớp "${classTag}" khớp nhiều Lớp Constant`,
+      }
+    }
+  }
+
+  const candidates = classRows.filter(matchesBlock)
+  if (candidates.length === 1) {
+    return { status: 'resolved', targetClass: candidates[0], error: null }
+  }
+  if (candidates.length > 1) {
+    if (isGenericBlockTag) {
+      return {
+        status: 'absent',
+        targetClass: null,
+        error: `Nhiều Lớp Constant cùng Khối/Môn "${classification.gradeBlock}"; lưu câu theo metadata khối, không chọn lớp ngẫu nhiên`,
+      }
+    }
+    return {
+      status: 'ambiguous',
+      targetClass: null,
+      error: `Nhiều Lớp Constant cùng Khối/Môn "${classification.gradeBlock}"; metadata Lớp không xác định duy nhất`,
+    }
+  }
+  return {
+    status: 'absent',
+    targetClass: null,
+    error: `Không có Lớp Constant cho Khối/Môn "${classification.gradeBlock}"`,
+  }
+}
+
+/**
+ * Chỉ gắn class/chapter/lesson ĐỘNG khi metadata câu khớp đầy đủ cấp bậc và
+ * Khối/Môn canonical của bài học động. Lệch bất kỳ cấp nào -> không gắn id nào.
+ */
+export function resolveDynamicHierarchyForMetadata(
+  tags: QuestionTaxonomyTags,
+  dynamicLesson: DynamicLessonHierarchy | null | undefined,
+  classification: Extract<QuestionClassification, { success: true }>
+): { matched: boolean; ids: DynamicFallbackIds | null } {
+  if (!dynamicLesson) return { matched: false, ids: null }
+  const dynamicClass = dynamicLesson.chapters?.classes || null
+  const dynamicBlock = canonicalGradeBlock(
+    `${dynamicClass?.grade_block || ''} ${dynamicClass?.name || ''}`
+  )
+  const metadataBlock = canonicalGradeBlock(classification.gradeBlock)
+  if (!dynamicBlock || !metadataBlock || dynamicBlock !== metadataBlock) {
+    return { matched: false, ids: null }
+  }
+
+  const dynamicChapterTitle = dynamicLesson.chapters?.title
+  const dynamicLessonTitle = dynamicLesson.title
+  if (!tags.chapterTag || !tags.lessonTag || !dynamicChapterTitle || !dynamicLessonTitle) {
+    return { matched: false, ids: null }
+  }
+  if (!titleTagMatchesTarget(tags.chapterTag, dynamicChapterTitle)) {
+    return { matched: false, ids: null }
+  }
+  if (!titleTagMatchesTarget(tags.lessonTag, dynamicLessonTitle)) {
+    return { matched: false, ids: null }
+  }
+
+  return {
+    matched: true,
+    ids: {
+      classId: dynamicClass?.id || dynamicLesson.chapters?.class_id || null,
+      chapterId: dynamicLesson.chapter_id || dynamicLesson.chapters?.id || null,
+      lessonId: dynamicLesson.id || null,
+      sourceDynamicLessonId: dynamicLesson.id || null,
+    },
+  }
+}
+
 function asObject(value: unknown): Record<string, any> | null {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, any>
@@ -671,14 +957,16 @@ export function buildQuestionBankPrompt(q: SyncQuestionInput): Record<string, an
   const difficultyRaw = String(q.difficulty || parsed.difficulty || 'THONG_HIEU').toUpperCase()
   const difficulty = VALID_DIFFICULTIES.includes(difficultyRaw) ? difficultyRaw : 'THONG_HIEU'
 
-  const metadataSource = asObject(parsed.metadata) || {}
+  // Giữ nguyên raw metadata của câu (kể cả dữ liệu Markdown cũ nằm trong prompt.metadata)
+  // để fallback động vẫn truy vết được Chương/Bài/Dạng bài gốc.
+  const tags = extractQuestionTaxonomyTags(q)
   const metadata = {
-    classTag: q.classTag || q.gradeTag || metadataSource.classTag || null,
-    gradeTag: q.gradeTag || q.classTag || metadataSource.gradeTag || null,
-    subjectTag: q.subjectTag || metadataSource.subjectTag || null,
-    chapterTag: q.chapterTag || metadataSource.chapterTag || null,
-    lessonTag: q.lessonTag || metadataSource.lessonTag || null,
-    questionTypeTag: q.questionTypeTag || metadataSource.questionTypeTag || null,
+    classTag: tags.classTag || tags.gradeTag || null,
+    gradeTag: tags.gradeTag || tags.classTag || null,
+    subjectTag: tags.subjectTag || null,
+    chapterTag: tags.chapterTag || null,
+    lessonTag: tags.lessonTag || null,
+    questionTypeTag: tags.questionTypeTag || null,
   }
 
   // TRUE_FALSE: KHÔNG ghi `options` (kể cả mảng rỗng). fn_compute_qb_content_hash ưu tiên
@@ -758,6 +1046,44 @@ function safeOutputAnswer(questionType: string, q: SyncQuestionInput, prompt: Re
   return prompt.saAnswer !== undefined && prompt.saAnswer !== null ? String(prompt.saAnswer) : null
 }
 
+async function buildRowBase(
+  q: SyncQuestionInput,
+  homeworkTitle: string
+): Promise<{
+  prompt: Record<string, any>
+  questionType: string
+  contentHash: string
+  points: number
+  difficulty: string
+  tags: string[]
+}> {
+  const prompt = buildQuestionBankPrompt(q)
+  const questionType = String(q.questionType || '').toUpperCase()
+  const contentHash = await computeQuestionContentHash(questionType, prompt)
+  const points = normalizePoints(q.points, questionType)
+  const difficulty = VALID_DIFFICULTIES.includes(String(prompt.difficulty || ''))
+    ? prompt.difficulty
+    : 'THONG_HIEU'
+  const tags = Array.from(
+    new Set(
+      [homeworkTitle]
+        .map((tag) => String(tag || '').trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ).slice(0, 20)
+  return { prompt, questionType, contentHash, points, difficulty, tags }
+}
+
+function buildAnswerFields(q: SyncQuestionInput, questionType: string, prompt: Record<string, any>) {
+  return {
+    mc_answer: questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || prompt.mcAnswer || null : null,
+    tf_answers: questionType === 'TRUE_FALSE' ? q.tfAnswers || prompt.tfAnswers || null : null,
+    sa_answer: safeOutputAnswer(questionType, q, prompt),
+    sa_tolerance:
+      questionType === 'SHORT_ANSWER' ? Number(q.saTolerance ?? prompt.saTolerance ?? 0) || 0 : 0,
+  }
+}
+
 /** Dựng một row question_bank hoàn chỉnh cho target Constant đã xác minh. */
 export async function buildQuestionBankRow(
   q: SyncQuestionInput,
@@ -766,23 +1092,9 @@ export async function buildQuestionBankRow(
   questionTypeId: string,
   homeworkTitle: string
 ): Promise<Record<string, any>> {
-  const prompt = buildQuestionBankPrompt(q)
-  const questionType = String(q.questionType || '').toUpperCase()
-  const contentHash = await computeQuestionContentHash(questionType, prompt)
+  const base = await buildRowBase(q, homeworkTitle)
   const gradeBlock = target.gradeBlock || ''
-  const points = normalizePoints(q.points, questionType)
-  const difficulty = VALID_DIFFICULTIES.includes(String(prompt.difficulty || ''))
-    ? prompt.difficulty
-    : 'THONG_HIEU'
   const gradeSource = `${gradeBlock} ${target.className || ''}`
-
-  const tags = Array.from(
-    new Set(
-      [homeworkTitle]
-        .map((tag) => String(tag || '').trim().toLowerCase())
-        .filter(Boolean)
-    )
-  ).slice(0, 20)
 
   return {
     subject: subjectFromGradeBlock(gradeSource),
@@ -796,25 +1108,63 @@ export async function buildQuestionBankRow(
     class_id: dynamicLesson.chapters?.class_id || null,
     chapter_id: dynamicLesson.chapter_id || null,
     lesson_id: dynamicLesson.id || null,
-    question_type: questionType,
-    difficulty,
-    prompt,
-    mc_answer: questionType === 'MULTIPLE_CHOICE' ? q.mcAnswer || prompt.mcAnswer || null : null,
-    tf_answers: questionType === 'TRUE_FALSE' ? q.tfAnswers || prompt.tfAnswers || null : null,
-    sa_answer: safeOutputAnswer(questionType, q, prompt),
-    sa_tolerance:
-      questionType === 'SHORT_ANSWER' ? Number(q.saTolerance ?? prompt.saTolerance ?? 0) || 0 : 0,
-    points,
-    tags,
+    question_type: base.questionType,
+    difficulty: base.difficulty,
+    prompt: base.prompt,
+    ...buildAnswerFields(q, base.questionType, base.prompt),
+    points: base.points,
+    tags: base.tags,
     usage_count: 1,
-    content_hash: contentHash,
+    content_hash: base.contentHash,
+  }
+}
+
+/**
+ * Dựng row fallback động (không gắn bài Constant): qb_* phải NULL để không kích hoạt
+ * trigger suy diễn phân cấp Constant. Chỉ gắn id động khi metadata đã được xác minh khớp
+ * bài học động; nếu không, để trống thay vì gắn nhầm.
+ */
+export async function buildDynamicQuestionBankRow(
+  q: SyncQuestionInput,
+  context: {
+    gradeBlock: string
+    gradeLevel: number
+    subject: 'TOAN' | 'HOA_HOC'
+    ids?: DynamicFallbackIds | null
+  },
+  homeworkTitle: string
+): Promise<Record<string, any>> {
+  const base = await buildRowBase(q, homeworkTitle)
+  const ids = context.ids || null
+  return {
+    subject: context.subject,
+    grade_level: context.gradeLevel,
+    grade_block: context.gradeBlock,
+    qb_class_id: null,
+    qb_chapter_id: null,
+    qb_lesson_id: null,
+    qb_question_type_id: null,
+    source_dynamic_lesson_id: ids?.sourceDynamicLessonId || null,
+    class_id: ids?.classId || null,
+    chapter_id: ids?.chapterId || null,
+    lesson_id: ids?.lessonId || null,
+    question_type: base.questionType,
+    difficulty: base.difficulty,
+    prompt: base.prompt,
+    ...buildAnswerFields(q, base.questionType, base.prompt),
+    points: base.points,
+    tags: base.tags,
+    usage_count: 1,
+    content_hash: base.contentHash,
   }
 }
 
 function isDuplicateError(error: { message?: string; code?: string } | null | undefined): boolean {
   if (!error) return false
   if (String(error.code || '') === '23505') return true
-  return /duplicate key|unique constraint|uq_qb_constant_lesson_hash/i.test(String(error.message || ''))
+  return /duplicate key|unique constraint|uq_qb_constant_lesson_hash|uq_qb_dynamic_block_hash/i.test(
+    String(error.message || '')
+  )
 }
 
 function emptySummary(enabled: boolean): AutoBankSyncSummary {
@@ -876,6 +1226,16 @@ export function createSupabaseQuestionBankSyncAdapter(client: any): QuestionBank
         .in('content_hash', hashes)
       return unwrap(result, 'Không kiểm tra được câu hỏi trùng trong Ngân hàng câu hỏi')
     },
+    async loadExistingDynamicHashes(gradeBlock: string, hashes: string[]) {
+      if (hashes.length === 0) return []
+      const result = await client
+        .from('question_bank')
+        .select('grade_block, qb_lesson_id, content_hash')
+        .eq('grade_block', gradeBlock)
+        .is('qb_lesson_id', null)
+        .in('content_hash', hashes)
+      return unwrap(result, 'Không kiểm tra được câu hỏi động trùng trong Ngân hàng câu hỏi')
+    },
     async insertRows(rows: Record<string, unknown>[]) {
       const result = await client.from('question_bank').insert(rows).select('id')
       return { error: result?.error || null }
@@ -885,7 +1245,15 @@ export function createSupabaseQuestionBankSyncAdapter(client: any): QuestionBank
 
 /**
  * Đồng bộ danh sách câu hỏi sang Ngân hàng câu hỏi Constant.
- * Luôn resolve summary thay vì throw; caller giữ nguyên kết quả lưu bài tập.
+ *
+ * Từng câu tự quyết định taxonomy từ metadata của chính nó:
+ * - Nếu Khối/Môn + Chương/Bài khớp DUY NHẤT Constant -> lưu vào Constant như hành vi cũ.
+ * - Nếu không có taxonomy Constant tương ứng -> lưu row động (qb_* NULL) theo Khối/Môn
+ *   đã xác minh; Chương/Bài/Dạng bài gốc vẫn được giữ trong prompt.metadata.
+ * - Chỉ gắn class_id/chapter_id/lesson_id động khi metadata khớp đầy đủ bài học động.
+ *
+ * Tuyệt đối không fallback Khối 12/môn Toán khi thiếu metadata, không tự tạo Constant,
+ * không đoán khi mơ hồ, không gán câu sang bài học khác. Mọi lỗi đều trả summary thay vì throw.
  */
 export async function syncHomeworkQuestionsToConstantBank(
   adapter: QuestionBankSyncAdapter,
@@ -903,61 +1271,39 @@ export async function syncHomeworkQuestionsToConstantBank(
 
   const summary = emptySummary(true)
   summary.totalQuestions = questions.length
-
-  const failAll = (reason: string) => {
-    summary.unsyncedCount = questions.length
-    summary.reasons.push({ questionNumber: null, reason })
-    return summary
-  }
+  const homeworkTitle = String(input.homeworkTitle || '')
 
   try {
     const dynamic = input.dynamicLesson || null
-    const classes = await adapter.loadClasses()
-    const classResolution = resolveConstantClassForDynamic(dynamic, classes)
-    if (!classResolution.success || !classResolution.targetClass) {
-      return failAll(classResolution.error || 'Không xác định được Lớp Constant duy nhất')
-    }
-    const targetClass = classResolution.targetClass
+    const classes = ((await adapter.loadClasses()) || []).filter(Boolean)
 
-    const chapters = await adapter.loadChapters(targetClass.id)
-    if (chapters.length === 0) {
-      return failAll('Lớp Constant tương ứng chưa có Chương nào')
+    const chaptersCache = new Map<string, ConstantChapterRow[]>()
+    const lessonsCache = new Map<string, ConstantLessonRow[]>()
+    const questionTypesCache = new Map<string, ConstantQuestionTypeRow[]>()
+
+    const loadChapters = async (classId: string): Promise<ConstantChapterRow[]> => {
+      if (!chaptersCache.has(classId)) {
+        chaptersCache.set(classId, (await adapter.loadChapters(classId)) || [])
+      }
+      return chaptersCache.get(classId) || []
+    }
+    const loadLessons = async (chapterId: string): Promise<ConstantLessonRow[]> => {
+      if (!lessonsCache.has(chapterId)) {
+        lessonsCache.set(chapterId, (await adapter.loadLessons(chapterId)) || [])
+      }
+      return lessonsCache.get(chapterId) || []
+    }
+    const loadQuestionTypes = async (lessonId: string): Promise<ConstantQuestionTypeRow[]> => {
+      if (!questionTypesCache.has(lessonId)) {
+        questionTypesCache.set(
+          lessonId,
+          (await adapter.loadQuestionTypes(lessonId)) || []
+        )
+      }
+      return questionTypesCache.get(lessonId) || []
     }
 
-    const chapterMatch = matchTitle(chapters, dynamic?.chapters?.title)
-    if (!chapterMatch.row) {
-      return failAll(
-        chapterMatch.ambiguous
-          ? `Chương "${dynamic?.chapters?.title || ''}" khớp nhiều Chương Constant trong lớp "${targetClass.name}"`
-          : `Không có Chương Constant tương ứng với "${dynamic?.chapters?.title || ''}" trong lớp "${targetClass.name}"`
-      )
-    }
-    const targetChapter = chapterMatch.row
-
-    const lessons = await adapter.loadLessons(targetChapter.id)
-    if (lessons.length === 0) {
-      return failAll(`Chương Constant "${targetChapter.title}" chưa có Bài học nào`)
-    }
-
-    const lessonMatch = matchTitle(lessons, dynamic?.title)
-    if (!lessonMatch.row) {
-      return failAll(
-        lessonMatch.ambiguous
-          ? `Bài "${dynamic?.title || ''}" khớp nhiều Bài học Constant trong chương "${targetChapter.title}"`
-          : `Không có Bài học Constant tương ứng với "${dynamic?.title || ''}" trong chương "${targetChapter.title}"`
-      )
-    }
-    const targetLesson = lessonMatch.row
-    const target: ConstantTarget = {
-      classId: targetClass.id,
-      chapterId: targetChapter.id,
-      lessonId: targetLesson.id,
-      gradeBlock: targetClass.grade_block,
-      className: targetClass.name,
-      chapterTitle: targetChapter.title,
-      lessonTitle: targetLesson.title,
-    }
-    summary.target = {
+    const cloneTarget = (target: ConstantTarget): AutoBankSyncSummary['target'] => ({
       classId: target.classId,
       chapterId: target.chapterId,
       lessonId: target.lessonId,
@@ -965,80 +1311,411 @@ export async function syncHomeworkQuestionsToConstantBank(
       className: target.className,
       chapterTitle: target.chapterTitle,
       lessonTitle: target.lessonTitle,
+    })
+
+    // Đích Constant của bài học động chỉ là "ngữ cảnh hợp lệ" cho câu không đủ metadata;
+    // không còn là điều kiện bắt buộc cho toàn batch.
+    let dynamicTarget: ConstantTarget | null = null
+    let dynamicTargetError: string | null = null
+    if (!dynamic) {
+      dynamicTargetError = 'Không đọc được bài học động của bài tập'
+    } else {
+      const classResolution = resolveConstantClassForDynamic(dynamic, classes)
+      if (!classResolution.success || !classResolution.targetClass) {
+        dynamicTargetError = classResolution.error || 'Không xác định được Lớp Constant duy nhất'
+      } else {
+        const targetClass = classResolution.targetClass
+        const chapters = await loadChapters(targetClass.id)
+        if (chapters.length === 0) {
+          dynamicTargetError = `Lớp Constant "${targetClass.name}" chưa có Chương nào để đối chiếu`
+        } else {
+          const chapterMatch = matchTitle(chapters, dynamic.chapters?.title)
+          if (!chapterMatch.row) {
+            dynamicTargetError = chapterMatch.ambiguous
+              ? `Chương "${dynamic.chapters?.title || ''}" khớp nhiều Chương Constant trong lớp "${targetClass.name}"`
+              : `Không có Chương Constant tương ứng với "${dynamic.chapters?.title || ''}" trong lớp "${targetClass.name}"`
+          } else {
+            const lessons = await loadLessons(chapterMatch.row.id)
+            if (lessons.length === 0) {
+              dynamicTargetError = `Chương Constant "${chapterMatch.row.title}" chưa có Bài học nào để đối chiếu`
+            } else {
+              const lessonMatch = matchTitle(lessons, dynamic.title)
+              if (!lessonMatch.row) {
+                dynamicTargetError = lessonMatch.ambiguous
+                  ? `Bài "${dynamic.title || ''}" khớp nhiều Bài học Constant trong chương "${chapterMatch.row.title}"`
+                  : `Không có Bài học Constant tương ứng với "${dynamic.title || ''}" trong chương "${chapterMatch.row.title}"`
+              } else {
+                dynamicTarget = {
+                  classId: targetClass.id,
+                  chapterId: chapterMatch.row.id,
+                  lessonId: lessonMatch.row.id,
+                  gradeBlock: targetClass.grade_block,
+                  className: targetClass.name,
+                  chapterTitle: chapterMatch.row.title,
+                  lessonTitle: lessonMatch.row.title,
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    type PreparedRow = {
+      questionNumber: number | null
+      row: Record<string, any>
+      dedupKey: string
+      lessonId?: string
+      gradeBlock?: string
+    }
+    const prepared: PreparedRow[] = []
+    const seenKeys = new Set<string>()
+    const usedTargets = new Map<string, ConstantTarget>()
+    let usedDynamicTarget = false
+
+    const pushReason = (questionNumber: number | null, reason: string) => {
+      if (summary.reasons.length < 20) summary.reasons.push({ questionNumber, reason })
     }
 
-    const questionTypes = await adapter.loadQuestionTypes(target.lessonId)
-    const preparedRows: Array<{ questionNumber: number | null; row: Record<string, any> }> = []
-    const seenInBatch = new Set<string>()
+    const markUnsynced = (questionNumber: number | null, reason: string) => {
+      summary.unsyncedCount++
+      pushReason(questionNumber, reason)
+    }
 
-    for (let index = 0; index < questions.length; index++) {
-      const question = questions[index]
-      const questionNumber =
-        typeof question.questionNumber === 'number' ? question.questionNumber : index + 1
+    const markFailed = (questionNumber: number | null, reason: string) => {
+      summary.failedCount++
+      pushReason(questionNumber, reason)
+    }
 
-      // Metadata cấp câu (nếu có) phải khớp đích Constant đã resolve duy nhất.
-      // Một câu lệch Chương/Bài/Khối không được ghi nhầm sang bài tập hiện tại.
+    // summary.target là đại diện duy nhất cho UI: chỉ trả về khi batch thực sự dùng
+    // đúng một Constant target. Nhiều target (hoặc chỉ row động) -> null.
+    const syncSummaryTarget = () => {
+      const targets = Array.from(usedTargets.values())
+      summary.target = !usedDynamicTarget && targets.length === 1 ? cloneTarget(targets[0]) : null
+    }
+
+    const enqueueRow = (item: PreparedRow) => {
+      if (seenKeys.has(item.dedupKey)) {
+        summary.skippedDuplicateCount++
+        return
+      }
+      seenKeys.add(item.dedupKey)
+      prepared.push(item)
+    }
+
+    const prepareConstantRow = async (
+      question: SyncQuestionInput,
+      target: ConstantTarget,
+      questionNumber: number | null
+    ): Promise<void> => {
+      const tags = extractQuestionTaxonomyTags(question)
       const metadataConflict = resolveQuestionMetadataConflict(question, target, classes)
       if (metadataConflict) {
-        summary.unsyncedCount++
-        summary.reasons.push({ questionNumber, reason: metadataConflict })
-        continue
+        markUnsynced(questionNumber, metadataConflict)
+        return
       }
 
       const typeResolution = resolveQuestionTypeForBank(
-        question.questionTypeTag,
+        tags.questionTypeTag,
         target.lessonId,
-        questionTypes
+        await loadQuestionTypes(target.lessonId)
       )
       if (!typeResolution.success || !typeResolution.type) {
-        summary.unsyncedCount++
-        summary.reasons.push({
+        markUnsynced(
           questionNumber,
-          reason: typeResolution.error || 'Không xác định được Dạng bài Constant',
-        })
-        continue
+          typeResolution.error || 'Không xác định được Dạng bài Constant'
+        )
+        return
       }
-
       if (typeResolution.isFallback) summary.fallbackTypeCount++
 
       const row = await buildQuestionBankRow(
         question,
         target,
-        dynamic as DynamicLessonHierarchy,
+        (dynamic || {}) as DynamicLessonHierarchy,
         typeResolution.type.id,
-        String(input.homeworkTitle || '')
+        homeworkTitle
       )
-      const hash = String(row.content_hash || '')
-      const dedupKey = `${target.lessonId}|${hash}`
-      if (seenInBatch.has(dedupKey)) {
-        summary.skippedDuplicateCount++
-        continue
+
+      // Id động chỉ được gắn khi metadata tự chứng minh khớp đầy đủ bài học động.
+      // Ngoại lệ hẹp: câu không có taxonomy tag nào và Constant target chính là bài
+      // học động của bài tập -> giữ hành vi legacy (id động là nguồn gốc hợp lệ).
+      const hasTaxonomyTags = !!(
+        tags.classTag ||
+        tags.gradeTag ||
+        tags.subjectTag ||
+        tags.chapterTag ||
+        tags.lessonTag
+      )
+      const isHomeworkTarget = !!dynamicTarget && target.lessonId === dynamicTarget.lessonId
+      let verifiedIds: DynamicFallbackIds | null = null
+      if (hasTaxonomyTags) {
+        const classification = classifyQuestionTaxonomy(tags)
+        if (classification.success) {
+          const dynamicMatch = resolveDynamicHierarchyForMetadata(tags, dynamic, classification)
+          if (dynamicMatch.matched) verifiedIds = dynamicMatch.ids
+        }
+      } else if (isHomeworkTarget) {
+        verifiedIds = {
+          classId: row.class_id || null,
+          chapterId: row.chapter_id || null,
+          lessonId: row.lesson_id || null,
+          sourceDynamicLessonId: row.source_dynamic_lesson_id || null,
+        }
       }
-      seenInBatch.add(dedupKey)
-      preparedRows.push({ questionNumber, row })
+
+      row.class_id = verifiedIds?.classId || null
+      row.chapter_id = verifiedIds?.chapterId || null
+      row.lesson_id = verifiedIds?.lessonId || null
+      row.source_dynamic_lesson_id = verifiedIds?.sourceDynamicLessonId || null
+
+      usedTargets.set(target.lessonId, target)
+      syncSummaryTarget()
+
+      const hash = String(row.content_hash || '')
+      enqueueRow({
+        questionNumber,
+        row,
+        dedupKey: `constant:${target.lessonId}|${hash}`,
+        lessonId: target.lessonId,
+      })
     }
 
-    if (preparedRows.length === 0) {
+    const prepareDynamicRow = async (
+      question: SyncQuestionInput,
+      classification: Extract<QuestionClassification, { success: true }>,
+      dynamicMatch: { matched: boolean; ids: DynamicFallbackIds | null },
+      questionNumber: number | null
+    ): Promise<void> => {
+      // Giữ đúng chuỗi khối của lớp động nếu cùng Khối/Môn: bộ lọc ngân hàng
+      // dùng grade_block.eq (vd "Toán-11"), không phải khóa canonical "11-Toán".
+      const dynamicGradeBlock = dynamic?.chapters?.classes?.grade_block?.trim() || ''
+      const gradeBlock = canonicalGradeBlock(dynamicGradeBlock) ===
+          canonicalGradeBlock(classification.gradeBlock)
+        ? dynamicGradeBlock
+        : classification.gradeBlock
+      const row = await buildDynamicQuestionBankRow(
+        question,
+        {
+          gradeBlock,
+          gradeLevel: classification.grade,
+          subject: classification.subject === 'Hóa' ? 'HOA_HOC' : 'TOAN',
+          ids: dynamicMatch.matched ? dynamicMatch.ids : null,
+        },
+        homeworkTitle
+      )
+      const hash = String(row.content_hash || '')
+      enqueueRow({
+        questionNumber,
+        row,
+        dedupKey: `dynamic:${gradeBlock}|${hash}`,
+        gradeBlock,
+      })
+      usedDynamicTarget = true
+      syncSummaryTarget()
+    }
+
+    for (let index = 0; index < questions.length; index++) {
+      const question = questions[index]
+      const questionNumber =
+        typeof question.questionNumber === 'number' ? question.questionNumber : index + 1
+      try {
+        const tags = extractQuestionTaxonomyTags(question)
+        const classification = classifyQuestionTaxonomy(tags)
+
+        if (!classification.success) {
+          if (classification.kind === 'contradictory') {
+            markUnsynced(questionNumber, classification.error)
+            continue
+          }
+
+          // Metadata thiếu Khối/Môn: chỉ được dùng đích Constant đã resolve từ bài học động
+          // và đã đối chiếu không xung đột. Không suy ra Khối 12.
+          if (dynamicTarget) {
+            const metadataConflict = resolveQuestionMetadataConflict(question, dynamicTarget, classes)
+            if (metadataConflict) {
+              markUnsynced(questionNumber, metadataConflict)
+            } else {
+              await prepareConstantRow(question, dynamicTarget, questionNumber)
+            }
+            continue
+          }
+
+          markUnsynced(
+            questionNumber,
+            dynamicTargetError
+              ? `${classification.error}; ${dynamicTargetError}`
+              : classification.error
+          )
+          continue
+        }
+
+        const classResolution = resolveConstantClassForMetadata(
+          classification,
+          tags.classTag || tags.gradeTag,
+          classes
+        )
+
+        if (classResolution.status === 'resolved' && classResolution.targetClass) {
+          const targetClass = classResolution.targetClass
+          let target: ConstantTarget | null = null
+          let resolutionError: string | null = null
+
+          if (!tags.chapterTag) {
+            // Không có metadata Chương: chỉ dùng bài học Constant của chính bài tập động
+            // nếu cùng Lớp; không tự chọn Chương đầu tiên.
+            if (dynamicTarget && dynamicTarget.classId === targetClass.id) {
+              target = dynamicTarget
+            } else {
+              resolutionError = `Thiếu metadata [CHƯƠNG] để gắn câu vào Lớp Constant "${targetClass.name}"`
+            }
+          } else {
+            const chapters = await loadChapters(targetClass.id)
+            if (chapters.length === 0) {
+              resolutionError = `Lớp Constant "${targetClass.name}" chưa có Chương nào`
+            } else {
+              const chapterMatch = matchTitle(chapters, tags.chapterTag)
+              if (!chapterMatch.row) {
+                resolutionError = chapterMatch.ambiguous
+                  ? `Metadata Chương "${tags.chapterTag}" khớp nhiều Chương Constant trong lớp "${targetClass.name}"`
+                  : `Không có Chương Constant tương ứng với "${tags.chapterTag}" trong lớp "${targetClass.name}"`
+              } else if (!tags.lessonTag) {
+                if (
+                  dynamicTarget &&
+                  dynamicTarget.classId === targetClass.id &&
+                  dynamicTarget.chapterId === chapterMatch.row.id
+                ) {
+                  target = dynamicTarget
+                } else {
+                  resolutionError = `Thiếu metadata [BÀI HỌC] trong Chương Constant "${chapterMatch.row.title}"`
+                }
+              } else {
+                const lessons = await loadLessons(chapterMatch.row.id)
+                if (lessons.length === 0) {
+                  resolutionError = `Chương Constant "${chapterMatch.row.title}" chưa có Bài học nào`
+                } else {
+                  const lessonMatch = matchTitle(lessons, tags.lessonTag)
+                  if (!lessonMatch.row) {
+                    resolutionError = lessonMatch.ambiguous
+                      ? `Metadata Bài học "${tags.lessonTag}" khớp nhiều Bài học Constant trong chương "${chapterMatch.row.title}"`
+                      : `Không có Bài học Constant tương ứng với "${tags.lessonTag}" trong chương "${chapterMatch.row.title}"`
+                  } else {
+                    target = {
+                      classId: targetClass.id,
+                      chapterId: chapterMatch.row.id,
+                      lessonId: lessonMatch.row.id,
+                      gradeBlock: targetClass.grade_block,
+                      className: targetClass.name,
+                      chapterTitle: chapterMatch.row.title,
+                      lessonTitle: lessonMatch.row.title,
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          if (target) {
+            await prepareConstantRow(question, target, questionNumber)
+            continue
+          }
+
+          // Constant thiếu cấp tương ứng nhưng metadata khớp đúng bài học động: lưu fallback
+          // động, gắn id động đã xác minh (không gắn Constant dở dang, không gán bài khác).
+          const dynamicMatch = resolveDynamicHierarchyForMetadata(tags, dynamic, classification)
+          if (dynamicMatch.matched) {
+            await prepareDynamicRow(question, classification, dynamicMatch, questionNumber)
+            continue
+          }
+
+          markUnsynced(
+            questionNumber,
+            resolutionError || classResolution.error || 'Không xác định được phân cấp Constant'
+          )
+          continue
+        }
+
+        // Lớp Constant mơ hồ hoặc classTag xung đột Khối/Môn: fail closed, không đoán
+        // rồi âm thầm lưu row động (sẽ che mất lỗi metadata/taxonomy).
+        if (classResolution.status === 'ambiguous') {
+          markUnsynced(
+            questionNumber,
+            classResolution.error ||
+              `Nhiều Lớp Constant cùng Khối/Môn "${classification.gradeBlock}" và metadata Lớp không xác định duy nhất`
+          )
+          continue
+        }
+
+        // Không có Lớp Constant: fallback động theo Khối/Môn đã xác minh. Chỉ gắn id động
+        // nếu metadata khớp đầy đủ cấp bậc bài học động.
+        const dynamicMatch = resolveDynamicHierarchyForMetadata(tags, dynamic, classification)
+        await prepareDynamicRow(question, classification, dynamicMatch, questionNumber)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        markFailed(
+          questionNumber,
+          `Không xử lý được câu hỏi do lỗi đọc phân cấp/Dạng bài Constant: ${message}`
+        )
+      }
+    }
+
+    if (prepared.length === 0) {
       return summary
     }
 
-    // Kiểm tra trùng trong DB theo đúng phạm vi (qb_lesson_id, content_hash).
-    const hashes = Array.from(new Set(preparedRows.map((item) => String(item.row.content_hash))))
-    const existingPairs = new Set<string>()
+    // Kiểm tra trùng đúng phạm vi:
+    // - Constant: (qb_lesson_id, content_hash) theo uq_qb_constant_lesson_hash.
+    // - Động: (grade_block, content_hash) với qb_lesson_id IS NULL theo uq_qb_dynamic_block_hash.
+    const existingKeys = new Set<string>()
     const CHUNK_SIZE = 100
-    for (let offset = 0; offset < hashes.length; offset += CHUNK_SIZE) {
-      const chunk = hashes.slice(offset, offset + CHUNK_SIZE)
-      const existing = await adapter.loadExistingHashes(target.lessonId, chunk)
-      for (const row of existing) {
-        if (row.content_hash) {
-          existingPairs.add(`${row.qb_lesson_id || target.lessonId}|${row.content_hash}`)
+
+    const constantGroups = new Map<string, PreparedRow[]>()
+    const dynamicGroups = new Map<string, PreparedRow[]>()
+    for (const item of prepared) {
+      if (item.lessonId) {
+        const group = constantGroups.get(item.lessonId) || []
+        group.push(item)
+        constantGroups.set(item.lessonId, group)
+      } else if (item.gradeBlock) {
+        const group = dynamicGroups.get(item.gradeBlock) || []
+        group.push(item)
+        dynamicGroups.set(item.gradeBlock, group)
+      }
+    }
+
+    for (const [lessonId, items] of constantGroups) {
+      const hashes = Array.from(new Set(items.map((item) => String(item.row.content_hash))))
+      for (let offset = 0; offset < hashes.length; offset += CHUNK_SIZE) {
+        const chunk = hashes.slice(offset, offset + CHUNK_SIZE)
+        const existing = await adapter.loadExistingHashes(lessonId, chunk)
+        for (const row of existing || []) {
+          if (row.content_hash) {
+            existingKeys.add(`constant:${row.qb_lesson_id || lessonId}|${row.content_hash}`)
+          }
         }
       }
     }
 
-    const rowsToInsert = preparedRows.filter((item) => {
-      const key = `${target.lessonId}|${item.row.content_hash}`
-      if (existingPairs.has(key)) {
+    for (const [gradeBlock, items] of dynamicGroups) {
+      const hashes = Array.from(new Set(items.map((item) => String(item.row.content_hash))))
+      const alternateGradeBlock = alternateGradeBlockOrder(gradeBlock)
+      for (let offset = 0; offset < hashes.length; offset += CHUNK_SIZE) {
+        const chunk = hashes.slice(offset, offset + CHUNK_SIZE)
+          for (const queriedGradeBlock of [gradeBlock, alternateGradeBlock]) {
+          if (!queriedGradeBlock) continue
+          const existing = await adapter.loadExistingDynamicHashes(queriedGradeBlock, chunk)
+          for (const row of existing || []) {
+            if (row.content_hash && row.qb_lesson_id == null) {
+              // Key dedup luôn dùng Khối canonical của batch, kể cả khi row cũ lưu
+              // thứ tự "Toán-11" (unique index DB vẫn có thể khác chuỗi).
+              existingKeys.add(`dynamic:${gradeBlock}|${row.content_hash}`)
+            }
+          }
+        }
+      }
+    }
+
+    const rowsToInsert = prepared.filter((item) => {
+      if (existingKeys.has(item.dedupKey)) {
         summary.skippedDuplicateCount++
         return false
       }
@@ -1055,8 +1732,8 @@ export async function syncHomeworkQuestionsToConstantBank(
       return summary
     }
 
-    // Bulk insert có thể thất bại do race với request khác (unique 23505). Thử từng row
-    // để phân loại chính xác: row trùng -> skipped, row lỗi thật -> failed + reason.
+    // Bulk có thể thất bại do race với request khác (unique 23505). Thử từng row để
+    // phân loại chính xác: row trùng -> skipped, row lỗi thật -> failed + reason.
     // Không retry vô hạn; mỗi row chỉ thử đúng một lần sau bulk.
     for (const item of rowsToInsert) {
       const singleResult = await adapter.insertRows([item.row])
@@ -1066,23 +1743,28 @@ export async function syncHomeworkQuestionsToConstantBank(
         summary.skippedDuplicateCount++
       } else {
         summary.failedCount++
-        if (summary.reasons.length < 20) {
-          summary.reasons.push({
-            questionNumber: item.questionNumber,
-            reason: `Lỗi ghi Ngân hàng câu hỏi: ${singleResult.error.message || 'Unknown error'}`,
-          })
-        }
+        pushReason(
+          item.questionNumber,
+          `Lỗi ghi Ngân hàng câu hỏi: ${singleResult.error.message || 'Unknown error'}`
+        )
       }
     }
 
     return summary
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const attempted = summary.createdCount + summary.skippedDuplicateCount + summary.unsyncedCount + summary.failedCount
+    const attempted =
+      summary.createdCount +
+      summary.skippedDuplicateCount +
+      summary.unsyncedCount +
+      summary.failedCount
     const remaining = Math.max(0, summary.totalQuestions - attempted)
     if (remaining > 0) summary.failedCount += remaining
     if (summary.reasons.length < 20) {
-      summary.reasons.push({ questionNumber: null, reason: `Không đồng bộ được Ngân hàng câu hỏi: ${message}` })
+      summary.reasons.push({
+        questionNumber: null,
+        reason: `Không đồng bộ được Ngân hàng câu hỏi: ${message}`,
+      })
     }
     return summary
   }

@@ -5,6 +5,9 @@ const saved = new Map([['eduportal-theme', 'malformed-json']])
 const listeners = new Map()
 const buttons = new Set()
 const studentButtons = new Set()
+// Fake .app-layout shells: the router/theme sync only toggles classes and
+// attributes on them, so a plain stub with a real classList is enough.
+const layouts = new Set()
 const root = { dataset: {}, style: {} }
 globalThis.localStorage = {
   getItem: key => saved.get(key) ?? null,
@@ -15,9 +18,19 @@ globalThis.document = {
   documentElement: root,
   addEventListener: (type, fn) => listeners.set(`document:${type}`, fn),
   dispatchEvent: event => listeners.get(`document:${event.type}`)?.(event),
-  querySelectorAll: selector => selector === '[data-student-theme-toggle]' ? [...studentButtons] : [...buttons]
+  // The chart-theme helpers look canvases up first; nothing is mounted here.
+  getElementById: () => null,
+  querySelectorAll: selector => {
+    if (selector === '[data-student-theme-toggle]') return [...studentButtons]
+    if (selector === '[data-theme-toggle]') return [...buttons]
+    if (selector === '.app-layout') return [...layouts]
+    return []
+  }
 }
-globalThis.window = { addEventListener: (type, fn) => listeners.set(`window:${type}`, fn) }
+globalThis.window = {
+  addEventListener: (type, fn) => listeners.set(`window:${type}`, fn),
+  location: { hash: '' }
+}
 
 const theme = await import('../src/js/theme.js')
 assert.equal(root.dataset.theme, 'dark', 'unknown storage must default dark')
@@ -143,3 +156,127 @@ const themeHandler = appSource.match(/document\.addEventListener\('eduportal:the
 assert.ok(themeHandler)
 assert.doesNotMatch(themeHandler, /router\(|innerHTML|route\.render/, 'theme changes must never rerender routes')
 console.log('Theme preference / cross-tab / accessible state: OK')
+
+// ---------------------------------------------------------------------------
+// Admin Dashboard: lớp tối phải có ngay trong HTML render đầu tiên và được
+// giữ/gỡ qua sự kiện toàn cục eduportal:themechange (không render lại route,
+// không làm lại chart hay mất trạng thái bộ lọc).
+// ---------------------------------------------------------------------------
+const { renderAdminDashboardView } = await import('../src/js/views/admin-dashboard.js')
+
+state.token = 'fixture'
+state.user = { role: 'ADMIN' }
+
+theme.setTheme('dark')
+const darkMarkup = renderAdminDashboardView()
+assert.match(
+  darkMarkup,
+  /<div class="app-layout admin-dark" data-route="admin-dashboard" data-role="ADMIN">/,
+  'admin dùng giao diện tối: render đầu tiên đã đóng sẵn .admin-dark + data-route/data-role'
+)
+
+theme.setTheme('light')
+const lightMarkup = renderAdminDashboardView()
+assert.match(
+  lightMarkup,
+  /<div class="app-layout" data-route="admin-dashboard" data-role="ADMIN">/,
+  'giao diện sáng vẫn giữ route/role của dashboard'
+)
+assert.doesNotMatch(lightMarkup, /admin-dark/, 'giao diện sáng không bao giờ ship lớp tối')
+
+state.user = { role: 'STUDENT' }
+const studentShellMarkup = renderAdminDashboardView()
+assert.match(studentShellMarkup, /data-role="STUDENT"/)
+assert.doesNotMatch(studentShellMarkup, /admin-dark/, 'role khác ADMIN không được gắn admin-dark')
+state.user = { role: 'ADMIN' }
+theme.setTheme('dark')
+
+// Handler themechange thật của app.js: gắn/gỡ class tại chỗ trên shell đã
+// render, không thay data-route/data-role và không đụng innerHTML của route.
+// Node không hiểu import asset kiểu Vite (.svg) nên đăng ký loader nhỏ trước
+// khi import app.js (kéo toàn bộ views theo).
+const { register: registerLoader } = await import('node:module')
+registerLoader(
+  'data:text/javascript,' + encodeURIComponent(`
+    export async function load(url, context, nextLoad) {
+      if (url.endsWith('.svg')) {
+        return { format: 'module', shortCircuit: true, source: 'export default ""' }
+      }
+      return nextLoad(url, context)
+    }
+  `),
+  import.meta.url
+)
+await import('../src/js/app.js')
+
+const makeLayout = () => {
+  const classes = new Set(['app-layout'])
+  return {
+    dataset: {},
+    classList: {
+      toggle: (name, force) => {
+        const add = force === undefined ? !classes.has(name) : Boolean(force)
+        if (add) classes.add(name)
+        else classes.delete(name)
+        return add
+      },
+      add: name => classes.add(name),
+      contains: name => classes.has(name)
+    }
+  }
+}
+const fireThemeChange = () => document.dispatchEvent(new CustomEvent('eduportal:themechange', { detail: {} }))
+
+layouts.clear()
+const dashboardLayout = makeLayout()
+dashboardLayout.dataset.route = 'admin-dashboard'
+dashboardLayout.dataset.role = 'ADMIN'
+layouts.add(dashboardLayout)
+
+window.location.hash = '#admin-dashboard'
+theme.setTheme('light')
+fireThemeChange()
+assert.equal(dashboardLayout.classList.contains('admin-dark'), false, 'chuyển sáng phải gỡ .admin-dark tại chỗ')
+assert.equal(dashboardLayout.dataset.route, 'admin-dashboard', 'theme sync không ghi đè route của shell')
+assert.equal(dashboardLayout.dataset.role, 'ADMIN', 'theme sync không ghi đè role của shell')
+
+theme.setTheme('dark')
+fireThemeChange()
+assert.equal(dashboardLayout.classList.contains('admin-dark'), true, 'chuyển tối gắn lại .admin-dark mà không render lại')
+assert.equal(dashboardLayout.dataset.route, 'admin-dashboard')
+
+// Regression: mở trang chủ khi đã đăng nhập (URL không có hash) => router
+// render trang mặc định admin-dashboard, nhưng sync từng key trên '' nên gỡ
+// luôn lớp tối => vỏ navy nhưng thẻ KPI sáng trắng.
+window.location.hash = ''
+theme.setTheme('light')
+fireThemeChange()
+theme.setTheme('dark')
+fireThemeChange()
+assert.equal(
+  dashboardLayout.classList.contains('admin-dark'),
+  true,
+  'URL không hash vẫn resolve đúng trang mặc định của admin nên giữ được admin-dark'
+)
+
+// Cùng quy tắc cho học sinh: trang mặc định là my-classes nên skin navy không mất.
+state.user = { role: 'STUDENT' }
+theme.setStudentTheme('dark')
+layouts.clear()
+const studentLayout = makeLayout()
+studentLayout.dataset.route = 'my-classes'
+studentLayout.dataset.role = 'STUDENT'
+layouts.add(studentLayout)
+window.location.hash = ''
+fireThemeChange()
+assert.equal(
+  studentLayout.classList.contains('navy-student'),
+  true,
+  'URL không hash của học sinh vẫn resolve đúng my-classes nên giữ được navy-student'
+)
+
+state.user = null
+state.token = null
+window.location.hash = ''
+layouts.clear()
+console.log('Admin dashboard first render + themechange skin: OK')

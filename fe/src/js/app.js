@@ -89,6 +89,18 @@ function applyExamThemeClasses(layout, hash) {
   layout.classList.toggle('pastel-student', studentRoute && getStudentTheme() === 'pastel')
 }
 
+// Route đang được hiển thị thật sự: router render trang mặc định khi URL không
+// có hash (#admin-dashboard với admin, #my-classes với học sinh, #roadmap với
+// khách). Theme/role sync mà key trên '' sẽ gỡ .admin-dark / .navy-student và
+// ghi đè data-route="" lên root vừa render => vỏ navy nhưng card dashboard sáng
+// trắng. Mọi đường sync đều dùng helper này để khớp với router.
+function resolveActiveRouteHash() {
+  const routePath = (window.location.hash || '').replace(/^#/, '').split('?')[0]
+  if (routePath) return routePath
+  if (!state.token) return 'roadmap'
+  return state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes'
+}
+
 function syncDocumentTheme(hash) {
   // The legacy dark CSS also targets signed-in layouts without .admin-dark.
   // A student's light/pastel choice must therefore use the light base palette,
@@ -103,7 +115,7 @@ function syncDocumentTheme(hash) {
 }
 
 function syncThemeClassesToDom() {
-  const hash = (window.location.hash || '').replace(/^#/, '').split('?')[0]
+  const hash = resolveActiveRouteHash()
   syncDocumentTheme(hash)
   document.querySelectorAll('.app-layout').forEach(el => applyThemeClasses(el, hash))
   document.querySelectorAll('.exam-room-layout').forEach(el => applyExamThemeClasses(el, hash))
@@ -155,8 +167,9 @@ async function router() {
   const [routePath, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   
-  const defaultPage = state.token ? (state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes') : 'roadmap'
-  let hash = routePath || defaultPage
+  // Trang mặc định khi URL không hash phải trùng với resolveActiveRouteHash
+  // để theme/role sync không bao giờ lệch với trang vừa render.
+  let hash = routePath || resolveActiveRouteHash()
 
   // Public shared report route (#shared-report?token=...): route DUY NHAT duoc phep khong can Authorization.
   // Chi route nay duoc phep open khi chua dang nhap; token co gioi han duoc validate o backend (fail closed).
@@ -551,7 +564,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const layout = app.firstElementChild
     if (!layout || layout === lastLayout) return
     lastLayout = layout
-    const hash = (window.location.hash || '').replace(/^#/, '').split('?')[0]
+    const hash = resolveActiveRouteHash()
     const shell = layout.matches('.app-layout') ? layout : null
     if (shell) {
       shell.dataset.route = hash

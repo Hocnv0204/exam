@@ -504,8 +504,17 @@ export function renderAdminDashboardView() {
   // Get distinct classes for filter dropdown
   const classOptions = Array.from(new Set(studentAttendanceStats.flatMap(s => s.classNames || []))).filter(Boolean)
 
+  // Vỏ trang phải "mặc sẵn" route/role/skin ngay trong HTML đầu ra: thẻ KPI,
+  // chart card và bảng đều phụ thuộc .app-layout.admin-dark[data-route=...].
+  // Nếu chỉ gắn sau render thì router async hoặc lần thay #app đều có lúc làm
+  // mất lớp tối => vỏ navy nhưng card sáng trắng. Light mode giữ .app-layout
+  // thuần; app.js vẫn sync lại qua eduportal:themechange mà không render lại.
+  const rawRole = String(state.user?.role || 'GUEST')
+  const rootRole = /^[A-Za-z_-]{1,32}$/.test(rawRole) ? rawRole : 'GUEST'
+  const rootClass = rootRole === 'ADMIN' && isDarkTheme() ? 'app-layout admin-dark' : 'app-layout'
+
   return `
-    <div class="app-layout">
+    <div class="${rootClass}" data-route="admin-dashboard" data-role="${rootRole}">
       ${renderSidebar('admin-dashboard')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Trung tâm Thống kê')}
