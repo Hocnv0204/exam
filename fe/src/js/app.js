@@ -29,6 +29,7 @@ import { renderActivityLogsView, bindActivityLogsEvents } from './views/activity
 import { renderWeeklyCalendarView, bindWeeklyCalendarEvents } from './views/weekly-calendar.js'
 import { renderQuestionAppealsView, bindQuestionAppealsEvents } from './views/question-appeals.js'
 import { showTrialRegistrationModal } from './components/modal.js'
+import { showToast } from './components/toast.js'
 import { sortClassChaptersLessons } from './utils/student-lesson-sort.js'
 
 // Admin routes whose legacy light markup is re-themed to navy by the admin themes.
@@ -38,11 +39,13 @@ const adminDarkRoutes = new Set([
   'admin-dashboard',
   'students',
   'grade-blocks',
+  'classes',
   'classes-admin',
   'curriculum',
   'create-homework',
-  'admin-history',
+  'homework',
   'homework-mgmt',
+  'admin-history',
   'question-bank',
   'question-appeals',
   'exam-proctoring',
@@ -141,6 +144,7 @@ const routes = {
   'weekly-calendar': { render: renderWeeklyCalendarView, bind: bindWeeklyCalendarEvents },
   'question-appeals': { render: renderQuestionAppealsView, bind: bindQuestionAppealsEvents },
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
+  classes: { render: renderClassMgmtView, bind: bindClassMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
   'create-homework': { render: renderCreateHwView, bind: bindCreateHwEvents },
   curriculum: { render: renderCurriculumView, bind: bindCurriculumEvents },
@@ -153,6 +157,7 @@ const routes = {
   'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents },
   'student-report': { render: renderStudentReportView, bind: bindStudentReportEvents },
   'shared-report': { render: renderSharedReportView, bind: bindSharedReportEvents },
+  homework: { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents },
   'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents },
   'question-bank': { render: renderQuestionBankView, bind: bindQuestionBankEvents },
   'grade-blocks': { render: renderGradeBlocksView, bind: bindGradeBlocksEvents },
@@ -239,10 +244,11 @@ async function router() {
 
   // Route Guard: Access Control based on Role
   if (state.token && state.user && !isPublicSharedReport) {
-    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'question-appeals', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management']
+    const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes', 'classes-admin', 'curriculum', 'create-homework', 'homework', 'homework-mgmt', 'admin-history', 'question-bank', 'question-appeals', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management']
     const studentOnlyRoutes = ['my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
+      showToast('Tài khoản học sinh không có quyền truy cập trang quản trị này.', 'error')
       window.location.hash = '#my-classes'
       return
     }
@@ -313,7 +319,7 @@ async function router() {
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
       // 1 & 2. Unified Parallel Pre-fetch for Classes, Chapters, and Students
       // student-report: chỉ ADMIN cần tên học sinh/lớp từ state; STUDENT tự render từ state.user + response.
-      const prefetchableRoutes = ['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank', 'tuition-ledger', 'activity-logs']
+      const prefetchableRoutes = ['classes-admin', 'classes', 'students', 'curriculum', 'create-homework', 'homework', 'homework-mgmt', 'my-classes', 'class-details', 'student-details', 'question-bank', 'tuition-ledger', 'activity-logs']
       const reportPrefetch = hash === 'student-report' && state.user?.role === 'ADMIN'
       if (reportPrefetch || prefetchableRoutes.includes(hash)) {
         const classId = hash === 'my-classes' ? params.get('classId') : null
@@ -321,7 +327,7 @@ async function router() {
 
         const needClasses = true
         const needChapters = Boolean(classId)
-        const needStudents = reportPrefetch || ['students', 'classes-admin', 'class-details', 'student-details'].includes(hash)
+        const needStudents = reportPrefetch || ['students', 'classes-admin', 'classes', 'class-details', 'student-details'].includes(hash)
 
         const prefetchTasks = []
         const taskTypes = []
@@ -344,7 +350,8 @@ async function router() {
           taskTypes.forEach((type, idx) => {
             const res = results[idx]
             if (type === 'classes') {
-              state.classes = (res || []).map(c => ({
+              const classesList = Array.isArray(res) ? res : (res?.items || res?.classes || [])
+              state.classes = classesList.map(c => ({
                 id: c.id,
                 name: c.name,
                 gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
@@ -385,14 +392,14 @@ async function router() {
               }))
               state.classChapters = sortClassChaptersLessons(mappedChapters)
             } else if (type === 'students') {
-              state.students = res || []
+              state.students = Array.isArray(res) ? res : (res?.items || res?.students || [])
               state.studentsFetchedAt = Date.now()
             }
           })
         }
 
         // Count student profiles associated with each class
-        if (state.students && state.classes) {
+        if (Array.isArray(state.students) && Array.isArray(state.classes)) {
           state.classes.forEach(c => {
             c.studentsCount = state.students.filter(s => s.classIds ? s.classIds.includes(c.id) : (s.classId === c.id)).length
           })
@@ -533,7 +540,26 @@ async function router() {
   const app = document.getElementById('app')
   if (app) {
     syncDocumentTheme(hash)
-    app.innerHTML = route.render()
+    try {
+      app.innerHTML = route.render()
+    } catch (renderErr) {
+      console.error(`[Router] Error rendering view for route "${hash}":`, renderErr)
+      app.innerHTML = `
+        <div class="app-layout">
+          ${renderSidebar(hash)}
+          <div class="main-content">
+            ${renderNavbar('Lỗi tải trang')}
+            <div class="content-body" style="padding: 40px; text-align: center;">
+              <div style="font-size: 48px; color: #ef4444; margin-bottom: 16px;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+              <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Đã xảy ra lỗi khi tải trang</h2>
+              <p style="color: #64748b; margin-bottom: 24px;">${renderErr?.message || 'Không thể hiển thị nội dung trang này.'}</p>
+              <button class="btn-primary" onclick="window.location.reload()" style="width: auto; margin: 0 auto; cursor: pointer;">Tải lại trang</button>
+            </div>
+          </div>
+        </div>
+      `
+      return
+    }
     // Keep desktop navigation visible; start with a closed drawer on touch widths.
     const layout = app.querySelector('.app-layout')
     if (layout) {
@@ -550,7 +576,11 @@ async function router() {
     }
     // Exam room has its own root, with or without a surrounding app layout.
     app.querySelectorAll('.exam-room-layout').forEach(el => applyExamThemeClasses(el, hash))
-    route.bind()
+    try {
+      route.bind()
+    } catch (bindErr) {
+      console.error(`[Router] Error binding events for route "${hash}":`, bindErr)
+    }
   }
 }
 

@@ -16,7 +16,11 @@ let filterDebounceTimer = null
 let currentFilterReqId = 0
 
 function getCurrentStudents() {
-  return filteredStudents !== null ? filteredStudents : (state.students || [])
+  const list = filteredStudents !== null ? filteredStudents : state.students
+  if (Array.isArray(list)) return list
+  if (Array.isArray(list?.items)) return list.items
+  if (Array.isArray(list?.students)) return list.students
+  return []
 }
 
 export function renderStudentMgmtView() {
@@ -63,7 +67,7 @@ export function renderStudentMgmtView() {
               </div>
               <select id="class-filter-select" style="padding:10px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:14px; outline:none; background:#ffffff;">
                 <option value="">Tất cả các lớp</option>
-                ${state.classes.map(c => `<option value="${c.id}" ${c.id === selectedClass ? 'selected' : ''}>${c.name}</option>`).join('')}
+                ${(state.classes || []).map(c => `<option value="${c.id}" ${c.id === selectedClass ? 'selected' : ''}>${c.name}</option>`).join('')}
               </select>
             </div>
 
@@ -166,8 +170,9 @@ function renderStudentRow(s) {
 }
 
 export function showCreateStudentModal() {
-  const classCheckboxesHTML = state.classes.length > 0 
-    ? state.classes.map(c => `
+  const classList = Array.isArray(state.classes) ? state.classes : []
+  const classCheckboxesHTML = classList.length > 0 
+    ? classList.map(c => `
         <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; color:#334155; cursor:pointer; padding:2px 0;">
           <input type="checkbox" name="student-classes" value="${c.id}" style="width:16px; height:16px; accent-color:#0066cc; cursor:pointer;">
           <span>${c.name}</span>
@@ -271,8 +276,9 @@ export function showEditStudentModal(studentId) {
   }
 
   const studentClassIds = student.classIds || (student.classId ? [student.classId] : [])
+  const classList = Array.isArray(state.classes) ? state.classes : []
 
-  const classCheckboxesHTML = state.classes.map(c => {
+  const classCheckboxesHTML = classList.map(c => {
     const isChecked = studentClassIds.includes(c.id) ? 'checked' : ''
     return `
       <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; color:#334155; cursor:pointer; padding:2px 0;">
@@ -574,7 +580,7 @@ export function bindStudentMgmtEvents() {
       containerId: 'student-pagination-container',
       onPageChange: (newPage) => {
         currentPage = newPage
-        refreshTable(false)
+        refreshTable(true)
       },
       onPageSizeChange: (newSize) => {
         pageSize = newSize
@@ -692,6 +698,18 @@ export function bindStudentMgmtEvents() {
 
   window._refreshStudentMgmtTable = refreshTable
   window._executeStudentFilter = executeFilter
+
+  // Fallback load neu router prefetch chua co du lieu hoc sinh
+  if ((!state.students || state.students.length === 0) && state.token && state.user?.role === 'ADMIN') {
+    api.getStudents({}, { silent: true }).then(data => {
+      const list = Array.isArray(data) ? data : (data?.items || data?.students || [])
+      state.students = list
+      state.studentsFetchedAt = Date.now()
+      refreshTable(true)
+    }).catch(err => {
+      console.warn('[student-mgmt] Fallback load failed:', err?.message)
+    })
+  }
 }
 
 function updateTable(newStudent) {

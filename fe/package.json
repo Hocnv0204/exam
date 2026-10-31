@@ -23,7 +23,8 @@
     "test:student-lesson-sort": "node scripts/test-student-lesson-sort.mjs",
     "test:homework-config-disabled": "node scripts/test-homework-config-disabled.mjs",
     "test:curriculum-state": "node scripts/test-curriculum-state.mjs",
-    "test": "node scripts/test-theme.mjs && node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && npm run test:matrix-templates && npm run test:weekly-calendar && npm run test:question-appeals && npm run test:constant-sync && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs && node scripts/test-student-report-share.mjs && node scripts/test-trial-management.mjs && npm run test:qb-scope && npm run test:homework-pdf-policy && npm run test:student-lesson-sort && npm run test:homework-config-disabled && npm run test:curriculum-state",
+    "test:student-mgmt-pagination": "node scripts/test-student-mgmt-pagination.mjs",
+    "test": "node scripts/test-theme.mjs && node scripts/test-zero-balance.mjs && node scripts/test-topup.mjs && node scripts/test-diagrams.mjs && node scripts/test-matrix-scope.mjs && npm run test:matrix-templates && npm run test:weekly-calendar && npm run test:question-appeals && npm run test:constant-sync && node scripts/test-curriculum-search.mjs && node scripts/test-admin-history-filter.mjs && node scripts/test-student-report-share.mjs && node scripts/test-trial-management.mjs && npm run test:qb-scope && npm run test:homework-pdf-policy && npm run test:student-lesson-sort && npm run test:homework-config-disabled && npm run test:curriculum-state && npm run test:student-mgmt-pagination",
     "test:qb-scope": "node scripts/test-qb-constant-scope.mjs"
   },
   "devDependencies": {

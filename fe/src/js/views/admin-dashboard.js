@@ -530,7 +530,7 @@ export function renderAdminDashboardView() {
               <p class="page-description">Bức tranh toàn cảnh về hoạt động giảng dạy, kết quả học tập và dòng tiền học phí của hệ thống.</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="btn-secondary" onclick="window.location.hash='#classes'" style="width:auto; font-size:13px;">
+              <button class="btn-secondary" onclick="window.location.hash='#classes-admin'" style="width:auto; font-size:13px;">
                 <i class="fa-solid fa-layer-group"></i> Quản lý lớp
               </button>
               <button class="btn-primary" onclick="window.location.hash='#create-homework'" style="width:auto; font-size:13px;">
@@ -570,7 +570,7 @@ export function renderAdminDashboardView() {
               </div>
 
               <!-- Total Classes -->
-              <div class="dash-kpi-card" onclick="window.location.hash='#classes'" style="cursor:pointer;">
+              <div class="dash-kpi-card" onclick="window.location.hash='#classes-admin'" style="cursor:pointer;">
                 <div class="dash-kpi-top">
                   <div class="dash-kpi-icon icon-cyan">
                     <i class="fa-solid fa-chalkboard"></i>
@@ -608,7 +608,7 @@ export function renderAdminDashboardView() {
               </div>
 
               <!-- Total Submissions -->
-              <div class="dash-kpi-card" onclick="window.location.hash='#homework'" style="cursor:pointer;">
+              <div class="dash-kpi-card" onclick="window.location.hash='#homework-mgmt'" style="cursor:pointer;">
                 <div class="dash-kpi-top">
                   <div class="dash-kpi-icon icon-indigo">
                     <i class="fa-solid fa-file-signature"></i>
@@ -1005,7 +1005,7 @@ export function renderAdminDashboardView() {
                 </h3>
                 <p style="font-size:13px; color:#64748b; margin:0;">10 bài tập được học sinh nộp mới nhất trong hệ thống.</p>
               </div>
-              <button class="btn-secondary" onclick="window.location.hash='#homework'" style="font-size:12px; padding:6px 12px;">
+              <button class="btn-secondary" onclick="window.location.hash='#homework-mgmt'" style="font-size:12px; padding:6px 12px;">
                 Xem tất cả bài tập
               </button>
             </div>
