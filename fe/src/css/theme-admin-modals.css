@@ -247,6 +247,33 @@ body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-r
   color: var(--adm-modal-text-muted) !important;
 }
 
+:is(#modal-container, #qb-modal-container) :is(input, select, textarea):disabled {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) :is(input, select, textarea):disabled {
+  background: var(--adm-modal-surface-strong) !important;
+  border-color: var(--adm-modal-border) !important;
+  color: var(--adm-modal-text-muted) !important;
+  cursor: not-allowed;
+}
+
+:is(#modal-container, #qb-modal-container) :is(#assign-deadline-clear-btn, [id$="-deadline-clear"]):hover {
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
+  border-color: #fca5a5 !important;
+}
+
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) :is(#assign-deadline-clear-btn, [id$="-deadline-clear"]):hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(input, textarea)::placeholder {
   color: var(--adm-modal-text-dim);
 }
@@ -543,7 +570,9 @@ body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-r
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#ffffff"],
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #ffffff"],
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background-color:#ffffff"],
-body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background-color: #ffffff"] {
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background-color: #ffffff"],
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="rgb(255, 255, 255)"],
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="rgb(255,255,255)"] {
   background: var(--adm-modal-surface) !important;
 }
 
@@ -551,6 +580,10 @@ body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-r
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #f8fafc"],
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f1f5f9"],
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background: #f1f5f9"],
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background-color:#f1f5f9"],
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background-color: #f1f5f9"],
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="rgb(241, 245, 249)"],
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="rgb(241,245,249)"],
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f5f5f5"],
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#f3f4f6"],
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) [style*="background:#e2e8f0"],
