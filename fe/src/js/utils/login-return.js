@@ -1,7 +1,7 @@
 // Only student homework routes may be resumed after authentication.
 export function getLoginReturnTarget(loginHash, role) {
   if (role === 'ADMIN') return '#admin-dashboard'
-  const fallback = '#my-classes'
+  const fallback = '#student-dashboard'
   if (role !== 'STUDENT') return fallback
   const query = loginHash.includes('?') ? loginHash.slice(loginHash.indexOf('?') + 1) : ''
   const next = new URLSearchParams(query).get('next') || ''

@@ -278,8 +278,12 @@ body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-r
   color: var(--adm-modal-text);
 }
 
-/* Tables (data-table / md-table / table tuỳ modal) */
+/* Tables (data-table / md-table / table tuỳ modal)
+   Nền phải được set ở MỌI cấp (table / th / td / sọc chẵn / hover) vì styles.css
+   đã set nền sáng cho từng lớp đó; thiếu tầng nào thì nền sáng lòi ra dưới
+   chữ near-white. Không cần !important: cổng :is(#modal-container, ...) có ID nên thắng .md-table của styles.css. */
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) {
+  background: var(--adm-modal-surface);
   color: var(--adm-modal-text-muted);
   border-color: var(--adm-modal-border);
 }
@@ -294,10 +298,20 @@ body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-r
 }
 
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) td {
+  background: var(--adm-modal-surface);
   color: #e2e8f0;
 }
 
-body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) tbody tr:hover {
+/* Sọc chẵn — styles.css .md-table tr:nth-child(even) td #f8fafc */
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) tbody tr:nth-child(even) td {
+  background: var(--adm-modal-surface-strong);
+}
+
+/* Hover phải set trên td (styles.css .md-table tr:hover td #f1f5f9) chứ không
+   chỉ trên tr — nền td con che nền tr. Đặt SAU rule sọc chẵn (sát đặc thù
+   bằng nhau) để hover thắng sọc. */
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) tbody tr:hover,
+body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) :is(#modal-container, #qb-modal-container) .modal-content :is(.data-table, .md-table, table) tbody tr:hover td {
   background: var(--adm-modal-surface-soft);
 }
 

@@ -354,6 +354,7 @@ async function request(endpoint, options = {}) {
   delete fetchOptions.skipLoading
   delete fetchOptions.isPublic
   delete fetchOptions.omitAuthorization
+  delete fetchOptions.allowPartialFailure
   if (!isSilent) {
     showLoading()
   }
@@ -408,7 +409,7 @@ async function request(endpoint, options = {}) {
     }
 
     const result = await response.json()
-    if (!response.ok || result.success === false) {
+    if (!response.ok || (result.success === false && !(options.allowPartialFailure && result.partialFailure === true))) {
       const errMsg = (typeof result.error === 'string' && result.error) ||
         result.message ||
         (typeof result.data === 'object' && (result.data?.message || result.data?.error)) ||
@@ -607,7 +608,11 @@ export const api = {
   getExamLogs: (homeworkId, params = '', options = {}) => request(`exam-log?homeworkId=${homeworkId}${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET', ...options }),
   getExamSessions: (homeworkId, options = {}) => request(`exam-session?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
   reopenSubmission: (homeworkId, studentId, resetTimer, resetAnswers, options = {}) => request(`reopen-submission`, { method: 'POST', body: JSON.stringify({ homeworkId, studentId, resetTimer, resetAnswers }), ...options }),
-  awardQuestionPoints: (submissionId, answerId, options = {}) => request('reopen-submission?action=award-question', { method: 'POST', body: JSON.stringify({ submissionId, answerId }), ...options }),
+  awardQuestionPoints: (submissionId, answerId, options = {}) => {
+    const { awardMode, ...requestOptions } = options
+    return request('reopen-submission?action=award-question', { method: 'POST', body: JSON.stringify({ submissionId, answerId, mode: awardMode || 'award' }), ...requestOptions })
+  },
+  editReviewQuestion: (submissionAnswerId, question, options = {}) => request('create-homework?action=edit-question', { method: 'POST', body: JSON.stringify({ submissionAnswerId, question }), ...options }),
   gradeEssay: (submissionId, answerId, score, feedback = '', options = {}) => request('reopen-submission?action=grade-essay', { method: 'POST', body: JSON.stringify({ submissionId, answerId, score, feedback }), ...options }),
   setBonus: (data) => request(`reopen-submission?action=set-bonus`, { method: 'POST', body: JSON.stringify(data) }),
   initExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }), silent: true, ...options }),
@@ -732,7 +737,7 @@ export const api = {
   getQuestionBank: (params = '') => request(`question-bank${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
   getQuestionBankStats: (params = '') => request(`question-bank?stats=true${params ? `&${params}` : ''}`, { method: 'GET' }),
   checkQuestionBankAvailability: (params = '') => request(`question-bank?action=check-availability${params ? `&${params}` : ''}`, { method: 'GET' }),
-  importQuestionBank: (data) => request('question-bank?action=import', { method: 'POST', body: JSON.stringify(data) }),
+  importQuestionBank: (data) => request('question-bank?action=import', { method: 'POST', body: JSON.stringify(data), allowPartialFailure: true }),
   importQuestionBankFromHomework: (data) => request('question-bank?action=import-from-homework', { method: 'POST', body: JSON.stringify(data) }),
   generateRandomExam: (data) => request('question-bank?action=generate-exam', { method: 'POST', body: JSON.stringify(data) }),
   swapQuestionInExam: (data) => request('question-bank?action=swap-question', { method: 'POST', body: JSON.stringify(data) }),

@@ -12,9 +12,10 @@
 
 /** Cột cần đọc để render nhật ký cộng điểm (snapshot câu + actor tại thời điểm cộng). */
 export const QUESTION_AWARD_LOG_SELECT =
-  'id, submission_id, answer_id, question_id, actor_name, question_number, part_title, question_points, score_before, score_after, applied_delta, total_score_after, created_at'
+  'id, submission_id, answer_id, question_id, actor_name, question_number, part_title, question_points, score_before, score_after, applied_delta, total_score_after, action, created_at'
 
 export interface QuestionAwardLogDto {
+  action: 'award' | 'mark_correct'
   id: string
   submissionId: string
   answerId: string | null
@@ -42,6 +43,7 @@ const toNum = (value: unknown, dflt: number | null = null): number | null => {
 /** Map row PostgREST (snake_case) -> DTO camelCase an toàn cho FE. Dòng thiếu id bỏ qua ở caller. */
 export function mapQuestionAwardLogRow(row: any): QuestionAwardLogDto {
   return {
+    action: row?.action === 'mark_correct' ? 'mark_correct' : 'award',
     id: String(row?.id ?? ''),
     submissionId: String(row?.submission_id ?? ''),
     answerId: row?.answer_id ? String(row.answer_id) : null,

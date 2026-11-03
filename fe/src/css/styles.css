@@ -55,6 +55,48 @@ body.modal-open {
   touch-action: none;
 }
 
+/* Biểu đồ dashboard học sinh: áp dụng cho light, navy và pastel bằng màu kế thừa. */
+.student-class-list {
+  --student-chart-track: #e2e8f0;
+  --student-chart-accent: #0284c7;
+  --student-chart-surface: #fff;
+}
+.student-class-list.navy-student { --student-chart-track: #334155; --student-chart-accent: #38bdf8; --student-chart-surface: #1f2937; }
+.student-class-list.pastel-student { --student-chart-track: #f3d6e8; --student-chart-accent: #db2777; }
+.student-tuition-alert { display:flex;gap:12px;align-items:flex-start;padding:14px 18px;margin-bottom:18px;border:1px solid #f59e0b;border-radius:12px;background:#fffbeb;color:#78350f;line-height:1.55; }
+.student-tuition-alert i { margin-top:3px; }
+.student-class-list.navy-student .student-tuition-alert { background:#422c1c;color:#fef3c7; }
+.student-latest-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px; }
+.student-latest-heading h2 { font-family:var(--font-heading);font-size:15px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px; }
+.student-latest-heading .btn-secondary { width:auto;flex:0 0 auto; }
+.student-assignment-chart { display:grid;grid-template-columns:152px minmax(0,1fr);gap:32px;align-items:center; }
+.student-assignment-ring { width:152px;height:152px;border-radius:50%;background:conic-gradient(var(--student-chart-accent) var(--completion),var(--student-chart-track) 0);display:grid;place-items:center;flex:0 0 auto; }
+.student-assignment-ring > div { width:116px;height:116px;border-radius:50%;background:var(--student-chart-surface);display:flex;flex-direction:column;align-items:center;justify-content:center; }
+.student-assignment-ring strong { font-size:25px; }
+.student-assignment-ring span,.student-assignment-summary span { font-size:12px; }
+.student-assignment-details { min-width:0; }
+.student-assignment-summary { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px; }
+.student-assignment-summary > div { display:flex;flex-direction:column;gap:4px; }
+.student-assignment-summary strong { font-size:22px; }
+.student-assignment-breakdown { margin-top:22px; }
+.student-assignment-breakdown-title,.student-assignment-legend { display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px; }
+.student-assignment-progress { height:16px;background:var(--student-chart-track);border-radius:999px;overflow:hidden;margin:9px 0; }
+.student-assignment-progress span { display:block;height:100%;background:var(--student-chart-accent);border-radius:999px; }
+.student-assignment-legend { font-size:12px; }
+@media (max-width: 640px) {
+  .student-assignment-chart { grid-template-columns:1fr;justify-items:center;gap:20px; }
+  .student-assignment-details { width:100%; }
+  .student-assignment-summary { gap:8px; }
+  .student-assignment-summary strong { font-size:19px; }
+}
+.student-score-chart { display:flex;align-items:flex-start;gap:10px;overflow-x:auto;padding:8px 0; }
+.student-score-column { flex:1 0 86px;min-width:86px;text-align:center;display:flex;flex-direction:column;gap:5px; }
+.student-score-column strong,.student-score-column span { font-size:12px; }
+.student-score-title { overflow-wrap:anywhere;line-height:1.35; }
+.student-score-date { opacity:.75; }
+.student-score-track { height:130px;display:flex;align-items:flex-end;background:var(--student-chart-track);border-radius:7px 7px 0 0;overflow:hidden; }
+.student-score-bar { width:100%;background:var(--student-chart-accent);border-radius:7px 7px 0 0;min-height:2px; }
+
 *, *::before, *::after {
   -webkit-overflow-scrolling: touch;
 }
@@ -1151,6 +1193,45 @@ select.form-input {
   border: 1px solid #e2e8f0;
   animation: slideUp 0.2s ease;
   margin: auto;
+}
+
+/* Preview đề: header/footer cố định, chỉ phần nội dung cuộn. Modal nằm ngoài
+   .app-layout nên màu prompt phải kế thừa màu modal (kể cả theme navy). */
+html:has(body.modal-open #modal-container .class-homework-preview-modal) {
+  overflow: hidden;
+}
+
+#modal-container .modal-backdrop:has(.class-homework-preview-modal) {
+  overflow: hidden;
+}
+
+#modal-container .modal-content.class-homework-preview-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100dvh - 40px);
+}
+
+#modal-container .class-homework-preview-modal > div:first-child,
+#modal-container .class-homework-preview-modal > div:last-child {
+  flex-shrink: 0;
+}
+
+#modal-container .class-homework-preview-modal > .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#modal-container .class-homework-preview-modal .interactive-q-prompt {
+  color: inherit;
+}
+
+/* Đồ thị render trên nền SVG trắng; nhãn trục/số là HTML trong foreignObject,
+   phải tối dù phần chữ câu hỏi của modal navy đang sáng. */
+#modal-container .class-homework-preview-modal .diagram-wrap svg[style*="background:#fff"] foreignObject div {
+  color: #0f172a;
 }
 
 @keyframes fadeIn {

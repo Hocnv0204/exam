@@ -1,8 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
-import { calculateQuestionAward } from './award-calculation.js'
-import { QUESTION_AWARD_LOG_SELECT, mapQuestionAwardLogRow } from '../../shared/question-award-logs.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -17,65 +15,17 @@ serve(async (req: Request) => {
     const action = url.searchParams.get('action') || 'reopen'
 
     if (action === 'award-question') {
-      const { submissionId, answerId } = body || {}
+      const { submissionId, answerId, mode = 'award' } = body || {}
       const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      if (typeof submissionId !== 'string' || !uuid.test(submissionId) || typeof answerId !== 'string' || !uuid.test(answerId)) {
-        return errorResponse('Valid submissionId and answerId are required', 400)
+      if (typeof submissionId !== 'string' || !uuid.test(submissionId) || typeof answerId !== 'string' || !uuid.test(answerId) || !['award', 'mark_correct'].includes(mode)) {
+        return errorResponse('Thông tin câu trả lời hoặc chế độ không hợp lệ', 400)
       }
-      const { data: submission, error: subErr } = await serviceRoleClient.from('submissions')
-        .select('id, status, is_trial, total_score, max_score').eq('id', submissionId).maybeSingle()
-      if (subErr) return errorResponse(subErr.message, 500)
-      if (!submission || submission.status !== 'SUBMITTED' || submission.is_trial) return errorResponse('Submitted non-trial submission not found', 404)
-      const { data: answer, error: answerErr } = await serviceRoleClient.from('submission_answers')
-        .select('id, submission_id, question_id, score_earned, questions(id, question_number, part_title, points)').eq('id', answerId).eq('submission_id', submissionId).maybeSingle()
-      if (answerErr) return errorResponse(answerErr.message, 500)
-      if (!answer) return errorResponse('Answer does not belong to submission', 404)
-      const q = Array.isArray(answer.questions) ? answer.questions[0] : answer.questions
-      const points = Number(q?.points)
-      if (!Number.isFinite(points) || points < 0) return errorResponse('Invalid question points', 500)
-      const calculation = calculateQuestionAward(answer.score_earned, points, submission.total_score, submission.max_score)
-      // Idempotent: câu đã đủ điểm -> không ghi gì, không tạo event log.
-      if (!calculation.delta) return jsonResponse({ success: true, delta: 0, scoreEarned: calculation.target, totalScore: calculation.newTotal })
-      const { error: writeAnswerErr } = await serviceRoleClient.from('submission_answers').update({ score_earned: calculation.target }).eq('id', answerId).eq('submission_id', submissionId)
-      if (writeAnswerErr) return errorResponse(writeAnswerErr.message, 500)
-      const { error: writeSubErr } = await serviceRoleClient.from('submissions').update({ total_score: calculation.newTotal }).eq('id', submissionId).eq('status', 'SUBMITTED')
-      if (writeSubErr) {
-        await serviceRoleClient.from('submission_answers').update({ score_earned: answer.score_earned }).eq('id', answerId).eq('submission_id', submissionId)
-        return errorResponse(writeSubErr.message, 500)
-      }
-      // Ghi nhật ký cộng điểm câu (audit bền vững). Chỉ ghi khi điểm THẬT SỰ được
-      // cộng vào tổng bài (appliedDelta > 0); tổng đã chạm max_score thì câu được
-      // chấm đầy đủ nhưng không có event log (không ghi event cho lần cộng rỗng).
-      if (calculation.appliedDelta > 0) {
-        const scoreBefore = Math.round(((Number(answer.score_earned) || 0) + Number.EPSILON) * 100) / 100
-        const { data: logRow, error: logErr } = await serviceRoleClient.from('question_award_logs')
-          .insert({
-            submission_id: submissionId,
-            answer_id: answerId,
-            question_id: answer.question_id || q?.id || null,
-            actor_id: user.id,
-            actor_name: (user.fullName || user.username || 'Admin').trim() || 'Admin',
-            question_number: Number.isInteger(q?.question_number) ? q.question_number : null,
-            part_title: q?.part_title || null,
-            question_points: points,
-            score_before: scoreBefore,
-            score_after: calculation.target,
-            applied_delta: calculation.appliedDelta,
-            total_score_after: calculation.newTotal
-          })
-          .select(QUESTION_AWARD_LOG_SELECT)
-          .maybeSingle()
-        if (logErr || !logRow) {
-          // Log ghi không được -> KHÔNG để tồn tại điểm không có audit:
-          // rollback best effort cả submission và answer rồi báo lỗi cho admin.
-          await serviceRoleClient.from('submissions').update({ total_score: calculation.newTotal - calculation.appliedDelta }).eq('id', submissionId).eq('status', 'SUBMITTED')
-          await serviceRoleClient.from('submission_answers').update({ score_earned: answer.score_earned }).eq('id', answerId).eq('submission_id', submissionId)
-          return errorResponse(`Không thể ghi nhật ký cộng điểm: ${logErr?.message || 'award log row missing'}`, 500)
-        }
-        // Trả event vừa tạo để FE cập nhật UI ngay, không bắt buộc reload.
-        return jsonResponse({ success: true, delta: calculation.appliedDelta, scoreEarned: calculation.target, totalScore: calculation.newTotal, awardLog: mapQuestionAwardLogRow(logRow) })
-      }
-      return jsonResponse({ success: true, delta: 0, scoreEarned: calculation.target, totalScore: calculation.newTotal })
+      const { data, error } = await serviceRoleClient.rpc('admin_award_question', {
+        p_submission_id: submissionId, p_answer_id: answerId, p_actor_id: user.id,
+        p_actor_name: user.fullName || user.username || 'Admin', p_mode: mode,
+      })
+      if (error) return errorResponse(error.message, error.code === 'P0002' ? 404 : error.code === '22023' ? 400 : 500)
+      return jsonResponse(data)
     }
 
     // Giáo viên chấm một câu tự luận. Điểm luôn bị chặn trong [0, points] và

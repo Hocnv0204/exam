@@ -9,7 +9,7 @@ const cols = QUESTION_AWARD_LOG_SELECT.split(',').map(c => c.trim())
 for (const required of [
   'id', 'submission_id', 'answer_id', 'question_id', 'actor_name',
   'question_number', 'part_title', 'question_points',
-  'score_before', 'score_after', 'applied_delta', 'total_score_after', 'created_at'
+  'score_before', 'score_after', 'applied_delta', 'total_score_after', 'action', 'created_at'
 ]) {
   assert.ok(cols.includes(required), `QUESTION_AWARD_LOG_SELECT thiếu cột ${required}`)
 }
@@ -34,6 +34,7 @@ const row = {
   created_at: '2026-10-28T03:00:00.000Z'
 }
 assert.deepEqual(mapQuestionAwardLogRow(row), {
+  action: 'award',
   id: row.id,
   submissionId: row.submission_id,
   answerId: row.answer_id,
@@ -72,5 +73,6 @@ assert.equal(fallback.createdAt, null)
 const empty = mapQuestionAwardLogRow({})
 assert.equal(empty.submissionId, '')
 assert.equal(empty.delta, 0)
+assert.equal(mapQuestionAwardLogRow({ action: 'mark_correct', applied_delta: 0 }).action, 'mark_correct')
 
 console.log('Question award log shared helper passed')

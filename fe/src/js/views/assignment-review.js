@@ -5,6 +5,7 @@ import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 import { buildAwardLogSectionHtml } from '../utils/question-award-logs.js'
+import { canEditReviewQuestion, reviewAnswerToMarkdown, buildReviewQuestionPayload } from '../utils/review-question-editor.js'
 import { api } from '../api.js'
 import { questionAppealReviewContext, renderQuestionAppealSlot, bindReviewQuestionAppeals } from './question-appeals.js'
 
@@ -463,7 +464,7 @@ export function renderAssignmentReviewView() {
                   let badgeColor = '#dc2626'
                   let badgeIcon = 'fa-xmark'
 
-                  if (isCorrect || scoreEarned >= pointsPossible) {
+                  if (isCorrect === true || (isCorrect == null && scoreEarned >= pointsPossible)) {
                     cardBorderColor = '#10b981'
                     badgeBg = '#dcfce7'
                     badgeColor = '#16a34a'
@@ -569,7 +570,7 @@ export function renderAssignmentReviewView() {
                     }
 
                     // Fallback for full score
-                    if (!statementGrades && (isCorrect || scoreEarned >= pointsPossible)) {
+                    if (!statementGrades && !ans.adminMarkedCorrect && (isCorrect === true || (isCorrect == null && scoreEarned >= pointsPossible))) {
                       statementGrades = { a: true, b: true, c: true, d: true }
                     }
 
@@ -747,7 +748,7 @@ export function renderAssignmentReviewView() {
                   return `
                     ${sectionHeaderHtml}
                     <div class="card review-question-card" id="${anchorId}" data-legacy-id="review-question-${rawNum}" style="border-left:4px solid ${cardBorderColor}; margin-bottom: 0; scroll-margin-top: 14px;">
-                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
                         <div>
                           <span class="question-badge" style="background:${cardBorderColor}; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:700; margin-right:8px;">${qNum}</span>
                           <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;">${qTypeStr}</span>
@@ -755,7 +756,9 @@ export function renderAssignmentReviewView() {
                         <span class="badge" data-score-badge="${ans.id || ''}" style="background:${badgeBg}; color:${badgeColor}; border:none; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">
                           <i class="fa-solid ${badgeIcon}"></i> ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm
                         </span>
-                        ${state.user?.role === 'ADMIN' && !isTrial && !sub.is_trial && !sub.isTrial && sub.id && ans.id ? `<button class="btn-primary award-question-btn" data-answer-id="${ans.id}" style="width:auto!important;padding:6px 10px;${scoreEarned >= pointsPossible ? 'display:none;' : ''}">Cộng điểm</button>` : ''}
+                        ${ans.adminMarkedCorrect ? '<span class="badge" style="background:#e0f2fe;color:#0369a1;border:none;padding:4px 8px;font-size:12px;">Được quản trị viên chuyển thành đúng</span>' : ''}
+                        ${state.user?.role === 'ADMIN' && !isTrial && !sub.is_trial && !sub.isTrial && sub.id && ans.id ? `<button class="btn-primary award-question-btn" data-answer-id="${ans.id}" style="width:auto!important;padding:6px 10px;${scoreEarned >= pointsPossible && isCorrect !== false ? 'display:none;' : ''}">Cộng điểm</button>` : ''}
+                        ${isAdminReview && sub.id && ans.id && canEditReviewQuestion(qType) ? `<button type="button" class="btn-secondary edit-question-answer-btn" data-answer-id="${ans.id}" title="Sửa nội dung / đáp án câu hỏi" style="width:auto!important;padding:6px 10px;"><i class="fa-solid fa-pen-to-square"></i> Sửa đáp án</button>` : ''}
                       </div>
 
                       ${promptObj ? `
@@ -997,50 +1000,111 @@ export function bindAssignmentReviewEvents() {
 
   // Admin Reopen Submission feature
   if (state.user?.role === 'ADMIN' && !isTrial && sub.id) {
+    let awardDialogOpening = false
     document.querySelectorAll('.award-question-btn').forEach(btn => {
       btn.onclick = async () => {
-        if (btn.disabled) return
-        btn.disabled = true
-        try {
-          const result = await api.awardQuestionPoints(sub.id, btn.dataset.answerId)
-          const earned = Number(result.scoreEarned)
-          const answerId = btn.dataset.answerId
-          const updateAnswer = answer => {
-            if (answer?.id === answerId || answer?.submissionAnswerId === answerId || answer?.submission_answer_id === answerId) {
-              answer.score_earned = earned
-              answer.scoreEarned = earned
+        if (btn.disabled || awardDialogOpening) return
+        awardDialogOpening = true
+        const answerId = btn.dataset.answerId
+        const reviewHash = window.location.hash
+        const answer = [...(reviewResult.questionReview || []), ...(reviewResult.answers || [])]
+          .find(a => (a.id || a.submissionAnswerId || a.submission_answer_id) === answerId)
+        const isWrong = (answer?.is_correct ?? answer?.isCorrect) === false
+        const [{ openModal }, { showToast }] = await Promise.all([
+          import('../components/modal.js'), import('../components/toast.js'),
+        ])
+        awardDialogOpening = false
+        if (window.location.hash !== reviewHash || state.lastSubmissionResult !== reviewResult) return
+        let saving = false
+        openModal('Điều chỉnh kết quả câu hỏi', `
+          <div style="display:grid;gap:14px;">
+            <label><input type="radio" name="question-award-mode" value="award" checked> <strong>Cộng điểm câu này</strong><br><small>Cho đủ điểm, giữ nguyên trạng thái đúng/sai và số câu đúng/sai.</small></label>
+            <label><input type="radio" name="question-award-mode" value="mark_correct" ${isWrong ? '' : 'disabled'}> <strong>Chuyển câu đang sai thành đúng</strong><br><small>Cho đủ điểm và cập nhật số câu đúng/sai; không đổi đáp án.</small></label>
+            <div id="question-award-error" style="display:none;color:#b91c1c;"></div>
+          </div>`, async () => {
+          const mode = document.querySelector('input[name="question-award-mode"]:checked')?.value
+          saving = true
+          btn.disabled = true
+          try {
+            await api.awardQuestionPoints(sub.id, answerId, { awardMode: mode })
+            try {
+              const fresh = await api.getStudentHistory(`submissionId=${encodeURIComponent(sub.id)}`)
+              if (!fresh || fresh.error) throw new Error('Không tải được lịch sử')
+              if (window.location.hash !== reviewHash || state.lastSubmissionResult !== reviewResult) return true
+              state.lastSubmissionResult = fresh
+              window.dispatchEvent(new HashChangeEvent('hashchange'))
+              showToast('Đã cập nhật kết quả câu hỏi.', 'success')
+            } catch (_) {
+              if (window.location.hash === reviewHash && state.lastSubmissionResult === reviewResult) {
+                document.querySelectorAll('.award-question-btn').forEach(button => { button.disabled = true })
+                showToast('Đã lưu nhưng không tải lại được kết quả. Vui lòng tải lại trang trước khi thao tác tiếp.', 'warning')
+              }
             }
-          }
-          ;(reviewResult.answers || []).forEach(updateAnswer)
-          ;(reviewResult.questionReview || []).forEach(updateAnswer)
-          if (reviewResult.submission) {
-            reviewResult.submission.total_score = result.totalScore
-            reviewResult.submission.totalScore = result.totalScore
-            reviewResult.submission.score = result.totalScore
-          }
-          reviewResult.total_score = result.totalScore
-          reviewResult.score = result.totalScore
-          const badge = document.querySelector(`[data-score-badge="${btn.dataset.answerId}"]`)
-          if (badge) badge.innerHTML = `<i class="fa-solid fa-check"></i> ${earned.toFixed(2)} / ${earned.toFixed(2)} điểm`
-          btn.remove()
-          const totalText = `${Number(result.totalScore).toFixed(2)} / ${formatScore(reviewMaxScore)}`
-          const mainTotal = document.getElementById('review-total-score')
-          if (mainTotal) mainTotal.innerHTML = `${Number(result.totalScore).toFixed(2)} <span style="font-size:15px; color:#0284c7; font-weight:600;">/ ${formatScore(reviewMaxScore)}</span>`
-          const compactTotal = document.getElementById('review-compact-total-score')
-          if (compactTotal) compactTotal.textContent = `${totalText} điểm`
-          // Backend trả về event log vừa tạo khi điểm THẬT SỰ được cộng (delta > 0):
-          // push vào state + render lại khối nhật ký ngay, không bắt buộc reload.
-          if (result.awardLog && Number(result.delta) > 0) {
-            const awardLogList = Array.isArray(reviewResult.questionAwardLogs) ? reviewResult.questionAwardLogs : []
-            awardLogList.push(result.awardLog)
-            reviewResult.questionAwardLogs = awardLogList
-            const awardLogsContainer = document.getElementById('question-award-logs-container')
-            if (awardLogsContainer) awardLogsContainer.innerHTML = buildAwardLogSectionHtml(awardLogList)
-          }
-        } catch (err) {
-          import('../components/toast.js').then(({ showToast }) => showToast(err.message || 'Không thể cộng điểm. Vui lòng thử lại sau.', 'error'))
-          btn.disabled = false
+            return true
+          } catch (err) {
+            if (window.location.hash === reviewHash && state.lastSubmissionResult === reviewResult) {
+              document.querySelectorAll('.award-question-btn').forEach(button => { button.disabled = true })
+              showToast('Chưa xác định được kết quả. Vui lòng tải lại trang để kiểm tra trước khi thao tác tiếp.', 'warning')
+            }
+            return true
+          } finally { saving = false }
+        }, { confirmLabel: 'Xác nhận', beforeClose: () => !saving })
+      }
+    })
+
+    document.querySelectorAll('.edit-question-answer-btn').forEach(btn => {
+      btn.onclick = async () => {
+        const answerId = btn.dataset.answerId
+        const raw = [...(reviewResult.questionReview || []), ...(reviewResult.answers || [])]
+          .find(a => (a.id || a.submissionAnswerId || a.submission_answer_id) === answerId)
+        if (!raw) return
+        const ans = raw.questions ? raw : {
+          ...raw,
+          questions: {
+            question_number: raw.questionNumber ?? raw.question_number,
+            question_type: raw.questionType || raw.question_type,
+            prompt: raw.prompt, content: raw.content, options: raw.options, statements: raw.statements,
+            part_title: raw.partTitle || raw.part_title, explanation: raw.explanation,
+          },
+          correct_answer: raw.correct_answer ?? raw.correctAnswerSummary,
         }
+        const [{ openModal }, { showToast }] = await Promise.all([
+          import('../components/modal.js'),
+          import('../components/toast.js'),
+        ])
+        const escapeAttr = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        const bodyHtml = `
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:12px; color:#92400e; line-height:1.5;">
+              Sửa trực tiếp Markdown như khi tạo bài tập. Đánh dấu <code>*</code> trước đáp án đúng. Lưu xong, hệ thống chấm lại <strong>riêng câu này</strong> cho các bài đã nộp; câu đã được cộng điểm thủ công được giữ nguyên.
+            </div>
+            <textarea id="review-edit-question-md" spellcheck="false" style="width:100%; height:300px; font-family:'Fira Code', monospace; font-size:13px; line-height:1.6; padding:12px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; resize:vertical;">${escapeAttr(reviewAnswerToMarkdown(ans))}</textarea>
+            <div id="review-edit-question-error" style="display:none; color:#dc2626; font-size:12px; font-weight:600;"></div>
+          </div>`
+        openModal(`Sửa đáp án - Câu ${ans.questions.question_number || ''}`, bodyHtml, async () => {
+          const errorBox = document.getElementById('review-edit-question-error')
+          const showError = message => { if (errorBox) { errorBox.textContent = message; errorBox.style.display = 'block' } return false }
+          const { question, error } = buildReviewQuestionPayload(document.getElementById('review-edit-question-md')?.value, ans)
+          if (error) return showError(error)
+          try {
+            const result = await api.editReviewQuestion(answerId, question)
+            const regrade = result.regrade || {}
+            if (regrade.error) {
+              showToast(`Đã lưu câu hỏi nhưng chấm lại bài đã nộp chưa hoàn tất: ${regrade.error}`, 'warning')
+            } else {
+              const skipped = regrade.skippedManualAward ? `, giữ nguyên ${regrade.skippedManualAward} câu đã cộng điểm thủ công` : ''
+              showToast(`Đã cập nhật câu hỏi; chấm lại ${regrade.answersUpdated || 0} bài làm${skipped}.`, 'success')
+            }
+            try {
+              const fresh = await api.getStudentHistory(`submissionId=${sub.id}`)
+              if (fresh && !fresh.error) state.lastSubmissionResult = fresh
+            } catch (_) { /* giữ dữ liệu cũ; router vẫn render lại */ }
+            window.dispatchEvent(new HashChangeEvent('hashchange'))
+            return true
+          } catch (err) {
+            return showError(err.message || 'Không thể lưu câu hỏi. Vui lòng thử lại.')
+          }
+        }, { confirmLabel: 'Lưu & chấm lại', contentStyle: 'max-width:780px;' })
       }
     })
 

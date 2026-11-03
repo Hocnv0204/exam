@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin, requireAuth } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import { computeClassWeakOverview, allocateLargestRemainder } from '../adaptive/logic.ts'
+import { processImportRows } from './import-update.ts'
 import {
   normalizeTypeIdList,
   splitLessonIdsByTypePresence,
@@ -1469,7 +1470,9 @@ serve(async (req: Request) => {
       }
 
       if (search && search.trim()) {
-        query = query.ilike('prompt', `%${search.trim()}%`)
+        // prompt là JSONB: chỉ tìm trong nội dung đề, không tìm trên JSON (đáp án/lời giải).
+        // PostgREST chuyển prompt->>text thành phép trích xuất text trước khi ILIKE.
+        query = query.ilike('prompt->>text', `%${search.trim()}%`)
       }
 
       query = query.order('created_at', { ascending: false })
@@ -2101,6 +2104,7 @@ serve(async (req: Request) => {
           qbChapterId = null,
           qbLessonId = null,
           defaultDifficulty = 'THONG_HIEU',
+          duplicateMode = 'SKIP',
           questions = []
         } = body
 
@@ -2354,10 +2358,10 @@ serve(async (req: Request) => {
             question_type: qType,
             difficulty: finalDiff,
             prompt: promptPayload,
-            mc_answer: q.mcAnswer || promptPayload.mcAnswer || null,
-            tf_answers: q.tfAnswers || promptPayload.tfAnswers || null,
+            mc_answer: q.mcAnswer !== undefined ? q.mcAnswer : (promptPayload.mcAnswer || null),
+            tf_answers: q.tfAnswers !== undefined ? q.tfAnswers : (promptPayload.tfAnswers || null),
             sa_answer: qType === 'SHORT_ANSWER' && q.saAnswer !== undefined && q.saAnswer !== null ? String(q.saAnswer) : (qType === 'SHORT_ANSWER' && promptPayload.saAnswer ? String(promptPayload.saAnswer) : null),
-            sa_tolerance: Number(q.saTolerance) || promptPayload.saTolerance || 0,
+            sa_tolerance: q.saTolerance ?? promptPayload.saTolerance ?? 0,
             points: (() => { const p = Number(q.points); return (isFinite(p) && p > 0 && p <= 10) ? p : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)) })(),
             tags: Array.isArray(q.tags) ? Array.from(new Set(q.tags.map((t: any) => String(t).trim().toLowerCase()).filter(Boolean))).slice(0, 20) : [],
             usage_count: 0,
@@ -2365,120 +2369,17 @@ serve(async (req: Request) => {
           }
         })
 
-        // 1. Tính toán hash cho toàn bộ câu hỏi và phát hiện trùng lặp ngay trong batch tải lên.
-        // Phạm vi trùng = CẶP (qb_lesson_id, content_hash) — khớp unique index
-        // uq_qb_constant_lesson_hash. Hai câu cùng nội dung nhưng khác bài học KHÔNG phải
-        // trùng nhau (cả trong batch lẫn trong DB); câu không có lesson thì rơi về cặp
-        // (grade_block, content_hash) theo unique index uq_qb_dynamic_block_hash.
-        const dedupKeyForRow = (lessonId: any, gradeBlock: any, hash: string) =>
-          lessonId ? `lesson:${lessonId}|${hash}` : `block:${gradeBlock || ''}|${hash}`
-        const candidateRows: any[] = []
-        let skippedInFile = 0
-        const seenInBatch = new Set<string>()
-        const hashList: string[] = []
-        const seenHashes = new Set<string>()
-
-        for (const row of rowsToInsert) {
-          const hash = await computeQbContentHash(row.question_type, row.prompt)
-          row.content_hash = hash
-          if (!seenHashes.has(hash)) {
-            seenHashes.add(hash)
-            hashList.push(hash)
-          }
-
-          const key = dedupKeyForRow(row.qb_lesson_id, row.grade_block, hash)
-          if (seenInBatch.has(key)) {
-            skippedInFile++
-            continue
-          }
-          seenInBatch.add(key)
-          candidateRows.push(row)
-        }
-
-        // 2. Tra cứu cơ sở dữ liệu để lọc bỏ những câu đã tồn tại. Phạm vi query vẫn
-        // theo lesson/khối của batch để không kéo toàn bảng, nhưng quyết định skip thì
-        // theo CẶP (lesson, hash) — câu ở bài khác có cùng hash không bị skip nhầm.
-        const existingPairs = new Set<string>()
-        const CHUNK_SIZE = 500
-        for (let i = 0; i < hashList.length; i += CHUNK_SIZE) {
-          const chunk = hashList.slice(i, i + CHUNK_SIZE)
-          let dbCheckQuery = serviceRoleClient
-            .from('question_bank')
-            .select('qb_lesson_id, grade_block, content_hash')
-
-          const uniqueBatchLessons = Array.from(new Set(candidateRows.map((r: any) => r.qb_lesson_id).filter(Boolean)))
-          const uniqueBatchBlocks = Array.from(new Set(candidateRows.map((r: any) => r.grade_block).filter(Boolean)))
-
-          if (uniqueBatchLessons.length === 1 && !candidateRows.some((r: any) => !r.qb_lesson_id)) {
-            dbCheckQuery = dbCheckQuery.eq('qb_lesson_id', uniqueBatchLessons[0])
-          } else if (uniqueBatchBlocks.length === 1) {
-            dbCheckQuery = dbCheckQuery.eq('grade_block', uniqueBatchBlocks[0])
-          } else if (uniqueBatchBlocks.length > 1) {
-            dbCheckQuery = dbCheckQuery.in('grade_block', uniqueBatchBlocks)
-          } else if (effectiveQbLessonId) {
-            dbCheckQuery = dbCheckQuery.eq('qb_lesson_id', effectiveQbLessonId)
-          } else {
-            dbCheckQuery = dbCheckQuery.eq('grade_block', effectiveGradeBlock)
-          }
-
-          const { data: matchedRows } = await dbCheckQuery.in('content_hash', chunk)
-
-          if (matchedRows) {
-            matchedRows.forEach((r: any) => {
-              if (r.content_hash) existingPairs.add(dedupKeyForRow(r.qb_lesson_id, r.grade_block, r.content_hash))
-            })
-          }
-        }
-
-        const filteredRows = candidateRows.filter(r => !existingPairs.has(dedupKeyForRow(r.qb_lesson_id, r.grade_block, r.content_hash)))
-        const skippedInDb = candidateRows.length - filteredRows.length
-        const totalSkipped = skippedInFile + skippedInDb
-
-        if (filteredRows.length === 0) {
-          return jsonResponse({
-            success: true,
-            importedCount: 0,
-            skippedCount: totalSkipped,
-            totalCount: rowsToInsert.length,
-            message: `Tất cả ${rowsToInsert.length} câu hỏi đều đã tồn tại trong Ngân hàng đề (${effectiveGradeBlock}) hoặc bị trùng lặp trong file. Không có câu mới nào được thêm.`
-          })
-        }
-
-        // 3. Thực hiện insert danh sách câu hỏi mới
-        let insertedCount = 0
-        const { data: inserted, error: insertError } = await serviceRoleClient
-          .from('question_bank')
-          .insert(filteredRows)
-          .select('id')
-
-        if (insertError) {
-          // Phòng trường hợp xung đột unique constraint do race condition: fallback insert từng câu bỏ qua lỗi trùng
-          if (insertError.message?.includes('uq_qb_block_hash') || insertError.code === '23505') {
-            console.warn('[import question-bank] Batch duplicate collision, fallback to per-row insert')
-            const { inserted: fallbackInserted, skipped: fallbackSkipped } = await insertRowsIgnoringDuplicates(serviceRoleClient, filteredRows)
-            insertedCount = fallbackInserted
-            const finalSkipped = totalSkipped + fallbackSkipped
-            return jsonResponse({
-              success: true,
-              importedCount: insertedCount,
-              skippedCount: finalSkipped,
-              totalCount: rowsToInsert.length,
-              message: `Đã nhập thành công ${insertedCount} câu hỏi mới vào Ngân hàng đề${finalSkipped > 0 ? ` (đã tự động bỏ qua ${finalSkipped} câu trùng lặp)` : ''}!`
-            })
-          }
-          return errorResponse(insertError.message, 500)
-        }
-
-        insertedCount = (inserted || []).length
+        // Xem supabase/functions/question-bank/import-update.ts
+        const importResult = await processImportRows(rowsToInsert, questions, duplicateMode, serviceRoleClient, computeQbContentHash)
+        const failedCount = importResult.failedRows.length
         return jsonResponse({
-          success: true,
-          importedCount: insertedCount,
-          skippedCount: totalSkipped,
+          success: failedCount === 0,
+          partialFailure: failedCount > 0,
+          ...importResult,
           totalCount: rowsToInsert.length,
-          message: totalSkipped > 0
-            ? `Đã nhập thành công ${insertedCount} câu hỏi mới vào Ngân hàng đề (đã tự động bỏ qua ${totalSkipped} câu trùng lặp)!`
-            : `Đã nhập thành công ${insertedCount} câu hỏi vào Ngân hàng đề!`
+          message: `Tạo mới ${importResult.importedCount}, cập nhật ${importResult.updatedCount}, bỏ qua ${importResult.skippedCount}, lỗi ${failedCount}.`
         })
+
       }
 
       // ----------------------------------------------------

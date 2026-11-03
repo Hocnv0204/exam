@@ -32,11 +32,16 @@ if (!window.confirmStartHomework) {
 
 let filterStatus = 'all' // all | done | todo
 let filterClassId = ''
+let filterChapterId = ''
+let filterLessonId = ''
 let filterSearch = ''
 let currentPage = 1
 const PAGE_SIZE = 10
 let totalItems = 0
 let totalPages = 1
+let listRequestId = 0
+let chapterRequestId = 0
+let lessonRequestId = 0
 
 export function renderMyHomeworksView() {
   return `
@@ -74,9 +79,15 @@ export function renderMyHomeworksView() {
               <select id="myhw-class-filter" style="height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; min-width:180px;">
                 <option value="">Tất cả lớp</option>
               </select>
+              <select id="myhw-chapter-filter" aria-label="Lọc theo chương" disabled style="height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; min-width:160px;">
+                <option value="">Tất cả chương</option>
+              </select>
+              <select id="myhw-lesson-filter" aria-label="Lọc theo bài học" disabled style="height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; min-width:160px;">
+                <option value="">Tất cả bài học</option>
+              </select>
               <div style="position:relative; flex:1; min-width:200px;">
                 <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:12px; color:#94a3b8; font-size:13px;"></i>
-                <input id="myhw-search" type="text" placeholder="Tìm theo tên bài..." style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px 0 36px; font-size:13px;">
+                <input id="myhw-search" type="text" value="${escapeHtml(filterSearch)}" placeholder="Tìm theo tên bài..." style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px 0 36px; font-size:13px;">
               </div>
             </div>
           </div>
@@ -233,7 +244,7 @@ function renderPager() {
 
 function myhwTourSteps() {
   return [
-    { selector: '#tour-myhw-filter', title: 'Lọc bài tập', text: 'Lọc theo trạng thái (Tất cả / Chưa làm / Đã làm), theo lớp và tìm theo tên bài.' },
+    { selector: '#tour-myhw-filter', title: 'Lọc bài tập', text: 'Lọc theo trạng thái, lớp, chương, bài học và tìm theo tên bài.' },
     { selector: '#myhw-stats', title: 'Tổng quan', text: 'Xem nhanh tổng số bài được giao, số bài chưa làm, đã làm và điểm trung bình của bạn.' },
     { selector: '#myhw-list', title: 'Danh sách bài', text: 'Bài chưa làm hiện hạn nộp \u2014 bấm "Làm bài" để bắt đầu ngay.' },
     { selector: '#myhw-list .myhw-card', title: 'Bài đã làm', text: 'Bài đã làm hiện điểm số và kết quả ĐẠT/CHƯA ĐẠT: bấm "Xem kết quả" để coi chi tiết từng câu, "Làm lại" để cải thiện điểm.' },
@@ -247,6 +258,9 @@ async function maybeStartMyhwTour() {
 
 async function fetchMyHomeworks() {
   const listEl = document.getElementById('myhw-list')
+  if (!listEl) return
+  const requestId = ++listRequestId
+  const userId = state.user?.id
   if (listEl) {
     listEl.innerHTML = `
       <div style="text-align:center; padding:48px; color:#94a3b8;">
@@ -258,8 +272,11 @@ async function fetchMyHomeworks() {
   try {
     const sp = new URLSearchParams({ status: filterStatus, page: String(currentPage), pageSize: String(PAGE_SIZE) })
     if (filterClassId) sp.set('classId', filterClassId)
+    if (filterChapterId) sp.set('chapterId', filterChapterId)
+    if (filterLessonId) sp.set('lessonId', filterLessonId)
     if (filterSearch.trim()) sp.set('search', filterSearch.trim())
     const res = await api.getMyHomeworks(`&${sp.toString()}`)
+    if (requestId !== listRequestId || !listEl.isConnected || state.user?.id !== userId) return
     const items = res?.items || []
     totalItems = res?.total ?? items.length
     totalPages = res?.totalPages ?? 1
@@ -275,6 +292,7 @@ async function fetchMyHomeworks() {
     }
     renderPager()
   } catch (err) {
+    if (requestId !== listRequestId || !listEl.isConnected || state.user?.id !== userId) return
     if (listEl) {
       listEl.innerHTML = `<div class="card" style="margin:0; padding:32px; text-align:center; color:#b91c1c;">Lỗi tải bài tập: ${escapeHtml(err.message)}</div>`
     }
@@ -282,10 +300,71 @@ async function fetchMyHomeworks() {
   }
 }
 
+async function loadChapterOptions() {
+  const select = document.getElementById('myhw-chapter-filter')
+  const lesson = document.getElementById('myhw-lesson-filter')
+  if (!select || !lesson) return
+  const requestId = ++chapterRequestId
+  ++lessonRequestId
+  const classId = filterClassId
+  const userId = state.user?.id
+  select.disabled = true
+  select.innerHTML = `<option value="">${classId ? 'Đang tải chương...' : 'Tất cả chương'}</option>`
+  lesson.disabled = true
+  lesson.innerHTML = '<option value="">Tất cả bài học</option>'
+  if (!classId) return
+  try {
+    const chapters = await api.getChapters(classId)
+    if (requestId !== chapterRequestId || !select.isConnected || state.user?.id !== userId || filterClassId !== classId) return
+    if (!Array.isArray(chapters)) throw new Error('Dữ liệu chương không hợp lệ')
+    select.innerHTML = '<option value="">Tất cả chương</option>' + chapters.map(ch => `<option value="${escapeHtml(ch.id)}">${escapeHtml(ch.title)}</option>`).join('')
+    if (!chapters.some(ch => ch.id === filterChapterId)) {
+      filterChapterId = ''
+      filterLessonId = ''
+    }
+    select.value = filterChapterId
+    select.disabled = false
+    if (filterChapterId) await loadLessonOptions()
+  } catch (err) {
+    if (requestId !== chapterRequestId || !select.isConnected || state.user?.id !== userId) return
+    select.innerHTML = '<option value="">Không tải được chương</option>'
+    filterChapterId = ''
+    filterLessonId = ''
+    showToast('Không tải được danh sách chương. Hãy chọn lại lớp để thử lại.', 'error')
+  }
+}
+
+async function loadLessonOptions() {
+  const select = document.getElementById('myhw-lesson-filter')
+  if (!select) return
+  const requestId = ++lessonRequestId
+  const chapterId = filterChapterId
+  const userId = state.user?.id
+  select.disabled = true
+  select.innerHTML = `<option value="">${chapterId ? 'Đang tải bài học...' : 'Tất cả bài học'}</option>`
+  if (!chapterId) return
+  try {
+    const lessons = await api.getLessons(chapterId)
+    if (requestId !== lessonRequestId || !select.isConnected || state.user?.id !== userId || filterChapterId !== chapterId) return
+    if (!Array.isArray(lessons)) throw new Error('Dữ liệu bài học không hợp lệ')
+    select.innerHTML = '<option value="">Tất cả bài học</option>' + lessons.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.title)}</option>`).join('')
+    if (!lessons.some(l => l.id === filterLessonId)) filterLessonId = ''
+    select.value = filterLessonId
+    select.disabled = false
+  } catch (err) {
+    if (requestId !== lessonRequestId || !select.isConnected || state.user?.id !== userId) return
+    select.innerHTML = '<option value="">Không tải được bài học</option>'
+    filterLessonId = ''
+    showToast('Không tải được danh sách bài học. Hãy chọn lại chương để thử lại.', 'error')
+  }
+}
+
 export async function bindMyHomeworksEvents() {
   bindSidebarEvents()
   paintStatusButtons()
   maybeStartMyhwTour()
+  const view = document.getElementById('myhw-list')
+  const userId = state.user?.id
 
   // Lớp filter lấy từ lớp đã đăng ký của học sinh
   try {
@@ -293,13 +372,23 @@ export async function bindMyHomeworksEvents() {
       state.classes = await api.getClasses().catch(() => [])
     }
   } catch (_) {}
+  if (!view?.isConnected || state.user?.id !== userId) return
   const classSel = document.getElementById('myhw-class-filter')
   if (classSel) {
     classSel.innerHTML = '<option value="">Tất cả lớp</option>' +
-      (state.classes || []).map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
+      (state.classes || []).map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('')
+    if (!(state.classes || []).some(c => c.id === filterClassId)) {
+      filterClassId = ''
+      filterChapterId = ''
+      filterLessonId = ''
+    }
+    classSel.value = filterClassId
   }
 
+  await loadChapterOptions()
+  if (!view.isConnected || state.user?.id !== userId) return
   await fetchMyHomeworks()
+  if (!view.isConnected || state.user?.id !== userId) return
 
   document.querySelectorAll('.myhw-status-btn').forEach(b => {
     b.addEventListener('click', () => {
@@ -311,6 +400,21 @@ export async function bindMyHomeworksEvents() {
   })
   document.getElementById('myhw-class-filter')?.addEventListener('change', (e) => {
     filterClassId = e.target.value
+    filterChapterId = ''
+    filterLessonId = ''
+    currentPage = 1
+    loadChapterOptions()
+    fetchMyHomeworks()
+  })
+  document.getElementById('myhw-chapter-filter')?.addEventListener('change', (e) => {
+    filterChapterId = e.target.value
+    filterLessonId = ''
+    currentPage = 1
+    loadLessonOptions()
+    fetchMyHomeworks()
+  })
+  document.getElementById('myhw-lesson-filter')?.addEventListener('change', (e) => {
+    filterLessonId = e.target.value
     currentPage = 1
     fetchMyHomeworks()
   })

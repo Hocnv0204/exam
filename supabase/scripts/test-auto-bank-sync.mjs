@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { parseExamMarkdown } from '../../fe/src/js/utils/exam-parser.js'
 
 import {
   buildDynamicQuestionBankRow,
@@ -866,6 +867,105 @@ async function run() {
     assert.equal(summary.unsyncedCount, 1)
     assert.match(summary.reasons[0].reason, /khớp nhiều Lớp Constant/)
     assert.equal(adapter.insertedRows.length, 0)
+  })
+
+  await test('Hóa-12: header đầy đủ vẫn lưu nhánh động khi Lớp Constant có nhưng Chương/Bài chưa có', async () => {
+    const chemical = mcQuestion({
+      questionNumber: 3,
+      prompt: JSON.stringify({ text: 'Số cặp electron chưa liên kết của nitrogen trong amine?', options: [
+        { id: 'A', text: '3 và 1' }, { id: 'B', text: '2 và 3' },
+        { id: 'C', text: '1 và 3' }, { id: 'D', text: '2 và 2' },
+      ], explanation: 'Nitrogen có 1 cặp electron chưa liên kết và 3 liên kết cộng hóa trị.' }),
+      mcAnswer: 'C',
+      classTag: '12', gradeTag: '12', subjectTag: 'Hóa',
+      chapterTag: 'Chương 3. Hợp chất chứa nitrogen', lessonTag: 'Bài 8. Amine',
+      questionTypeTag: 'Khác',
+    })
+    const adapter = makeAdapter(makeTaxonomy()) // Có c12hoa nhưng chưa có Chương 3 Constant.
+    const summary = await syncHomeworkQuestionsToConstantBank(adapter, {
+      questions: [chemical, mcQuestion({ questionNumber: 4 })],
+      dynamicLesson: dynamicLesson(), // Bài tập Toán-12 khác bài metadata Hóa-12.
+      homeworkTitle: 'Amine',
+    })
+    assert.equal(summary.totalQuestions, 2)
+    assert.equal(summary.createdCount, 2)
+    assert.equal(summary.unsyncedCount, 0)
+    const row = adapter.insertedRows.find(q => q.subject === 'HOA_HOC')
+    assert.ok(row)
+    assert.equal(row.grade_level, 12)
+    assert.equal(row.grade_block, '12-Hóa')
+    assert.equal(row.qb_class_id, null)
+    assert.equal(row.qb_lesson_id, null)
+    assert.equal(row.lesson_id, null, 'không gán bài Hóa vào bài tập Toán')
+    assert.equal(row.mc_answer, 'C')
+    assert.equal(row.prompt.metadata.chapterTag, 'Chương 3. Hợp chất chứa nitrogen')
+    assert.equal(row.prompt.metadata.lessonTag, 'Bài 8. Amine')
+    assert.equal(row.prompt.metadata.questionTypeTag, 'Khác')
+    assert.equal(summary.target, null, 'batch trộn đích Constant và động không nhận target giả')
+  })
+
+  await test('Chương Constant mơ hồ không được chọn ngẫu nhiên hay che bằng nhánh động', async () => {
+    const adapter = makeAdapter(makeTaxonomy({
+      chapters: [
+        { id: 'chhoa1', class_id: 'c12hoa', title: 'Chương 3. Hợp chất chứa nitrogen' },
+        { id: 'chhoa2', class_id: 'c12hoa', title: 'Chương III: Hợp chất chứa nitrogen' },
+      ],
+    }))
+    const summary = await syncHomeworkQuestionsToConstantBank(adapter, {
+      questions: [mcQuestion({ classTag: '12', gradeTag: '12', subjectTag: 'Hóa',
+        chapterTag: 'Chương 3. Hợp chất chứa nitrogen', lessonTag: 'Bài 8. Amine' })],
+      dynamicLesson: dynamicLesson(),
+    })
+    assert.equal(summary.createdCount, 0)
+    assert.equal(summary.unsyncedCount, 1)
+    assert.match(summary.reasons[0].reason, /khớp nhiều Chương Constant/)
+  })
+
+  await test('40 header Hóa-12 qua parser Markdown: đồng bộ đúng từng câu, không dùng Constant thiếu Chương', async () => {
+    const markdown = Array.from({ length: 40 }, (_, index) =>
+      `[Câu ${index + 1}] [LỚP: 12] [MÔN: Hóa] [CHƯƠNG: Chương 3. Hợp chất chứa nitrogen] [BÀI HỌC: Bài 8. Amine] [DẠNG BÀI: Khác]\n` +
+      `Trong phân tử amine số liên kết cộng hóa trị của nitrogen ở câu ${index + 1} là bao nhiêu?\n` +
+      'A. 1\nB. 2\n*C. 3\nD. 4\n[Lời giải]\nNitrogen có 3 liên kết.\n'
+    ).join('\n')
+    const parsed = parseExamMarkdown(markdown).questions
+    assert.equal(parsed.length, 40)
+    const questions = parsed.map((q) => ({
+      questionNumber: q.questionNumber,
+      questionType: q.questionType,
+      source: 'MARKDOWN_INTERACTIVE',
+      prompt: JSON.stringify({ text: q.promptText, options: q.options, metadata: q.metadata }),
+      mcAnswer: q.mcAnswer,
+      points: q.points,
+    }))
+    const adapter = makeAdapter(makeTaxonomy())
+    const summary = await syncHomeworkQuestionsToConstantBank(adapter, {
+      questions,
+      dynamicLesson: dynamicLesson(),
+    })
+    assert.equal(summary.totalQuestions, 40)
+    assert.equal(summary.createdCount, 40)
+    assert.equal(summary.unsyncedCount, 0)
+    assert.equal(adapter.insertedRows.length, 40)
+    assert.ok(adapter.insertedRows.every(row => row.grade_block === '12-Hóa' && row.subject === 'HOA_HOC'))
+    assert.ok(adapter.insertedRows.every(row => row.qb_lesson_id === null && row.lesson_id === null))
+    assert.ok(adapter.insertedRows.every(row => row.mc_answer === 'C'))
+  })
+
+  await test('Câu thiếu header không làm mất đồng bộ của câu Hóa-12 đủ metadata; lý do nêu số câu', async () => {
+    const adapter = makeAdapter(makeTaxonomy())
+    const summary = await syncHomeworkQuestionsToConstantBank(adapter, {
+      questions: [mcQuestion({ questionNumber: 1 }), mcQuestion({
+        questionNumber: 3, classTag: '12', gradeTag: '12', subjectTag: 'Hóa',
+        chapterTag: 'Chương 3. Hợp chất chứa nitrogen', lessonTag: 'Bài 8. Amine',
+        prompt: JSON.stringify({ text: 'Amine có bao nhiêu liên kết?', options: [{ id: 'C', text: '3' }] }),
+      })],
+      dynamicLesson: dynamicLesson({ chapters: { classes: { grade_block: 'Hóa-12' }, title: 'Chương 1. Este' }, title: 'Bài 1. Este' }),
+    })
+    assert.equal(summary.totalQuestions, 2)
+    assert.equal(summary.createdCount, 1)
+    assert.equal(summary.unsyncedCount, 1)
+    assert.match(summary.reasons[0].reason, /^Câu 1: /)
+    assert.equal(adapter.insertedRows[0].prompt.metadata.lessonTag, 'Bài 8. Amine')
   })
 
   await test('questionTypeTag nằm trong prompt.metadata vẫn được dùng (không fallback "Khác")', async () => {

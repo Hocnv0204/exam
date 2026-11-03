@@ -7,6 +7,13 @@ import {
   deleteClassSchema,
   removeStudentFromClassSchema,
 } from '../../shared/validators.ts'
+import {
+  fetchLockedStudentIdsForDate,
+  fetchLockIntervalsForStudents,
+  fetchStudentLockIntervals,
+  filterStudentSessionDates,
+  isStudentLockedOn,
+} from '../../shared/student-lock.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -129,8 +136,10 @@ serve(async (req: Request) => {
         
         const { data: sessions, error } = await query
         if (error) return errorResponse(error.message, 500)
-        
-        const formatted = (sessions || []).map(s => ({
+        let intervals
+        try { intervals = await fetchStudentLockIntervals(serviceRoleClient, studentId) }
+        catch (err) { return errorResponse((err as Error).message, 500) }
+        const formatted = (sessions || []).filter(s => !isStudentLockedOn(studentId, s.session_date, intervals)).map(s => ({
           sessionDate: s.session_date,
           isPaid: s.is_paid
         }))
@@ -216,6 +225,19 @@ serve(async (req: Request) => {
           }
         }
 
+        // Học sinh bị khóa đúng ngày này không còn thuộc phạm vi điểm danh.
+        // Buổi pre-lock vẫn hiển thị bình thường.
+        let lockedStudentIds = new Set<string>()
+        try {
+          lockedStudentIds = await fetchLockedStudentIdsForDate(
+            serviceRoleClient,
+            Array.from(studentMap.keys()),
+            date,
+          )
+        } catch (lockErr) {
+          return errorResponse((lockErr as Error).message, 500)
+        }
+
         const session = sessionRes.data || null
         let records: any[] = []
         if (session) {
@@ -235,7 +257,9 @@ serve(async (req: Request) => {
         const tuitionFee = Number(classData.tuition_fee || 0)
         const feePerSession = session ? Number(session.fee_per_session || tuitionFee) : tuitionFee
 
-        const students = Array.from(studentMap.values()).map(s => {
+        const students = Array.from(studentMap.values())
+          .filter(s => !lockedStudentIds.has(s.id))
+          .map(s => {
           const rec = recordMap.get(s.id)
           const sSess = studentSessionsMap.get(s.id)
 
@@ -372,8 +396,12 @@ serve(async (req: Request) => {
         }
 
         const totalEnrolledStudents = studentMap.size
+        let lockIntervals
+        try { lockIntervals = await fetchLockIntervalsForStudents(serviceRoleClient, [...studentMap.keys()]) }
+        catch (err) { return errorResponse((err as Error).message, 500) }
+        const eligible = (studentId: string, date: string) => !isStudentLockedOn(studentId, date, lockIntervals)
         const attendanceSessionsData = sessionsRes.data || []
-        const studentSessionsData = (studentSessionsRes.data || []).filter((ss: any) => studentMap.has(ss.student_id))
+        const studentSessionsData = (studentSessionsRes.data || []).filter((ss: any) => studentMap.has(ss.student_id) && eligible(ss.student_id, ss.session_date))
 
         // Collect all distinct dates from both attendance_sessions and student_sessions
         const dateMap = new Map<string, {
@@ -389,7 +417,7 @@ serve(async (req: Request) => {
           const fee = Number(s.fee_per_session || tuitionFee)
           const sRecMap = new Map<string, { isPresent: boolean, paymentStatus: string, feeAmount: number }>()
 
-          const recs = (s.attendance_records || []).filter((r: any) => studentMap.has(r.student_id))
+          const recs = (s.attendance_records || []).filter((r: any) => studentMap.has(r.student_id) && eligible(r.student_id, s.session_date))
           recs.forEach((r: any) => {
             sRecMap.set(r.student_id, {
               isPresent: r.is_present === true,
@@ -441,7 +469,8 @@ serve(async (req: Request) => {
           const entry = dateMap.get(date)!
           const recList = Array.from(entry.studentRecords.values())
           const presentCount = recList.filter(r => r.isPresent).length
-          const totalCount = totalEnrolledStudents > 0 ? totalEnrolledStudents : recList.length
+          const activeOnDate = [...studentMap.keys()].filter(id => eligible(id, date)).length
+          const totalCount = totalEnrolledStudents > 0 ? activeOnDate : recList.length
           const absentCount = totalCount > presentCount ? (totalCount - presentCount) : 0
           const paidCount = recList.filter(r => r.isPresent && r.paymentStatus === 'paid').length
           const unpaidCount = recList.filter(r => r.isPresent && r.paymentStatus === 'unpaid').length
@@ -560,6 +589,10 @@ serve(async (req: Request) => {
           else activeStudents++
         }
         const totalStudents = studentMap.size
+        let lockIntervals
+        try { lockIntervals = await fetchLockIntervalsForStudents(serviceRoleClient, [...studentMap.keys()]) }
+        catch (err) { return errorResponse((err as Error).message, 500) }
+        const eligible = (studentId: string, date: string) => !isStudentLockedOn(studentId, date, lockIntervals)
 
         // Build unified student session map: studentId -> Map<sessionDate, { isPresent, isPaid, feeAmount }>
         const studentSessionsData = studentSessionsRes.data || []
@@ -572,7 +605,7 @@ serve(async (req: Request) => {
 
         // Add from student_sessions (configured via #student-details) - ONLY for students in this class
         studentSessionsData
-          .filter((ss: any) => studentMap.has(ss.student_id))
+          .filter((ss: any) => studentMap.has(ss.student_id) && eligible(ss.student_id, ss.session_date))
           .forEach((ss: any) => {
             const sMap = unifiedMap.get(ss.student_id)
             if (sMap) {
@@ -589,7 +622,7 @@ serve(async (req: Request) => {
           const recs = as.attendance_records || []
           const fee = Number(as.fee_per_session || tuitionFee)
           recs
-            .filter((r: any) => studentMap.has(r.student_id))
+            .filter((r: any) => studentMap.has(r.student_id) && eligible(r.student_id, as.session_date))
             .forEach((r: any) => {
               const sMap = unifiedMap.get(r.student_id)
               if (sMap) {
@@ -649,7 +682,7 @@ serve(async (req: Request) => {
         // Parse latest session
         const allDates = new Set<string>()
         studentSessionsData
-          .filter((ss: any) => studentMap.has(ss.student_id))
+          .filter((ss: any) => studentMap.has(ss.student_id) && eligible(ss.student_id, ss.session_date))
           .forEach((ss: any) => allDates.add(ss.session_date))
         attendanceSessionsData.forEach((as: any) => allDates.add(as.session_date))
         const sortedDates = Array.from(allDates).sort().reverse()
@@ -696,8 +729,9 @@ serve(async (req: Request) => {
 
           const submittedSet = new Set((subData || []).map((s: any) => `${s.homework_id}|${s.student_id}`))
           openHomeworks.forEach((h: any) => {
-            studentMap.forEach((_, sId) => {
-              if (!submittedSet.has(`${h.id}|${sId}`)) {
+              studentMap.forEach((_, sId) => {
+                if (lockIntervals.some(i => i.student_id === sId && i.end_date == null)) return
+                if (!submittedSet.has(`${h.id}|${sId}`)) {
                 pendingSubmissionsCount++
               }
             })
@@ -801,8 +835,12 @@ serve(async (req: Request) => {
           }
         }
 
-        const studentSessionsData = studentSessionsRes.data || []
-        const attendanceRecordsData = recordsRes.data || []
+        let lockIntervals
+        try { lockIntervals = await fetchLockIntervalsForStudents(serviceRoleClient, [...studentMap.keys()]) }
+        catch (err) { return errorResponse((err as Error).message, 500) }
+        const eligible = (studentId: string, date: string) => !isStudentLockedOn(studentId, date, lockIntervals)
+        const studentSessionsData = (studentSessionsRes.data || []).filter((s: any) => eligible(s.student_id, s.session_date))
+        const attendanceRecordsData = (recordsRes.data || []).filter((r: any) => eligible(r.student_id, r.attendance_sessions?.session_date))
 
         // Total distinct class dates across the class
         const allClassDates = new Set<string>()
@@ -1033,6 +1071,25 @@ serve(async (req: Request) => {
         if (!studentId || !classId || !Array.isArray(sessionDates) || !month) {
           return errorResponse('studentId, classId, month and sessionDates are required', 400)
         }
+
+        // Interval khóa là lịch sử bền vững: chặn cả khi tài khoản đã mở khóa,
+        // nhưng vẫn cho sửa các ngày pre-lock.
+        let lockIntervals: Awaited<ReturnType<typeof fetchStudentLockIntervals>>
+        try {
+          lockIntervals = await fetchStudentLockIntervals(serviceRoleClient, studentId)
+        } catch (lockErr) {
+          return errorResponse((lockErr as Error).message, 500)
+        }
+        const requestedDates = sessionDates
+          .map((s: any) => (typeof s === 'string' ? s : s?.date))
+          .filter((d: any): d is string => typeof d === 'string' && d.length > 0)
+        const { allowed: allowedDates, skipped: skippedLockedDates } =
+          filterStudentSessionDates(requestedDates, lockIntervals)
+        const allowedDateSet = new Set(allowedDates)
+        const effectiveSessionDates = sessionDates.filter((s: any) => {
+          const date = typeof s === 'string' ? s : s?.date
+          return typeof date === 'string' && allowedDateSet.has(date)
+        })
         
         const startDate = `${month}-01`
         const [year, m] = month.split('-').map(Number)
@@ -1048,8 +1105,8 @@ serve(async (req: Request) => {
           
         if (deleteError) return errorResponse(deleteError.message, 500)
         
-        if (sessionDates.length > 0) {
-          const inserts = sessionDates.map((s: any) => {
+        if (effectiveSessionDates.length > 0) {
+          const inserts = effectiveSessionDates.map((s: any) => {
             if (typeof s === 'string') {
               return {
                 student_id: studentId,
@@ -1070,10 +1127,21 @@ serve(async (req: Request) => {
             .from('student_sessions')
             .insert(inserts)
             
-          if (insertError) return errorResponse(insertError.message, 500)
+          if (insertError) {
+            if (isLockedStudentError(insertError)) {
+              return errorResponse(
+                'Không thể thêm buổi học: có ngày thuộc khoảng khóa tài khoản của học sinh.',
+                409,
+              )
+            }
+            return errorResponse(insertError.message, 500)
+          }
         }
         
-        return jsonResponse({ message: 'Student sessions updated successfully' })
+        return jsonResponse({
+          message: 'Student sessions updated successfully',
+          skippedLockedDates: skippedLockedDates.length
+        })
       }
 
       if (action === 'save-attendance') {
@@ -1084,6 +1152,24 @@ serve(async (req: Request) => {
           return errorResponse('classId, sessionDate and records array are required', 400)
         }
 
+        // Pre-filter để không gửi học sinh đang khóa đúng ngày này vào RPC.
+        // RPC + trigger vẫn là guard cuối (chống race với thao tác khóa).
+        let lockedStudentIds = new Set<string>()
+        try {
+          lockedStudentIds = await fetchLockedStudentIdsForDate(
+            serviceRoleClient,
+            records.map((r: any) => r?.studentId).filter(Boolean),
+            sessionDate,
+          )
+        } catch (lockErr) {
+          return errorResponse((lockErr as Error).message, 500)
+        }
+        const effectiveRecords = records.filter((r: any) => !lockedStudentIds.has(r?.studentId))
+          // Khóa profile trong RPC theo thứ tự ổn định để tránh deadlock khi hai
+          // lớp có chung học sinh được điểm danh đồng thời.
+          .sort((a: any, b: any) => String(a?.studentId || '').localeCompare(String(b?.studentId || '')))
+        const preSkippedLockedCount = records.length - effectiveRecords.length
+
         // 1. Try atomic PostgreSQL RPC first
         let sessionResult: any = null
 
@@ -1091,7 +1177,7 @@ serve(async (req: Request) => {
           p_class_id: classId,
           p_session_date: sessionDate,
           p_note: note || null,
-          p_records: records.map((r: any) => ({
+          p_records: effectiveRecords.map((r: any) => ({
             student_id: r.studentId,
             is_present: r.isPresent === true
           })),
@@ -1099,9 +1185,13 @@ serve(async (req: Request) => {
         })
 
         if (!rpcErr && rpcData?.success) {
-          sessionResult = rpcData
-        } else {
-          // JS Fallback in case RPC is not yet created in remote DB
+          sessionResult = {
+            ...rpcData,
+            skippedLockedCount: Number(rpcData.skippedLockedCount || 0) + preSkippedLockedCount
+          }
+        } else if (rpcErr && isMissingRpcError(rpcErr)) {
+          // JS Fallback chỉ khi remote chưa có fn_save_attendance. Trigger khóa
+          // trong migration vẫn là lớp bảo vệ cuối nếu có ghi đồng thời.
           const { data: cls } = await serviceRoleClient
             .from('classes')
             .select('tuition_fee')
@@ -1149,7 +1239,7 @@ serve(async (req: Request) => {
             .upsert({ class_id: classId, session_date: sessionDate }, { onConflict: 'class_id,session_date' })
 
           // Upsert records — batch toàn bộ điểm danh trong 3 query thay vì 3 query/học sinh
-          const recordStudentIds = records.map((r: any) => r.studentId).filter(Boolean)
+          const recordStudentIds = effectiveRecords.map((r: any) => r.studentId).filter(Boolean)
 
           const { data: existingRecs } = recordStudentIds.length > 0
             ? await serviceRoleClient
@@ -1168,7 +1258,7 @@ serve(async (req: Request) => {
           const attendanceRowMap = new Map<string, any>()
           const presentSessionMap = new Map<string, any>()
 
-          for (const r of records) {
+          for (const r of effectiveRecords) {
             const isPresent = r.isPresent === true
             const studentId = r.studentId
             const existingRec = existingRecMap.get(studentId)
@@ -1219,7 +1309,7 @@ serve(async (req: Request) => {
             const { error: ssErr } = await serviceRoleClient
               .from('student_sessions')
               .upsert(presentSessionRows, { onConflict: 'student_id,class_id,session_date' })
-            if (ssErr) return errorResponse(ssErr.message, 500)
+            if (ssErr) return errorResponse(lockAwareErrorMessage(ssErr), isLockedStudentError(ssErr) ? 409 : 500)
           }
 
           if (absentStudentIds.length > 0) {
@@ -1229,14 +1319,14 @@ serve(async (req: Request) => {
               .in('student_id', absentStudentIds)
               .eq('class_id', classId)
               .eq('session_date', sessionDate)
-            if (ssDelErr) return errorResponse(ssDelErr.message, 500)
+            if (ssDelErr) return errorResponse(lockAwareErrorMessage(ssDelErr), isLockedStudentError(ssDelErr) ? 409 : 500)
           }
 
           if (attendanceRows.length > 0) {
             const { error: arErr } = await serviceRoleClient
               .from('attendance_records')
               .upsert(attendanceRows, { onConflict: 'session_id,student_id' })
-            if (arErr) return errorResponse(arErr.message, 500)
+            if (arErr) return errorResponse(lockAwareErrorMessage(arErr), isLockedStudentError(arErr) ? 409 : 500)
           }
 
           sessionResult = {
@@ -1244,16 +1334,26 @@ serve(async (req: Request) => {
             sessionId,
             sessionDate,
             feePerSession,
-            presentCount: records.filter((r: any) => r.isPresent).length,
-            absentCount: records.filter((r: any) => !r.isPresent).length
+            presentCount: effectiveRecords.filter((r: any) => r.isPresent).length,
+            absentCount: effectiveRecords.filter((r: any) => !r.isPresent).length,
+            skippedLockedCount: preSkippedLockedCount
           }
+        } else {
+          const message = String(rpcErr?.message || '')
+          if (/ATTENDANCE_LOCKED_STUDENT/.test(message)) {
+            return errorResponse(
+              'Không thể điểm danh: học sinh đang bị khóa trong ngày này (buổi khóa không được tính lại khi mở khóa).',
+              409,
+            )
+          }
+          return errorResponse(message || 'Không thể lưu điểm danh', 500)
         }
 
         // Send Telegram notification if enabled
         if (sendTelegram !== false) {
-          const presentCount = records.filter((r: any) => r.isPresent).length
-          const totalCount = records.length
-          const absentIds = records.filter((r: any) => !r.isPresent).map((r: any) => r.studentId)
+          const presentCount = effectiveRecords.filter((r: any) => r.isPresent).length
+          const totalCount = effectiveRecords.length
+          const absentIds = effectiveRecords.filter((r: any) => !r.isPresent).map((r: any) => r.studentId)
           
           let absentNames: string[] = []
           if (absentIds.length > 0) {
@@ -1289,12 +1389,30 @@ serve(async (req: Request) => {
 
         // 1. If specific student session by date
         if (classId && studentId && sessionDate) {
-          await serviceRoleClient
+          let lockedStudentIds = new Set<string>()
+          try {
+            lockedStudentIds = await fetchLockedStudentIdsForDate(
+              serviceRoleClient,
+              [studentId],
+              sessionDate,
+            )
+          } catch (lockErr) {
+            return errorResponse((lockErr as Error).message, 500)
+          }
+          if (lockedStudentIds.has(studentId)) {
+            return errorResponse(
+              'Không thể thu học phí: học sinh đang bị khóa trong ngày này.',
+              409,
+            )
+          }
+
+          const { error: ssErr } = await serviceRoleClient
             .from('student_sessions')
             .update({ is_paid: isPaid })
             .eq('student_id', studentId)
             .eq('class_id', classId)
             .eq('session_date', sessionDate)
+          if (ssErr) return errorResponse(lockAwareErrorMessage(ssErr), isLockedStudentError(ssErr) ? 409 : 500)
 
           const { data: recs } = await serviceRoleClient
             .from('attendance_records')
@@ -1304,7 +1422,7 @@ serve(async (req: Request) => {
             .eq('student_id', studentId)
 
           if (recs && recs.length > 0) {
-            await serviceRoleClient
+            const { error: recErr } = await serviceRoleClient
               .from('attendance_records')
               .update({
                 payment_status: newStatus,
@@ -1312,6 +1430,7 @@ serve(async (req: Request) => {
                 updated_at: new Date().toISOString()
               })
               .in('id', recs.map((r: any) => r.id))
+            if (recErr) return errorResponse(lockAwareErrorMessage(recErr), isLockedStudentError(recErr) ? 409 : 500)
           }
 
           return jsonResponse({ success: true })
@@ -1319,11 +1438,12 @@ serve(async (req: Request) => {
 
         // 2. If entire class
         if (classId && !studentId && (!recordIds || recordIds.length === 0)) {
-          await serviceRoleClient
+          const { error: ssErr } = await serviceRoleClient
             .from('student_sessions')
             .update({ is_paid: isPaid })
             .eq('class_id', classId)
             .eq('is_paid', !isPaid)
+          if (ssErr) return errorResponse(lockAwareErrorMessage(ssErr), isLockedStudentError(ssErr) ? 409 : 500)
 
           const { data: recs } = await serviceRoleClient
             .from('attendance_records')
@@ -1332,7 +1452,7 @@ serve(async (req: Request) => {
             .eq('payment_status', 'unpaid')
 
           if (recs && recs.length > 0) {
-            await serviceRoleClient
+            const { error: recErr } = await serviceRoleClient
               .from('attendance_records')
               .update({
                 payment_status: newStatus,
@@ -1340,6 +1460,7 @@ serve(async (req: Request) => {
                 updated_at: new Date().toISOString()
               })
               .in('id', recs.map((r: any) => r.id))
+            if (recErr) return errorResponse(lockAwareErrorMessage(recErr), isLockedStudentError(recErr) ? 409 : 500)
           }
 
           return jsonResponse({ success: true })
@@ -1356,7 +1477,15 @@ serve(async (req: Request) => {
             })
             .in('id', recordIds)
 
-          if (updErr) return errorResponse(updErr.message, 500)
+          if (updErr) {
+            if (/ATTENDANCE_LOCKED_STUDENT/.test(String(updErr.message || ''))) {
+              return errorResponse(
+                'Không thể thu học phí: có buổi thuộc khoảng khóa tài khoản của học sinh.',
+                409,
+              )
+            }
+            return errorResponse(updErr.message, 500)
+          }
 
           // Lấy 1 lần dữ liệu cần cho cả đồng bộ student_sessions và ghi sổ thu tay
           const { data: affectedRecords } = await serviceRoleClient
@@ -1379,7 +1508,7 @@ serve(async (req: Request) => {
             sessionGroups.set(key, group)
           }
 
-          await Promise.all(
+          const sessionUpdateResults = await Promise.all(
             Array.from(sessionGroups.values()).map((group) =>
               serviceRoleClient
                 .from('student_sessions')
@@ -1389,6 +1518,16 @@ serve(async (req: Request) => {
                 .eq('session_date', group.sessionDate)
             )
           )
+          const sessionUpdateError = sessionUpdateResults.find((r: any) => r?.error)?.error
+          if (sessionUpdateError) {
+            if (/ATTENDANCE_LOCKED_STUDENT/.test(String(sessionUpdateError.message || ''))) {
+              return errorResponse(
+                'Không thể thu học phí: có buổi thuộc khoảng khóa tài khoản của học sinh.',
+                409,
+              )
+            }
+            return errorResponse(sessionUpdateError.message, 500)
+          }
 
           // Ghi sổ thu tay (manual_collect) khi đánh dấu đã đóng
           if (isPaid) {
@@ -1418,12 +1557,13 @@ serve(async (req: Request) => {
         if (!classId || !studentId) return errorResponse('classId and studentId are required', 400)
 
         // 1. Always update all unpaid student_sessions for this student in this class
-        await serviceRoleClient
+        const { error: ssErr } = await serviceRoleClient
           .from('student_sessions')
           .update({ is_paid: true })
           .eq('student_id', studentId)
           .eq('class_id', classId)
           .eq('is_paid', false)
+        if (ssErr) return errorResponse(lockAwareErrorMessage(ssErr), isLockedStudentError(ssErr) ? 409 : 500)
 
         // 2. Also update attendance_records if any exist
         const { data: unpaidRecords } = await serviceRoleClient
@@ -1436,7 +1576,7 @@ serve(async (req: Request) => {
 
         const recIds = (unpaidRecords || []).map((r: any) => r.id)
         if (recIds.length > 0) {
-          await serviceRoleClient
+          const { error: recErr } = await serviceRoleClient
             .from('attendance_records')
             .update({
               payment_status: 'paid',
@@ -1444,6 +1584,15 @@ serve(async (req: Request) => {
               updated_at: new Date().toISOString()
             })
             .in('id', recIds)
+          if (recErr) {
+            if (/ATTENDANCE_LOCKED_STUDENT/.test(String(recErr.message || ''))) {
+              return errorResponse(
+                'Không thể thu học phí: có buổi thuộc khoảng khóa tài khoản của học sinh.',
+                409,
+              )
+            }
+            return errorResponse(recErr.message, 500)
+          }
           // Ghi sổ thu toàn bộ nợ của HS
           try {
             const { data: feeRows } = await serviceRoleClient
@@ -1490,7 +1639,7 @@ serve(async (req: Request) => {
           .from('attendance_records')
           .update({ payment_status: 'waived', paid_at: null, updated_at: nowIso })
           .in('id', targetIds)
-        if (waiveErr) return errorResponse(waiveErr.message, 500)
+        if (waiveErr) return errorResponse(lockAwareErrorMessage(waiveErr), isLockedStudentError(waiveErr) ? 409 : 500)
         // Ghi sổ miễn (không thu tiền, amount = +fee được miễn để đối chiếu)
         try {
           const rows = (recs || []).map((r: any) => ({
@@ -1514,9 +1663,16 @@ serve(async (req: Request) => {
           return errorResponse('classId, studentId and valid status (ACTIVE/PAUSED) are required', 400)
         }
 
+        if (status === 'ACTIVE') {
+          const { data: profile, error: profileErr } = await serviceRoleClient
+            .from('profiles').select('is_locked').eq('id', studentId).maybeSingle()
+          if (profileErr) return errorResponse(profileErr.message, 500)
+          if (profile?.is_locked) return errorResponse('Tài khoản đang khóa, không thể chuyển sang Đang học', 409)
+        }
+
         const { error } = await serviceRoleClient
           .from('student_classes')
-          .update({ status })
+          .update({ status, lock_interval_id: null })
           .eq('class_id', classId)
           .eq('student_id', studentId)
 
@@ -1529,13 +1685,33 @@ serve(async (req: Request) => {
         const { classId, studentId } = body
         if (!classId || !studentId) return errorResponse('classId and studentId are required', 400)
 
+        // Học sinh đang khóa không được ghi danh vào lớp mới (future functionality).
+        const { data: targetProfile, error: targetErr } = await serviceRoleClient
+          .from('profiles')
+          .select('id, is_locked')
+          .eq('id', studentId)
+          .maybeSingle()
+        if (targetErr) return errorResponse(targetErr.message, 500)
+        if (!targetProfile) return errorResponse('Không tìm thấy học sinh', 404)
+
+        let lockIntervals: Awaited<ReturnType<typeof fetchStudentLockIntervals>>
+        try {
+          lockIntervals = await fetchStudentLockIntervals(serviceRoleClient, studentId)
+        } catch (lockErr) {
+          return errorResponse((lockErr as Error).message, 500)
+        }
+        if (targetProfile.is_locked === true || lockIntervals.some((i) => i.end_date == null)) {
+          return errorResponse('Học sinh đang bị khóa tài khoản, không thể thêm vào lớp', 409)
+        }
+
         // Upsert into student_classes
         const { error: joinErr } = await serviceRoleClient
           .from('student_classes')
           .upsert({
             class_id: classId,
             student_id: studentId,
-            status: 'ACTIVE'
+            status: 'ACTIVE',
+            lock_interval_id: null
           }, { onConflict: 'student_id,class_id' })
 
         if (joinErr) return errorResponse(joinErr.message, 500)
@@ -2033,3 +2209,22 @@ function escapeHtmlForTg(str: string) {
     .replace(/"/g, '&quot;')
 }
 
+// Chỉ fallback JS khi DB chưa có RPC. Mọi lỗi khác (đặc biệt guard khóa)
+// phải trả lỗi để transaction/guard không bị vô hiệu hóa âm thầm.
+function isMissingRpcError(error: { code?: string; message?: string } | null | undefined): boolean {
+  const message = String(error?.message || '')
+  return error?.code === 'PGRST202' ||
+    /could not find the function|function .* does not exist/i.test(message)
+}
+
+// Trigger DB là guard cuối cho khoảng khóa. Map lỗi guard thành 409 để FE hiển
+// thị đúng lý do thay vì 500 chung chung.
+function isLockedStudentError(error: { message?: string } | null | undefined): boolean {
+  return /ATTENDANCE_LOCKED_STUDENT/.test(String(error?.message || ''))
+}
+
+function lockAwareErrorMessage(error: { message?: string } | null | undefined): string {
+  return isLockedStudentError(error)
+    ? 'Không thể cập nhật học phí: có buổi thuộc khoảng khóa tài khoản của học sinh.'
+    : String(error?.message || 'Không thể cập nhật học phí')
+}

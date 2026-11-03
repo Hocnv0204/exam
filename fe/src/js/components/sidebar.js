@@ -5,21 +5,18 @@ export function renderSidebar(currentRoute) {
   const isGuest = !state.token
   const role = state.user?.role || 'STUDENT'
 
+  // Tạm ẩn mục "Hỏi về câu đã nộp" ở admin và ba mục lịch/lộ trình ở học sinh; route vẫn hoạt động.
   return `
     <aside class="sidebar" id="app-sidebar" aria-label="Điều hướng chính">
-      <div class="brand-logo" onclick="window.location.hash='${isGuest ? '#roadmap' : (role === 'ADMIN' ? '#admin-dashboard' : '#my-classes')}'" style="cursor:pointer;">
+      <div class="brand-logo" onclick="window.location.hash='${isGuest ? '#roadmap' : (role === 'ADMIN' ? '#admin-dashboard' : '#student-dashboard')}'" style="cursor:pointer;">
         <i class="fa-solid fa-graduation-cap"></i>
         <span>EduPortal</span>
       </div>
 
       ${isGuest ? `
         <div class="nav-section-title">Trải nghiệm học thử</div>
-        <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
-          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình Hóa 12 (Bứt phá 8+)
-        </div>
-        <div class="nav-item ${currentRoute === 'roadmap-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-11'">
-          <i class="fa-solid fa-compass" style="color:#8b5cf6;"></i> Lộ trình Hóa 11 (Chuẩn KNTT)
-        </div>
+        <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'"><i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình Hóa 12 (Bứt phá 8+)</div>
+        <div class="nav-item ${currentRoute === 'roadmap-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-11'"><i class="fa-solid fa-compass" style="color:#8b5cf6;"></i> Lộ trình Hóa 11 (Chuẩn KNTT)</div>
         <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=lessons'">
           <i class="fa-solid fa-wand-magic-sparkles" style="color:#16a34a;"></i> Bài học thử
         </div>
@@ -52,9 +49,6 @@ export function renderSidebar(currentRoute) {
         <div class="nav-item ${currentRoute === 'admin-history' ? 'active' : ''}" onclick="window.location.hash='#admin-history'">
           <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử nộp bài
         </div>
-        <a class="nav-item ${currentRoute === 'question-appeals' ? 'active' : ''}" href="#question-appeals" style="text-decoration:none;">
-          <i class="fa-solid fa-comments" aria-hidden="true"></i> Hỏi về câu đã nộp
-        </a>
         <div class="nav-item ${currentRoute === 'tuition-ledger' ? 'active' : ''}" onclick="window.location.hash='#tuition-ledger'">
           <i class="fa-solid fa-receipt"></i> Sổ giao dịch học phí
         </div>
@@ -63,14 +57,8 @@ export function renderSidebar(currentRoute) {
         </div>
       ` : `
         <div class="nav-section-title">Dành cho học sinh</div>
-        <a class="nav-item ${currentRoute === 'weekly-calendar' ? 'active' : ''}" href="#weekly-calendar" style="text-decoration:none;">
-          <i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Lịch tuần
-        </a>
-        <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'">
-          <i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình Hóa 12 (Bứt phá 8+)
-        </div>
-        <div class="nav-item ${currentRoute === 'roadmap-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-11'">
-          <i class="fa-solid fa-compass" style="color:#8b5cf6;"></i> Lộ trình Hóa 11 (Chuẩn KNTT)
+        <div class="nav-item ${currentRoute === 'student-dashboard' ? 'active' : ''}" onclick="window.location.hash='#student-dashboard'">
+          <i class="fa-solid fa-chart-line"></i> Dashboard
         </div>
         <div class="nav-item ${currentRoute === 'my-classes' ? 'active' : ''}" data-tour-nav="classes" onclick="window.location.hash='#my-classes'">
           <i class="fa-solid fa-graduation-cap"></i> Lớp học của tôi

@@ -13,6 +13,7 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const VIEW = readFileSync(join(ROOT, 'src/js/views/question-bank.js'), 'utf8')
 const FN = readFileSync(join(ROOT, '..', 'supabase/functions/question-bank/index.ts'), 'utf8')
+const IMPORT_FN = readFileSync(join(ROOT, '..', 'supabase/functions/question-bank/import-update.ts'), 'utf8')
 const FIXTURE = JSON.parse(readFileSync(join(ROOT, '..', 'supabase/seeds/qb-kntt-taxonomy.json'), 'utf8'))
 const MIGRATION_PATH = join(ROOT, '..', 'supabase/migrations/20261026000000_qb_question_types.sql')
 const SEED = readFileSync(join(ROOT, '..', 'supabase/scripts/seed-qb-kntt-taxonomy.mjs'), 'utf8')
@@ -125,9 +126,12 @@ function constantOnlyPoolFilter(rows) {
 
 // ---------- A7. Static contracts: FE modal tạo đề ----------
 {
-  const modalStart = VIEW.indexOf('openMatrixGeneratorModal')
+  const modalStart = VIEW.indexOf('async function openMatrixGeneratorModal')
   assert.ok(modalStart >= 0, 'tìm thấy openMatrixGeneratorModal')
-  const modal = VIEW.slice(modalStart, modalStart + 200000)
+  // Cắt theo ranh giới hàm kế tiếp thay vì một cửa sổ ký tự cố định: thêm code ở
+  // phần khác của file không được làm test này đỏ oan.
+  const modalEndRelative = VIEW.slice(modalStart + 1).search(/\n(?:async )?function [a-zA-Z0-9_]+/)
+  const modal = modalEndRelative > 0 ? VIEW.slice(modalStart, modalStart + 1 + modalEndRelative) : VIEW.slice(modalStart)
   const uniqueLine = modal.match(/const uniqueBlocks = [^\n]+/)
   assert.ok(uniqueLine, 'tìm thấy dòng uniqueBlocks trong modal')
   assert.ok(!uniqueLine[0].includes('customBlocks'), 'uniqueBlocks không còn trộn customBlocks (khối động)')
@@ -872,10 +876,13 @@ B. 2
   assert.ok(FN.includes('ensureOtherQuestionType'), 'backend có helper ensure Dạng bài Khác')
   assert.ok(FN.includes('Tạo bài học xong nhưng không tạo được Dạng bài "Khác"'), 'tạo bài mới rollback nếu thiếu Khác')
   assert.ok(FN.includes('otherType: otherRes.item'), 'tạo bài mới trả kèm otherType')
-  assert.ok(FN.includes('dedupKeyForRow'), 'dedup import dùng key theo cặp')
-  assert.ok(FN.includes('existingPairs'), 'dedup DB so theo cặp lesson/hash')
-  assert.ok(FN.includes('uq_qb_constant_lesson_hash'), 'dedup khớp unique index lesson+hash')
-  assert.ok(FN.includes('qb_lesson_id, grade_block, content_hash'), 'dedup query lấy đủ lesson/block/hash')
+  // Luồng nhập đã tách sang supabase/functions/question-bank/import-update.ts để test được
+  // bằng adapter giả; các invariant dedupe vẫn phải giữ nguyên ở module đó.
+  assert.ok(IMPORT_FN.includes('dedupKey'), 'dedup import dùng key theo cặp')
+  assert.ok(IMPORT_FN.includes('existingByKey'), 'dedup DB so theo cặp lesson/hash')
+  assert.ok(IMPORT_FN.includes('uq_qb_constant_lesson_hash'), 'dedup khớp unique index lesson+hash')
+  assert.ok(IMPORT_FN.includes('id, qb_lesson_id, grade_block, content_hash'), 'dedup query lấy đủ lesson/block/hash')
+  assert.ok(FN.includes("from './import-update.ts'"), 'index.ts dùng module import-update')
   assert.ok(SEED.includes('lessonsMissingOther'), 'seed có bước ensure Khác')
   assert.ok(SEED.includes('Khác còn thiếu'), 'seed dry-run báo advisory bài thiếu Khác')
 

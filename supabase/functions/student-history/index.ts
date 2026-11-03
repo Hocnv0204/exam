@@ -750,6 +750,7 @@ serve(async (req: Request) => {
             question_id,
             given_answer,
              is_correct,
+             admin_marked_correct,
              score_earned,
              teacher_feedback,
              grading_status,
@@ -885,7 +886,7 @@ serve(async (req: Request) => {
 
           if (stGrades) {
             statementGrades = stGrades
-          } else if (ans.is_correct || scoreEarned >= points) {
+          } else if (!ans.admin_marked_correct && ans.is_correct) {
             statementGrades = { a: true, b: true, c: true, d: true }
           }
         } else if (qType === 'SHORT_ANSWER') {
@@ -939,6 +940,7 @@ serve(async (req: Request) => {
           explanation: shouldShowSolutions ? (key?.explanation || null) : null,
           is_correct: ans.is_correct,
           isCorrect: ans.is_correct,
+          adminMarkedCorrect: ans.admin_marked_correct === true,
           score_earned: scoreEarned,
           scoreEarned: scoreEarned,
           pointsPossible: points,

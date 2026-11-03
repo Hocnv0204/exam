@@ -1044,21 +1044,9 @@ body:has(.app-layout.admin-dark[data-route="create-homework"]) #import-json-text
   color: var(--adm-text) !important;
 }
 
-body:has(.app-layout.admin-dark[data-route="create-homework"]) #single-q-preview-pane {
-  background: var(--adm-surface-strong) !important;
-  border-color: var(--adm-border) !important;
-  color: #e2e8f0 !important;
-}
-
-body:has(.app-layout.admin-dark[data-route="create-homework"]) #tab-btn-edit-md {
-  background: #0284c7 !important;
-  color: #ffffff !important;
-}
-
-body:has(.app-layout.admin-dark[data-route="create-homework"]) #tab-btn-preview-md {
-  background: transparent !important;
-  color: var(--adm-text-dim) !important;
-}
+/* Xem trước dùng thẻ đáp án/lời giải và bảng Markdown nền sáng, chữ tối.
+   Để màu inline của pane giữ nguyên; không ép pane tối làm chữ chìm.
+   Hai tab đổi màu inline theo click — không cố định tab Soạn thảo bằng !important. */
 
 /* Modal PDF Preview: GIỮ SÁNG CHỮ TỐI theo yêu cầu */
 body:has(.app-layout.admin-dark[data-route="create-homework"]) #interactive-pdf-modal-container {

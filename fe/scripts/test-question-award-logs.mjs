@@ -48,6 +48,13 @@ assert.ok(line2.startsWith('Cộng điểm phần Phần &lt;b&gt;3&lt;/b&gt;: +
 assert.ok(!line2.includes('<b>3</b>'), 'partTitle phải được escape')
 // Không có delta hợp lệ -> null (không render)
 assert.equal(describeAwardLog({ delta: 0 }), null)
+const correction = { action: 'mark_correct', delta: 0, questionNumber: 2, actorName: '<Admin>' }
+assert.match(describeAwardLog(correction), /Chuyển câu 2 thành đúng: \+0đ/)
+assert.match(describeAwardLog(correction), /&lt;Admin&gt;/)
+assert.match(buildAwardLogSectionHtml([correction]), /Chuyển câu 2 thành đúng/)
+assert.match(buildAwardLogBadgeHtml([correction]), /Chuyển câu 2 thành đúng/)
+assert.equal(summarizeAwardLogs([correction]).count, 1)
+assert.match(buildAwardLogBadgeHtml([correction, log]), /Điều chỉnh câu/)
 assert.equal(describeAwardLog(null), null)
 // Tên admin độc hại được escape
 const evil = describeAwardLog({ delta: 1, questionNumber: 1, actorName: '<script>alert(1)</script>', createdAt: null })

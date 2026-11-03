@@ -137,10 +137,15 @@ state.token = 'fixture'
 state.user = { role: 'STUDENT' }
 assert.match(renderSidebar('my-classes'), /data-student-theme-toggle/)
 assert.doesNotMatch(renderSidebar('my-classes'), /data-theme-toggle|student-theme-picker|sáng/i)
+assert.match(renderSidebar('student-dashboard'), /Dashboard|Lớp học của tôi|Bài tập của tôi/)
+assert.doesNotMatch(renderSidebar('student-dashboard'), /Lịch tuần|Lộ trình Hóa 12|Lộ trình Hóa 11/)
 state.user = { role: 'ADMIN' }
 assert.match(renderSidebar('admin-dashboard'), /data-theme-toggle/)
+assert.match(renderSidebar('admin-dashboard'), /Lịch tuần/)
 assert.match(renderSidebar('admin-dashboard'), /sáng/i, 'the admin sidebar keeps its light mode')
 assert.doesNotMatch(renderSidebar('admin-dashboard'), /data-student-theme-toggle/)
+assert.doesNotMatch(renderSidebar('question-appeals'), /Hỏi về câu đã nộp|href="#question-appeals"/, 'temporarily hide the question appeals sidebar entry')
+assert.match(renderSidebar('question-appeals'), /Lịch sử nộp bài/, 'other admin navigation remains available')
 state.user = null
 state.token = null
 assert.match(renderSidebar('roadmap'), /data-theme-toggle/)

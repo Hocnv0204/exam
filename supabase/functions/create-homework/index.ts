@@ -6,7 +6,9 @@ import {
   createHomeworkSchema,
   updateHomeworkSchema,
   deleteHomeworkSchema,
+  editReviewQuestionSchema,
 } from '../../shared/validators.ts'
+import { planQuestionRegrade, validateEditedKey } from './edit-question.ts'
 import {
   createSupabaseQuestionBankSyncAdapter,
   syncHomeworkQuestionsToConstantBank,
@@ -28,13 +30,21 @@ serve(async (req: Request) => {
       const todoOnly = url.searchParams.get('todoOnly') === 'true'
 
       // Trang "Bài tập của tôi": gộp bài được giao + lần nộp mới nhất, phân trang + lọc ở server
-      // ?action=my-homeworks&status=all|done|todo&classId=&type=&search=&page=&pageSize=
+      // ?action=my-homeworks&status=all|done|todo&classId=&chapterId=&lessonId=&type=&search=&page=&pageSize=
       if (action === 'my-homeworks' && user.role === 'STUDENT') {
+        // Số dư luôn lấy mới từ profile của chính người gọi; không tin số dư
+        // lưu trong session/browser và không coi null là 0 đ.
+        const balanceRes = await serviceRoleClient.from('profiles')
+          .select('balance').eq('id', user.id).eq('role', 'STUDENT').single()
+        if (balanceRes.error || !balanceRes.data) return errorResponse('Failed to load student balance', 500)
+        const accountBalance = balanceRes.data.balance
         if (!user.classIds || user.classIds.length === 0) {
-          return jsonResponse({ items: [], total: 0, page: 1, pageSize: 10, totalPages: 1, stats: { total: 0, done: 0, todo: 0, avgScore: null } })
+          return jsonResponse({ items: [], total: 0, page: 1, pageSize: 10, totalPages: 1, stats: { total: 0, done: 0, todo: 0, avgScore: null }, accountBalance })
         }
         const statusFilter = url.searchParams.get('status') || 'all'
         const classFilter = url.searchParams.get('classId') || ''
+        const chapterFilter = url.searchParams.get('chapterId') || ''
+        const lessonFilter = url.searchParams.get('lessonId') || ''
         const typeFilter = url.searchParams.get('type') || ''
         const search = (url.searchParams.get('search') || '').trim()
         const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
@@ -73,6 +83,8 @@ serve(async (req: Request) => {
           .in('lessons.chapters.class_id', user.classIds)
           .order('created_at', { ascending: false })
         if (classFilter) hwQuery = hwQuery.eq('lessons.chapters.class_id', classFilter)
+        if (chapterFilter) hwQuery = hwQuery.eq('lessons.chapter_id', chapterFilter)
+        if (lessonFilter) hwQuery = hwQuery.eq('lesson_id', lessonFilter)
         if (typeFilter) hwQuery = hwQuery.eq('type', typeFilter)
         if (search) hwQuery = hwQuery.ilike('title', `%${search}%`)
 
@@ -146,6 +158,7 @@ serve(async (req: Request) => {
           page: safePage,
           pageSize,
           totalPages,
+          accountBalance,
           stats: {
             total: merged.length,
             done: merged.filter((m: any) => m.done).length,
@@ -438,6 +451,127 @@ serve(async (req: Request) => {
     // Role Guard: POST, PUT, PATCH, DELETE are Admin-only
     if (user.role !== 'ADMIN') {
       return errorResponse('Forbidden: Only admins can manage homeworks', 403)
+    }
+
+    // POST ?action=edit-question: sửa nội dung + đáp án 1 câu từ trang Xem lại bài làm,
+    // rồi chấm lại riêng câu đó cho các bài đã nộp (không chấm lại cả bài).
+    if (req.method === 'POST' && action === 'edit-question') {
+      const body = await req.json().catch(() => null)
+      const validation = editReviewQuestionSchema.safeParse(body)
+      if (!validation.success) return errorResponse('Validation error', 400, validation.error.format())
+      const { submissionAnswerId, question: edited } = validation.data
+
+      const { data: answerRow, error: answerErr } = await serviceRoleClient
+        .from('submission_answers').select('id, question_id').eq('id', submissionAnswerId).maybeSingle()
+      if (answerErr) return errorResponse(answerErr.message, 500)
+      if (!answerRow?.question_id) return errorResponse('Không tìm thấy câu hỏi của bài làm', 404)
+
+      const { data: current, error: currentErr } = await serviceRoleClient
+        .from('questions')
+        .select('id, homework_id, question_type, points, prompt, content, options, statements, part_title')
+        .eq('id', answerRow.question_id).maybeSingle()
+      if (currentErr) return errorResponse(currentErr.message, 500)
+      if (!current) return errorResponse('Không tìm thấy câu hỏi', 404)
+      if (current.question_type !== edited.questionType) {
+        return errorResponse('Không được đổi loại câu hỏi khi sửa từ trang Xem lại bài làm', 400)
+      }
+      const keyError = validateEditedKey(edited.questionType, edited)
+      if (keyError) return errorResponse(keyError, 400)
+
+      const { data: previousKey } = await serviceRoleClient
+        .from('question_answers').select('mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
+        .eq('question_id', current.id).maybeSingle()
+
+      const isTf = edited.questionType === 'TRUE_FALSE'
+      const questionPatch = {
+        prompt: edited.prompt || '',
+        content: edited.content || null,
+        options: isTf ? null : (edited.options || null),
+        statements: isTf ? (edited.statements || edited.options || null) : null,
+        part_title: edited.partTitle ?? current.part_title ?? null,
+      }
+      const keyRow = {
+        question_id: current.id,
+        mc_answer: edited.questionType === 'MULTIPLE_CHOICE' ? edited.mcAnswer || null : null,
+        tf_answers: isTf ? edited.tfAnswers || null : null,
+        sa_answer: edited.questionType === 'SHORT_ANSWER' ? String(edited.saAnswer ?? '').trim() : null,
+        sa_tolerance: edited.questionType === 'SHORT_ANSWER' ? edited.saTolerance ?? 0 : 0,
+        explanation: edited.explanation || null,
+      }
+
+      const { error: updateQuestionErr } = await serviceRoleClient.from('questions').update(questionPatch).eq('id', current.id)
+      if (updateQuestionErr) return errorResponse(`Failed to update question: ${updateQuestionErr.message}`, 500)
+      const { error: updateKeyErr } = await serviceRoleClient.from('question_answers').upsert(keyRow, { onConflict: 'question_id' })
+      if (updateKeyErr) {
+        await serviceRoleClient.from('questions').update({
+          prompt: current.prompt, content: current.content, options: current.options,
+          statements: current.statements, part_title: current.part_title,
+        }).eq('id', current.id)
+        return errorResponse(`Failed to update answer key: ${updateKeyErr.message}`, 500)
+      }
+
+      let regrade = { answersUpdated: 0, submissionsUpdated: 0, skippedManualAward: 0, error: null as string | null }
+      try {
+        const [answersRes, submissionsRes, pointsRes, homeworkRes] = await Promise.all([
+          serviceRoleClient.from('submission_answers')
+            .select('id, submission_id, given_answer, score_earned, is_correct, submissions!inner(status)')
+            .eq('question_id', current.id).eq('submissions.status', 'SUBMITTED'),
+          serviceRoleClient.from('submissions')
+            .select('id, total_score, max_score, correct_count, wrong_count, bonus_score')
+            .eq('homework_id', current.homework_id).eq('status', 'SUBMITTED'),
+          serviceRoleClient.from('questions').select('points').eq('homework_id', current.homework_id),
+          serviceRoleClient.from('homeworks').select('max_score').eq('id', current.homework_id).maybeSingle(),
+        ])
+        if (answersRes.error || submissionsRes.error || pointsRes.error || homeworkRes.error) {
+          throw new Error((answersRes.error || submissionsRes.error || pointsRes.error || homeworkRes.error).message)
+        }
+        const rawMax = (pointsRes.data || []).reduce((sum: number, q: any) => sum + (Number(q.points) || 0), 0)
+        const targetScale = Number(homeworkRes.data?.max_score) || 10
+        const scoreScale = rawMax > 0 && Math.abs(rawMax - targetScale) >= 1e-6 ? targetScale / rawMax : 1
+        const answers = answersRes.data || []
+        const lockedIds = new Set<string>()
+        if (answers.length > 0) {
+          const { data: logs, error: logsErr } = await serviceRoleClient
+            .from('question_award_logs').select('answer_id').in('answer_id', answers.map((a: any) => a.id))
+          if (logsErr) throw new Error(logsErr.message)
+          for (const log of logs || []) lockedIds.add(log.answer_id)
+        }
+        const plan = planQuestionRegrade({
+          questionId: current.id,
+          questionType: current.question_type,
+          points: Number(current.points),
+          key: {
+            mcAnswer: keyRow.mc_answer, tfAnswers: keyRow.tf_answers as any,
+            saAnswer: keyRow.sa_answer, saTolerance: Number(keyRow.sa_tolerance) || 0,
+          },
+          answers: answers.map((a: any) => ({ ...a, locked: lockedIds.has(a.id) })),
+          submissions: submissionsRes.data || [],
+          scoreScale,
+        })
+        for (const row of plan.answerUpdates) {
+          const { error } = await serviceRoleClient.from('submission_answers')
+            .update({ is_correct: row.is_correct, score_earned: row.score_earned, given_answer: row.given_answer })
+            .eq('id', row.id)
+          if (error) throw new Error(error.message)
+        }
+        for (const row of plan.submissionUpdates) {
+          const { error } = await serviceRoleClient.from('submissions')
+            .update({ total_score: row.total_score, correct_count: row.correct_count, wrong_count: row.wrong_count })
+            .eq('id', row.id)
+          if (error) throw new Error(error.message)
+        }
+        regrade = {
+          answersUpdated: plan.answerUpdates.length,
+          submissionsUpdated: plan.submissionUpdates.length,
+          skippedManualAward: plan.skippedLocked,
+          error: null,
+        }
+      } catch (error) {
+        regrade.error = error instanceof Error ? error.message : String(error)
+        console.error('[create-homework] edit-question regrade failed:', regrade.error)
+      }
+
+      return jsonResponse({ success: !regrade.error, questionId: current.id, previousKey: previousKey || null, regrade })
     }
 
     // POST: Create Homework + Questions + Secure Answer Keys

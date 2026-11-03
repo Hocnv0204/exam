@@ -41,14 +41,15 @@ export function formatAwardTime(iso) {
 export function describeAwardLog(log) {
   if (!log || typeof log !== 'object') return null
   const delta = formatAwardDelta(log.delta)
-  if (!delta) return null
+  const isCorrection = log.action === 'mark_correct'
+  if (!delta && !(isCorrection && Number(log.delta) === 0)) return null
   const qNum = Number(log.questionNumber)
   const qLabel = Number.isInteger(qNum) && qNum > 0
     ? `câu ${qNum}`
     : (log.partTitle ? `phần ${escapeAwardLogHtml(log.partTitle)}` : 'một câu')
   const actor = log.actorName ? escapeAwardLogHtml(log.actorName) : 'admin'
   const time = formatAwardTime(log.createdAt)
-  return `Cộng điểm ${qLabel}: ${delta} · ${actor}${time ? ` · ${time}` : ''}`
+  return `${isCorrection ? `Chuyển ${qLabel} thành đúng` : `Cộng điểm ${qLabel}`}: ${delta || '+0đ'} · ${actor}${time ? ` · ${time}` : ''}`
 }
 
 /**
@@ -62,7 +63,7 @@ export function summarizeAwardLogs(logs) {
   let lastAtMs = null
   for (const log of logs) {
     const n = Number(log?.delta)
-    if (!Number.isFinite(n) || n <= 0) continue
+    if (!Number.isFinite(n) || n < 0 || (n === 0 && log?.action !== 'mark_correct')) continue
     count += 1
     totalDelta += n
     const t = log?.createdAt ? new Date(log.createdAt).getTime() : NaN
@@ -122,12 +123,12 @@ export function buildAwardLogBadgeHtml(logs, options = {}) {
   const entriesHtml = entryTexts
     .map(text => `<div style="font-size:12px; color:#92400e; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; padding:4px 10px;">${text}</div>`)
     .join('')
-  const deltaText = formatAwardDelta(summary.totalDelta)
+  const deltaText = formatAwardDelta(summary.totalDelta) || '+0đ'
   const rawTarget = String(options.targetId || '')
   const targetId = `award-logs-${escapeAwardLogHtml(/^[0-9a-f-]{36}$/i.test(rawTarget) ? rawTarget : Math.random().toString(36).slice(2))}`
   return `
     <div style="${badgeStyle} flex-wrap:wrap;">
-      <i class="fa-solid fa-star"></i> Cộng điểm câu: ${deltaText} (${summary.count} lần)${timeText ? ` · ${timeText}` : ''}
+      <i class="fa-solid fa-star"></i> ${logs.some(log => log?.action === 'mark_correct') ? 'Điều chỉnh câu' : 'Cộng điểm câu'}: ${deltaText} (${summary.count} lần)${timeText ? ` · ${timeText}` : ''}
       <button type="button" class="btn-secondary award-logs-toggle-btn" data-award-target="${targetId}" style="padding:1px 6px; font-size:10px; font-weight:700; cursor:pointer; color:#b45309; border-color:#fde68a; background:#ffffff; border-radius:4px; width:auto;">Xem</button>
     </div>
     <div id="${targetId}" style="display:none; flex-direction:column; gap:4px; margin-top:4px; padding:6px 8px; background:#fffbeb; border:1px dashed #fde68a; border-radius:6px;">${entriesHtml}</div>`

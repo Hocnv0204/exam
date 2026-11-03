@@ -488,9 +488,20 @@ test('wiring is wrapper-only, authorized, and does not introduce editing/exam/Me
   const sidebar = source('../src/js/components/sidebar.js')
   const config = source('../../supabase/config.toml')
   assert.ok(app.includes("'weekly-calendar': { render: renderWeeklyCalendarView, bind: bindWeeklyCalendarEvents }"))
-  assert.equal((sidebar.match(/href="#weekly-calendar"/g) || []).length, 2)
+  assert.equal((sidebar.match(/href="#weekly-calendar"/g) || []).length, 1) // admin; student menu hidden
   assert.ok(apiSource.includes('request(`weekly-calendar?'))
   assert.ok(config.includes('[functions.weekly-calendar]\nverify_jwt = true'))
   assert.equal(/\.from\(['"]|createClient|exam-room|homework-attempt|window\.open|setClassSessions/.test(viewSource), false)
   assert.equal(/\.from\('(profiles|student_sessions|tuition_transactions)'\)/.test(backendSource), false)
+})
+
+test('lịch tuần admin tối dùng bề mặt navy, không đổi theme học sinh hay admin sáng', () => {
+  const app = source('../src/js/app.js')
+  const adminRoutes = app.match(/const adminDarkRoutes = new Set\(\[([\s\S]*?)\]\)/)?.[1]
+  assert.ok(adminRoutes?.includes("'weekly-calendar'"))
+  const darkStyles = viewSource.match(/\.app-layout\.admin-dark\[data-role="ADMIN"\] #weekly-calendar-root/g) || []
+  assert.ok(darkStyles.length >= 9, 'hero, ngày, sự kiện, ghi chú và bộ lọc phải có dark skin')
+  assert.match(viewSource, /#weekly-calendar-root \.wc-day \{[^}]*background:#fff/)
+  assert.match(viewSource, /\.app-layout\[data-role="ADMIN"\] #weekly-calendar-root \.navy-hero \{[^}]*background:#fff/)
+  assert.doesNotMatch(viewSource, /\.navy-student\.admin-dark\[data-role="ADMIN"\]/)
 })

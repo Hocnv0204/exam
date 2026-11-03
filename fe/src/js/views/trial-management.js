@@ -5,9 +5,8 @@
  * Edge Function trial-management (không query PostgREST trực tiếp):
  * - GET catalog (toàn bộ lessons + join chapter/class + metadata homework),
  *   lọc/tìm kiếm phía client cho phản hồi tức thì.
- * - PATCH save-video (lưu nháp, giữ is_trial), publish (URL + is_trial=true
- *   trong một update, bắt buộc video hợp lệ), revoke (chỉ is_trial=false,
- *   giữ video_url, idempotent).
+ * - PATCH publish (bật học thử với video đã lưu hợp lệ), revoke (tắt học thử,
+ *   giữ video_url). URL video được quản lý ở Chương trình học.
  *
  * Trạng thái trang: loading / error + thử lại / empty / danh sách.
  * KPI (tính trên toàn bộ catalog, không theo filter): đang công khai,
@@ -15,12 +14,8 @@
  *
  * An toàn async (theo chuẩn repo):
  * - loadGen: response catalog cũ (đổi route / tải lại) bị bỏ qua.
- * - modalGuard: response của modal video cũ không được đóng modal mới hay
- *   ghi đè state mới.
- * - Nút submit khóa trong lúc pending (chống duplicate submit); lỗi ghi
+ * - Checkbox khóa trong lúc pending (chống duplicate submit); lỗi ghi
  *   KHÔNG tự retry, người dùng quyết định thử lại.
- * - Preview video chỉ iframe embedUrl do classifier trả ra (YouTube embed /
- *   Drive preview); URL khác chỉ hiện cảnh báo, không iframe URL thô.
  */
 
 import { api } from '../api.js'
@@ -52,6 +47,7 @@ let filters = { q: '', classId: '', chapterId: '', status: 'all', video: 'all' }
 let highlightLessonId = ''
 let highlightNotice = ''
 let highlightScrolled = false
+const pendingLessons = new Set()
 const modalGuard = createWriteGuard()
 
 function getRouteLessonId() {
@@ -254,14 +250,12 @@ function updateList() {
                         <i class="fa-regular fa-copy"></i> Sao chép link
                       </button>
                     ` : ''}
-                    <button class="btn-secondary trial-row-action" data-action="edit" data-lesson-id="${escapeHtml(lesson.id)}" style="width:auto; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; border-radius:6px; color:#0066cc; border-color:#bfdbfe; background:#eff6ff;">
-                      <i class="fa-solid fa-video"></i> Sửa video
+                    <button type="button" class="btn-secondary trial-row-action" data-action="copy-video" data-lesson-id="${escapeHtml(lesson.id)}" ${lesson.videoUrl ? '' : 'disabled'} style="width:auto; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; border-radius:6px;" title="${lesson.videoUrl ? 'Sao chép link video bài giảng' : 'Chưa có video; thêm link trong Chương trình học'}">
+                      <i class="fa-regular fa-copy"></i> Copy link video
                     </button>
-                    ${isPublic ? `
-                      <button class="btn-secondary trial-row-action" data-action="revoke" data-lesson-id="${escapeHtml(lesson.id)}" style="width:auto; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; border-radius:6px; color:#dc2626; border-color:#fecaca; background:#fef2f2;">
-                        <i class="fa-solid fa-ban"></i> Thu hồi
-                      </button>
-                    ` : ''}
+                    <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;font-weight:600;" title="${!isPublic && !hasSupportedVideo(lesson) ? 'Cần thêm video YouTube hoặc Google Drive hợp lệ trong Chương trình học trước khi bật' : 'Bật hoặc tắt học thử cho bài học này'}">
+                      <input type="checkbox" class="trial-lesson-toggle" data-lesson-id="${escapeHtml(lesson.id)}" ${isPublic ? 'checked' : ''} ${pendingLessons.has(lesson.id) || (!isPublic && !hasSupportedVideo(lesson)) ? 'disabled' : ''} aria-label="Cho phép học thử: ${escapeHtml(lesson.title)}" style="width:auto;cursor:pointer;"> Cho phép học thử
+                    </label>
                   </div>
                 </td>
               </tr>
@@ -470,13 +464,12 @@ function openRevokeModal(lesson) {
   )
 }
 
-async function handleCopyLink(lesson) {
-  const link = buildTrialLessonLink(window.location.origin, window.location.pathname, lesson.id)
+async function copyLink(link, label) {
   // 1. Clipboard API (cần secure context + quyền).
   try {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       await navigator.clipboard.writeText(link)
-      showToast('Đã sao chép link học thử.', 'success')
+      showToast(`Đã sao chép link ${label}.`, 'success')
       return
     }
   } catch {}
@@ -491,13 +484,13 @@ async function handleCopyLink(lesson) {
     const ok = document.execCommand('copy')
     ta.remove()
     if (ok) {
-      showToast('Đã sao chép link học thử.', 'success')
+      showToast(`Đã sao chép link ${label}.`, 'success')
       return
     }
   } catch {}
   // 3. Fallback thân thiện: hiện link để sao chép thủ công.
   openModal(
-    'Sao chép link học thử',
+    `Sao chép link ${label}`,
     `
       <p style="font-size:14px; color:#475569; line-height:1.6; margin:0 0 12px 0;">
         Trình duyệt đã chặn sao chép tự động. Bạn bấm vào ô dưới đây rồi sao chép link thủ công:
@@ -506,6 +499,34 @@ async function handleCopyLink(lesson) {
     `,
     null
   )
+}
+
+function handleCopyLink(lesson) {
+  return copyLink(buildTrialLessonLink(window.location.origin, window.location.pathname, lesson.id), 'học thử')
+}
+
+async function publishFromToggle(lesson, checkbox) {
+  if (pendingLessons.has(lesson.id)) return
+  checkbox.checked = false // Chỉ đánh dấu sau khi server xác nhận.
+  if (!hasSupportedVideo(lesson)) {
+    showToast('Cần gắn video hợp lệ trong Chương trình học trước khi cho phép học thử.', 'warning')
+    return
+  }
+  pendingLessons.add(lesson.id)
+  checkbox.disabled = true
+  const gen = loadGen
+  try {
+    await api.publishTrialLesson(lesson.id)
+    if (gen !== loadGen || !window.location.hash.startsWith('#trial-management')) return
+    showToast('Đã cho phép học thử.', 'success')
+    pendingLessons.delete(lesson.id)
+    await loadCatalog()
+  } catch (err) {
+    if (gen === loadGen) showToast(`Không bật được học thử: ${err?.message || 'Vui lòng thử lại.'}`, 'error')
+  } finally {
+    pendingLessons.delete(lesson.id)
+    if (checkbox.isConnected) checkbox.disabled = false
+  }
 }
 
 export function renderTrialManagementView() {
@@ -651,10 +672,23 @@ export function bindTrialManagementEvents() {
         return
       }
       handleCopyLink(lesson)
-    } else if (action === 'edit') {
-      openVideoModal(lesson)
+    } else if (action === 'copy-video') {
+      if (lesson.videoUrl) copyLink(lesson.videoUrl, 'video')
     } else if (action === 'revoke') {
       openRevokeModal(lesson)
+    }
+  })
+
+  document.getElementById('trial-mgmt-list')?.addEventListener('change', (e) => {
+    const checkbox = e.target.closest('.trial-lesson-toggle')
+    if (!checkbox) return
+    const lesson = allLessons.find((item) => item.id === checkbox.dataset.lessonId)
+    if (!lesson || pendingLessons.has(lesson.id)) return
+    if (lesson.isTrial) {
+      checkbox.checked = true // Giữ trạng thái cũ cho đến khi admin xác nhận thu hồi.
+      openRevokeModal(lesson)
+    } else {
+      publishFromToggle(lesson, checkbox)
     }
   })
 

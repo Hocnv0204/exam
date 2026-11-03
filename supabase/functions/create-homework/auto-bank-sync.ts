@@ -1378,7 +1378,7 @@ export async function syncHomeworkQuestionsToConstantBank(
 
     const markUnsynced = (questionNumber: number | null, reason: string) => {
       summary.unsyncedCount++
-      pushReason(questionNumber, reason)
+      pushReason(questionNumber, questionNumber === null ? reason : `Câu ${questionNumber}: ${reason}`)
     }
 
     const markFailed = (questionNumber: number | null, reason: string) => {
@@ -1559,6 +1559,7 @@ export async function syncHomeworkQuestionsToConstantBank(
           const targetClass = classResolution.targetClass
           let target: ConstantTarget | null = null
           let resolutionError: string | null = null
+          let ambiguousConstant = false
 
           if (!tags.chapterTag) {
             // Không có metadata Chương: chỉ dùng bài học Constant của chính bài tập động
@@ -1575,6 +1576,7 @@ export async function syncHomeworkQuestionsToConstantBank(
             } else {
               const chapterMatch = matchTitle(chapters, tags.chapterTag)
               if (!chapterMatch.row) {
+                ambiguousConstant = chapterMatch.ambiguous
                 resolutionError = chapterMatch.ambiguous
                   ? `Metadata Chương "${tags.chapterTag}" khớp nhiều Chương Constant trong lớp "${targetClass.name}"`
                   : `Không có Chương Constant tương ứng với "${tags.chapterTag}" trong lớp "${targetClass.name}"`
@@ -1595,6 +1597,7 @@ export async function syncHomeworkQuestionsToConstantBank(
                 } else {
                   const lessonMatch = matchTitle(lessons, tags.lessonTag)
                   if (!lessonMatch.row) {
+                    ambiguousConstant = lessonMatch.ambiguous
                     resolutionError = lessonMatch.ambiguous
                       ? `Metadata Bài học "${tags.lessonTag}" khớp nhiều Bài học Constant trong chương "${chapterMatch.row.title}"`
                       : `Không có Bài học Constant tương ứng với "${tags.lessonTag}" trong chương "${chapterMatch.row.title}"`
@@ -1619,10 +1622,11 @@ export async function syncHomeworkQuestionsToConstantBank(
             continue
           }
 
-          // Constant thiếu cấp tương ứng nhưng metadata khớp đúng bài học động: lưu fallback
-          // động, gắn id động đã xác minh (không gắn Constant dở dang, không gán bài khác).
+          // Metadata Chương/Bài đầy đủ nhưng Constant chưa có cấp tương ứng: lưu câu
+          // theo metadata, không bắt buộc nó trùng bài học động của bài tập. Chỉ gắn
+          // id động nếu thực sự khớp; phân cấp Constant mơ hồ vẫn phải fail closed.
           const dynamicMatch = resolveDynamicHierarchyForMetadata(tags, dynamic, classification)
-          if (dynamicMatch.matched) {
+          if (!ambiguousConstant && tags.chapterTag && tags.lessonTag) {
             await prepareDynamicRow(question, classification, dynamicMatch, questionNumber)
             continue
           }

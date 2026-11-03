@@ -24,9 +24,8 @@ export function renderWeeklyCalendarView() {
             </div>
           </div>
           <style>
-            /* Admin also uses this page, but the shared navy-hero skin is
-               student-only. Keep its mascot bounded and give admin a compact
-               light hero matching the calendar's light day cards. */
+             /* Admin light uses a compact hero; admin dark follows the navy
+                surface palette. Student dark/pastel are styled by their themes. */
             #weekly-calendar-root .navy-hero img {width:96px;height:72px;object-fit:contain;flex-shrink:0}
             .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero {display:flex;align-items:center;gap:20px;padding:20px 24px;margin-bottom:20px;border:1px solid #cbd5e1;border-radius:16px;background:#fff}
             .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero h1 {margin:0 0 6px;font-size:22px;color:#0f172a}
@@ -43,7 +42,16 @@ export function renderWeeklyCalendarView() {
             #weekly-calendar-root .wc-event {border-left:3px solid #0066cc;border-radius:4px;padding:8px;margin-bottom:10px;background:#eff6ff;font-size:13px}
             #weekly-calendar-root .wc-event.session {border-color:#15803d;background:#f0fdf4}
             #weekly-calendar-root .wc-meta {font-size:12px;color:#475569;margin:5px 0}
-            #weekly-calendar-root .wc-note {padding:12px;border:1px solid #cbd5e1;border-radius:8px;margin:12px 0;background:#f8fafc}
+             #weekly-calendar-root .wc-note {padding:12px;border:1px solid #cbd5e1;border-radius:8px;margin:12px 0;background:#f8fafc}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .navy-hero {background:var(--adm-surface);border-color:var(--adm-border)}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .navy-hero h1 {color:var(--adm-text)}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .navy-hero p {color:var(--adm-text-muted)}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .wc-day {background:var(--adm-surface);border-color:var(--adm-border);color:var(--adm-text)}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .wc-event {background:#19334a;border-left-color:var(--adm-accent);color:var(--adm-text)}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .wc-event.session {background:#173b33;border-left-color:#4ade80}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .wc-note {background:var(--adm-surface-soft);border-color:var(--adm-border);color:var(--adm-text-muted)}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root .wc-meta {color:var(--adm-text-muted)}
+             .app-layout.admin-dark[data-role="ADMIN"] #weekly-calendar-root select {background:var(--adm-surface);border-color:var(--adm-border);color:var(--adm-text)}
             #weekly-calendar-root .wc-meet-list {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;list-style:none;padding:0}
             #weekly-calendar-root a:focus-visible, #weekly-calendar-root button:focus-visible, #weekly-calendar-root select:focus-visible {outline:3px solid #0066cc;outline-offset:3px}
             @media(max-width:1000px) {#weekly-calendar-root .wc-grid {grid-template-columns:1fr} #weekly-calendar-root .wc-day {padding:14px} #weekly-calendar-root .wc-day h3 {font-size:16px}}

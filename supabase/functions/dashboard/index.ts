@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
+import { isStudentLockedOn } from '../../shared/student-lock.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -21,6 +22,7 @@ serve(async (req: Request) => {
       homeworkCountRes,
       classSessionsRes,
       studentSessionsRes,
+      studentLockIntervalsRes,
       submissionsRes,
       submissionCountRes,
       recentSubmissionsRes
@@ -58,6 +60,12 @@ serve(async (req: Request) => {
         .from('student_sessions')
         .select('student_id, class_id, session_date, is_paid'),
 
+      // 6b. Lock intervals: loại buổi thuộc khoảng khóa khỏi công nợ/thống kê.
+      //     Dữ liệu pre-lock vẫn được giữ nguyên để admin xem lịch sử.
+      serviceRoleClient
+        .from('student_lock_intervals')
+        .select('student_id, start_date, end_date'),
+
       // 7. Submissions for score calculation, monthly trends & timing (bounded to latest 2,000 for sub-second aggregation)
       serviceRoleClient
         .from('submissions')
@@ -94,6 +102,7 @@ serve(async (req: Request) => {
     if (homeworkCountRes.error) return errorResponse(homeworkCountRes.error.message, 500)
     if (classSessionsRes.error) return errorResponse(classSessionsRes.error.message, 500)
     if (studentSessionsRes.error) return errorResponse(studentSessionsRes.error.message, 500)
+    if (studentLockIntervalsRes.error) return errorResponse(studentLockIntervalsRes.error.message, 500)
     if (submissionsRes.error) return errorResponse(submissionsRes.error.message, 500)
     if (submissionCountRes.error) return errorResponse(submissionCountRes.error.message, 500)
     if (recentSubmissionsRes.error) return errorResponse(recentSubmissionsRes.error.message, 500)
@@ -103,7 +112,9 @@ serve(async (req: Request) => {
     const studentClassesData = studentClassesRes.data || []
     const homeworkCount = homeworkCountRes.count || 0
     const classSessionsData = classSessionsRes.data || []
-    const studentSessionsData = studentSessionsRes.data || []
+    const studentSessionsData = (studentSessionsRes.data || []).filter((session: any) =>
+      !isStudentLockedOn(session.student_id, session.session_date, studentLockIntervalsRes.data || []),
+    )
     const submissions = submissionsRes.data || []
     const totalSubmissions = submissionCountRes.count !== null && submissionCountRes.count !== undefined ? submissionCountRes.count : submissions.length
     const recentSubmissionsRaw = recentSubmissionsRes.data || []

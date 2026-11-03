@@ -16,6 +16,7 @@ import {
   createSearchController
 } from '../utils/curriculum-search.js'
 import { getClassLessonsNewestFirst } from '../utils/student-lesson-sort.js'
+import { summarizeStudentProgress, studentBalanceIsZero, recentScores } from '../utils/student-dashboard.js'
 
 window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
   if (type === 'EXAM') {
@@ -72,6 +73,7 @@ export function renderMyClassesView() {
   const params = new URLSearchParams(queryString || '')
   const classId = params.get('classId')
   const lessonId = params.get('lessonId')
+  const isDashboard = !hashUrl || hashUrl.split('?')[0] === 'student-dashboard'
 
   let classes = state.classes || []
   if (state.user?.role === 'STUDENT' && Array.isArray(state.user?.classIds)) {
@@ -552,32 +554,31 @@ export function renderMyClassesView() {
   // Case 2: List of All Classes for Student
   return `
     <div class="app-layout navy-student student-class-list">
-      ${renderSidebar('my-classes')}
+      ${renderSidebar(isDashboard ? 'student-dashboard' : 'my-classes')}
       <div class="main-content">
-        ${renderNavbar('Học tập / Lớp học của tôi')}
+        ${renderNavbar(isDashboard ? 'Học tập / Dashboard' : 'Học tập / Lớp học của tôi')}
         <div class="content-body">
-          <div class="navy-hero">
+          ${!isDashboard ? `<div class="navy-hero">
             <img src="${typeof mascotUrl !== 'undefined' ? mascotUrl : ''}" alt="Linh vật học tập">
             <div>
               <h1>Lớp học của tôi</h1>
-              <p>Chọn lớp để xem bài học, bài tập và tiến độ thực tế của bạn.</p>
+              <p>Chọn lớp để xem bài học và tài liệu.</p>
             </div>
-          </div>
-          <div class="page-header">
+          </div>` : ''}
+          ${isDashboard ? '<div id="student-tuition-notice" aria-live="polite"></div>' : ''}
+          ${!isDashboard ? `<div class="page-header">
             <div>
               <h2 class="page-title">Danh sách lớp học</h2>
               <p class="page-description">Danh sách các lớp học đã đăng ký. Nhấn vào lớp để xem bài học và bài tập chi tiết.</p>
             </div>
-            <div style="display:flex; gap:12px;">
-              <button class="btn-secondary" id="btn-replay-tour"><i class="fa-solid fa-circle-question"></i> Hướng dẫn</button>
-            </div>
-          </div>
+          </div>` : ''}
 
-          <!-- Latest homeworks: gọn ở đầu trang -->
+          ${isDashboard ? `<!-- Latest homeworks: gọn ở đầu trang -->
           <div class="card" id="tour-latest-hw" style="padding:14px 18px; margin-bottom:20px; border:1px solid #bfdbfe; background:#f5faff;">
-            <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-bolt" style="color:#d97706;"></i> Bài tập mới giao
-            </h3>
+            <div class="student-latest-heading">
+              <h2><i class="fa-solid fa-bolt" style="color:#d97706;"></i> Bài tập mới giao</h2>
+              <button type="button" class="btn-secondary" id="btn-replay-tour">Hướng dẫn</button>
+            </div>
             <div id="latest-homeworks-container">
               <p style="font-size:13px; color:#64748b; margin:0;">
                 <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc;"></i> Đang tải bài tập mới...
@@ -585,6 +586,15 @@ export function renderMyClassesView() {
             </div>
           </div>
 
+          <section class="card" aria-label="Tiến độ bài tập của tôi" style="padding:18px;margin-bottom:20px;">
+            <h2 style="font-size:17px;margin:0 0 12px;">Thống kê bài tập</h2>
+            <div id="student-dashboard-stats" aria-live="polite">Đang tải tiến độ học tập...</div>
+          </section>
+
+          <section class="card" aria-label="Biểu đồ điểm số" style="padding:18px;margin-bottom:20px;">
+            <h2 style="font-size:17px;margin:0 0 12px;">Điểm 10 bài nộp gần nhất</h2>
+            <div id="student-dashboard-scores" aria-live="polite">Đang tải biểu đồ điểm số...</div>
+          </section>
           <!-- In-progress drafts: tiếp tục bài đang làm dở -->
           <div class="card" id="inprogress-drafts-card" style="padding:14px 18px; margin-bottom:20px; border:1px solid #fde68a; background:#fffbeb; display:none;">
             <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
@@ -593,20 +603,14 @@ export function renderMyClassesView() {
             <div id="inprogress-drafts-container"></div>
           </div>
 
-          <!-- Classes Cards Grid -->
+          ` : ''}
+          ${!isDashboard ? `<!-- Classes Cards Grid -->
           <div class="grid-4" id="tour-class-grid" style="margin-bottom:28px;">
+            ${classes.length === 0 ? '<p>Chưa có lớp học nào. Hãy liên hệ quản trị viên để được xếp lớp.</p>' : ''}
             ${classes.map(c => `
-              <div class="class-card select-class-card" role="link" tabindex="0" aria-label="Mở lớp ${escapeHtml(c.name)}" data-id="${c.id}" style="cursor:pointer; padding: 20px;">
+              <div class="class-card select-class-card" role="link" tabindex="0" aria-label="Mở lớp ${escapeHtml(c.name)}" data-id="${escapeHtml(c.id)}" style="cursor:pointer; padding: 20px;">
                 <div class="class-card-body" style="padding: 0;">
-                  <h3 class="class-title" style="margin-bottom: 12px;">${c.name}</h3>
-
-                  <div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:6px; color:#64748b;">
-                    <span>Tiến độ môn học</span>
-                    <span style="font-weight:700; color:#0066cc;">${c.progress}%</span>
-                  </div>
-                  <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" style="width: ${c.progress}%;"></div>
-                  </div>
+                  <h3 class="class-title" style="margin-bottom: 12px;">${escapeHtml(c.name)}</h3>
 
                   <div class="class-footer">
                     <span><i class="fa-solid fa-users"></i> ${c.studentsCount} Học sinh</span>
@@ -617,9 +621,9 @@ export function renderMyClassesView() {
                 </div>
               </div>
             `).join('')}
-          </div>
+          </div>` : ''}
 
-          <!-- Weak Topics Panel -->
+          ${isDashboard ? `<!-- Weak Topics Panel -->
           <div class="card" style="margin-bottom:20px; border:1px solid #fecaca; background:linear-gradient(180deg,#fffafa 0%,#ffffff 100%);">
             <h3 style="font-family:var(--font-heading); font-size:17px; font-weight:700; margin-bottom:4px;">
               <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;"></i> Điểm yếu cần luyện
@@ -630,11 +634,84 @@ export function renderMyClassesView() {
                 <i class="fa-solid fa-circle-notch fa-spin" style="color:#0066cc;"></i> Đang phân tích kết quả làm bài...
               </p>
             </div>
-          </div>
+          </div>` : ''}
         </div>
       </div>
     </div>
   `
+}
+
+async function loadStudentDashboardStats() {
+  const container = document.getElementById('student-dashboard-stats')
+  if (!container) return
+  const userId = state.user?.id
+  try {
+    const response = await api.getMyHomeworks('&status=all&page=1&pageSize=1')
+    if (!container.isConnected || state.user?.id !== userId || state.user?.role !== 'STUDENT') return
+    const progress = summarizeStudentProgress(response?.stats)
+    const notice = document.getElementById('student-tuition-notice')
+    if (notice) notice.innerHTML = studentBalanceIsZero(response.accountBalance) ? `
+      <div role="status" class="student-tuition-alert"><i class="fa-solid fa-circle-exclamation"></i>
+        <div><strong>Thông báo đóng học phí</strong><br>Bạn đã đến hạn đóng học phí. Vui lòng liên hệ giáo viên để đóng học phí.</div>
+      </div>` : ''
+    container.innerHTML = `<div class="student-assignment-chart" role="group" aria-label="Đã hoàn thành ${progress.done} trên ${progress.total} bài; còn ${progress.todo} bài chưa hoàn thành">
+      <div class="student-assignment-ring" style="--completion:${progress.completion ?? 0}%" aria-hidden="true">
+        <div><strong>${progress.completion === null ? '—' : `${progress.completion}%`}</strong><span>hoàn thành</span></div>
+      </div>
+      <div class="student-assignment-details">
+        <div class="student-assignment-summary">
+          <div><strong>${progress.total}</strong><span>Bài được giao</span></div>
+          <div><strong>${progress.done}</strong><span>Đã hoàn thành</span></div>
+          <div><strong>${progress.todo}</strong><span>Chưa hoàn thành</span></div>
+        </div>
+        ${progress.total === 0 ? '<p>Chưa có bài tập được giao.</p>' : `<div class="student-assignment-breakdown">
+          <div class="student-assignment-breakdown-title"><strong>Tiến độ hoàn thành</strong><span>${progress.done}/${progress.total} bài</span></div>
+          <div class="student-assignment-progress" role="img" aria-label="Đã hoàn thành ${progress.done} bài; chưa hoàn thành ${progress.todo} bài">
+            <span style="width:${progress.done / progress.total * 100}%"></span>
+          </div>
+          <div class="student-assignment-legend"><span>Đã hoàn thành: ${progress.done}</span><span>Chưa hoàn thành: ${progress.todo}</span></div>
+        </div>`}
+      </div>
+    </div>`
+  } catch (err) {
+    if (!container.isConnected || state.user?.id !== userId) return
+    container.innerHTML = `<p>Không tải được tiến độ học tập. <button type="button" class="btn-secondary" id="student-dashboard-retry" style="width:auto;">Thử lại</button></p>`
+    container.querySelector('#student-dashboard-retry')?.addEventListener('click', () => {
+      container.textContent = 'Đang tải tiến độ học tập...'
+      loadStudentDashboardStats()
+    })
+  }
+}
+
+async function loadStudentDashboardScores() {
+  const container = document.getElementById('student-dashboard-scores')
+  if (!container) return
+  const userId = state.user?.id
+  try {
+    const result = await api.getStudentHistory({ page: 1, pageSize: 10 })
+    if (!container.isConnected || state.user?.id !== userId || state.user?.role !== 'STUDENT') return
+    if (!Array.isArray(result?.history)) throw new Error('Dữ liệu lịch sử không hợp lệ')
+    const scores = recentScores(result.history)
+    if (!scores.length) {
+      container.textContent = 'Chưa có bài nộp để vẽ biểu đồ điểm.'
+      return
+    }
+    container.innerHTML = `<p style="font-size:12px;margin:0 0 12px;">${scores.length} lượt nộp gần nhất · điểm quy đổi về thang 10</p>
+      <div class="student-score-chart" role="list" aria-label="Điểm các bài nộp gần nhất">
+        ${scores.map(item => `<div class="student-score-column" role="listitem" aria-label="${escapeHtml(`${item.title}: ${item.score === null ? 'Chưa có điểm' : `${item.score} trên 10`}`)}">
+          <strong>${item.score === null ? '—' : item.score}</strong><div class="student-score-track">${item.score === null ? '' : `<div class="student-score-bar" style="height:${Math.max(0, Math.min(100, item.score * 10))}%"></div>`}</div>
+          <span class="student-score-title">${escapeHtml(item.title)}</span>
+          <span class="student-score-date">${item.date && !isNaN(Date.parse(item.date)) ? new Date(item.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</span>
+        </div>`).join('')}
+      </div>`
+  } catch (err) {
+    if (!container.isConnected || state.user?.id !== userId) return
+    container.innerHTML = '<p>Không tải được biểu đồ điểm số. <button type="button" class="btn-secondary" id="student-scores-retry" style="width:auto;">Thử lại</button></p>'
+    container.querySelector('#student-scores-retry')?.addEventListener('click', () => {
+      container.textContent = 'Đang tải biểu đồ điểm số...'
+      loadStudentDashboardScores()
+    })
+  }
 }
 
 export function bindMyClassesEvents() {
@@ -647,7 +724,9 @@ export function bindMyClassesEvents() {
   const lessonId = params.get('lessonId')
 
   // Load todo homeworks for student notifications
-  if (!classId && state.user?.role === 'STUDENT') {
+  if (!classId && (!hashUrl || hashUrl.split('?')[0] === 'student-dashboard') && state.user?.role === 'STUDENT') {
+    loadStudentDashboardStats()
+    loadStudentDashboardScores()
     loadLatestHomeworksAll()
     loadWeakTopics()
     loadInprogressDrafts()
@@ -1143,7 +1222,8 @@ function dashboardTourSteps() {
   return [
     { selector: '[data-tour-nav="classes"]', title: 'Lớp học của tôi', text: 'Mọi lớp bạn đã đăng ký nằm ở đây. Bấm vào từng lớp để xem bài học, video và tài liệu.' },
     { selector: '#tour-latest-hw', title: 'Bài tập mới giao', text: 'Bài tập chưa làm mới nhất hiện ở đây. Bấm "Làm bài" (hoặc "Vào thi" với bài thi) để bắt đầu ngay.' },
-    { selector: '#tour-class-grid', title: 'Thẻ lớp học', text: 'Mỗi thẻ cho biết tiến độ môn học. Bấm vào thẻ để vào xem chương và bài học chi tiết.' },
+    { selector: '#student-dashboard-stats', title: 'Tiến độ bài tập', text: 'Biểu đồ cho biết tỉ lệ bài đã hoàn thành và số bài còn cần làm.' },
+    { selector: '#student-dashboard-scores', title: 'Xu hướng điểm số', text: 'Các cột điểm theo lượt nộp gần đây, quy đổi về thang 10.' },
     { selector: '[data-tour-nav="homeworks"]', title: 'Bài tập của tôi', text: 'Toàn bộ bài được giao: chưa làm thì làm bài, đã làm thì xem điểm và làm lại. Đừng quên mục này nhé!' },
   ]
 }
@@ -1172,10 +1252,12 @@ async function maybeStartDashboardTour() {
 async function loadLatestHomeworksAll() {
   const container = document.getElementById('latest-homeworks-container')
   if (!container) return
+  const userId = state.user?.id
 
   try {
     // Chỉ lấy bài CHƯA làm (server đã loại bài đã nộp)
     const res = await api.getTodoHomeworks()
+    if (!container.isConnected || state.user?.id !== userId) return
     const list = Array.isArray(res) ? res : (res?.items || [])
     const sorted = list
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
@@ -1194,19 +1276,23 @@ async function loadLatestHomeworksAll() {
           <div class="mc-latest-row" style="display:flex; align-items:center; gap:10px; padding:8px 4px; ${idx > 0 ? 'border-top:1px solid #e2e8f0;' : ''}">
             ${idx === 0 ? '<span style="font-size:10px; font-weight:800; color:#ffffff; background:#ef4444; padding:2px 7px; border-radius:6px; flex-shrink:0;">MỚI</span>' : ''}
             <div class="mc-homework-info" style="flex:1 1 auto; min-width:0;">
-              <span class="mc-homework-title" style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" title="${hwTitle}">${hwTitle}</span>
+              <span class="mc-homework-title" style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" title="${escapeHtml(hwTitle)}">${escapeHtml(hwTitle)}</span>
               <span class="mc-homework-meta" style="font-size:11px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">
-                <span style="color:#0066cc; font-weight:600;">${hw.className || ''}</span> • ${isExam ? 'Bài thi' : 'Luyện tập'}${hw.deadline ? ` • <span style="color:${isOverdue ? '#b91c1c' : '#64748b'};">Hạn: ${new Date(hw.deadline).toLocaleDateString('vi-VN')}</span>` : ''}
+                <span style="color:#0066cc; font-weight:600;">${escapeHtml(hw.className || '')}</span> • ${isExam ? 'Bài thi' : 'Luyện tập'}${hw.deadline ? ` • <span style="color:${isOverdue ? '#b91c1c' : '#64748b'};">Hạn: ${new Date(hw.deadline).toLocaleDateString('vi-VN')}</span>` : ''}
               </span>
             </div>
-            <button class="btn-primary" onclick="window.confirmStartHomework('${hw.id}', '${hw.type || 'PRACTICE'}')" style="width:auto; flex-shrink:0; padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; ${isExam ? 'background:#dc2626; border-color:#dc2626;' : ''}">
+            <button class="btn-primary btn-latest-hw" data-homework-id="${escapeHtml(hw.id)}" data-homework-type="${isExam ? 'EXAM' : 'PRACTICE'}" style="width:auto; flex-shrink:0; padding:6px 14px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; ${isExam ? 'background:#dc2626; border-color:#dc2626;' : ''}">
               ${isExam ? 'Vào thi' : 'Làm bài'}
             </button>
           </div>`
         }).join('')}
       </div>
     `
+    container.querySelectorAll('.btn-latest-hw').forEach(button => {
+      button.onclick = () => window.confirmStartHomework(button.dataset.homeworkId, button.dataset.homeworkType)
+    })
   } catch (err) {
+    if (!container.isConnected || state.user?.id !== userId) return
     console.warn('Failed to load latest homeworks:', err)
     container.innerHTML = `<p style="font-size:13px; color:#64748b; margin:0;">Chưa tải được bài tập mới.</p>`
   }
@@ -1215,9 +1301,11 @@ async function loadLatestHomeworksAll() {
 async function loadWeakTopics() {
   const container = document.getElementById('weak-topics-container')
   if (!container) return
+  const userId = state.user?.id
 
   try {
     const res = await api.getWeakTopics({ limit: 3 })
+    if (!container.isConnected || state.user?.id !== userId) return
     const topics = res?.topics || []
     if (topics.length === 0) {
       container.innerHTML = `
@@ -1257,6 +1345,7 @@ async function loadWeakTopics() {
       }
     })
   } catch (err) {
+    if (!container.isConnected || state.user?.id !== userId) return
     console.warn('Failed to load weak topics:', err)
     container.innerHTML = `
       <p style="font-size:13px; color:#64748b; margin:0;">Chưa thể phân tích lúc này.</p>

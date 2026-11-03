@@ -8,6 +8,9 @@ import { showAddBalanceModal, showEditBalanceModal } from './student-mgmt.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
 import { getHomeworkDisplayStatus, formatHomeworkProgress } from '../utils/class-homework-progress.js'
 import { openClassHomeworkHistoryModal } from './class-homework-history-modal.js'
+import { renderHomeworkMarkdownPreview } from '../utils/homework-markdown-preview.js'
+import { renderMath } from '../utils/exam-parser.js'
+import { downloadHomeworkPdf } from '../utils/download-helper.js'
 import { renderCurriculumTabHTML, bindCurriculumTabEvents, ensureCurriculumLoaded } from './curriculum.js'
 
 // Module-level state for the active class view
@@ -819,9 +822,12 @@ function renderHomeworkTabHTML(currentClass) {
                       <a href="#create-homework?homeworkId=${hw.id}" class="btn-secondary" title="Sửa đề & đáp án" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
                         <i class="fa-solid fa-pen-to-square" style="color:#0066cc;"></i> Sửa bài
                       </a>
+                      <button type="button" class="btn-secondary btn-class-homework-preview" data-homework-id="${hw.id}" title="Xem trước đề bài đã render Markdown" style="padding:6px 10px;font-size:12px;border-radius:8px;cursor:pointer;width:auto;">
+                        <i class="fa-solid fa-eye"></i> Xem trước
+                      </button>
                       ${(hw.pdfPath && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath !== 'INTERACTIVE' && canViewHomeworkPdf(state.user?.role, hw)) ? `
-                      <button class="btn-secondary" onclick="window.openHomeworkPdf('${hw.id}')" title="Mở file PDF đề bài trong tab mới" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
-                        <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Xem PDF
+                      <button type="button" class="btn-secondary btn-class-homework-download" data-homework-id="${hw.id}" title="Tải file PDF đề bài" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;width:auto;">
+                        <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Tải PDF
                       </button>` : ''}
                     </div>
                   </td>
@@ -2265,6 +2271,39 @@ async function exportTuitionCsv(classId, currentClass) {
 // TAB BINDINGS: BÀI TẬP — sinh đề luyện bù từ chương yếu
 // ---------------------------------------------------------
 function bindHomeworkTabEvents(classId, currentClass) {
+  document.querySelectorAll('.btn-class-homework-preview').forEach(button => {
+    button.onclick = async () => {
+      if (button.disabled || currentViewingClassId !== classId || activeTab !== 'homework' || state.user?.role !== 'ADMIN') return
+      const homework = cachedHomeworks?.find(hw => hw.id === button.dataset.homeworkId)
+      if (!homework) return
+      button.disabled = true
+      const userId = state.user?.id
+      openModal(`Xem trước: ${escapeHtml(homework.title)}`, '<p id="class-homework-preview-loading">Đang tải nội dung đề bài...</p>', null, {
+        cancelLabel: 'Đóng',
+        contentClass: 'class-homework-preview-modal',
+        contentStyle: 'max-width:900px;',
+      })
+      const loading = document.getElementById('class-homework-preview-loading')
+      try {
+        const detail = await api.getHomeworkDetail(homework.id)
+        if (currentViewingClassId !== classId || activeTab !== 'homework' || state.user?.role !== 'ADMIN' || state.user?.id !== userId || !loading?.isConnected) return
+        const body = document.getElementById('modal-container')?.querySelector('.modal-body')
+        if (!body || !body.contains(loading)) return
+        if (detail?.homework?.id !== homework.id || detail.homework.classId !== classId) throw new Error('Dữ liệu bài tập không hợp lệ.')
+        body.innerHTML = `<div style="line-height:1.6;">${renderHomeworkMarkdownPreview(detail.questions)}</div>`
+        renderMath(body)
+      } catch (err) {
+        if (loading?.isConnected && currentViewingClassId === classId && state.user?.id === userId) loading.textContent = `Không tải được nội dung đề bài: ${err.message || 'Vui lòng thử lại.'}`
+      } finally { button.disabled = false }
+    }
+  })
+  document.querySelectorAll('.btn-class-homework-download').forEach(button => {
+    button.onclick = async () => {
+      if (button.disabled || currentViewingClassId !== classId) return
+      button.disabled = true
+      try { await downloadHomeworkPdf(button.dataset.homeworkId) } finally { button.disabled = false }
+    }
+  })
   document.querySelectorAll('.btn-class-homework-results').forEach(button => {
     button.onclick = () => {
       const homework = cachedHomeworks?.find(hw => hw.id === button.dataset.homeworkId)

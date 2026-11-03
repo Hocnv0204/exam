@@ -128,8 +128,8 @@ export async function downloadHomeworkPdf(homeworkId, defaultTitle = 'De_Bai') {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000)
       showToast(`Đã tải file "${downloadName}" thành công!`, 'success')
     } catch (fetchErr) {
-      console.warn('Fetch blob download failed, opening in new tab:', fetchErr)
-      window.open(mappedUrl, '_blank')
+      console.error('Fetch blob download failed:', fetchErr)
+      showToast('Không tải được file PDF. Vui lòng thử lại sau.', 'error')
     }
   } catch (err) {
     console.error('Error downloading homework PDF:', err)

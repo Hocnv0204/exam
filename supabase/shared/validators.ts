@@ -144,6 +144,12 @@ export const questionInputSchema = z.object({
 })
 
 // Homework Management Validators
+// Sửa nội dung + đáp án một câu từ trang Xem lại bài làm (không đổi loại câu/điểm/số câu).
+export const editReviewQuestionSchema = z.object({
+  submissionAnswerId: z.string().uuid('Invalid submission answer ID'),
+  question: questionInputSchema.omit({ questionNumber: true, points: true }),
+})
+
 export const createHomeworkSchema = z.object({
   lessonId: z.string().optional().default('00000000-0000-0000-0000-000000000000'),
   classId: z.string().optional().nullable(),

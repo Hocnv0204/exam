@@ -9,8 +9,13 @@ import { handleCors, jsonResponse, errorResponse } from '../../shared/response-h
 //   action ∈ LOGIN | LOGOUT | LESSON_VIEW | VIDEO_WATCH |
 //            HOMEWORK_START | HOMEWORK_SUBMIT | EXAM_START | EXAM_SUBMIT
 // POST /user-activity?action=set-lock    (ADMIN)
-//   { userId, locked } — khóa: profiles.is_locked=true + học sinh chuyển Tạm nghỉ;
-//                        mở: ngược lại.
+//   { userId, locked, reason? }
+//   Khóa/mở khóa qua RPC fn_set_student_lock:
+//   - Tạo/đóng student_lock_intervals theo ngày Việt Nam (cutoff session_date).
+//   - Khóa: chỉ tự PAUSED lớp đang ACTIVE; giữ nguyên lớp PAUSED thủ công.
+//   - Mở: chỉ khôi phục đúng các lớp do interval này tự PAUSED.
+//   - Buổi trong [start_date, end_date) bị loại khỏi điểm danh/học phí và
+//     không được đưa lại khi mở khóa.
 // GET /user-activity?userId=&action?=&from?=&to?=&limit?   (ADMIN)
 //   Thống kê + nhật ký của 1 người dùng.
 const ALLOWED_ACTIONS = [
@@ -37,26 +42,43 @@ serve(async (req: Request) => {
       const body = await req.json().catch(() => ({}))
       const userId: string | undefined = body.userId || body.user_id
       const locked: boolean | undefined = body.locked
+      const reason: string | null = typeof body.reason === 'string' ? body.reason.slice(0, 500) : null
       if (!userId || typeof locked !== 'boolean') {
         return errorResponse('Missing userId or locked (boolean)', 400)
       }
 
-      const { error: lockErr } = await serviceRoleClient
-        .from('profiles')
-        .update({ is_locked: locked, updated_at: new Date().toISOString() })
-        .eq('id', userId)
-      if (lockErr) return errorResponse(lockErr.message, 500)
+      // Nguồn sự thật duy nhất cho cutoff điểm danh/học phí là interval trong DB.
+      // Không cập nhật trực tiếp profiles/student_classes ở edge để tránh race
+      // và tránh mở khóa blanket ACTIVE các lớp PAUSED thủ công.
+      const { data: lockResult, error: lockErr } = await serviceRoleClient.rpc(
+        'fn_set_student_lock',
+        {
+          p_student_id: userId,
+          p_locked: locked,
+          p_actor: user.id,
+          p_reason: reason,
+        },
+      )
+      if (lockErr) {
+        return errorResponse(
+          `Không thể cập nhật khóa tài khoản: ${lockErr.message}`,
+          500,
+        )
+      }
+      if (!lockResult || lockResult.success !== true) {
+        const code = lockResult?.code
+        const status = code === 'STUDENT_NOT_FOUND' ? 404 : 400
+        return errorResponse(
+          code === 'STUDENT_NOT_FOUND'
+            ? 'Không tìm thấy học sinh'
+            : code === 'NOT_A_STUDENT'
+              ? 'Chỉ có thể khóa tài khoản học sinh'
+              : 'Không thể cập nhật khóa tài khoản',
+          status,
+        )
+      }
 
-      // Đồng bộ trạng thái học: khóa -> Tạm nghỉ, mở -> Đang học.
-      // Lưu ý: mở khóa sẽ đưa mọi lớp về Đang học (kể cả lớp bị tạm nghỉ
-      // thủ công trước đó) — admin kiểm tra lại nếu cần.
-      const { error: stErr } = await serviceRoleClient
-        .from('student_classes')
-        .update({ status: locked ? 'PAUSED' : 'ACTIVE' })
-        .eq('student_id', userId)
-      if (stErr) return errorResponse(stErr.message, 500)
-
-      return jsonResponse({ userId, locked })
+      return jsonResponse(lockResult)
     }
 
     // ---- Ghi 1 sự kiện hoạt động ----

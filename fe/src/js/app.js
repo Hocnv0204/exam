@@ -52,7 +52,8 @@ const adminDarkRoutes = new Set([
   'class-details',
   'student-details',
   'student-report',
-  'assignment-review'
+  'assignment-review',
+  'weekly-calendar'
 ])
 
 // Student routes re-themed to navy by the student theme (2026-10-30: extended
@@ -61,6 +62,7 @@ const adminDarkRoutes = new Set([
 // forms, question paper, report/review pages, modals) apply unchanged.
 // Public trial/roadmap/login routes are intentionally NOT included.
 const studentDarkRoutes = new Set([
+  'student-dashboard',
   'my-classes',
   'my-homeworks',
   'weekly-calendar',
@@ -90,7 +92,7 @@ function applyExamThemeClasses(layout, hash) {
 }
 
 // Route đang được hiển thị thật sự: router render trang mặc định khi URL không
-// có hash (#admin-dashboard với admin, #my-classes với học sinh, #roadmap với
+// có hash (#admin-dashboard với admin, #student-dashboard với học sinh, #roadmap với
 // khách). Theme/role sync mà key trên '' sẽ gỡ .admin-dark / .navy-student và
 // ghi đè data-route="" lên root vừa render => vỏ navy nhưng card dashboard sáng
 // trắng. Mọi đường sync đều dùng helper này để khớp với router.
@@ -98,7 +100,7 @@ function resolveActiveRouteHash() {
   const routePath = (window.location.hash || '').replace(/^#/, '').split('?')[0]
   if (routePath) return routePath
   if (!state.token) return 'roadmap'
-  return state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'my-classes'
+  return state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'student-dashboard'
 }
 
 function syncDocumentTheme(hash) {
@@ -137,6 +139,7 @@ const routes = {
   'roadmap-12': { render: renderTrialView, bind: bindTrialEvents },
   'roadmap-11': { render: renderTrialView, bind: bindTrialEvents },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
+  'student-dashboard': { render: renderMyClassesView, bind: bindMyClassesEvents },
   'my-homeworks': { render: renderMyHomeworksView, bind: bindMyHomeworksEvents },
   'weekly-calendar': { render: renderWeeklyCalendarView, bind: bindWeeklyCalendarEvents },
   'question-appeals': { render: renderQuestionAppealsView, bind: bindQuestionAppealsEvents },
@@ -240,10 +243,10 @@ async function router() {
   // Route Guard: Access Control based on Role
   if (state.token && state.user && !isPublicSharedReport) {
     const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes-admin', 'curriculum', 'create-homework', 'admin-history', 'homework-mgmt', 'question-bank', 'question-appeals', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management']
-    const studentOnlyRoutes = ['my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
+    const studentOnlyRoutes = ['student-dashboard', 'my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
     
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
-      window.location.hash = '#my-classes'
+      window.location.hash = '#student-dashboard'
       return
     }
     if (state.user.role === 'ADMIN' && studentOnlyRoutes.includes(hash)) {
@@ -313,7 +316,7 @@ async function router() {
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
       // 1 & 2. Unified Parallel Pre-fetch for Classes, Chapters, and Students
       // student-report: chỉ ADMIN cần tên học sinh/lớp từ state; STUDENT tự render từ state.user + response.
-      const prefetchableRoutes = ['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'class-details', 'student-details', 'question-bank', 'tuition-ledger', 'activity-logs']
+      const prefetchableRoutes = ['classes-admin', 'students', 'curriculum', 'create-homework', 'my-classes', 'student-dashboard', 'class-details', 'student-details', 'question-bank', 'tuition-ledger', 'activity-logs']
       const reportPrefetch = hash === 'student-report' && state.user?.role === 'ADMIN'
       if (reportPrefetch || prefetchableRoutes.includes(hash)) {
         const classId = hash === 'my-classes' ? params.get('classId') : null
@@ -399,7 +402,7 @@ async function router() {
         }
 
         // Active class & lesson handling for My Classes page
-        if (hash === 'my-classes') {
+        if (hash === 'my-classes' || hash === 'student-dashboard') {
           if (classId) {
 
             if (lessonId) {
@@ -543,7 +546,7 @@ async function router() {
       // on hover. Touch widths keep the existing drawer behaviour below.
       layout.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && !!state.token)
       applyThemeClasses(layout, hash)
-      if (window.innerWidth <= 1024) layout.classList.add('sidebar-collapsed')
+      layout.classList.toggle('sidebar-collapsed', window.innerWidth <= 1024)
       const toggle = layout.querySelector('#sidebar-toggle-btn')
       toggle?.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))
       toggle?.setAttribute('aria-label', layout.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
@@ -570,7 +573,7 @@ window.addEventListener('DOMContentLoaded', () => {
       shell.dataset.route = hash
       shell.dataset.role = state.user?.role || 'GUEST'
       shell.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && !!state.token)
-      if (window.innerWidth <= 1024) shell.classList.add('sidebar-collapsed')
+      shell.classList.toggle('sidebar-collapsed', window.innerWidth <= 1024)
       const toggle = shell.querySelector('#sidebar-toggle-btn')
       toggle?.setAttribute('aria-expanded', String(!shell.classList.contains('sidebar-collapsed')))
       toggle?.setAttribute('aria-label', shell.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
@@ -581,6 +584,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
 window.addEventListener('hashchange', router)
 window.addEventListener('DOMContentLoaded', router)
+
+window.addEventListener('resize', () => {
+  const layout = document.querySelector('.app-layout')
+  if (!layout) return
+  const wasDesktop = layout.classList.contains('sidebar-hover-expand')
+  const desktop = window.innerWidth > 1024
+  layout.classList.toggle('sidebar-hover-expand', desktop && !!state.token)
+  if (desktop) layout.classList.remove('sidebar-collapsed')
+  else if (wasDesktop) layout.classList.add('sidebar-collapsed')
+  const toggle = layout.querySelector('#sidebar-toggle-btn')
+  toggle?.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))
+  toggle?.setAttribute('aria-label', layout.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
+})
 
 // Global event delegation for Collapsible Sidebar Toggle Button & Navigation auto-hide
 document.addEventListener('click', (e) => {
@@ -597,7 +613,7 @@ document.addEventListener('click', (e) => {
 
   // Auto-hide sidebar when clicking any navigation link in sidebar
   const navItem = e.target.closest('.sidebar .nav-item')
-  if (navItem && !navItem.id?.includes('logout')) {
+  if (window.innerWidth <= 1024 && navItem && !navItem.id?.includes('logout')) {
     const layout = document.querySelector('.app-layout')
     if (layout) {
       layout.classList.add('sidebar-collapsed')

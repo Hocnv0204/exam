@@ -61,7 +61,7 @@ export async function startImpersonation(studentId, studentName) {
     }
     setSession(data.user, data.accessToken, data.refreshToken || null)
     showToast(`Đang xem với tư cách ${data.user.fullName || data.user.username}`, 'success')
-    window.location.hash = '#my-classes'
+    window.location.hash = '#student-dashboard'
     return true
   } catch (err) {
     showToast(`Mượn phiên thất bại: ${err.message}`, 'error')
