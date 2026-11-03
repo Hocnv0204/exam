@@ -136,7 +136,7 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
         </div>
 
         <!-- Manual Selector Panel (Hidden by default) -->
-        <div id="manual-mapping-panel" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div id="manual-mapping-panel" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1; grid-template-columns:1fr 1fr; gap:10px;">
           <div>
             <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">Chương đích <span style="color:#ef4444;">*</span></label>
             <select id="assign-manual-chapter" class="form-input" style="padding:7px 10px; font-size:12.5px; width:100%; border-radius:6px; background:#ffffff;">
@@ -192,7 +192,7 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
                   }).join('')}
                 </select>
               </div>
-              <button type="button" id="assign-deadline-clear-btn" title="Xóa hạn chót" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; cursor:pointer; color:#64748b; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; height:37px; transition:all 0.15s ease;" onmouseover="this.style.background='#fee2e2'; this.style.color='#ef4444'; this.style.borderColor='#fca5a5';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'; this.style.borderColor='#cbd5e1';">
+              <button type="button" id="assign-deadline-clear-btn" title="Xóa hạn chót" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; cursor:pointer; color:#64748b; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; height:37px; transition:all 0.15s ease;">
                 <i class="fa-solid fa-xmark"></i>
               </button>
             </div>
@@ -211,14 +211,14 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
               <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
                 <i class="fa-solid fa-triangle-exclamation" style="color:#64748b;"></i> Giới hạn vi phạm
               </label>
-              <input type="number" id="assign-custom-violations" class="form-input" value="3" min="1" max="10" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+              <input type="number" id="assign-custom-violations" class="form-input ${!isExam ? 'hw-config-locked' : ''}" value="${isExam ? 3 : ''}" min="1" max="10" placeholder="${!isExam ? 'Không áp dụng' : '3'}" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;" ${!isExam ? 'disabled title="Bài luyện tập không áp dụng giới hạn vi phạm"' : ''}>
             </div>
 
             <div>
               <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
                 <i class="fa-solid fa-rotate" style="color:#64748b;"></i> Lần làm tối đa
               </label>
-              <input type="number" id="assign-custom-attempts" class="form-input" value="${hwMaxAttempts}" min="0" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;" ${isExam ? 'disabled title="Bài thi cố định 1 lần làm"' : ''}>
+              <input type="number" id="assign-custom-attempts" class="form-input ${isExam ? 'hw-config-locked' : ''}" value="${isExam ? 1 : hwMaxAttempts}" min="0" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;" ${isExam ? 'disabled title="Bài thi cố định 1 lần làm"' : ''}>
             </div>
           </div>
 
@@ -279,8 +279,8 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
         customTitle = userTitlePart.startsWith(prefix) ? userTitlePart : `${prefix}${userTitlePart}`
       }
       const customDuration = parseInt(document.getElementById('assign-custom-duration')?.value || String(hwDuration), 10)
-      const customAttempts = parseInt(document.getElementById('assign-custom-attempts')?.value || '0', 10)
-      const customViolations = parseInt(document.getElementById('assign-custom-violations')?.value || '3', 10)
+      const customAttempts = isExam ? 1 : parseInt(document.getElementById('assign-custom-attempts')?.value || '0', 10)
+      const customViolations = isExam ? (parseInt(document.getElementById('assign-custom-violations')?.value, 10) || 3) : 3
       const isPublished = document.getElementById('assign-is-published')?.checked !== false
       const showSolutions = document.getElementById('assign-show-solutions')?.checked !== false
 
@@ -360,9 +360,18 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
 
   // Coupling giống form tạo bài tập: bài thi thì khóa lần làm, mở vi phạm và ngược lại
   const assignViolationsInput = document.getElementById('assign-custom-violations')
+  const assignAttemptsInput = document.getElementById('assign-custom-attempts')
   if (assignViolationsInput) {
     assignViolationsInput.disabled = !isExam
-    assignViolationsInput.style.backgroundColor = isExam ? '#ffffff' : '#f1f5f9'
+    assignViolationsInput.classList.toggle('hw-config-locked', !isExam)
+    assignViolationsInput.title = !isExam ? 'Bài luyện tập không áp dụng giới hạn vi phạm' : ''
+    if (!isExam) assignViolationsInput.value = ''
+  }
+  if (assignAttemptsInput) {
+    assignAttemptsInput.disabled = isExam
+    assignAttemptsInput.classList.toggle('hw-config-locked', isExam)
+    assignAttemptsInput.title = isExam ? 'Bài thi cố định 1 lần làm' : ''
+    if (isExam) assignAttemptsInput.value = 1
   }
 
   const updateManualModeAvailability = () => {
