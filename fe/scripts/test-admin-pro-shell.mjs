@@ -90,20 +90,21 @@ test('ADMIN Pro có đủ menu, href đúng và giữ các mục ẩn ở trạn
   const expected = new Map([
     ['Dashboard', '#admin-dashboard'],
     ['Lịch tuần', '#weekly-calendar'],
-    ['Quản lý học sinh', '#students'],
-    ['Quản lý lớp học', '#classes-admin'],
-    ['Quản lý bài tập', '#homework-mgmt'],
-    ['Quản lý học thử', '#trial-management'],
+    ['Học sinh', '#students'],
+    ['Lớp học', '#classes-admin'],
+    ['Bài tập & đề thi', '#homework-mgmt'],
+    ['Học thử', '#trial-management'],
     ['Ngân hàng câu hỏi', '#question-bank'],
-    ['Lịch sử nộp bài', '#admin-history'],
-    ['Sổ giao dịch học phí', '#tuition-ledger'],
+    ['Chấm bài & nộp bài', '#admin-history'],
+    ['Học phí', '#tuition-ledger'],
     ['Nhật ký hoạt động', '#activity-logs']
   ])
   for (const [label, href] of expected) {
     assert.match(sidebar, new RegExp(`href="${href.replace('#', '\\#')}"[^>]*>[\\s\\S]*?${label}`), label)
   }
   assert.match(sidebar, /Tổng quan/)
-  assert.match(sidebar, /Đào tạo/)
+  assert.match(sidebar, /Giảng dạy/)
+  assert.match(sidebar, /nav-section-title">Học sinh</)
   assert.match(sidebar, /Tài chính & hệ thống/)
   assert.doesNotMatch(sidebar, /href="#question-appeals"|href="#grade-blocks"/, 'mục đang ẩn không được tự hiện')
   assert.match(sidebar, /id="sidebar-logout-btn"/)
@@ -129,6 +130,8 @@ test('route con ADMIN Pro active đúng mục cha', () => {
   const expectations = new Map([
     ['class-details', '#classes-admin'],
     ['curriculum', '#classes-admin'],
+    ['grade-blocks', '#classes-admin'],
+    ['exam-proctoring', '#homework-mgmt'],
     ['create-homework', '#homework-mgmt'],
     ['student-details', '#students'],
     ['student-report', '#students'],

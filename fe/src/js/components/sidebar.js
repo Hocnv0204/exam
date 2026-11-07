@@ -90,23 +90,29 @@ const ADMIN_PRO_GROUPS = [
       { route: 'weekly-calendar', label: 'Lịch tuần', icon: 'fa-calendar-week', routes: ['weekly-calendar'] }
     ]
   },
+  // Nhóm theo luồng công việc, nhãn ngắn (bỏ tiền tố "Quản lý" lặp lại). Route con được gom vào
+  // mục cha: chi tiết lớp/chương trình/khối học → Lớp học; tạo bài/giám sát phòng thi → Bài tập;
+  // xem lại bài/phúc khảo → Chấm bài; chi tiết/báo cáo học sinh → Học sinh.
   {
-    label: 'Đào tạo',
+    label: 'Giảng dạy',
     items: [
-      { route: 'students', label: 'Quản lý học sinh', icon: 'fa-users', routes: ['students', 'student-details', 'student-report'] },
-      { route: 'classes-admin', label: 'Quản lý lớp học', icon: 'fa-book-bookmark', routes: ['classes', 'classes-admin', 'class-details', 'curriculum'] },
-      { route: 'homework-mgmt', label: 'Quản lý bài tập', icon: 'fa-list-check', routes: ['homework', 'homework-mgmt', 'create-homework'] },
-      // Ghép chuỗi để các kiểm tra contract legacy vẫn định vị mục classic đầu tiên.
-      { route: 'trial-management', label: 'Quản lý ' + 'học thử', icon: 'fa-wand-magic-sparkles', routes: ['trial-management'] },
+      { route: 'classes-admin', label: 'Lớp học', icon: 'fa-book-bookmark', routes: ['classes', 'classes-admin', 'class-details', 'curriculum', 'grade-blocks'] },
+      { route: 'homework-mgmt', label: 'Bài tập & đề thi', icon: 'fa-list-check', routes: ['homework', 'homework-mgmt', 'create-homework', 'exam-proctoring'] },
       { route: 'question-bank', label: 'Ngân hàng câu hỏi', icon: 'fa-boxes-stacked', routes: ['question-bank'] },
-      // Phúc khảo là câu hỏi về bài đã nộp: thuộc nhóm Lịch sử nộp bài (mục riêng đang ẩn).
-      { route: 'admin-history', label: 'Lịch sử nộp bài', icon: 'fa-clock-rotate-left', routes: ['admin-history', 'assignment-review', 'question-appeals'] }
+      { route: 'admin-history', label: 'Chấm bài & nộp bài', icon: 'fa-clipboard-check', routes: ['admin-history', 'assignment-review', 'question-appeals'] }
+    ]
+  },
+  {
+    label: 'Học sinh',
+    items: [
+      { route: 'students', label: 'Học sinh', icon: 'fa-users', routes: ['students', 'student-details', 'student-report'] },
+      { route: 'trial-management', label: 'Học thử', icon: 'fa-wand-magic-sparkles', routes: ['trial-management'] }
     ]
   },
   {
     label: 'Tài chính & hệ thống',
     items: [
-      { route: 'tuition-ledger', label: 'Sổ giao dịch học phí', icon: 'fa-receipt', routes: ['tuition-ledger'] },
+      { route: 'tuition-ledger', label: 'Học phí', icon: 'fa-receipt', routes: ['tuition-ledger'] },
       { route: 'activity-logs', label: 'Nhật ký hoạt động', icon: 'fa-clipboard-list', routes: ['activity-logs'] }
     ]
   }
