@@ -20,7 +20,7 @@
       try { savedUser = JSON.parse(localStorage.getItem('edu_user') || 'null') } catch (_) {}
       var route = location.hash.slice(1).split('?')[0]
       if (!route && savedUser?.role === 'STUDENT') route = 'student-dashboard'
-      var studentRoute = savedUser?.role === 'STUDENT' && ['student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar', 'homework-attempt', 'assignment-review', 'history', 'student-report', 'exam-room'].includes(route)
+      var studentRoute = savedUser?.role === 'STUDENT' && ['student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar', 'homework-attempt', 'assignment-review', 'history', 'student-report', 'attendance', 'achievements', 'exam-room'].includes(route)
       if (studentRoute) document.documentElement.dataset.studentTheme = studentTheme
       document.documentElement.dataset.theme = studentRoute
         ? (skinTheme === 'dark' ? 'dark' : 'light') : globalTheme
@@ -48,7 +48,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <!-- SmilesDrawer (vẽ công thức cấu tạo Hóa học từ SMILES, dùng cho khối ```smiles) -->
   <script defer src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.0.1/dist/smiles-drawer.min.js"></script>
-  <script type="module" crossorigin src="/assets/index-Clqmld4b.js"></script>
+  <script type="module" crossorigin src="/assets/index-DsnLe7BU.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-fOZjq26j.css">
 </head>
 <body>
