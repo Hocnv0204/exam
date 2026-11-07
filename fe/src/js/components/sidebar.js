@@ -12,7 +12,6 @@ const MOCHI_NAV_ITEMS = [
   { route: 'student-dashboard', label: 'Trang chủ', icon: 'fa-house', routes: ['student-dashboard'] },
   { route: 'my-classes', label: 'Lớp của tôi', shortLabel: 'Lớp học', icon: 'fa-graduation-cap', routes: ['my-classes'] },
   { route: 'my-homeworks', label: 'Bài tập', icon: 'fa-list-check', routes: ['my-homeworks', 'homework-attempt'] },
-  { route: 'weekly-calendar', label: 'Lịch học', shortLabel: 'Lịch', icon: 'fa-calendar-days', routes: ['weekly-calendar'] },
   { route: 'attendance', label: 'Điểm danh', icon: 'fa-clipboard-user', routes: ['attendance'] },
   { route: 'history', label: 'Lịch sử làm bài', shortLabel: 'Lịch sử', icon: 'fa-clock-rotate-left', routes: ['history', 'assignment-review', 'student-report'] },
   { route: 'achievements', label: 'Thành tích', icon: 'fa-trophy', routes: ['achievements'] }

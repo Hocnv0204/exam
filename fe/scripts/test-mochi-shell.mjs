@@ -60,13 +60,14 @@ test('cờ tắt giữ nguyên tuyệt đối output shell classic', () => {
 test('Mochi student shell có nav, tab bar, picker và route hiện tại', () => {
   useStudent()
   setMochi(true)
-  const sidebar = renderSidebar('weekly-calendar')
+  const sidebar = renderSidebar('attendance')
   const navbar = renderNavbar('không dùng trong Mochi')
   const shell = sidebar + navbar
 
   assert.match(sidebar, /<nav class="m-shell-nav" aria-label="Điều hướng chính">/)
   assert.match(sidebar, /<nav class="m-tabbar" aria-label="Điều hướng nhanh">/)
-  assert.match(sidebar, /href="#weekly-calendar" aria-current="page"/)
+  assert.match(sidebar, /href="#attendance" aria-current="page"/)
+  assert.doesNotMatch(sidebar, /href="#weekly-calendar"/, 'học sinh không còn mục Lịch học trên menu')
   assert.equal((sidebar.match(/aria-current="page"/g) || []).length, 2, 'desktop và mobile cùng đánh dấu route')
   assert.match(navbar, /class="m-theme-picker m-shell-theme-picker"/)
   assert.equal((navbar.match(/data-student-theme-option=/g) || []).length, 4)
@@ -86,7 +87,6 @@ test('mọi route con được ánh xạ về đúng mục điều hướng', ()
     ['my-classes', '#my-classes'],
     ['my-homeworks', '#my-homeworks'],
     ['homework-attempt', '#my-homeworks'],
-    ['weekly-calendar', '#weekly-calendar'],
     ['history', '#history'],
     ['assignment-review', '#history'],
     ['student-report', '#history'],
