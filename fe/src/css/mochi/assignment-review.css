@@ -1,0 +1,1225 @@
+/* ==========================================================================
+   assignment-review.css — Mochi Style for Assignment Review (#assignment-review)
+   All rules scoped under html[data-ui="mochi"] to guarantee classic isolation.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Review Color Tokens (Consistent 3 distinct colors across all 4 themes)
+   Đúng = xanh lá (ok token), Một phần = vàng/amber, Sai = đỏ/hồng đậm (danger)
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] {
+  --m-review-ok: var(--m-ok);
+  --m-review-ok-soft: var(--m-ok-soft);
+  --m-review-partial: #b45309;
+  --m-review-partial-soft: #fef3c7;
+  --m-review-wrong: #e11d48;
+  --m-review-wrong-soft: #ffe4e6;
+}
+
+html[data-ui="mochi"][data-student-theme="dark"] {
+  --m-review-ok: var(--m-ok);
+  --m-review-ok-soft: var(--m-ok-soft);
+  --m-review-partial: #fbbf24;
+  --m-review-partial-soft: rgba(251, 191, 36, 0.18);
+  --m-review-wrong: #ff6b8b;
+  --m-review-wrong-soft: rgba(255, 107, 139, 0.18);
+}
+
+html[data-ui="mochi"][data-student-theme="sakura"] {
+  --m-review-ok: var(--m-ok);
+  --m-review-ok-soft: var(--m-ok-soft);
+  --m-review-partial: #b45309;
+  --m-review-partial-soft: #fef3c7;
+  --m-review-wrong: #e11d48;
+  --m-review-wrong-soft: #ffe4e6;
+}
+
+html[data-ui="mochi"][data-student-theme="mint"] {
+  --m-review-ok: var(--m-ok);
+  --m-review-ok-soft: var(--m-ok-soft);
+  --m-review-partial: #b45309;
+  --m-review-partial-soft: #fef3c7;
+  --m-review-wrong: #dc2626;
+  --m-review-wrong-soft: #fee2e2;
+}
+
+/* --------------------------------------------------------------------------
+   Page Container & Top Bar
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-review-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-review-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="mochi"] .m-review-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+html[data-ui="mochi"] .m-review-page-title {
+  margin: 0;
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-review-page-sub {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
+   Top Overview / Hero Banner Card (#overview-banner-card)
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] #overview-banner-card.m-review-hero {
+  display: flex !important;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 28px;
+  border-radius: var(--m-radius-xl);
+  background: var(--m-surface);
+  border: 2px solid var(--m-ink);
+  box-shadow: var(--m-shadow-lg);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-review-hero-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="mochi"] .m-review-hero-badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="mochi"] .m-review-hero-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="mochi"] .m-review-hero-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+html[data-ui="mochi"] .m-review-hero-score-box {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="mochi"] .m-review-score-label {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] #review-total-score.m-review-total-score-val {
+  font-family: var(--m-font-heading);
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--m-accent);
+}
+
+html[data-ui="mochi"] .m-review-total-score-max {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-review-stat-chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="mochi"] .m-review-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--m-radius-pill);
+  font-size: 13px;
+  font-weight: 800;
+  border: 2px solid transparent;
+}
+
+html[data-ui="mochi"] .m-review-stat-chip--ok {
+  background: var(--m-review-ok-soft) !important;
+  color: var(--m-review-ok) !important;
+  border-color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .m-review-stat-chip--partial {
+  background: var(--m-review-partial-soft) !important;
+  color: var(--m-review-partial) !important;
+  border-color: var(--m-review-partial) !important;
+}
+
+html[data-ui="mochi"] .m-review-stat-chip--wrong {
+  background: var(--m-review-wrong-soft) !important;
+  color: var(--m-review-wrong) !important;
+  border-color: var(--m-review-wrong) !important;
+}
+
+html[data-ui="mochi"] .m-review-stat-chip--blank {
+  background: var(--m-surface2) !important;
+  color: var(--m-muted) !important;
+  border-color: var(--m-line) !important;
+}
+
+html[data-ui="mochi"] .m-review-stat-chip--info {
+  background: var(--m-accent-soft) !important;
+  color: var(--m-accent) !important;
+  border-color: var(--m-accent) !important;
+}
+
+html[data-ui="mochi"] .m-review-wrap .m-chip--ok {
+  background: var(--m-review-ok-soft) !important;
+  color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .m-review-wrap :is(.m-chip--partial, .m-chip--warn) {
+  background: var(--m-review-partial-soft) !important;
+  color: var(--m-review-partial) !important;
+}
+
+html[data-ui="mochi"] .m-review-wrap :is(.m-chip--wrong, .m-chip--accent2) {
+  background: var(--m-review-wrong-soft) !important;
+  color: var(--m-review-wrong) !important;
+}
+
+html[data-ui="mochi"] .m-review-hero-mascot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 1 360px;
+}
+
+html[data-ui="mochi"] .m-review-mascot-bubble {
+  position: relative;
+  padding: 14px 18px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  color: var(--m-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+html[data-ui="mochi"] .m-review-mascot-bubble::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -10px;
+  transform: translateY(-50%);
+  border-width: 6px 10px 6px 0;
+  border-style: solid;
+  border-color: transparent var(--m-line) transparent transparent;
+}
+
+/* Score Breakdown by Section */
+html[data-ui="mochi"] .m-review-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 2px dashed var(--m-line);
+}
+
+html[data-ui="mochi"] .m-review-breakdown-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  min-width: 140px;
+}
+
+html[data-ui="mochi"] .m-review-breakdown-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--m-muted);
+  letter-spacing: 0.5px;
+}
+
+html[data-ui="mochi"] .m-review-breakdown-score {
+  font-family: var(--m-font-heading);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--m-ink);
+}
+
+/* --------------------------------------------------------------------------
+   Split Review Layout & Compact Summary
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] #review-layout-wrapper {
+  display: grid !important;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  transition: all 0.3s ease;
+}
+
+html[data-ui="mochi"] .review-compact-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface);
+  border: 2px solid var(--m-ink);
+  box-shadow: var(--m-shadow-sm);
+}
+
+/* PDF Preview Pane */
+html[data-ui="mochi"] #pdf-preview-pane.pdf-viewer-container {
+  border: 2px solid var(--m-ink);
+  border-radius: var(--m-radius-lg);
+  overflow: hidden;
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-lg);
+}
+
+html[data-ui="mochi"] #pdf-preview-pane .pdf-toolbar {
+  background: var(--m-surface) !important;
+  border-bottom: 2px solid var(--m-line) !important;
+  color: var(--m-ink) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Questions Main Grid: List + Sticky Navigator
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] #questions-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+html[data-ui="mochi"] .m-review-questions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Section Divider Headers */
+html[data-ui="mochi"] .m-review-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: var(--m-radius-md);
+  border: 2px solid var(--m-ink);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-sm);
+  margin-top: 8px;
+}
+
+html[data-ui="mochi"] .m-review-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--m-ink);
+}
+
+/* --------------------------------------------------------------------------
+   Question Card (.review-question-card)
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .review-question-card.m-review-q-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  border: 2px solid var(--m-line);
+  box-shadow: var(--m-shadow-md);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  scroll-margin-top: 96px;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .review-question-card.m-review-q-card--correct {
+  border-color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .review-question-card.m-review-q-card--partial {
+  border-color: var(--m-review-partial) !important;
+}
+
+html[data-ui="mochi"] .review-question-card.m-review-q-card--wrong {
+  border-color: var(--m-review-wrong) !important;
+}
+
+html[data-ui="mochi"] .review-question-card.m-review-q-card--blank {
+  border-color: var(--m-line) !important;
+}
+
+html[data-ui="mochi"] .review-question-card.highlight-target {
+  animation: m-review-card-pulse 1.6s ease-out;
+}
+
+@keyframes m-review-card-pulse {
+  0% { transform: scale(1.02); box-shadow: 0 0 0 4px var(--m-accent), var(--m-shadow-lg); }
+  100% { transform: scale(1); box-shadow: var(--m-shadow-md); }
+}
+
+html[data-ui="mochi"] .m-review-q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="mochi"] .m-review-q-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-review-q-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: var(--m-radius-pill);
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+html[data-ui="mochi"] .m-review-q-type {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--m-muted);
+  text-transform: uppercase;
+}
+
+html[data-ui="mochi"] .m-review-q-prompt {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--m-ink);
+  font-weight: 700;
+}
+
+/* Options / Answers */
+html[data-ui="mochi"] .m-review-opt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+html[data-ui="mochi"] .m-review-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  box-sizing: border-box;
+  transition: transform 0.12s ease;
+}
+
+html[data-ui="mochi"] .m-review-opt.is-chosen.is-correct {
+  border-color: var(--m-review-ok) !important;
+  background: var(--m-review-ok-soft) !important;
+}
+
+html[data-ui="mochi"] .m-review-opt.is-chosen.is-wrong {
+  border-color: var(--m-review-wrong) !important;
+  background: var(--m-review-wrong-soft) !important;
+}
+
+html[data-ui="mochi"] .m-review-opt.is-correct-answer {
+  border-color: var(--m-review-ok) !important;
+  background: var(--m-review-ok-soft) !important;
+  border-style: dashed !important;
+}
+
+html[data-ui="mochi"] .m-review-opt-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+html[data-ui="mochi"] .m-review-opt-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--m-ink);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+html[data-ui="mochi"] .m-review-opt.is-chosen.is-correct .m-review-opt-key {
+  background: var(--m-review-ok) !important;
+  color: var(--m-surface) !important;
+  border-color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .m-review-opt.is-chosen.is-wrong .m-review-opt-key {
+  background: var(--m-review-wrong) !important;
+  color: var(--m-surface) !important;
+  border-color: var(--m-review-wrong) !important;
+}
+
+html[data-ui="mochi"] .m-review-opt-text {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--m-ink);
+  font-weight: 600;
+}
+
+/* True / False Layout */
+html[data-ui="mochi"] .m-review-tf-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+html[data-ui="mochi"] .m-review-tf-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-review-tf-item.is-correct {
+  border-color: var(--m-review-ok) !important;
+  background: var(--m-review-ok-soft) !important;
+}
+
+html[data-ui="mochi"] .m-review-tf-item.is-wrong {
+  border-color: var(--m-review-wrong) !important;
+  background: var(--m-review-wrong-soft) !important;
+}
+
+html[data-ui="mochi"] .m-review-tf-stmt {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-review-tf-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px dashed var(--m-line);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+/* Short Answer Layout */
+html[data-ui="mochi"] .m-review-sa-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+html[data-ui="mochi"] .m-review-sa-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+}
+
+html[data-ui="mochi"] .m-review-sa-item.is-correct {
+  border-color: var(--m-review-ok) !important;
+  background: var(--m-review-ok-soft) !important;
+  color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .m-review-sa-item.is-wrong {
+  border-color: var(--m-review-wrong) !important;
+  background: var(--m-review-wrong-soft) !important;
+  color: var(--m-review-wrong) !important;
+}
+
+html[data-ui="mochi"] .m-review-sa-item.is-correct-answer {
+  border-color: var(--m-review-ok) !important;
+  background: var(--m-review-ok-soft) !important;
+  border-style: dashed !important;
+}
+
+html[data-ui="mochi"] .m-review-sa-label {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-review-sa-val {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* Essay Layout */
+html[data-ui="mochi"] .m-review-essay-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+html[data-ui="mochi"] .m-review-essay-text {
+  padding: 14px 18px;
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-md);
+  white-space: pre-wrap;
+  line-height: 1.55;
+  color: var(--m-ink);
+  font-size: 15px;
+}
+
+html[data-ui="mochi"] .m-review-essay-status {
+  padding: 10px 14px;
+  border-radius: var(--m-radius-sm);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+html[data-ui="mochi"] .m-review-essay-feedback {
+  padding: 12px 16px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  font-size: 14px;
+  color: var(--m-ink);
+}
+
+/* Explanation Box */
+html[data-ui="mochi"] .review-explanation-card.m-review-explanation {
+  margin-top: 10px !important;
+  padding: 16px 20px !important;
+  border-radius: var(--m-radius-md) !important;
+  background: var(--m-surface2) !important;
+  border: 2px solid var(--m-line) !important;
+  border-left: 5px solid var(--m-accent) !important;
+  color: var(--m-ink) !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="mochi"] .m-review-explanation-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-family: var(--m-font-heading) !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  color: var(--m-accent) !important;
+  margin-bottom: 6px !important;
+}
+
+html[data-ui="mochi"] .m-review-explanation-body {
+  font-size: 15px !important;
+  line-height: 1.6 !important;
+  color: var(--m-ink) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Question Navigator Column & Card
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .review-sidebar-col.m-review-nav-col {
+  position: sticky;
+  top: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+html[data-ui="mochi"] .review-navigator-card.m-review-nav-card {
+  padding: 20px;
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  border: 2px solid var(--m-line);
+  box-shadow: var(--m-shadow-md);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-review-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+html[data-ui="mochi"] .m-review-nav-title {
+  margin: 0;
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--m-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .question-nav-grid.m-review-nav-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .nav-grid-item.m-nav-item {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--m-radius-sm) !important;
+  border: 2px solid var(--m-line) !important;
+  background: var(--m-surface2) !important;
+  color: var(--m-ink) !important;
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  box-sizing: border-box;
+  position: relative;
+}
+
+html[data-ui="mochi"] .nav-grid-item.m-nav-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .nav-grid-item.m-nav-item.active-nav-question {
+  border-color: var(--m-ink) !important;
+  box-shadow: 0 0 0 3px var(--m-accent) !important;
+  transform: scale(1.05);
+}
+
+html[data-ui="mochi"] .nav-grid-item.m-nav-item--correct {
+  background: var(--m-review-ok-soft) !important;
+  border-color: var(--m-review-ok) !important;
+  color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .nav-grid-item.m-nav-item--partial {
+  background: var(--m-review-partial-soft) !important;
+  border-color: var(--m-review-partial) !important;
+  color: var(--m-review-partial) !important;
+}
+
+html[data-ui="mochi"] .nav-grid-item.m-nav-item--wrong {
+  background: var(--m-review-wrong-soft) !important;
+  border-color: var(--m-review-wrong) !important;
+  color: var(--m-review-wrong) !important;
+}
+
+html[data-ui="mochi"] .nav-grid-item.m-nav-item--blank {
+  background: var(--m-surface2) !important;
+  border-color: var(--m-line) !important;
+  color: var(--m-muted) !important;
+}
+
+html[data-ui="mochi"] .m-nav-icon {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 800;
+  display: block !important;
+}
+
+html[data-ui="mochi"] .m-review-nav-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--m-line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-ui="mochi"] .m-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+html[data-ui="mochi"] .m-legend-dot--correct { background: var(--m-review-ok) !important; }
+html[data-ui="mochi"] .m-legend-dot--partial { background: var(--m-review-partial) !important; }
+html[data-ui="mochi"] .m-legend-dot--wrong { background: var(--m-review-wrong) !important; }
+html[data-ui="mochi"] .m-legend-dot--blank { background: var(--m-line) !important; }
+
+/* Tip card in sidebar */
+html[data-ui="mochi"] .m-review-tip-card {
+  padding: 18px !important;
+  border-radius: var(--m-radius-md) !important;
+  background: var(--m-surface2) !important;
+  border: 2px solid var(--m-line) !important;
+  color: var(--m-ink) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="mochi"] .m-review-tip-title {
+  font-family: var(--m-font-heading) !important;
+  font-weight: 800 !important;
+  font-size: 16px !important;
+  color: var(--m-accent) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+html[data-ui="mochi"] .m-review-tip-desc {
+  margin: 0 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--m-ink) !important;
+  line-height: 1.45 !important;
+}
+
+html[data-ui="mochi"] .m-btn.m-review-tip-btn,
+html[data-ui="mochi"] .m-review-tip-btn {
+  align-self: flex-start !important;
+  margin-top: 4px !important;
+  min-height: 40px !important;
+  padding: 0 16px !important;
+  font-size: 14px !important;
+  text-decoration: none !important;
+  background: var(--m-surface) !important;
+  color: var(--m-ink) !important;
+  border: 2px solid var(--m-line) !important;
+  box-shadow: var(--m-shadow-sm) !important;
+}
+
+html[data-ui="mochi"] .m-btn.m-review-tip-btn:hover,
+html[data-ui="mochi"] .m-review-tip-btn:hover {
+  background: var(--m-surface2) !important;
+  color: var(--m-ink) !important;
+  border-color: var(--m-ink) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Empty State
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-review-empty-wrap {
+  padding: 48px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-ui="mochi"] .m-review-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  padding: 40px 32px;
+  max-width: 480px;
+  width: 100%;
+  border-radius: var(--m-radius-xl);
+  border: 2px solid var(--m-ink);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-lg);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-review-empty-title {
+  margin: 0;
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 24px;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-review-empty-desc {
+  margin: 0;
+  font-size: 15px;
+  color: var(--m-muted);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   KaTeX, Math, SVG, Images, Tables & Markdown Content
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .review-question-card .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+  max-width: 100%;
+}
+
+html[data-ui="mochi"] .review-question-card img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--m-radius-sm);
+}
+
+html[data-ui="mochi"] .review-question-card table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+
+html[data-ui="mochi"] .review-question-card table th,
+html[data-ui="mochi"] .review-question-card table td {
+  padding: 8px 12px;
+  border: 1px solid var(--m-line);
+}
+
+html[data-ui="mochi"] .review-question-card svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Layout: Tablet (<=900px) & Mobile (<=640px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  html[data-ui="mochi"] #questions-grid {
+    grid-template-columns: 1fr;
+  }
+  html[data-ui="mochi"] .review-sidebar-col.m-review-nav-col {
+    position: static;
+    order: 2;
+  }
+  html[data-ui="mochi"] .question-nav-grid.m-review-nav-grid {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+  html[data-ui="mochi"] .m-review-hero-mascot {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-ui="mochi"] .m-review-top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  html[data-ui="mochi"] #overview-banner-card.m-review-hero {
+    padding: 18px 20px;
+    border-radius: var(--m-radius-lg);
+  }
+  html[data-ui="mochi"] #review-total-score.m-review-total-score-val {
+    font-size: 30px;
+  }
+  html[data-ui="mochi"] .review-sidebar-col.m-review-nav-col {
+    order: -1;
+  }
+  html[data-ui="mochi"] .question-nav-grid.m-review-nav-grid {
+    display: flex !important;
+    overflow-x: auto;
+    gap: 8px !important;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  html[data-ui="mochi"] .nav-grid-item.m-nav-item {
+    flex: 0 0 44px;
+  }
+  html[data-ui="mochi"] .m-review-tip-card {
+    display: none;
+  }
+  html[data-ui="mochi"] .review-question-card.m-review-q-card {
+    padding: 18px;
+    border-radius: var(--m-radius-md);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Legacy Theme Isolation (Dark Theme / admin-dark / navy-student)
+   Guarantee buttons, cards, solutions, chips never inherit old navy / cyan skins.
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-page-title,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .page-header .page-title {
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-page-sub,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .page-header .page-description {
+  color: var(--m-muted) !important;
+}
+
+/* Nút "Quay lại lịch sử" & các nút hành động */
+html[data-ui="mochi"] .m-review-actions .m-btn--secondary,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-actions .m-btn--secondary,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .page-header .m-btn--secondary,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .page-header .btn-secondary {
+  background: var(--m-surface) !important;
+  color: var(--m-ink) !important;
+  border: 2px solid var(--m-line) !important;
+  box-shadow: var(--m-shadow-md) !important;
+}
+
+html[data-ui="mochi"] .m-review-actions .m-btn--secondary:hover,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-actions .m-btn--secondary:hover,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .page-header .m-btn--secondary:hover,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .page-header .btn-secondary:hover {
+  background: var(--m-surface2) !important;
+  color: var(--m-ink) !important;
+  border-color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .m-review-actions .m-btn--primary,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-actions .m-btn--primary {
+  background: var(--m-accent) !important;
+  color: var(--m-accent-ink) !important;
+  border: 2px solid var(--m-ink) !important;
+  box-shadow: 0 5px 0 var(--m-ink) !important;
+}
+
+/* Thẻ tổng kết hero banner và linh vật */
+html[data-ui="mochi"] #overview-banner-card.m-review-hero,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) #overview-banner-card.m-review-hero {
+  background: var(--m-surface) !important;
+  border: 2px solid var(--m-ink) !important;
+  box-shadow: var(--m-shadow-lg) !important;
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] #review-total-score.m-review-total-score-val,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) #review-total-score.m-review-total-score-val {
+  color: var(--m-accent) !important;
+}
+
+html[data-ui="mochi"] .m-review-total-score-max,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-total-score-max {
+  color: var(--m-muted) !important;
+}
+
+html[data-ui="mochi"] .m-review-mascot-bubble,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-mascot-bubble {
+  background: var(--m-surface2) !important;
+  border: 2px solid var(--m-line) !important;
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .m-review-mascot-bubble::before,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-mascot-bubble::before {
+  border-color: transparent var(--m-line) transparent transparent !important;
+}
+
+/* Lời giải chi tiết */
+html[data-ui="mochi"] .solution-explanation-box.review-explanation-card.m-review-explanation,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .solution-explanation-box.review-explanation-card.m-review-explanation {
+  background: var(--m-surface2) !important;
+  border: 2px solid var(--m-line) !important;
+  border-left: 5px solid var(--m-accent) !important;
+  color: var(--m-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-ui="mochi"] .m-review-explanation-head,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .solution-explanation-box.m-review-explanation .m-review-explanation-head {
+  color: var(--m-accent) !important;
+}
+
+html[data-ui="mochi"] .m-review-explanation-body,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .solution-explanation-box.m-review-explanation :is(.explanation-content, .explanation-text, .m-review-explanation-body) {
+  color: var(--m-ink) !important;
+}
+
+/* Thẻ ôn tập thêm */
+html[data-ui="mochi"] .m-review-tip-card,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-tip-card {
+  background: var(--m-surface2) !important;
+  border: 2px solid var(--m-line) !important;
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .m-review-tip-title,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-tip-title {
+  color: var(--m-accent) !important;
+}
+
+html[data-ui="mochi"] .m-review-tip-desc,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-tip-desc {
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .m-btn.m-review-tip-btn,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-btn.m-review-tip-btn {
+  background: var(--m-surface) !important;
+  color: var(--m-ink) !important;
+  border: 2px solid var(--m-line) !important;
+}
+
+html[data-ui="mochi"] .m-btn.m-review-tip-btn:hover,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-btn.m-review-tip-btn:hover {
+  background: var(--m-surface2) !important;
+  color: var(--m-ink) !important;
+}
+
+/* Sơ đồ câu hỏi card */
+html[data-ui="mochi"] .review-navigator-card.m-review-nav-card,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .review-navigator-card.m-review-nav-card {
+  background: var(--m-surface) !important;
+  border: 2px solid var(--m-line) !important;
+  box-shadow: var(--m-shadow-md) !important;
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .review-navigator-card.m-review-nav-card .m-review-nav-title,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .review-navigator-card.m-review-nav-card .m-review-nav-title {
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .review-navigator-card.m-review-nav-card .m-review-nav-title i,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .review-navigator-card.m-review-nav-card .m-review-nav-title i {
+  color: var(--m-accent) !important;
+}
+
+/* Thẻ câu hỏi */
+html[data-ui="mochi"] .review-question-card.m-review-q-card,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .review-question-card.m-review-q-card {
+  background: var(--m-surface) !important;
+  box-shadow: var(--m-shadow-md) !important;
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-q-prompt,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .interactive-prompt-text,
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .question-prompt-text {
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-opt-text {
+  color: var(--m-ink) !important;
+}
+
+/* Chip và badge */
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-stat-chip--ok {
+  background: var(--m-review-ok-soft) !important;
+  color: var(--m-review-ok) !important;
+  border-color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-stat-chip--partial {
+  background: var(--m-review-partial-soft) !important;
+  color: var(--m-review-partial) !important;
+  border-color: var(--m-review-partial) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-stat-chip--wrong {
+  background: var(--m-review-wrong-soft) !important;
+  color: var(--m-review-wrong) !important;
+  border-color: var(--m-review-wrong) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-stat-chip--blank {
+  background: var(--m-surface2) !important;
+  color: var(--m-muted) !important;
+  border-color: var(--m-line) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-review-stat-chip--info {
+  background: var(--m-accent-soft) !important;
+  color: var(--m-accent) !important;
+  border-color: var(--m-accent) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) .m-chip--ok {
+  background: var(--m-review-ok-soft) !important;
+  color: var(--m-review-ok) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) :is(.m-chip--partial, .m-chip--warn) {
+  background: var(--m-review-partial-soft) !important;
+  color: var(--m-review-partial) !important;
+}
+
+html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) :is(.m-chip--wrong, .m-chip--accent2) {
+  background: var(--m-review-wrong-soft) !important;
+  color: var(--m-review-wrong) !important;
+}

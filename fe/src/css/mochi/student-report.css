@@ -1,0 +1,826 @@
+/* ==========================================================================
+   student-report.css — Mochi Style for Student Progress Report (#student-report)
+   All rules scoped under html[data-ui="mochi"] to guarantee classic isolation.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Layout & Page Container
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-page .m-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-page #student-report-body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+html[data-ui="mochi"] .m-report-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+html[data-ui="mochi"] .m-report-back-btn,
+html[data-ui="mochi"] .m-report-page #btn-report-back,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .content-body a#btn-report-back,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .content-body a.m-report-back-btn,
+html[data-ui="mochi"] .app-layout.navy-student .content-body a#btn-report-back,
+html[data-ui="mochi"] .app-layout.navy-student .content-body a.m-report-back-btn,
+html[data-ui="mochi"] .m-report-page a.btn-secondary {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border: 2px solid var(--m-ink) !important;
+  border-radius: var(--m-radius-md) !important;
+  background: var(--m-surface) !important;
+  color: var(--m-ink) !important;
+  font-family: var(--m-font-heading) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  box-shadow: var(--m-shadow-sm) !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-back-btn:hover,
+html[data-ui="mochi"] .m-report-page #btn-report-back:hover,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .content-body a#btn-report-back:hover,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .content-body a.m-report-back-btn:hover,
+html[data-ui="mochi"] .app-layout.navy-student .content-body a#btn-report-back:hover,
+html[data-ui="mochi"] .app-layout.navy-student .content-body a.m-report-back-btn:hover,
+html[data-ui="mochi"] .m-report-page a.btn-secondary:hover {
+  background: var(--m-surface2) !important;
+  border-color: var(--m-ink) !important;
+  color: var(--m-ink) !important;
+  transform: translateY(-2px);
+  box-shadow: var(--m-shadow-md) !important;
+}
+
+html[data-ui="mochi"] .m-report-back-btn:focus-visible,
+html[data-ui="mochi"] .m-report-page #btn-report-back:focus-visible,
+html[data-ui="mochi"] .m-report-page a.btn-secondary:focus-visible {
+  outline: 3px solid var(--m-accent) !important;
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Hero / Header Sticker Card
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  border-radius: var(--m-radius-xl);
+  background: var(--m-surface);
+  border: 2px solid var(--m-ink);
+  box-shadow: var(--m-shadow-lg);
+  box-sizing: border-box;
+  min-height: auto;
+  height: auto;
+}
+
+html[data-ui="mochi"] .m-report-hero-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: auto;
+  height: auto;
+}
+
+html[data-ui="mochi"] .m-report-hero .m-chip,
+html[data-ui="mochi"] .m-report-hero-copy .m-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  align-self: flex-start;
+}
+
+html[data-ui="mochi"] .m-report-hero-title {
+  margin: 2px 0;
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.2;
+  color: var(--m-ink);
+  word-break: break-word;
+  width: 100%;
+}
+
+html[data-ui="mochi"] .m-report-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-report-hero-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-ui="mochi"] .m-report-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+html[data-ui="mochi"] .m-report-hero-mascot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --------------------------------------------------------------------------
+   Empty / State Banner
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-empty-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  color: var(--m-ink);
+  font-size: 14px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-empty-banner i {
+  color: var(--m-accent);
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Sections & Headings
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  position: relative;
+}
+
+html[data-ui="mochi"] .m-report-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+html[data-ui="mochi"] .m-report-section-title {
+  margin: 0;
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.25;
+  color: var(--m-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   KPI Stats Grid
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+html[data-ui="mochi"] .m-report-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  border: 2px solid var(--m-line);
+  box-shadow: var(--m-shadow-md);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--m-ink);
+  box-shadow: var(--m-shadow-lg);
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--m-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  border: 2px solid var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-icon--blue {
+  background: var(--m-surface2);
+  color: var(--m-accent);
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-icon--green {
+  background: var(--m-ok-soft);
+  color: var(--m-ok);
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-icon--amber {
+  background: var(--m-warn-soft);
+  color: var(--m-warn);
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-icon--rose {
+  background: var(--m-accent2-soft);
+  color: var(--m-accent2);
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-val {
+  font-family: var(--m-font-heading);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-report-stat-card .m-stat-sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--m-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Chart Section
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-chart-card {
+  padding: 22px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-md);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-report-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-ui="mochi"] .m-report-chart-legend .report-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+html[data-ui="mochi"] .m-report-chart-legend .report-bar-dot {
+  display: inline-block;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--m-accent);
+  flex: 0 0 auto;
+}
+
+html[data-ui="mochi"] .m-report-chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 320px;
+}
+
+html[data-ui="mochi"] .m-report-chart-note {
+  margin: 14px 0 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--m-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Trend Comparison Card
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-trend-card {
+  padding: 20px 22px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-md);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+html[data-ui="mochi"] .m-report-trend-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  border: 2px solid var(--m-line);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-trend-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-report-trend-col-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-report-trend-col-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-report-trend-half {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+html[data-ui="mochi"] .m-report-trend-half-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-report-trend-half-val {
+  font-family: var(--m-font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-report-trend-arrow {
+  color: var(--m-muted);
+  font-size: 13px;
+}
+
+/* --------------------------------------------------------------------------
+   Topic Breakdown Cards
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-topic-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+html[data-ui="mochi"] .m-report-topic-card {
+  padding: 18px 20px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-sm);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-topic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-report-topic-title-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+html[data-ui="mochi"] .m-report-topic-title {
+  margin: 0;
+  font-family: var(--m-font-heading);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-report-topic-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-ui="mochi"] .m-report-topic-meta {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-report-topic-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-report-topic-foot strong {
+  color: var(--m-ink);
+}
+
+/* --------------------------------------------------------------------------
+   Submissions Table Card
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-table-card {
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-md);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+html[data-ui="mochi"] .m-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-table thead {
+  background: var(--m-surface2);
+}
+
+html[data-ui="mochi"] .m-report-table th {
+  padding: 14px 16px;
+  font-family: var(--m-font-body);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--m-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--m-line);
+  white-space: nowrap;
+}
+
+html[data-ui="mochi"] .m-report-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--m-line);
+  font-weight: 600;
+  color: var(--m-ink);
+  vertical-align: middle;
+}
+
+html[data-ui="mochi"] .m-report-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+html[data-ui="mochi"] .m-report-table tbody tr:hover {
+  background: var(--m-surface2);
+}
+
+html[data-ui="mochi"] .m-report-table .m-col-center {
+  text-align: center;
+}
+
+html[data-ui="mochi"] .m-report-hw-name {
+  color: var(--m-ink);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+html[data-ui="mochi"] .m-report-hw-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+html[data-ui="mochi"] .m-report-ch-title {
+  font-weight: 700;
+  color: var(--m-ink);
+  font-size: 13px;
+}
+
+html[data-ui="mochi"] .m-report-lesson-title {
+  font-size: 12px;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-report-score-val {
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-chip--neutral {
+  background: var(--m-surface2);
+  color: var(--m-muted);
+  border: 1px solid var(--m-line);
+}
+
+/* --------------------------------------------------------------------------
+   Loading / Error State Card
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-report-state-card,
+html[data-ui="mochi"] .m-report-page .report-state-box,
+html[data-ui="mochi"] .m-report-page .report-state-box.report-state-error,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .report-state-box,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .report-state-box.report-state-error,
+html[data-ui="mochi"] .app-layout.navy-student .report-state-box,
+html[data-ui="mochi"] .app-layout.navy-student .report-state-box.report-state-error {
+  padding: 48px 24px !important;
+  text-align: center !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  border-radius: var(--m-radius-xl) !important;
+  border: 2px solid var(--m-line) !important;
+  border-color: var(--m-line) !important;
+  background: var(--m-surface) !important;
+  color: var(--m-ink) !important;
+  box-shadow: var(--m-shadow-md) !important;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-state-card.m-report-state-error,
+html[data-ui="mochi"] .m-report-page .report-state-error,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .report-state-error,
+html[data-ui="mochi"] .app-layout.navy-student .report-state-error {
+  border: 2px solid var(--m-line) !important;
+  border-color: var(--m-line) !important;
+  background: var(--m-surface) !important;
+}
+
+html[data-ui="mochi"] .m-report-state-mascot {
+  margin-bottom: 4px;
+}
+
+html[data-ui="mochi"] .m-report-loading-spinner {
+  font-size: 28px !important;
+  color: var(--m-accent) !important;
+}
+
+html[data-ui="mochi"] .m-report-error-icon {
+  font-size: 32px !important;
+  color: var(--m-accent2) !important;
+}
+
+html[data-ui="mochi"] .m-report-state-title,
+html[data-ui="mochi"] .m-report-page .report-state-title,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .report-state-title,
+html[data-ui="mochi"] .app-layout.navy-student .report-state-title {
+  margin: 0 !important;
+  font-family: var(--m-font-heading) !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .m-report-state-desc,
+html[data-ui="mochi"] .m-report-page .report-state-desc,
+html[data-ui="mochi"] .app-layout.admin-dark[data-route="student-report"] .report-state-desc,
+html[data-ui="mochi"] .app-layout.navy-student .report-state-desc {
+  margin: 0 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--m-muted) !important;
+  max-width: 480px !important;
+}
+
+html[data-ui="mochi"] .m-report-page #report-retry-btn,
+html[data-ui="mochi"] .m-report-page .m-report-state-card #report-retry-btn,
+html[data-ui="mochi"] .app-layout.admin-dark .content-body #report-retry-btn,
+html[data-ui="mochi"] .app-layout.navy-student .content-body #report-retry-btn,
+html[data-ui="mochi"] .m-report-page .m-btn--primary,
+html[data-ui="mochi"] .m-report-page .btn-primary {
+  min-height: 44px !important;
+  padding: 0 20px !important;
+  border: 2px solid var(--m-ink) !important;
+  border-radius: var(--m-radius-md) !important;
+  background: var(--m-accent) !important;
+  color: var(--m-accent-ink) !important;
+  font-family: var(--m-font-heading) !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  box-shadow: 0 5px 0 var(--m-ink) !important;
+  cursor: pointer !important;
+  width: auto !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-page #report-retry-btn:hover,
+html[data-ui="mochi"] .m-report-page .m-report-state-card #report-retry-btn:hover,
+html[data-ui="mochi"] .app-layout.admin-dark .content-body #report-retry-btn:hover,
+html[data-ui="mochi"] .app-layout.navy-student .content-body #report-retry-btn:hover,
+html[data-ui="mochi"] .m-report-page .m-btn--primary:hover,
+html[data-ui="mochi"] .m-report-page .btn-primary:hover {
+  background: var(--m-accent) !important;
+  border-color: var(--m-ink) !important;
+  color: var(--m-accent-ink) !important;
+  filter: brightness(1.08) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .m-report-page #report-retry-btn:active,
+html[data-ui="mochi"] .app-layout.admin-dark .content-body #report-retry-btn:active,
+html[data-ui="mochi"] .app-layout.navy-student .content-body #report-retry-btn:active,
+html[data-ui="mochi"] .m-report-page .m-btn--primary:active,
+html[data-ui="mochi"] .m-report-page .btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] .m-report-empty-inline {
+  padding: 24px 20px;
+  text-align: center;
+  border-radius: var(--m-radius-lg);
+  border: 2px dashed var(--m-line);
+  background: var(--m-surface);
+  color: var(--m-muted);
+  font-size: 14px;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-report-empty-inline p {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Media Queries
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  html[data-ui="mochi"] .m-report-hero {
+    padding: 20px 22px;
+    gap: 16px;
+  }
+  html[data-ui="mochi"] .m-report-hero-title {
+    font-size: 26px;
+  }
+  html[data-ui="mochi"] .m-report-stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+  html[data-ui="mochi"] .m-report-chart-wrap {
+    height: 280px;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-ui="mochi"] .m-report-page #student-report-body {
+    gap: 20px;
+  }
+  html[data-ui="mochi"] .m-report-section {
+    gap: 12px;
+  }
+  html[data-ui="mochi"] .m-report-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px 16px;
+    gap: 12px;
+    min-height: auto !important;
+    height: auto !important;
+  }
+  html[data-ui="mochi"] .m-report-hero-copy {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: auto !important;
+    height: auto !important;
+    gap: 8px;
+  }
+  html[data-ui="mochi"] .m-report-hero-mascot {
+    order: -1;
+    align-self: flex-start;
+    flex: 0 0 auto;
+    width: auto;
+    height: auto;
+    margin: 0;
+  }
+  html[data-ui="mochi"] .m-report-hero-mascot .m-mascot {
+    width: 72px;
+    height: 72px;
+  }
+  html[data-ui="mochi"] .m-report-hero-title {
+    font-size: 22px;
+  }
+  html[data-ui="mochi"] .m-report-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  html[data-ui="mochi"] .m-report-stat-card {
+    padding: 14px 14px;
+  }
+  html[data-ui="mochi"] .m-report-stat-card .m-stat-val {
+    font-size: 24px;
+  }
+  html[data-ui="mochi"] .m-report-chart-card {
+    padding: 16px 14px;
+  }
+  html[data-ui="mochi"] .m-report-chart-wrap {
+    height: 240px;
+  }
+  html[data-ui="mochi"] .m-report-trend-grid {
+    grid-template-columns: 1fr;
+  }
+  html[data-ui="mochi"] .m-report-topic-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  html[data-ui="mochi"] .m-report-topic-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

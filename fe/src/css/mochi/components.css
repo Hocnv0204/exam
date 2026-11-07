@@ -117,3 +117,7 @@ html[data-ui="mochi"] :where(.m-shell-header,.m-shell-sidebar,.m-tabbar) :focus-
 @media (min-width:901px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:reduce) {
   html[data-ui="mochi"] .m-shell-sidebar,html[data-ui="mochi"] .m-shell-sidebar :is(.m-shell-nav-link,.m-shell-logout)>span {transition:none}
 }
+/* Skin cũ (navy-student/admin-dark/pastel-student) vẫn được app.js gắn vào layout và có rule nền !important theo route;
+   trong khung Mochi luôn dùng nền token Mochi để không lộ màu navy/pastel cũ. */
+html[data-ui="mochi"] .app-layout:has(.m-shell-sidebar):is(.navy-student,.admin-dark,.pastel-student) {background:var(--m-bg)!important}
+html[data-ui="mochi"] .app-layout:has(.m-shell-sidebar) > .main-content > .content-body {background:var(--m-bg)!important;color:var(--m-ink)}

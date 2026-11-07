@@ -1,3 +1,6 @@
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/mochi/student-report.css')
+}
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { renderThemeToggle } from '../theme.js'
@@ -5,6 +8,8 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
+import { isMochiUI } from '../ui-flag.js'
+import { renderMascot } from '../components/mascot.js'
 import QRCode from 'qrcode'
 import {
   buildSharedReportUrl,
@@ -199,6 +204,36 @@ function renderBackdrop(breadcrumb, options = {}) {
   `
 }
 
+function isMochiMode() {
+  return Boolean(state.token) && state.user?.role === 'STUDENT' && isMochiUI() && reportMountedPath === 'student-report'
+}
+
+export function renderClassicStudentReportView() {
+  return renderBackdrop('Nền tảng / Báo cáo tiến độ')
+}
+
+function renderMochiStudentReportView() {
+  const backHref = backRoute(state.reportParams?.studentId, state.reportParams?.classId)
+  return `
+    <div class="app-layout navy-student m-student-page m-report-page">
+      ${renderSidebar('history')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Báo cáo tiến độ')}
+        <main class="content-body">
+          <div class="m-page-wrap">
+            <div class="m-report-nav-bar">
+              <a href="${backHref}" class="btn-secondary m-btn m-btn--secondary m-report-back-btn" id="btn-report-back">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Quay lại
+              </a>
+            </div>
+            <div id="student-report-body"></div>
+          </div>
+        </main>
+      </div>
+    </div>
+  `
+}
+
 export function renderStudentReportView() {
   const hashUrl = window.location.hash.replace('#', '')
   const [_, queryString] = hashUrl.split('?')
@@ -216,7 +251,10 @@ export function renderStudentReportView() {
   reportMountedPath = 'student-report'
   reportBodyId = 'student-report-body'
 
-  return renderBackdrop('Nền tảng / Báo cáo tiến độ')
+  if (isMochiMode()) {
+    return renderMochiStudentReportView()
+  }
+  return renderClassicStudentReportView()
 }
 
 // ================== Public shared report view (#shared-report?token=...) ==================
@@ -351,6 +389,19 @@ function setBody(html) {
 }
 
 function renderLoading(desc) {
+  if (isMochiMode()) {
+    setBody(`
+      <div class="m-card m-report-state-card report-state-box">
+        <div class="m-report-state-mascot">
+          ${renderMascot({ mood: 'happy', size: 90 })}
+        </div>
+        <i class="fa-solid fa-circle-notch fa-spin report-loading-icon m-report-loading-spinner" aria-hidden="true"></i>
+        <p class="report-state-title m-report-state-title">Đang tải báo cáo tiến độ...</p>
+        <p class="report-state-desc m-report-state-desc">${escapeHtml(desc !== undefined ? desc : (state.reportPeriodLabel || ''))}</p>
+      </div>
+    `)
+    return
+  }
   setBody(`
     <div class="report-state-box">
       <i class="fa-solid fa-circle-notch fa-spin report-loading-icon"></i>
@@ -370,6 +421,27 @@ function retryActiveLoad() {
 }
 
 function renderError(message) {
+  if (isMochiMode()) {
+    const body = setBody(`
+      <div class="m-card m-report-state-card m-report-state-error report-state-box report-state-error">
+        <div class="m-report-state-mascot">
+          ${renderMascot({ mood: 'wink', size: 90 })}
+        </div>
+        <i class="fa-solid fa-triangle-exclamation m-report-error-icon" aria-hidden="true"></i>
+        <p class="report-state-title m-report-state-title">Không thể tải báo cáo</p>
+        <p class="report-state-desc m-report-state-desc">${escapeHtml(message)}</p>
+        <button id="report-retry-btn" class="btn-primary m-btn m-btn--primary" style="width:auto; cursor:pointer;">
+          <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Thử lại
+        </button>
+      </div>
+    `)
+    if (body) {
+      body.querySelector('#report-retry-btn')?.addEventListener('click', () => {
+        retryActiveLoad()
+      })
+    }
+    return
+  }
   const body = setBody(`
     <div class="report-state-box report-state-error">
       <i class="fa-solid fa-triangle-exclamation" style="font-size:32px; color:#ef4444; margin-bottom:12px;"></i>
@@ -739,7 +811,69 @@ const reportDataLabelsPlugin = {
   }
 }
 
-function reportChartPalette(canvas) {
+export function reportChartPalette(canvas) {
+  if (isMochiMode() || (typeof document !== 'undefined' && document.documentElement?.getAttribute('data-ui') === 'mochi' && canvas?.closest('.m-student-page'))) {
+    const studentTheme = (typeof document !== 'undefined' && document.documentElement?.getAttribute('data-student-theme')) || 'light'
+    if (studentTheme === 'dark') {
+      return {
+        text: '#B9B0DA',
+        legend: '#F4F0FF',
+        grid: 'rgba(58, 49, 102, 0.6)',
+        line: 'rgba(161, 141, 255, 0.85)',
+        pointBorder: '#1E1A38',
+        labelBackground: 'rgba(30, 26, 56, 0.96)',
+        labelBorder: 'rgba(161, 141, 255, 0.6)',
+        labelText: '#F4F0FF',
+        tooltipBackground: 'rgba(20, 17, 39, 0.98)',
+        tooltipText: '#F4F0FF',
+        tooltipBorder: 'rgba(161, 141, 255, 0.5)'
+      }
+    }
+    if (studentTheme === 'sakura') {
+      return {
+        text: '#74505F',
+        legend: '#3A1E2E',
+        grid: '#F6CFDF',
+        line: 'rgba(194, 40, 95, 0.85)',
+        pointBorder: '#FFFFFF',
+        labelBackground: 'rgba(255, 255, 255, 0.96)',
+        labelBorder: 'rgba(194, 40, 95, 0.5)',
+        labelText: '#3A1E2E',
+        tooltipBackground: 'rgba(58, 30, 46, 0.96)',
+        tooltipText: '#FFF1F6',
+        tooltipBorder: 'rgba(246, 207, 223, 0.7)'
+      }
+    }
+    if (studentTheme === 'mint') {
+      return {
+        text: '#46675D',
+        legend: '#0F3329',
+        grid: '#C7EADD',
+        line: 'rgba(10, 122, 96, 0.85)',
+        pointBorder: '#FFFFFF',
+        labelBackground: 'rgba(255, 255, 255, 0.96)',
+        labelBorder: 'rgba(10, 122, 96, 0.5)',
+        labelText: '#0F3329',
+        tooltipBackground: 'rgba(15, 51, 41, 0.96)',
+        tooltipText: '#EDFAF5',
+        tooltipBorder: 'rgba(199, 234, 221, 0.7)'
+      }
+    }
+    return {
+      text: '#625A78',
+      legend: '#2B2340',
+      grid: '#E4DCF5',
+      line: 'rgba(106, 76, 240, 0.85)',
+      pointBorder: '#FFFFFF',
+      labelBackground: 'rgba(255, 255, 255, 0.96)',
+      labelBorder: 'rgba(106, 76, 240, 0.5)',
+      labelText: '#2B2340',
+      tooltipBackground: 'rgba(43, 35, 64, 0.96)',
+      tooltipText: '#FFF8F1',
+      tooltipBorder: 'rgba(228, 220, 245, 0.7)'
+    }
+  }
+
   // Scope to the mounted report, not the global preference: public reports
   // remain light even when the student's private workspace uses pastel.
   if (canvas?.closest('.app-layout.pastel-student[data-route="student-report"]')) {
@@ -1427,9 +1561,365 @@ async function doLoadShareList() {
   }
 }
 
-// ================== Full render ==================
+// ================== Mochi Renderers (Student) ==================
 
-function renderReportInner(opts, { includeSharePanel = false } = {}) {
+function isClassIdFallback(name, classId) {
+  if (!name) return true
+  const str = String(name).trim()
+  if (!str) return true
+  if (classId) {
+    const shortId = classId.substring(0, 8)
+    if (str === `Lớp ${shortId}…` || str === `Lớp ${shortId}...` || str === classId) return true
+  }
+  // Pattern "Lớp <id>…" where id is UUID, hex, or alphanumeric id
+  if (/^Lớp\s+[0-9a-fA-F-]{6,}…?$/i.test(str)) return true
+  if (/^Lớp\s+[a-zA-Z0-9_-]{8,}…?$/i.test(str)) return true
+  // Raw UUID or long hash
+  if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}/.test(str)) return true
+  return false
+}
+
+function resolveMochiClassName(className) {
+  const classId = state.reportParams?.classId
+  let resolved = className
+  if (isClassIdFallback(resolved, classId)) {
+    const fromState = (state.classes || []).find(c => c.id === classId)?.name
+    if (fromState && !isClassIdFallback(fromState, classId)) {
+      resolved = fromState
+    } else {
+      resolved = '' // Thiếu tên lớp (chỉ có id) -> ẩn dòng lớp thay vì hiện id
+    }
+  }
+  return resolved
+}
+
+function renderMochiHero({ studentName, className, period, comparison }) {
+  const periodText = `${fmtDateVN(period?.fromDate)} – ${fmtDateVN(period?.toDate)}`
+  const trendInfo = trendLabelFor(comparison?.trend)
+  const trendChipClass = comparison?.trend === 'IMPROVING'
+    ? 'm-chip--ok'
+    : (comparison?.trend === 'DECLINING' ? 'm-chip--warn' : 'm-chip--accent2')
+  const mood = comparison?.trend === 'IMPROVING' ? 'cheer' : 'happy'
+  const displayClassName = resolveMochiClassName(className)
+  const classItemHtml = displayClassName
+    ? `<span><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> ${escapeHtml(displayClassName)}</span>`
+    : ''
+
+  return `
+    <header class="m-report-hero">
+      <div class="m-report-hero-copy">
+        <span class="m-chip m-chip--accent2"><i class="fa-solid fa-chart-column" aria-hidden="true"></i> Báo cáo tiến độ</span>
+        <h1 class="m-report-hero-title">${escapeHtml(studentName || 'Học sinh')}</h1>
+        <div class="m-report-hero-meta">
+          ${classItemHtml}
+          <span><i class="fa-solid fa-calendar-days" aria-hidden="true"></i> Kỳ: ${escapeHtml(periodText)}</span>
+          ${period?.days ? `<span><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> ${Number(period.days)} ngày</span>` : ''}
+        </div>
+        <div class="m-report-hero-badges">
+          <span class="m-chip ${trendChipClass}"><i class="fa-solid ${trendInfo.icon}" aria-hidden="true"></i> Xu hướng: ${escapeHtml(trendInfo.text)}</span>
+        </div>
+      </div>
+      <div class="m-report-hero-mascot">
+        ${renderMascot({ mood, size: 110 })}
+      </div>
+    </header>
+  `
+}
+
+function renderMochiSummarySection(summary) {
+  const s = {
+    assignedCount: Number(summary?.assignedCount || 0),
+    submittedCount: Number(summary?.submittedCount || 0),
+    completionRate: Number(summary?.completionRate || 0),
+    onTimeRate: Number(summary?.onTimeRate ?? 0),
+    averageScore: Number(summary?.averageScore || 0),
+    highestScore: Number(summary?.highestScore || 0),
+    lowestScore: Number(summary?.lowestScore || 0),
+    activeDays: Number(summary?.activeDays || 0),
+    attemptCount: Number(summary?.attemptCount || 0)
+  }
+
+  const statItem = (label, value, sub, icon, tone) => `
+    <div class="m-stat-card m-report-stat-card m-report-stat-card--${tone}">
+      <div class="m-stat-top">
+        <span class="m-stat-label">${escapeHtml(label)}</span>
+        <div class="m-stat-icon m-stat-icon--${tone}"><i class="fa-solid ${icon}" aria-hidden="true"></i></div>
+      </div>
+      <div class="m-stat-val">${escapeHtml(value)}</div>
+      <p class="m-stat-sub">${escapeHtml(sub)}</p>
+    </div>
+  `
+
+  return `
+    <section class="m-report-section">
+      <div class="m-report-section-head">
+        <h2 class="m-report-section-title"><i class="fa-solid fa-gauge-high" aria-hidden="true"></i> Chỉ số tổng quan</h2>
+      </div>
+      <div class="m-hw-stats m-report-stats-grid">
+        ${statItem('Bài được giao', String(s.assignedCount), 'theo hạn nộp trong kỳ', 'fa-clipboard-list', 'blue')}
+        ${statItem('Bài đã nộp', String(s.submittedCount), `${s.submittedCount}/${s.assignedCount || 0} bài`, 'fa-circle-check', 'green')}
+        ${statItem('Tỷ lệ hoàn thành', fmtPercent(s.completionRate), 'trên các bài được giao', 'fa-square-poll-vertical', 'green')}
+        ${statItem('Nộp đúng hạn', fmtPercent(s.onTimeRate), `${s.attemptCount} lượt nộp`, 'fa-clock', 'amber')}
+        ${statItem('Điểm trung bình', fmtScore(s.averageScore, 1), 'quy đổi thang 10 (best/bài)', 'fa-star', 'blue')}
+        ${statItem('Điểm cao nhất', fmtScore(s.highestScore, 1), 'best score của các bài đã nộp', 'fa-arrow-trend-up', 'green')}
+        ${statItem('Điểm thấp nhất', fmtScore(s.lowestScore, 1), 'điểm thấp nhất trong các bài', 'fa-arrow-trend-down', 'rose')}
+        ${statItem('Ngày hoạt động', String(s.activeDays), 'ngày có lượt nộp bài', 'fa-calendar-days', 'blue')}
+      </div>
+    </section>
+  `
+}
+
+function renderMochiScoreTrendSection() {
+  return `
+    <section class="m-report-section">
+      <div class="m-report-section-head">
+        <h2 class="m-report-section-title"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> Biểu đồ xu hướng điểm</h2>
+        <span class="m-hw-section-sub">Từng lượt nộp theo thứ tự thời gian</span>
+      </div>
+      <div class="m-card m-report-chart-card">
+        <div class="m-report-chart-legend">
+          <span><span class="report-dot" style="background:#10b981;"></span> Best (đúng hạn)</span>
+          <span><span class="report-dot" style="background:#f59e0b;"></span> Best (nộp muộn)</span>
+          <span><span class="report-dot" style="background:#0284c7;"></span> Lượt nộp thường</span>
+          <span><span class="report-dot" style="background:#ef4444;"></span> Lượt nộp muộn</span>
+          <span><span class="report-bar-dot"></span> Cột: điểm lượt (best đậm hơn)</span>
+        </div>
+        <div class="m-report-chart-wrap">
+          <canvas id="report-trend-chart" aria-label="Biểu đồ điểm theo từng lượt nộp" role="img"></canvas>
+        </div>
+        <p class="m-report-chart-note">Điểm được quy đổi về thang 10 (score/maxScore) và hiển thị trực tiếp trên từng điểm. Cột thể hiện điểm từng lượt nộp (lượt best có viền đậm hơn), đường nét đứt thể hiện xu hướng qua các bài tập.</p>
+      </div>
+    </section>
+  `
+}
+
+function renderMochiTrendSection(comparison) {
+  const firstHalf = comparison?.firstHalf || {}
+  const secondHalf = comparison?.secondHalf || {}
+  const label = trendLabelFor(comparison?.trend)
+  const chipClass = comparison?.trend === 'IMPROVING'
+    ? 'm-chip--ok'
+    : (comparison?.trend === 'DECLINING' ? 'm-chip--warn' : 'm-chip--accent2')
+
+  const miniCard = (metricLabel, unit, key, digits) => {
+    const f = Number(firstHalf?.[key] ?? 0)
+    const s = numberOr(secondHalf?.[key], 0)
+    const delta = s - f
+    const deltaText = `${delta >= 0 ? '▲ +' : '▼ '}${fmtScore(delta, digits)}${unit}`
+    const deltaClass = delta >= 0 ? 'm-chip--ok' : 'm-chip--warn'
+    return `
+      <div class="m-report-trend-col">
+        <div class="m-report-trend-col-head">
+          <span class="m-report-trend-col-label">${escapeHtml(metricLabel)}</span>
+          <span class="m-chip ${deltaClass}">${escapeHtml(deltaText)}</span>
+        </div>
+        <div class="m-report-trend-col-body">
+          <div class="m-report-trend-half">
+            <span class="m-report-trend-half-tag">Nửa đầu</span>
+            <span class="m-report-trend-half-val">${fmtScore(f, digits)}${unit}</span>
+          </div>
+          <i class="fa-solid fa-arrow-right m-report-trend-arrow" aria-hidden="true"></i>
+          <div class="m-report-trend-half">
+            <span class="m-report-trend-half-tag">Nửa cuối</span>
+            <span class="m-report-trend-half-val">${fmtScore(s, digits)}${unit}</span>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  return `
+    <section class="m-report-section">
+      <div class="m-report-section-head">
+        <h2 class="m-report-section-title"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> So sánh nửa đầu – nửa cuối kỳ</h2>
+        <span class="m-chip ${chipClass}"><i class="fa-solid ${label.icon}" aria-hidden="true"></i> ${escapeHtml(label.text)}: ${escapeHtml(label.note)}</span>
+      </div>
+      <div class="m-card m-report-trend-card">
+        <div class="m-report-trend-grid">
+          ${miniCard('Điểm trung bình', '', 'averageScore', 1)}
+          ${miniCard('Tỷ lệ hoàn thành', '%', 'completionRate', 1)}
+          ${miniCard('Bài đã nộp', '', 'submittedCount', 0)}
+          ${miniCard('Lượt nộp', '', 'attemptCount', 0)}
+        </div>
+      </div>
+    </section>
+  `
+}
+
+function renderMochiTopicSection(topicBreakdown) {
+  const topics = Array.isArray(topicBreakdown) ? topicBreakdown : []
+  if (topics.length === 0) {
+    return `
+      <section class="m-report-section">
+        <div class="m-report-section-head">
+          <h2 class="m-report-section-title"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Phân tích theo chương</h2>
+        </div>
+        <div class="m-card m-report-empty-inline">
+          <p><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Chưa có dữ liệu theo chương trong kỳ này (chỉ nhóm theo chương có metadata thật từ hệ thống).</p>
+        </div>
+      </section>
+    `
+  }
+
+  return `
+    <section class="m-report-section">
+      <div class="m-report-section-head">
+        <h2 class="m-report-section-title"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Phân tích theo chương</h2>
+        <span class="m-hw-section-sub">${topics.length} chương có hoạt động</span>
+      </div>
+      <div class="m-report-topic-grid">
+        ${topics.map(t => {
+          const rate = Number(t.completionRate || 0)
+          const avg = Number(t.averageScore || 0)
+          const isWeak = rate < 50 || avg < 5
+          const isGood = rate >= 80 && avg >= 8
+          const chipHtml = isWeak
+            ? '<span class="m-chip m-chip--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Cần củng cố</span>'
+            : (isGood ? '<span class="m-chip m-chip--ok"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Nắm vững</span>' : '<span class="m-chip m-chip--accent2">Đang học</span>')
+
+          return `
+            <div class="m-card m-report-topic-card">
+              <div class="m-report-topic-head">
+                <div class="m-report-topic-title-group">
+                  <h3 class="m-report-topic-title">${escapeHtml(t.topicTitle || t.chapterTitle || 'Chương')}</h3>
+                  <div class="m-report-topic-chips">
+                    ${chipHtml}
+                    <span class="m-chip m-chip--accent2">TB ${fmtScore(avg, 1)}/10</span>
+                  </div>
+                </div>
+                <div class="m-report-topic-meta">
+                  <span>${Number(t.submittedCount || 0)}/${Number(t.assignedCount || 0)} bài</span> ·
+                  <span>${Number(t.attemptCount || 0)} lượt</span>
+                </div>
+              </div>
+              <div class="m-progress" style="--m-progress:${Math.min(100, Math.max(0, rate))}%; margin: 12px 0 8px 0;" role="progressbar" aria-valuenow="${Math.round(rate)}" aria-valuemin="0" aria-valuemax="100" aria-label="Tỷ lệ hoàn thành ${escapeHtml(t.topicTitle || t.chapterTitle || 'Chương')}">
+                <span></span>
+              </div>
+              <div class="m-report-topic-foot">
+                <span>Hoàn thành <strong>${fmtPercent(rate)}</strong></span>
+                <span>Cao nhất: <strong>${fmtScore(t.highestScore, 1)}</strong> · Thấp nhất: <strong>${fmtScore(t.lowestScore, 1)}</strong></span>
+              </div>
+            </div>
+          `
+        }).join('')}
+      </div>
+    </section>
+  `
+}
+
+function renderMochiSubmissionsSection(submissions) {
+  const subs = Array.isArray(submissions) ? submissions : []
+  if (subs.length === 0) {
+    return `
+      <section class="m-report-section">
+        <div class="m-report-section-head">
+          <h2 class="m-report-section-title"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Danh sách lượt nộp</h2>
+        </div>
+        <div class="m-card m-report-empty-inline">
+          <p><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Chưa có lượt nộp nào trong kỳ báo cáo.</p>
+        </div>
+      </section>
+    `
+  }
+
+  return `
+    <section class="m-report-section">
+      <div class="m-report-section-head">
+        <h2 class="m-report-section-title"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Danh sách lượt nộp</h2>
+        <span class="m-hw-section-sub">Tổng cộng ${subs.length} lượt nộp</span>
+      </div>
+      <div class="m-card m-report-table-card">
+        <div class="m-report-table-wrap">
+          <table class="m-report-table" aria-label="Danh sách lượt nộp bài">
+            <thead>
+              <tr>
+                <th scope="col">Bài tập</th>
+                <th scope="col">Chương / Bài</th>
+                <th scope="col" class="m-col-center">Lần</th>
+                <th scope="col" class="m-col-center">Điểm</th>
+                <th scope="col" class="m-col-center">Kết quả</th>
+                <th scope="col">Ngày nộp</th>
+                <th scope="col">Thời gian làm</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${subs.map(sub => {
+                const badges = []
+                if (sub.isBest) badges.push('<span class="m-chip m-chip--ok">BEST</span>')
+                if (sub.isLate) badges.push('<span class="m-chip m-chip--warn">MUỘN</span>')
+                if (Number(sub.bonusScore || 0) !== 0) badges.push(`<span class="m-chip m-chip--accent2">+${fmtScore(sub.bonusScore, 1)}</span>`)
+                const pass = Number(sub.isPassed ?? (Number(sub.score ?? 0) >= Number(sub.passScore ?? 5)))
+                return `
+                  <tr>
+                    <td class="m-td-title">
+                      <strong class="m-report-hw-name">${escapeHtml(sub.homeworkTitle || 'Bài tập')}</strong>
+                      ${badges.length ? `<div class="m-report-hw-chips">${badges.join(' ')}</div>` : ''}
+                    </td>
+                    <td class="m-td-meta">
+                      ${sub.chapterTitle ? `<span class="m-report-ch-title">${escapeHtml(sub.chapterTitle)}</span>` : '<span class="m-muted">—</span>'}
+                      ${sub.lessonTitle ? `<br><span class="m-report-lesson-title">${escapeHtml(sub.lessonTitle)}</span>` : ''}
+                    </td>
+                    <td class="m-col-center"><span class="m-chip m-chip--neutral">#${Number(sub.attemptNo || 1)}</span></td>
+                    <td class="m-col-center">
+                      <strong class="m-report-score-val">${fmtScore(sub.score, 2)}</strong><span class="m-muted">/${fmtScore(sub.maxScore, 2)}</span>
+                    </td>
+                    <td class="m-col-center">
+                      ${pass
+                        ? '<span class="m-chip m-chip--ok"><i class="fa-solid fa-check" aria-hidden="true"></i> ĐẠT</span>'
+                        : '<span class="m-chip m-chip--warn"><i class="fa-solid fa-xmark" aria-hidden="true"></i> CHƯA ĐẠT</span>'}
+                    </td>
+                    <td class="m-td-meta">${fmtDateTimeVN(sub.submittedAt)}</td>
+                    <td class="m-td-meta">${fmtDuration(sub.durationSecondsTaken)}</td>
+                  </tr>
+                `
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  `
+}
+
+export function renderMochiReportInner(opts) {
+  const {
+    studentName,
+    className,
+    period,
+    summary,
+    comparison,
+    scoreTrend,
+    topicBreakdown,
+    submissions,
+    isEmpty
+  } = opts
+
+  const scoreTrendArr = Array.isArray(scoreTrend) ? scoreTrend : []
+
+  const emptyBanner = isEmpty ? `
+    <div class="m-card m-report-empty-banner">
+      <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+      <span>Học sinh chưa có lượt nộp nào trong kỳ báo cáo nên các chỉ số hiển thị là 0 và tổng kết dựa trên bài được giao.</span>
+    </div>
+  ` : ''
+
+  const body = `
+    ${renderMochiHero({ studentName, className, period, comparison })}
+    ${emptyBanner}
+    ${renderMochiSummarySection(summary)}
+    ${isEmpty ? '' : renderMochiScoreTrendSection()}
+    ${renderMochiTrendSection(comparison || {})}
+    ${renderMochiTopicSection(topicBreakdown)}
+    ${renderMochiSubmissionsSection(submissions)}
+  `
+
+  setBody(body)
+  if (!isEmpty) {
+    renderScoreTrendChart(scoreTrendArr)
+  }
+}
+
+export function renderClassicReportInner(opts, { includeSharePanel = false } = {}) {
   const {
     studentName,
     className,
@@ -1485,6 +1975,16 @@ function renderReportInner(opts, { includeSharePanel = false } = {}) {
   if (!isEmpty) {
     renderScoreTrendChart(scoreTrendArr)
   }
+}
+
+// ================== Full render ==================
+
+function renderReportInner(opts, { includeSharePanel = false } = {}) {
+  if (isMochiMode()) {
+    renderMochiReportInner(opts)
+    return
+  }
+  renderClassicReportInner(opts, { includeSharePanel })
 }
 
 function renderReport(data) {

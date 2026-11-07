@@ -1,3 +1,6 @@
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/mochi/assignment-review.css')
+}
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
@@ -8,12 +11,46 @@ import { buildAwardLogSectionHtml } from '../utils/question-award-logs.js'
 import { canEditReviewQuestion, reviewAnswerToMarkdown, buildReviewQuestionPayload } from '../utils/review-question-editor.js'
 import { api } from '../api.js'
 import { questionAppealReviewContext, renderQuestionAppealSlot, bindReviewQuestionAppeals } from './question-appeals.js'
+import { isMochiUI } from '../ui-flag.js'
+import { renderMascot } from '../components/mascot.js'
+
+function isMochiMode() {
+  return Boolean(state.token) && state.user?.role === 'STUDENT' && isMochiUI()
+}
+
+function isAnswerBlank(ans) {
+  const qType = ans.questions?.question_type || ans.questionType
+  const given = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer
+  if (given === undefined || given === null) return true
+  if (qType === 'TRUE_FALSE') {
+    let val = given.value !== undefined ? given.value : given
+    if (typeof val === 'string') {
+      try { val = JSON.parse(val) } catch (_) {}
+    }
+    if (!val || typeof val !== 'object') return true
+    return !['a', 'b', 'c', 'd', 's1', 's2', 's3', 's4'].some(k =>
+      val[k] === true || val[k] === false || val[k] === 'true' || val[k] === 'false' || val[k] === 1 || val[k] === 0
+    )
+  }
+  const rawVal = given.value !== undefined ? given.value : given
+  return rawVal === null || rawVal === undefined || String(rawVal).trim() === ''
+}
+
+function formatDurationVi(secs = 0) {
+  const s = Number(secs) || 0
+  if (s <= 0) return ''
+  const mins = Math.floor(s / 60)
+  const remaining = s % 60
+  if (mins === 0) return `${remaining} giây`
+  if (remaining === 0) return `${mins} phút`
+  return `${mins} phút ${remaining} giây`
+}
 
 const escapeReviewText = (value) => String(value ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 
-export function renderAssignmentReviewView() {
+export function renderClassicAssignmentReviewView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
   let result = state.lastSubmissionResult
   if (!result && isTrial) {
@@ -862,6 +899,848 @@ export function renderAssignmentReviewView() {
   `
 }
 
+export function renderMochiAssignmentReviewView() {
+  const isTrial = window.location.hash.includes('trial=true') || !state.token
+  let result = state.lastSubmissionResult
+  if (!result && isTrial) {
+    try {
+      const cached = sessionStorage.getItem('last_trial_submission')
+      if (cached) {
+        result = JSON.parse(cached)
+        state.lastSubmissionResult = result
+      }
+    } catch (e) {}
+  }
+
+  if (!result) {
+    return `
+      <div class="app-layout">
+        ${renderSidebar(isTrial ? 'trial' : 'history')}
+        <div class="main-content">
+          ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : 'Nền tảng / Bảng điều khiển')}
+          <div class="content-body">
+            <div class="m-review-wrap m-review-empty-wrap">
+              <div class="m-card m-review-empty-card">
+                ${renderMascot({ mood: 'happy', size: 120 })}
+                <h2 class="m-review-empty-title">Chưa có kết quả làm bài</h2>
+                <p class="m-review-empty-desc">Vui lòng nộp bài để xem kết quả đánh giá chi tiết.</p>
+                <button class="m-btn m-btn--primary" onclick="window.location.hash = '${isTrial ? '#trial' : '#my-classes'}'">
+                  <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> <span>${isTrial ? 'Quay lại bài học thử' : 'Quay lại lớp học'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  const sub = result.submission || {
+    id: result.submissionId || result.id,
+    homeworkTitle: result.homeworkTitle || result.homework?.title,
+    score: result.score !== undefined ? result.score : result.total_score,
+    maxScore: result.maxScore || result.max_score,
+    passScore: result.passScore || result.pass_score,
+    correctCount: result.correctCount || result.correct_count,
+    wrongCount: result.wrongCount || result.wrong_count,
+    submittedAt: result.submittedAt || result.submitted_at,
+    isLate: result.isLate || result.is_late,
+    pdfUrl: result.pdfUrl || result.pdf_url,
+    showSolutions: result.showSolutions !== undefined ? result.showSolutions : result.show_solutions,
+    student: result.student || result.profiles,
+    guest_name: result.guest_name || result.guestName,
+    guest_phone: result.guest_phone || result.guestPhone,
+    durationSecondsTaken: result.durationSecondsTaken || result.duration_seconds_taken,
+    bonus_score: result.bonus_score !== undefined ? result.bonus_score : result.bonusScore
+  }
+
+  const pdfUrl = sub.pdfUrl || result.pdfUrl || ''
+  const homeworkType = sub.type || result.type || result.submission?.type || 'PRACTICE'
+  const canShowPdfDownload = canViewHomeworkPdf(state.user?.role, { type: homeworkType })
+  const showSolutions = state.user?.role === 'ADMIN' || (result.showSolutions !== false && result.show_solutions !== false && sub.showSolutions !== false && sub.show_solutions !== false)
+  const fromAppeals = new URLSearchParams(window.location.hash.split('?')[1] || '').get('from') === 'question-appeals'
+  const appealContext = questionAppealReviewContext(result, state.user, state.token, window.location.hash)
+
+  const rawAnswers = result.questionReview ? result.questionReview.map(q => ({
+    id: q.id || q.submissionAnswerId || q.submission_answer_id,
+    is_correct: q.isCorrect !== undefined ? q.isCorrect : q.is_correct,
+    score_earned: q.scoreEarned !== undefined ? q.scoreEarned : q.score_earned,
+    given_answer: q.givenAnswer !== undefined ? q.givenAnswer : q.given_answer,
+    correct_answer: q.correctAnswerSummary !== undefined ? q.correctAnswerSummary : q.correct_answer,
+    statementGrades: q.statementGrades,
+    teacherFeedback: q.teacherFeedback,
+    gradingStatus: q.gradingStatus,
+    questionNumber: q.questionNumber !== undefined ? q.questionNumber : q.question_number,
+    questions: {
+      question_number: q.questionNumber !== undefined ? q.questionNumber : q.question_number,
+      question_type: q.questionType || q.question_type,
+      prompt: q.prompt,
+      content: q.content,
+      options: q.options,
+      statements: q.statements,
+      part_title: q.partTitle || q.part_title,
+      explanation: q.explanation,
+      points: q.pointsPossible || q.points
+    }
+  })) : (result.answers || [])
+
+  const answers = rawAnswers.map((ans, idx) => {
+    const qObj = Array.isArray(ans.questions) ? ans.questions[0] : (ans.questions || {})
+    const qNum = qObj.question_number !== undefined ? qObj.question_number : (ans.questionNumber !== undefined ? ans.questionNumber : (ans.question_number !== undefined ? ans.question_number : (idx + 1)))
+    const qType = qObj.question_type || ans.questionType || ans.question_type || 'MULTIPLE_CHOICE'
+    const prompt = qObj.prompt !== undefined ? qObj.prompt : (ans.prompt !== undefined ? ans.prompt : '')
+    const content = qObj.content !== undefined ? qObj.content : (ans.content !== undefined ? ans.content : '')
+    const options = qObj.options || ans.options || null
+    const statements = qObj.statements || ans.statements || null
+    const partTitle = qObj.part_title || qObj.partTitle || ans.partTitle || ans.part_title || null
+    const explanation = qObj.explanation || ans.explanation || null
+    const points = qObj.points || ans.pointsPossible || ans.points || 1
+
+    return {
+      ...ans,
+      is_correct: ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect,
+      score_earned: ans.score_earned !== undefined ? ans.score_earned : ans.scoreEarned,
+      given_answer: ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer,
+      correct_answer: ans.correct_answer !== undefined ? ans.correct_answer : ans.correctAnswerSummary,
+      statementGrades: ans.statementGrades || qObj.statementGrades || ans.given_answer?.statementGrades || ans.givenAnswer?.statementGrades,
+      teacherFeedback: ans.teacherFeedback || ans.teacher_feedback || null,
+      gradingStatus: ans.gradingStatus || ans.grading_status || (qType === 'ESSAY' ? 'PENDING' : 'AUTO_GRADED'),
+      rawQuestionNumber: Number(qNum) || (idx + 1),
+      questions: {
+        question_number: Number(qNum) || (idx + 1),
+        question_type: qType,
+        prompt,
+        content,
+        options,
+        statements,
+        part_title: partTitle,
+        explanation,
+        points
+      }
+    }
+  })
+
+  const sortedAnswers = [...answers].sort((a, b) => {
+    const numA = a.rawQuestionNumber || a.questions?.question_number || 0
+    const numB = b.rawQuestionNumber || b.questions?.question_number || 0
+    return numA - numB
+  })
+
+  let mcIndex = 0
+  let tfIndex = 0
+  let saIndex = 0
+
+  sortedAnswers.forEach(ans => {
+    const qType = ans.questions?.question_type || ans.questionType
+    if (qType === 'MULTIPLE_CHOICE') {
+      mcIndex++
+      ans.displayNumber = mcIndex
+      ans.typePrefix = 'MC'
+    } else if (qType === 'TRUE_FALSE') {
+      tfIndex++
+      ans.displayNumber = tfIndex
+      ans.typePrefix = 'TF'
+    } else if (qType === 'SHORT_ANSWER') {
+      saIndex++
+      ans.displayNumber = saIndex
+      ans.typePrefix = 'SA'
+    } else {
+      mcIndex++
+      ans.displayNumber = mcIndex
+      ans.typePrefix = 'MC'
+    }
+    ans.anchorId = `review-q-${ans.typePrefix}-${ans.displayNumber}`
+  })
+
+  const totalQuestions = sortedAnswers.length
+  const mcCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'MULTIPLE_CHOICE').length
+  const tfCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'TRUE_FALSE').length
+  const saCount = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === 'SHORT_ANSWER').length
+
+  const rawScore = sub.score !== undefined ? sub.score : (result.score !== undefined ? result.score : result.total_score)
+  const hasScore = rawScore !== null && rawScore !== undefined && rawScore !== '' && Number.isFinite(Number(rawScore))
+  const calculatedScore = hasScore ? Number(rawScore) : null
+  const maxScore = Number(sub.maxScore || result.maxScore || result.max_score || 10)
+  const passScore = Number(sub.passScore || result.passScore || result.pass_score || 5)
+  const isPassed = sub.isPassed !== undefined
+    ? Boolean(sub.isPassed)
+    : (result.isPassed !== undefined ? Boolean(result.isPassed) : (hasScore && calculatedScore >= passScore))
+
+  let mascotMood = 'happy'
+  let mascotMessage = ''
+
+  if (!hasScore) {
+    mascotMood = 'happy'
+    mascotMessage = '<strong>Bài đang chờ chấm/chưa có điểm.</strong> Bạn hãy quay lại xem chi tiết sau nhé!'
+  } else {
+    const scoreRatio = maxScore > 0 ? (calculatedScore / maxScore) : 0
+    if (scoreRatio >= 0.8) {
+      mascotMood = 'cheer'
+      mascotMessage = '<strong>Xuất sắc!</strong> Bạn đã hoàn thành tốt bài tập này. Tiếp tục phát huy nhé!'
+    } else if (isPassed || calculatedScore >= passScore) {
+      mascotMood = 'happy'
+      mascotMessage = '<strong>Bạn đã đạt!</strong> Hãy xem lại các câu sai để tiến bộ hơn nhé.'
+    } else {
+      mascotMood = 'wink'
+      mascotMessage = '<strong>Cố lên bạn nhé!</strong> Hãy xem lại các câu chưa đúng và ôn tập thêm để cải thiện kết quả.'
+    }
+  }
+
+  let mcEarned = 0, mcPossible = 0
+  let tfEarned = 0, tfPossible = 0
+  let saEarned = 0, saPossible = 0
+
+  sortedAnswers.forEach(ans => {
+    const qType = ans.questions?.question_type || ans.questionType
+    const score = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+    const points = ans.pointsPossible !== undefined && ans.pointsPossible !== null
+      ? Number(ans.pointsPossible)
+      : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 1.0)))
+
+    if (qType === 'MULTIPLE_CHOICE') {
+      mcEarned += score
+      mcPossible += points
+    } else if (qType === 'TRUE_FALSE') {
+      tfEarned += score
+      tfPossible += points
+    } else if (qType === 'SHORT_ANSWER') {
+      saEarned += score
+      saPossible += points
+    }
+  })
+
+  const blankCount = sortedAnswers.filter(isAnswerBlank).length
+  const formatScore = (val) => Number(Number(val).toFixed(2))
+
+  const hasMultipleSections = ((mcCount > 0 ? 1 : 0) + (tfCount > 0 ? 1 : 0) + (saCount > 0 ? 1 : 0)) > 1
+
+  const renderNavButton = (ans) => {
+    const displayNum = ans.displayNumber
+    const anchorId = ans.anchorId
+    const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
+    const scoreEarned = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+    const pointsPossible = ans.pointsPossible !== undefined && ans.pointsPossible !== null
+      ? Number(ans.pointsPossible)
+      : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : 1)
+    const isBlank = isAnswerBlank(ans)
+
+    let statusMod = 'wrong'
+    let statusLabel = 'Sai'
+    let statusSymbol = '✗'
+
+    if (isCorrect === true || (isCorrect == null && scoreEarned >= pointsPossible)) {
+      statusMod = 'correct'
+      statusLabel = 'Đúng'
+      statusSymbol = '✓'
+    } else if (scoreEarned > 0) {
+      statusMod = 'partial'
+      statusLabel = 'Một phần'
+      statusSymbol = '!'
+    } else if (isBlank) {
+      statusMod = 'blank'
+      statusLabel = 'Chưa làm'
+      statusSymbol = '—'
+    }
+
+    return `
+      <div class="nav-grid-item m-nav-item m-nav-item--${statusMod}" role="button" tabindex="0" aria-label="Xem câu ${displayNum} (${statusLabel} ${statusSymbol})" data-target-id="${anchorId}" data-qnum="${ans.rawQuestionNumber}" title="Xem câu ${displayNum} (${statusLabel} ${statusSymbol})">
+        <span class="m-nav-num">${displayNum}</span>
+        <span class="m-nav-icon" aria-hidden="true">${statusSymbol}</span>
+      </div>
+    `
+  }
+
+  const renderNavSection = (qType, title, count) => {
+    if (count === 0) return ''
+    const list = sortedAnswers.filter(a => (a.questions?.question_type || a.questionType) === qType)
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px; font-weight:800; color:var(--m-muted); text-transform:uppercase; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+          <span>${title}</span>
+          <span class="m-chip">${count} câu</span>
+        </div>
+        <div class="question-nav-grid m-review-nav-grid">
+          ${list.map(ans => renderNavButton(ans)).join('')}
+        </div>
+      </div>
+    `
+  }
+
+  const backHref = isTrial ? '#trial' : (fromAppeals ? '#question-appeals' : '#history')
+  const backText = isTrial ? 'Quay lại bài học thử' : (fromAppeals ? 'Quay lại hộp thư' : 'Quay lại lịch sử')
+
+  return `
+    <div class="app-layout">
+      ${renderSidebar(isTrial ? 'trial' : 'history')}
+      <div class="main-content">
+        ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : 'Nền tảng / Bảng điều khiển')}
+        <div class="content-body">
+          <div class="m-review-wrap">
+            <div class="m-review-top-bar">
+              <div class="m-review-title-group">
+                <h1 class="m-review-page-title">${isTrial ? 'Kết quả làm bài học thử' : 'Xem lại kết quả bài tập'}</h1>
+                <p class="m-review-page-sub">${escapeReviewText(sub.homeworkTitle || 'Bài tập')}</p>
+              </div>
+              <div class="m-review-actions">
+                ${pdfUrl ? `
+                  <button id="toggle-pdf-btn" class="m-btn m-btn--primary" type="button" style="white-space:nowrap;">
+                    <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> <span>Xem đề bài (PDF)</span>
+                  </button>
+                  ${canShowPdfDownload ? `
+                    <a id="download-pdf-btn" href="${pdfUrl}" download target="_blank" class="m-btn m-btn--secondary" style="display:none; white-space:nowrap;">
+                      <i class="fa-solid fa-download" aria-hidden="true"></i> <span>Tải file PDF</span>
+                    </a>
+                  ` : ''}
+                ` : ''}
+                <button class="m-btn m-btn--secondary" onclick="window.location.hash='${backHref}'" style="cursor:pointer; white-space:nowrap;">
+                  <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> <span>${backText}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Top Overview Banner -->
+            <div id="overview-banner-card" class="card m-review-hero">
+              <div class="m-review-hero-header">
+                <div class="m-review-hero-badges">
+                  ${!hasScore ? `
+                    <span class="m-review-stat-chip m-review-stat-chip--blank">
+                      <i class="fa-solid fa-clock" aria-hidden="true"></i> <span>Bài đang chờ chấm/chưa có điểm</span>
+                    </span>
+                  ` : `
+                    <span class="m-review-stat-chip ${isPassed ? 'm-review-stat-chip--ok' : 'm-review-stat-chip--wrong'}">
+                      <i class="fa-solid ${isPassed ? 'fa-circle-check' : 'fa-circle-xmark'}" aria-hidden="true"></i>
+                      <span>${isPassed ? 'Đã Đạt · Chúc mừng bạn đã hoàn thành bài tập!' : 'Chưa Đạt · Hãy cố gắng luyện tập thêm nhé!'}</span>
+                    </span>
+                  `}
+                  ${(sub.isLate || sub.is_late || result.isLate) ? `
+                    <span class="m-review-stat-chip m-review-stat-chip--wrong">
+                      <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> <span>Nộp muộn</span>
+                    </span>
+                  ` : ''}
+                  ${!showSolutions ? `
+                    <span class="m-review-stat-chip m-review-stat-chip--blank">
+                      <i class="fa-solid fa-eye-slash" aria-hidden="true"></i> <span>Ẩn đáp án &amp; giải thích</span>
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+
+              <div class="m-review-hero-main">
+                <div class="m-review-hero-stats">
+                  <div class="m-review-hero-score-box">
+                    <span class="m-review-score-label">Tổng điểm số:</span>
+                    <strong id="review-total-score" class="m-review-total-score-val">${hasScore ? formatScore(calculatedScore) : '--'} <span class="m-review-total-score-max">/ ${formatScore(maxScore)}</span></strong>
+                    ${(Number(sub.bonus_score) > 0) ? `
+                      <span id="bonus-score-badge" class="m-review-stat-chip m-review-stat-chip--ok">
+                        <i class="fa-solid fa-plus" aria-hidden="true"></i> Điểm cộng: +${formatScore(Number(sub.bonus_score))}
+                      </span>
+                    ` : `<span id="bonus-score-badge" style="display:none;"></span>`}
+                  </div>
+
+                  <div class="m-review-stat-chips">
+                    <span class="m-review-stat-chip m-review-stat-chip--ok">
+                      <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Đúng: <strong>${sub.correctCount}</strong> câu
+                    </span>
+                    <span class="m-review-stat-chip m-review-stat-chip--wrong">
+                      <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Sai: <strong>${sub.wrongCount}</strong> câu
+                    </span>
+                    ${blankCount > 0 ? `
+                      <span class="m-review-stat-chip m-review-stat-chip--blank">
+                        <i class="fa-solid fa-circle-question" aria-hidden="true"></i> Chưa làm: <strong>${blankCount}</strong> câu
+                      </span>
+                    ` : ''}
+                    ${(sub.durationSecondsTaken && sub.durationSecondsTaken > 0) ? `
+                      <span class="m-review-stat-chip m-review-stat-chip--info">
+                        <i class="fa-regular fa-clock" aria-hidden="true"></i> Thời gian: <strong>${formatDurationVi(sub.durationSecondsTaken)}</strong>
+                      </span>
+                    ` : ''}
+                    ${sub.submittedAt ? `
+                      <span class="m-review-stat-chip m-review-stat-chip--blank">
+                        <i class="fa-regular fa-calendar-check" aria-hidden="true"></i> Nộp lúc: <strong>${new Date(sub.submittedAt).toLocaleString('vi-VN')}</strong>
+                      </span>
+                    ` : ''}
+                  </div>
+                </div>
+
+                <div class="m-review-hero-mascot">
+                  ${renderMascot({ mood: mascotMood, size: 100 })}
+                  <div class="m-review-mascot-bubble">
+                    ${mascotMessage}
+                  </div>
+                </div>
+              </div>
+
+              ${(mcPossible > 0 || tfPossible > 0 || saPossible > 0) ? `
+                <div class="m-review-breakdown-row">
+                  ${mcPossible > 0 ? `
+                    <div class="m-review-breakdown-card">
+                      <span class="m-review-breakdown-label">Trắc nghiệm</span>
+                      <strong class="m-review-breakdown-score">${formatScore(mcEarned)} / ${formatScore(mcPossible)}đ</strong>
+                    </div>
+                  ` : ''}
+                  ${tfPossible > 0 ? `
+                    <div class="m-review-breakdown-card">
+                      <span class="m-review-breakdown-label">Đúng / Sai</span>
+                      <strong class="m-review-breakdown-score">${formatScore(tfEarned)} / ${formatScore(tfPossible)}đ</strong>
+                    </div>
+                  ` : ''}
+                  ${saPossible > 0 ? `
+                    <div class="m-review-breakdown-card">
+                      <span class="m-review-breakdown-label">Trả lời ngắn</span>
+                      <strong class="m-review-breakdown-score">${formatScore(saEarned)} / ${formatScore(saPossible)}đ</strong>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+            </div>
+
+            <div id="exam-logs-container" style="display:none;"></div>
+
+            <!-- Main Layout Wrapper with transition -->
+            <div id="review-layout-wrapper">
+              
+              <!-- PDF Preview Pane (Initially hidden) -->
+              <div id="pdf-preview-pane" class="pdf-viewer-container" style="display: none;">
+                <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:nowrap; gap:10px; background:var(--m-surface); padding:8px 14px; border-bottom:1px solid var(--m-line); border-radius:12px 12px 0 0; box-sizing:border-box; flex-shrink:0;">
+                  <div style="font-weight:700; color:var(--m-ink); display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto; font-size:13px;">
+                    <i class="fa-solid fa-file-pdf" style="color:var(--m-accent2); font-size:16px; flex-shrink:0;"></i>
+                    <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeReviewText(sub.homeworkTitle || 'Đề bài')}">${escapeReviewText(sub.homeworkTitle || 'Đề bài PDF')}</span>
+                  </div>
+                  <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
+                </div>
+                <div id="pdf-canvas-container" style="flex:1; width:100%; height:100%; min-height:0; overflow:hidden; position:relative;"></div>
+              </div>
+
+              <!-- Content Pane (Student Answers) -->
+              <div id="content-pane" style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- Compact summary bar visible only in split mode -->
+                <div class="card review-compact-summary" style="display:none;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="m-chip ${!hasScore ? 'm-chip--blank' : (isPassed ? 'm-chip--ok' : 'm-chip--warn')}">${!hasScore ? 'CHỜ CHẤM' : (isPassed ? 'ĐÃ ĐẠT' : 'CHƯA ĐẠT')}</span>
+                    <span style="font-size: 13px; color: var(--m-muted); font-weight: 700;">
+                      Đúng: <strong style="color: var(--m-ok);">${sub.correctCount}</strong> | Sai: <strong style="color: var(--m-accent2);">${sub.wrongCount}</strong>
+                    </span>
+                  </div>
+                  <strong id="review-compact-total-score" style="font-size: 16px; color: var(--m-accent); font-family: var(--m-font-heading); font-weight: 800;">
+                    ${hasScore ? formatScore(calculatedScore) : '--'} / ${formatScore(maxScore)} điểm
+                  </strong>
+                </div>
+
+                <div id="questions-grid">
+                  <div class="m-review-questions-col">
+                    ${(() => {
+                      let currentSectionType = null
+
+                      return sortedAnswers.map((ans, idx) => {
+                        const qNum = ans.displayNumber || (idx + 1)
+                        const anchorId = ans.anchorId || `review-q-${idx + 1}`
+                        const rawNum = ans.rawQuestionNumber || ans.questions?.question_number || (idx + 1)
+                        const isCorrect = ans.is_correct !== undefined ? ans.is_correct : ans.isCorrect
+                        const qType = ans.questions?.question_type || ans.questionType
+                        const qTypeStr = qType === 'MULTIPLE_CHOICE' ? 'Trắc nghiệm' : (qType === 'TRUE_FALSE' ? 'Đúng / Sai' : (qType === 'ESSAY' ? 'Tự luận' : 'Trả lời ngắn'))
+                        const pointsPossible = ans.pointsPossible !== undefined && ans.pointsPossible !== null
+                          ? Number(ans.pointsPossible)
+                          : (ans.questions?.points !== undefined && ans.questions?.points !== null ? Number(ans.questions.points) : (qType === 'TRUE_FALSE' ? 1.0 : (qType === 'SHORT_ANSWER' ? 0.5 : 0.25)))
+
+                        const scoreEarned = ans.score_earned !== undefined ? Number(ans.score_earned) : (Number(ans.scoreEarned) || 0)
+                        const givenAnswer = ans.given_answer !== undefined ? ans.given_answer : ans.givenAnswer
+                        const isBlank = isAnswerBlank(ans)
+
+                        let cardStatusMod = 'wrong'
+                        let badgeChipClass = 'm-review-stat-chip--wrong'
+                        let badgeIcon = 'fa-circle-xmark'
+                        let badgeText = 'Sai'
+
+                        if (isCorrect === true || (isCorrect == null && scoreEarned >= pointsPossible)) {
+                          cardStatusMod = 'correct'
+                          badgeChipClass = 'm-review-stat-chip--ok'
+                          badgeIcon = 'fa-circle-check'
+                          badgeText = 'Đúng'
+                        } else if (scoreEarned > 0) {
+                          cardStatusMod = 'partial'
+                          badgeChipClass = 'm-review-stat-chip--partial'
+                          badgeIcon = 'fa-triangle-exclamation'
+                          badgeText = 'Một phần'
+                        } else if (isBlank) {
+                          cardStatusMod = 'blank'
+                          badgeChipClass = 'm-review-stat-chip--blank'
+                          badgeIcon = 'fa-circle-question'
+                          badgeText = 'Chưa làm'
+                        }
+
+                        let givenStr = ''
+                        if (givenAnswer?.type === 'TRUE_FALSE') {
+                          const val = givenAnswer?.value || {}
+                          const renderVal = (v) => v === true ? 'Đ' : (v === false ? 'S' : '_')
+                          givenStr = `a: ${renderVal(val.a)}, b: ${renderVal(val.b)}, c: ${renderVal(val.c)}, d: ${renderVal(val.d)}`
+                        } else if (qType === 'SHORT_ANSWER') {
+                          givenStr = givenAnswer?.value !== null && givenAnswer?.value !== undefined && givenAnswer?.value !== '' ? String(givenAnswer.value) : 'Không trả lời'
+                        }
+
+                        let correctStr = ''
+                        const corrKey = ans.correct_answer || ans.correctAnswerSummary || ans.correctAnswer || ans.questions?.question_answers
+
+                        if (qType === 'MULTIPLE_CHOICE') {
+                          correctStr = corrKey?.mc_answer || (typeof corrKey === 'string' ? corrKey : '') || ''
+                        } else if (qType === 'TRUE_FALSE') {
+                          const val = corrKey?.tf_answers || corrKey || {}
+                          const a = val.a !== undefined ? val.a : val.s1
+                          const b = val.b !== undefined ? val.b : val.s2
+                          const c = val.c !== undefined ? val.c : val.s3
+                          const d = val.d !== undefined ? val.d : val.s4
+                          if (a !== undefined || b !== undefined || c !== undefined || d !== undefined) {
+                            correctStr = `a: ${a ? 'Đ' : 'S'}, b: ${b ? 'Đ' : 'S'}, c: ${c ? 'Đ' : 'S'}, d: ${d ? 'Đ' : 'S'}`
+                          }
+                        } else {
+                          const val = corrKey?.sa_answer !== undefined && corrKey?.sa_answer !== null
+                            ? corrKey.sa_answer
+                            : (corrKey?.answer !== undefined && corrKey?.answer !== null ? corrKey.answer : corrKey)
+                          correctStr = val !== undefined && val !== null ? String(val) : ''
+                        }
+
+                        let promptObj = null
+                        try {
+                          const rawP = ans.questions?.prompt || ans.prompt
+                          if (typeof rawP === 'string' && rawP.startsWith('{')) {
+                            const parsed = JSON.parse(rawP)
+                            if (parsed.isInteractive) promptObj = parsed
+                          }
+                        } catch (e) {}
+
+                        const qContent = ans.questions?.content || ans.content || ans.questions?.prompt || ''
+                        const qOptions = ans.questions?.options || ans.options || null
+                        const qStatements = ans.questions?.statements || ans.statements || null
+                        const qExplanation = ans.questions?.explanation || ans.explanation || null
+
+                        let reviewBody = ''
+                        if (qType === 'ESSAY') {
+                          const pending = ans.gradingStatus !== 'MANUALLY_GRADED'
+                          reviewBody = `
+                            <div class="m-review-essay-wrap">
+                              <div class="m-review-essay-text">${escapeReviewText(givenAnswer?.value || 'Không trả lời')}</div>
+                              <div class="m-review-essay-status" style="background:${pending ? 'var(--m-warn-soft)' : 'var(--m-ok-soft)'}; color:${pending ? 'var(--m-warn)' : 'var(--m-ok)'};">
+                                ${pending ? 'Chờ chấm tự luận' : `Đã chấm: ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm`}
+                              </div>
+                              ${ans.teacherFeedback ? `<div class="m-review-essay-feedback"><strong>Nhận xét:</strong> ${escapeReviewText(ans.teacherFeedback)}</div>` : ''}
+                            </div>
+                          `
+                        } else if (qType === 'TRUE_FALSE') {
+                          let tfObj = givenAnswer?.value !== undefined ? givenAnswer.value : givenAnswer
+                          if (typeof tfObj === 'string') {
+                            try { tfObj = JSON.parse(tfObj) } catch {}
+                          }
+                          tfObj = tfObj || {}
+
+                          let corrKeyVal = corrKey?.tf_answers || corrKey || {}
+                          if (typeof corrKeyVal === 'string') {
+                            try { corrKeyVal = JSON.parse(corrKeyVal) } catch {}
+                          }
+
+                          const getBool = (v) => {
+                            if (v === true || v === 'true' || v === 1 || v === '1') return true
+                            if (v === false || v === 'false' || v === 0 || v === '0') return false
+                            return undefined
+                          }
+
+                          const correctA = getBool(corrKeyVal.a !== undefined ? corrKeyVal.a : corrKeyVal.s1)
+                          const correctB = getBool(corrKeyVal.b !== undefined ? corrKeyVal.b : corrKeyVal.s2)
+                          const correctC = getBool(corrKeyVal.c !== undefined ? corrKeyVal.c : corrKeyVal.s3)
+                          const correctD = getBool(corrKeyVal.d !== undefined ? corrKeyVal.d : corrKeyVal.s4)
+                          const correctMap = { a: correctA, b: correctB, c: correctC, d: correctD }
+
+                          let statementGrades = ans.statementGrades || ans.questions?.statementGrades || givenAnswer?.statementGrades
+                          if (typeof statementGrades === 'string') {
+                            try { statementGrades = JSON.parse(statementGrades) } catch {}
+                          }
+
+                          if (!statementGrades && (correctA !== undefined || correctB !== undefined || correctC !== undefined || correctD !== undefined)) {
+                            statementGrades = {
+                              a: getBool(tfObj.a !== undefined ? tfObj.a : tfObj.s1) === correctA,
+                              b: getBool(tfObj.b !== undefined ? tfObj.b : tfObj.s2) === correctB,
+                              c: getBool(tfObj.c !== undefined ? tfObj.c : tfObj.s3) === correctC,
+                              d: getBool(tfObj.d !== undefined ? tfObj.d : tfObj.s4) === correctD
+                            }
+                          }
+
+                          if (!statementGrades && !ans.adminMarkedCorrect && (isCorrect === true || (isCorrect == null && scoreEarned >= pointsPossible))) {
+                            statementGrades = { a: true, b: true, c: true, d: true }
+                          }
+
+                          let stmtList = []
+                          if (Array.isArray(qStatements)) {
+                            stmtList = qStatements.map((s, sIdx) => ({ key: s.key || ['a', 'b', 'c', 'd'][sIdx], text: s.text || String(s) }))
+                          } else if (typeof qStatements === 'object' && qStatements) {
+                            stmtList = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: qStatements[k] || '' }))
+                          }
+
+                          const tfReviewHtml = ['a', 'b', 'c', 'd'].map(subKey => {
+                            const studentRaw = tfObj[subKey] !== undefined ? tfObj[subKey] : tfObj[`s${subKey === 'a' ? 1 : subKey === 'b' ? 2 : subKey === 'c' ? 3 : 4}`]
+                            const studentVal = getBool(studentRaw)
+                            const isStmtCorrect = statementGrades ? (statementGrades[subKey] === true) : (isCorrect && studentVal !== undefined)
+                            const displayVal = studentVal !== undefined ? (studentVal ? 'Đúng (Đ)' : 'Sai (S)') : 'Không trả lời'
+                            const correctVal = correctMap[subKey]
+                            const correctValText = correctVal !== undefined ? (correctVal ? 'Đ' : 'S') : ''
+
+                            const stmtObj = (stmtList && stmtList.find(s => s.key === subKey)) || promptObj?.options?.find(o => (o.id || o.key || '').toLowerCase() === subKey.toLowerCase())
+                            const stmtText = stmtObj?.text || (typeof stmtObj === 'string' ? stmtObj : '')
+
+                            return `
+                              <div class="m-review-tf-item ${isStmtCorrect ? 'is-correct' : 'is-wrong'}">
+                                ${stmtText ? `
+                                  <div class="m-review-tf-stmt">
+                                    <strong style="color:var(--m-accent);">${subKey})</strong> ${renderMarkdown(stmtText)}
+                                  </div>
+                                ` : `
+                                  <div style="font-weight:700; color:var(--m-ink);">Ý ${subKey.toUpperCase()}:</div>
+                                `}
+                                <div class="m-review-tf-meta">
+                                  <span>Lựa chọn của bạn:</span>
+                                  <span style="font-weight:800; display:inline-flex; align-items:center; gap:6px; color:${isStmtCorrect ? 'var(--m-review-ok)' : 'var(--m-review-wrong)'};">
+                                    <i class="fa-solid ${isStmtCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}" aria-hidden="true"></i>
+                                    <span>${displayVal}</span>
+                                    <span class="m-chip ${isStmtCorrect ? 'm-chip--ok' : 'm-chip--wrong'}">${isStmtCorrect ? 'Chính xác' : 'Chưa đúng'}</span>
+                                  </span>
+                                </div>
+                                ${(showSolutions && !isStmtCorrect && correctValText) ? `
+                                  <div style="font-size:12px; color:var(--m-muted); display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                                    <span>Đáp án đúng:</span>
+                                    <strong style="color:var(--m-ok);">${correctValText === 'Đ' ? 'Đúng (Đ)' : 'Sai (S)'}</strong>
+                                  </div>
+                                ` : ''}
+                              </div>
+                            `
+                          }).join('')
+
+                          reviewBody = `
+                            <div class="m-review-tf-grid">
+                              ${tfReviewHtml}
+                            </div>
+                          `
+                        } else if (qType === 'MULTIPLE_CHOICE' && ((promptObj?.options && promptObj.options.length > 0) || qOptions)) {
+                          let optList = []
+                          if (promptObj?.options && promptObj.options.length > 0) {
+                            optList = promptObj.options.map(opt => ({
+                              key: (opt.id || opt.key || '').toUpperCase(),
+                              text: opt.text || ''
+                            }))
+                          } else if (Array.isArray(qOptions)) {
+                            optList = qOptions.map(opt => typeof opt === 'string' ? { key: '', text: opt } : opt)
+                          } else if (typeof qOptions === 'object' && qOptions) {
+                            optList = ['A', 'B', 'C', 'D'].map(k => ({ key: k, text: qOptions[k] || '' }))
+                          }
+
+                          reviewBody = `
+                            <div class="m-review-opt-list">
+                              ${optList.map(opt => {
+                                const optKey = opt.key || ''
+                                const isChosen = String(givenAnswer?.value || givenStr || '').trim().toUpperCase() === optKey.trim().toUpperCase()
+                                const isRight = correctStr ? (correctStr.trim().toUpperCase() === optKey.trim().toUpperCase()) : (isChosen && isCorrect)
+
+                                let optClass = 'm-review-opt'
+                                let badgeHtml = ''
+
+                                if (isChosen && (isCorrect || isRight)) {
+                                  optClass += ' is-chosen is-correct'
+                                  badgeHtml = `<span class="m-chip m-chip--ok"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Bạn chọn (Đúng)</span>`
+                                } else if (isChosen && !isCorrect) {
+                                  optClass += ' is-chosen is-wrong'
+                                  badgeHtml = `<span class="m-chip m-chip--wrong m-chip--accent2"><i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Bạn chọn (Sai)</span>`
+                                } else if (showSolutions && !isChosen && isRight && !isCorrect) {
+                                  optClass += ' is-correct-answer'
+                                  badgeHtml = `<span class="m-chip m-chip--ok"><i class="fa-solid fa-check" aria-hidden="true"></i> Đáp án đúng</span>`
+                                }
+
+                                return `
+                                  <div class="${optClass}">
+                                    <div class="m-review-opt-main">
+                                      <span class="m-review-opt-key">${optKey}</span>
+                                      <div class="m-review-opt-text">${renderMarkdown(opt.text || '')}</div>
+                                    </div>
+                                    ${badgeHtml ? `<div class="m-review-opt-badge">${badgeHtml}</div>` : ''}
+                                  </div>
+                                `
+                              }).join('')}
+                            </div>
+                          `
+                        } else {
+                          reviewBody = `
+                            <div class="m-review-sa-wrap">
+                              <div class="m-review-sa-item ${isCorrect ? 'is-correct' : 'is-wrong'}">
+                                <div class="m-review-sa-label">
+                                  <i class="fa-solid ${isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'}" aria-hidden="true"></i>
+                                  <span>Đáp án của bạn:</span>
+                                </div>
+                                <div class="m-review-sa-val">${escapeReviewText(givenStr)}</div>
+                              </div>
+                              ${(showSolutions && !isCorrect && correctStr) ? `
+                                <div class="m-review-sa-item is-correct-answer">
+                                  <div class="m-review-sa-label">
+                                    <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                    <span>Đáp án đúng:</span>
+                                  </div>
+                                  <div class="m-review-sa-val">${escapeReviewText(correctStr)}</div>
+                                </div>
+                              ` : ''}
+                            </div>
+                          `
+                        }
+
+                        let explanationContent = promptObj?.explanation || qExplanation
+                        let explanationHtml = ''
+                        if (showSolutions && explanationContent) {
+                          explanationHtml = `
+                            <div class="solution-explanation-box review-explanation-card m-review-explanation">
+                              <div class="m-review-explanation-head">
+                                <i class="fa-solid fa-lightbulb" aria-hidden="true"></i>
+                                <span>Lời giải chi tiết:</span>
+                              </div>
+                              <div class="explanation-content explanation-text m-review-explanation-body">
+                                ${renderMarkdown(explanationContent)}
+                              </div>
+                            </div>
+                          `
+                        }
+
+                        let sectionHeaderHtml = ''
+                        if (hasMultipleSections && currentSectionType !== qType) {
+                          currentSectionType = qType
+                          if (qType === 'MULTIPLE_CHOICE') {
+                            sectionHeaderHtml = `
+                              <div class="m-review-section-header">
+                                <div class="m-review-section-title">
+                                  <i class="fa-solid fa-list-check" style="color:var(--m-accent);" aria-hidden="true"></i>
+                                  <span>Phần I: Câu trắc nghiệm nhiều phương án lựa chọn (${mcCount} câu)</span>
+                                </div>
+                                <span class="m-chip">Câu 1 - ${mcCount}</span>
+                              </div>
+                            `
+                          } else if (qType === 'TRUE_FALSE') {
+                            sectionHeaderHtml = `
+                              <div class="m-review-section-header">
+                                <div class="m-review-section-title">
+                                  <i class="fa-solid fa-square-check" style="color:var(--m-ok);" aria-hidden="true"></i>
+                                  <span>Phần II: Câu trắc nghiệm đúng / sai (${tfCount} câu)</span>
+                                </div>
+                                <span class="m-chip m-chip--ok">Câu 1 - ${tfCount}</span>
+                              </div>
+                            `
+                          } else if (qType === 'SHORT_ANSWER') {
+                            sectionHeaderHtml = `
+                              <div class="m-review-section-header">
+                                <div class="m-review-section-title">
+                                  <i class="fa-solid fa-pen-to-square" style="color:var(--m-warn);" aria-hidden="true"></i>
+                                  <span>Phần III: Câu trắc nghiệm trả lời ngắn (${saCount} câu)</span>
+                                </div>
+                                <span class="m-chip m-chip--warn">Câu 1 - ${saCount}</span>
+                              </div>
+                            `
+                          }
+                        }
+
+                        const isGenericPlaceholder = !qContent || !!qContent.trim().match(/^Câu hỏi số\s*\d+$/i)
+
+                        return `
+                          ${sectionHeaderHtml}
+                          <div class="card review-question-card m-review-q-card m-review-q-card--${cardStatusMod}" id="${anchorId}" data-legacy-id="review-question-${rawNum}">
+                            <div class="m-review-q-head">
+                              <div class="m-review-q-title-group">
+                                <span class="m-review-q-num">Câu ${qNum}</span>
+                                <span class="m-review-q-type">${qTypeStr}</span>
+                              </div>
+                              <span class="m-review-stat-chip ${badgeChipClass}" data-score-badge="${ans.id || ''}">
+                                <i class="fa-solid ${badgeIcon}" aria-hidden="true"></i>
+                                <span>${badgeText} · ${formatScore(scoreEarned)} / ${formatScore(pointsPossible)} điểm</span>
+                              </span>
+                              ${ans.adminMarkedCorrect ? '<span class="m-chip m-chip--ok">Được chuyển thành đúng</span>' : ''}
+                            </div>
+
+                            ${promptObj ? `
+                              <div class="interactive-prompt-text m-review-q-prompt">
+                                ${renderMarkdown(promptObj.text || `Câu hỏi số ${qNum}`)}
+                              </div>
+                              ${promptObj.imageUrl ? `
+                                <div style="text-align:center; margin-bottom:14px;">
+                                  <img src="${promptObj.imageUrl}" alt="Hình minh họa câu ${qNum}" style="max-width:100%; max-height:260px; border-radius:12px; border:2px solid var(--m-line); object-fit:contain; box-shadow:var(--m-shadow-sm);" />
+                                </div>
+                              ` : ''}
+                            ` : (!isGenericPlaceholder ? `
+                              <div class="question-prompt-text m-review-q-prompt">
+                                ${renderMarkdown(qContent)}
+                              </div>
+                            ` : `
+                              <div class="m-review-q-prompt">
+                                Câu hỏi số ${qNum}
+                              </div>
+                            `)}
+
+                            ${reviewBody}
+
+                            ${explanationHtml}
+                            ${appealContext ? renderQuestionAppealSlot(ans.id, ans.rawQuestionNumber, qType) : ''}
+                          </div>
+                        `
+                      }).join('')
+                    })()}
+                  </div>
+
+                  <!-- Right Column: Question Navigator -->
+                  <div class="review-sidebar-col m-review-nav-col">
+                    <div class="card review-navigator-card m-review-nav-card">
+                      <div class="m-review-nav-head">
+                        <h3 class="m-review-nav-title">
+                          <i class="fa-solid fa-map-location-dot" style="color:var(--m-accent);" aria-hidden="true"></i>
+                          <span>Sơ đồ câu hỏi</span>
+                        </h3>
+                        <span class="m-chip">${totalQuestions} câu</span>
+                      </div>
+
+                      ${hasMultipleSections ? `
+                        ${renderNavSection('MULTIPLE_CHOICE', 'Phần I: Trắc nghiệm', mcCount)}
+                        ${renderNavSection('TRUE_FALSE', 'Phần II: Đúng / Sai', tfCount)}
+                        ${renderNavSection('SHORT_ANSWER', 'Phần III: Trả lời ngắn', saCount)}
+                      ` : `
+                        <div class="question-nav-grid m-review-nav-grid">
+                          ${sortedAnswers.map(ans => renderNavButton(ans)).join('')}
+                        </div>
+                      `}
+
+                      <div class="m-review-nav-legend">
+                        <div class="m-legend-item"><span class="m-legend-dot m-legend-dot--correct"></span><span>Đúng</span></div>
+                        <div class="m-legend-item"><span class="m-legend-dot m-legend-dot--partial"></span><span>Một phần</span></div>
+                        <div class="m-legend-item"><span class="m-legend-dot m-legend-dot--wrong"></span><span>Sai</span></div>
+                        <div class="m-legend-item"><span class="m-legend-dot m-legend-dot--blank"></span><span>Chưa làm</span></div>
+                      </div>
+                    </div>
+
+                    <!-- Encouragement Tip Card -->
+                    <div class="m-review-tip-card">
+                      <div class="m-review-tip-title">
+                        <i class="fa-solid fa-lightbulb" aria-hidden="true"></i>
+                        <span>Cần ôn tập thêm?</span>
+                      </div>
+                      <p class="m-review-tip-desc">Xem lại các câu chưa đúng và ôn tập kỹ lý thuyết trên lớp để cải thiện điểm số.</p>
+                      <button class="m-btn m-btn--secondary m-review-tip-btn" onclick="window.location.hash='${isTrial ? '#trial' : '#my-classes'}'">
+                        ${isTrial ? 'Danh sách học thử' : 'Đến trang lớp học'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function renderAssignmentReviewView() {
+  if (!isMochiMode()) return renderClassicAssignmentReviewView()
+  return renderMochiAssignmentReviewView()
+}
+
 export function bindAssignmentReviewEvents() {
   bindSidebarEvents()
   const reviewResult = state.lastSubmissionResult || {}
@@ -1368,7 +2247,7 @@ export function bindAssignmentReviewEvents() {
         if (downloadPdfBtn) downloadPdfBtn.style.display = 'inline-flex'
         
         togglePdfBtn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Ẩn đề bài`
-        togglePdfBtn.style.background = '#64748b'
+        togglePdfBtn.style.background = isMochiMode() ? 'var(--m-muted)' : '#64748b'
       } else {
         // Deactivate split review mode, restore full page
         wrapper.classList.remove('split-review-active')
@@ -1380,7 +2259,7 @@ export function bindAssignmentReviewEvents() {
         if (downloadPdfBtn) downloadPdfBtn.style.display = 'none'
         
         togglePdfBtn.innerHTML = `<i class="fa-solid fa-file-pdf"></i> Xem đề bài (PDF)`
-        togglePdfBtn.style.background = '#0066cc'
+        togglePdfBtn.style.background = isMochiMode() ? 'var(--m-accent)' : '#0066cc'
       }
     }
   }

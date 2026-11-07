@@ -1,15 +1,24 @@
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/mochi/weekly-calendar.css')
+}
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import mascotUrl from '../../assets/mascot-study.svg'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { isMochiUI } from '../ui-flag.js'
+import { renderMascot } from '../components/mascot.js'
 import { escapeHtml } from '../utils/download-helper.js'
 import {
   CALENDAR_TIME_ZONE, addCalendarDays, calendarLocalDay, calendarWeekStart, calendarTime,
   calendarLessonLink, calendarDatedEvents, safeCalendarMeetUrl, buildWeeklyCalendarIcs, createCalendarLoader,
 } from '../utils/weekly-calendar.js'
 
-export function renderWeeklyCalendarView() {
+function isMochiMode() {
+  return state.user?.role === 'STUDENT' && typeof isMochiUI === 'function' && isMochiUI()
+}
+
+export function renderClassicWeeklyCalendarView() {
   return `
     <div class="app-layout navy-student">
       ${renderSidebar('weekly-calendar')}
@@ -79,6 +88,53 @@ export function renderWeeklyCalendarView() {
     </div>`
 }
 
+export function renderMochiWeeklyCalendarView() {
+  return `
+    <div class="app-layout navy-student">
+      ${renderSidebar('weekly-calendar')}
+      <div class="main-content">
+        ${renderNavbar('Học tập / Lịch học')}
+        <main class="content-body m-weekly-calendar" id="weekly-calendar-root">
+          <header class="m-wc-hero">
+            <div class="m-wc-hero-copy">
+              <span class="m-chip"><i class="fa-regular fa-calendar" aria-hidden="true"></i> Kế hoạch tuần</span>
+              <h1>Lịch học</h1>
+              <p>Ngày học đã lưu và hạn nộp bài theo tuần.</p>
+            </div>
+            <div class="m-wc-hero-mascot">${renderMascot({ mood: 'happy', size: 116 })}</div>
+          </header>
+
+          <p class="page-description m-wc-timezone"><i class="fa-solid fa-earth-asia" aria-hidden="true"></i> Giờ Việt Nam (UTC+07:00, Asia/Ho_Chi_Minh)</p>
+          <p class="wc-note">Ngày học có thể là dữ liệu đã ghi nhận, chưa có giờ cụ thể. Link Meet theo bài học không phải lịch hẹn. Lịch này chỉ xem, không chỉnh sửa lịch dạy.</p>
+
+          <section class="m-wc-controls" aria-labelledby="wc-range">
+            <div class="wc-toolbar" role="group" aria-label="Điều hướng tuần và lọc lớp">
+              <button type="button" class="btn-secondary m-btn m-btn--secondary" id="wc-prev" aria-label="Tuần trước"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Tuần trước</button>
+              <button type="button" class="btn-secondary m-btn m-btn--primary" id="wc-today">Tuần này</button>
+              <button type="button" class="btn-secondary m-btn m-btn--secondary" id="wc-next" aria-label="Tuần sau">Tuần sau <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+              <label for="wc-class">Lớp học</label>
+              <select id="wc-class"><option value="">Tất cả lớp</option></select>
+              <button type="button" class="btn-secondary m-btn m-btn--secondary" id="wc-export" disabled><i class="fa-solid fa-download" aria-hidden="true"></i> Xuất lịch .ics</button>
+            </div>
+            <h2 id="wc-range" class="m-wc-range"></h2>
+            <p id="wc-status" class="m-wc-status" role="status" aria-live="polite"></p>
+          </section>
+
+          <div id="wc-content" aria-busy="true"></div>
+          <section class="m-wc-meet" aria-labelledby="wc-meet-heading">
+            <h2 id="wc-meet-heading"><i class="fa-solid fa-video" aria-hidden="true"></i> Link Meet theo bài học, chưa xếp giờ</h2>
+            <p class="wc-meta">Mục này không phụ thuộc tuần đang chọn. Không có liên kết giữa Meet và ngày học; ngày tạo link không phải giờ học.</p>
+            <div id="wc-meet-content"></div>
+          </section>
+        </main>
+      </div>
+    </div>`
+}
+
+export function renderWeeklyCalendarView() {
+  return isMochiMode() ? renderMochiWeeklyCalendarView() : renderClassicWeeklyCalendarView()
+}
+
 function dayLabel(day, includeYear = false) {
   return new Intl.DateTimeFormat('vi-VN', {
     timeZone: CALENDAR_TIME_ZONE, weekday: 'long', day: '2-digit', month: '2-digit',
@@ -86,16 +142,25 @@ function dayLabel(day, includeYear = false) {
   }).format(new Date(`${day}T12:00:00+07:00`))
 }
 
-function renderEvent(event, role) {
+function renderEvent(event, role, mochi = false) {
   const isDeadline = event.kind === 'deadline'
   const link = calendarLessonLink(event, role)
-  return `<li class="wc-event ${isDeadline ? '' : 'session'}">
+  if (!mochi) {
+    return `<li class="wc-event ${isDeadline ? '' : 'session'}">
     <div><strong>${isDeadline ? `Hạn nộp • <time datetime="${escapeHtml(event.at)}">${escapeHtml(calendarTime(event.at))}</time>` : 'Ngày học (chưa có giờ)'}</strong></div>
     ${isDeadline ? `<p style="margin:6px 0;">${escapeHtml(event.title || 'Bài tập')}</p>` : ''}
     <p class="wc-meta">${escapeHtml(event.className || 'Lớp học')}</p>
     ${event.lessonTitle ? `<p class="wc-meta">${escapeHtml(event.lessonTitle)}</p>` : ''}
     <a href="${escapeHtml(link)}">${isDeadline ? 'Xem bài học' : 'Xem lớp học'}</a>
   </li>`
+  }
+  return `<li class="wc-event ${isDeadline ? 'deadline' : 'session'}">
+    <div class="m-wc-event-body"><div class="m-wc-event-heading"><span class="m-wc-event-icon" aria-hidden="true"><i class="fa-solid ${isDeadline ? 'fa-hourglass-half' : 'fa-book-open'}"></i></span><strong>${isDeadline ? `Hạn nộp • <time datetime="${escapeHtml(event.at)}">${escapeHtml(calendarTime(event.at))}</time>` : 'Ngày học (chưa có giờ)'}</strong></div>
+    ${isDeadline ? `<p class="m-wc-event-title" title="${escapeHtml(event.title || 'Bài tập')}">${escapeHtml(event.title || 'Bài tập')}</p>` : ''}
+    <p class="wc-meta m-wc-event-meta" title="${escapeHtml(event.className || 'Lớp học')}">${escapeHtml(event.className || 'Lớp học')}</p>
+    ${event.lessonTitle ? `<p class="wc-meta m-wc-event-meta" title="${escapeHtml(event.lessonTitle)}">${escapeHtml(event.lessonTitle)}</p>` : ''}
+    <a href="${escapeHtml(link)}">${isDeadline ? 'Xem bài học' : 'Xem lớp học'}</a>
+    </div></li>`
 }
 
 export function bindWeeklyCalendarEvents() {
@@ -108,6 +173,7 @@ export function bindWeeklyCalendarEvents() {
   let classId = params.get('classId') || ''
   let datedEvents = []
   const user = state.user
+  const mochi = isMochiMode()
   const active = () => root.isConnected && document.getElementById('weekly-calendar-root') === root &&
     state.user === user && Boolean(state.token) && window.location.hash.split('?')[0] === '#weekly-calendar'
   const setStatus = message => { query('wc-status').textContent = message }
@@ -143,14 +209,16 @@ export function bindWeeklyCalendarEvents() {
         `<option value="${escapeHtml(cls.id)}">${escapeHtml(cls.name)}</option>`).join('')
       query('wc-class').value = classId
       const today = calendarLocalDay()
-      query('wc-content').innerHTML = `${datedEvents.length ? '' : '<p class="wc-note">Không có ngày học hoặc deadline trong tuần này ở các lớp đang chọn. Điều này không có nghĩa là lớp nghỉ học.</p>'}
+      query('wc-content').innerHTML = `${datedEvents.length ? '' : mochi
+        ? `<div class="m-wc-empty">${renderMascot({ mood: 'wink', size: 128 })}<div><h2>Tuần này chưa có lịch</h2><p>Không có ngày học hoặc deadline trong tuần này ở các lớp đang chọn. Điều này không có nghĩa là lớp nghỉ học.</p></div></div>`
+        : '<p class="wc-note">Không có ngày học hoặc deadline trong tuần này ở các lớp đang chọn. Điều này không có nghĩa là lớp nghỉ học.</p>'}
         ${(data.warnings || []).map(message => `<p class="wc-note">${escapeHtml(message)}</p>`).join('')}
         <div class="wc-grid" role="group" aria-label="Lịch bảy ngày">${Array.from({ length: 7 }, (_, index) => {
           const day = addCalendarDays(weekStart, index)
           const events = datedEvents.filter(event => event.date === day)
           return `<section class="wc-day" aria-labelledby="wc-day-${index}" ${today === day ? 'aria-current="date"' : ''}>
             <h3 id="wc-day-${index}"><time datetime="${day}">${escapeHtml(dayLabel(day))}</time>${today === day ? ' • Hôm nay' : ''}</h3>
-            ${events.length ? `<ul class="wc-events" role="list">${events.map(event => renderEvent(event, user?.role)).join('')}</ul>` : '<p class="wc-meta">Không có dữ liệu lịch.</p>'}
+            ${events.length ? `<ul class="wc-events" role="list">${events.map(event => renderEvent(event, user?.role, mochi)).join('')}</ul>` : `<p class="wc-meta">${mochi ? 'Không có lịch' : 'Không có dữ liệu lịch.'}</p>`}
           </section>`
         }).join('')}</div>`
       const classIds = new Set(classes.map(cls => cls.id))
