@@ -24,12 +24,14 @@ export function isMochiUI() {
       return true
     }
     if (requested === 'classic') {
-      localStorage.removeItem(UI_STORAGE_KEY)
+      // Lưu lựa chọn quay về giao diện cũ (Mochi là mặc định nên phải ghi nhớ opt-out).
+      localStorage.setItem(UI_STORAGE_KEY, 'classic')
       return false
     }
-    return localStorage.getItem(UI_STORAGE_KEY) === 'mochi'
+    // Mochi là mặc định; chỉ tắt khi người dùng đã chọn giao diện cũ.
+    return localStorage.getItem(UI_STORAGE_KEY) !== 'classic'
   } catch (_) {
-    return requested === 'mochi'
+    return requested !== 'classic'
   }
 }
 

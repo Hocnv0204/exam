@@ -13,7 +13,8 @@
         : (studentThemes.includes(storedStudentTheme) ? storedStudentTheme : 'dark')
       if (storedStudentTheme !== studentTheme) localStorage.setItem('eduportal-student-theme', studentTheme)
       // Giao diện cũ (Mochi tắt) chỉ có navy/hồng: light/mint hiển thị như navy tối.
-      var mochiUI = /[?&]ui=mochi\b/.test(location.search) || (!/[?&]ui=classic\b/.test(location.search) && localStorage.getItem('eduportal-ui') === 'mochi')
+      // Mochi là mặc định; ?ui=classic hoặc lựa chọn đã lưu 'classic' thì dùng giao diện cũ.
+      var mochiUI = /[?&]ui=mochi\b/.test(location.search) || (!/[?&]ui=classic\b/.test(location.search) && localStorage.getItem('eduportal-ui') !== 'classic')
       var skinTheme = mochiUI ? studentTheme : (studentTheme === 'sakura' ? 'sakura' : 'dark')
       var savedUser = null
       try { savedUser = JSON.parse(localStorage.getItem('edu_user') || 'null') } catch (_) {}

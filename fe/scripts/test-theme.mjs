@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-const saved = new Map([['eduportal-theme', 'malformed-json']])
+// Test giao diện CŨ: Mochi là mặc định nên phải chọn 'classic' tường minh.
+const saved = new Map([['eduportal-theme', 'malformed-json'], ['eduportal-ui', 'classic']])
 const listeners = new Map()
 const buttons = new Set()
 const studentButtons = new Set()

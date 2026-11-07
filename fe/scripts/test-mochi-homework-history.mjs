@@ -67,7 +67,7 @@ function useAdmin() {
 
 function setMochi(enabled) {
   if (enabled) saved.set('eduportal-ui', 'mochi')
-  else saved.delete('eduportal-ui')
+  else saved.set('eduportal-ui', 'classic') // Mochi là mặc định: phải chọn giao diện cũ tường minh
   window.location.search = ''
 }
 

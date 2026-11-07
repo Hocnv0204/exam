@@ -100,7 +100,8 @@ test('Mochi flag defaults off, query parameters persist or disable it', async ()
   globalThis.document = { documentElement: root }
   const flag = await import(`../src/js/ui-flag.js?mochi-test=${++importId}`)
 
-  assert.equal(flag.isMochiUI(), false)
+  // Mochi là MẶC ĐỊNH: chưa có lựa chọn nào thì bật.
+  assert.equal(flag.isMochiUI(), true)
   assert.equal(root.dataset.ui, undefined)
 
   window.location.search = '?ui=mochi'
@@ -114,9 +115,14 @@ test('Mochi flag defaults off, query parameters persist or disable it', async ()
   assert.equal(root.dataset.ui, undefined)
   assert.equal(root.dataset.studentTheme, undefined, 'admin/public route has no student theme attribute')
 
+  // ?ui=classic tắt Mochi và GHI NHỚ lựa chọn (không có tham số vẫn là giao diện cũ).
   window.location.search = '?ui=classic'
   assert.equal(flag.isMochiUI(), false)
-  assert.equal(saved.has('eduportal-ui'), false)
+  assert.equal(saved.get('eduportal-ui'), 'classic')
+  window.location.search = ''
+  assert.equal(flag.isMochiUI(), false, 'lựa chọn giao diện cũ được giữ khi mở lại không có tham số')
+  window.location.search = '?ui=mochi'
+  assert.equal(flag.isMochiUI(), true, '?ui=mochi bật lại Mochi')
 })
 
 test('all four palettes expose the same complete token set', () => {
