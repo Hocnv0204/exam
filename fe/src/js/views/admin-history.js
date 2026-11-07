@@ -6,6 +6,9 @@ import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 import { buildAwardLogBadgeHtml } from '../utils/question-award-logs.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/grading.css') }
 
 let currentMode = 'class' // 'class' | 'trial'
 let selectedClassId = ''
@@ -303,7 +306,7 @@ export function renderAdminHistoryView() {
   }) : 'Không giới hạn'
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${isAdminProUI() ? ' admin-dark" id="admin-history" data-route="admin-history" data-role="ADMIN' : ''}">
       ${renderSidebar('admin-history')}
       <div class="main-content">
         ${renderNavbar('Quản trị / Lịch sử nộp bài')}

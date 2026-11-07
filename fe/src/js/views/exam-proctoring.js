@@ -2,6 +2,9 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { api } from '../api.js'
 import { openModal } from '../components/modal.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/grading.css') }
 
 const PAGE_SIZE = 50
 let proctoringInterval = null
@@ -88,7 +91,8 @@ export function renderExamProctoringView() {
   activeTab = 'sessions'
   requestVersion++
   detailVersion++
-  return `<div class="app-layout">${renderSidebar('homework-mgmt')}<div class="main-content">${renderNavbar()}
+  const proUI = typeof isAdminProUI === 'function' ? isAdminProUI() : false
+  return `<div class="app-layout${proUI ? ' admin-dark" id="exam-proctoring" data-route="exam-proctoring" data-role="ADMIN' : ''}">${renderSidebar('homework-mgmt')}<div class="main-content">${renderNavbar()}
     <div class="content-container" style="max-width:1240px;margin:0 auto;padding:24px 20px">
       <div id="proctoring-mount" aria-live="polite">Đang tải dữ liệu giám sát...</div>
     </div></div></div>`
@@ -303,15 +307,15 @@ export function bindExamProctoringEvents() {
       proctoringInterval = null
     }
   }
-  document.addEventListener('visibilitychange', visibilityHandler)
+  document.addEventListener?.('visibilitychange', visibilityHandler)
   const handleHashChange = () => {
     requestVersion++
     detailVersion++
     if (proctoringInterval) clearInterval(proctoringInterval)
     proctoringInterval = null
-    if (visibilityHandler) document.removeEventListener('visibilitychange', visibilityHandler)
+    if (visibilityHandler) document.removeEventListener?.('visibilitychange', visibilityHandler)
     visibilityHandler = null
-    window.removeEventListener('hashchange', handleHashChange)
+    window.removeEventListener?.('hashchange', handleHashChange)
   }
-  window.addEventListener('hashchange', handleHashChange)
+  window.addEventListener?.('hashchange', handleHashChange)
 }

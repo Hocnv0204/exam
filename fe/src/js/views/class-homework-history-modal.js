@@ -4,6 +4,8 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { renderMarkdown, renderMath } from '../utils/exam-parser.js'
 
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/grading.css') }
+
 const escapeHtml = value => String(value ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;')

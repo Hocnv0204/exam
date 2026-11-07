@@ -2,6 +2,9 @@ import { api } from '../api.js'
 import { state } from '../state.js'
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/grading.css') }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const labels = { OPEN: 'Chờ phản hồi', ANSWERED: 'Đã phản hồi', CLOSED: 'Đã đóng' }
@@ -166,7 +169,8 @@ export function bindReviewQuestionAppeals(root, submissionId, client = api, sess
 
 export function renderQuestionAppealsView() {
   if (!state.token || state.user?.role !== 'ADMIN') return '<div class="content-body">Bạn không có quyền xem hộp thư này.</div>'
-  return `<div class="app-layout">${renderSidebar('question-appeals')}<div class="main-content">
+  const proUI = isAdminProUI()
+  return `<div class="app-layout${proUI ? ' admin-dark" id="question-appeals" data-route="question-appeals" data-role="ADMIN' : ''}">${renderSidebar('question-appeals')}<div class="main-content">
     ${renderNavbar('Quản trị / Hỏi về câu đã nộp')}
     <div class="content-body" id="question-appeals-view">
       <div class="page-header"><div><h1 class="page-title">Hỏi về câu đã nộp</h1><p class="page-description">Phản hồi cho học sinh; thao tác tại đây không thay đổi điểm.</p></div></div>

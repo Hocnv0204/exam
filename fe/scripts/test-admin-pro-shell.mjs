@@ -133,7 +133,7 @@ test('route con ADMIN Pro active đúng mục cha', () => {
     ['student-details', '#students'],
     ['student-report', '#students'],
     ['assignment-review', '#admin-history'],
-    ['question-appeals', '#question-bank']
+    ['question-appeals', '#admin-history']
   ])
   for (const [route, href] of expectations) {
     const sidebar = renderSidebar(route)

@@ -98,8 +98,9 @@ const ADMIN_PRO_GROUPS = [
       { route: 'homework-mgmt', label: 'Quản lý bài tập', icon: 'fa-list-check', routes: ['homework', 'homework-mgmt', 'create-homework'] },
       // Ghép chuỗi để các kiểm tra contract legacy vẫn định vị mục classic đầu tiên.
       { route: 'trial-management', label: 'Quản lý ' + 'học thử', icon: 'fa-wand-magic-sparkles', routes: ['trial-management'] },
-      { route: 'question-bank', label: 'Ngân hàng câu hỏi', icon: 'fa-boxes-stacked', routes: ['question-bank', 'question-appeals'] },
-      { route: 'admin-history', label: 'Lịch sử nộp bài', icon: 'fa-clock-rotate-left', routes: ['admin-history', 'assignment-review'] }
+      { route: 'question-bank', label: 'Ngân hàng câu hỏi', icon: 'fa-boxes-stacked', routes: ['question-bank'] },
+      // Phúc khảo là câu hỏi về bài đã nộp: thuộc nhóm Lịch sử nộp bài (mục riêng đang ẩn).
+      { route: 'admin-history', label: 'Lịch sử nộp bài', icon: 'fa-clock-rotate-left', routes: ['admin-history', 'assignment-review', 'question-appeals'] }
     ]
   },
   {

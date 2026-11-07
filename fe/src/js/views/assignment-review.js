@@ -1,5 +1,6 @@
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/assignment-review.css')
+  import('../../css/admin-pro/pages/grading.css')
 }
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
@@ -11,7 +12,7 @@ import { buildAwardLogSectionHtml } from '../utils/question-award-logs.js'
 import { canEditReviewQuestion, reviewAnswerToMarkdown, buildReviewQuestionPayload } from '../utils/review-question-editor.js'
 import { api } from '../api.js'
 import { questionAppealReviewContext, renderQuestionAppealSlot, bindReviewQuestionAppeals } from './question-appeals.js'
-import { isMochiUI } from '../ui-flag.js'
+import { isMochiUI, isAdminProUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
 
 function isMochiMode() {
@@ -65,7 +66,7 @@ export function renderClassicAssignmentReviewView() {
 
   if (!result) {
     return `
-      <div class="app-layout">
+      <div class="app-layout${isAdminProUI() ? ' admin-dark" id="assignment-review" data-route="assignment-review" data-role="ADMIN' : ''}">
         ${renderSidebar(isTrial ? 'trial' : 'history')}
         <div class="main-content">
           ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : 'Nền tảng / Bảng điều khiển')}
@@ -305,7 +306,7 @@ export function renderClassicAssignmentReviewView() {
   }
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${isAdminProUI() ? ' admin-dark" id="assignment-review" data-route="assignment-review" data-role="ADMIN' : ''}">
       ${renderSidebar(isTrial ? 'trial' : (state.user?.role === 'ADMIN' ? 'admin-history' : 'history'))}
       <div class="main-content">
         ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : (state.user?.role === 'ADMIN' ? 'Quản trị / Chi tiết bài nộp học sinh' : 'Nền tảng / Bảng điều khiển'))}

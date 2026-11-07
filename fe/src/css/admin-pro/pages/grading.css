@@ -1,0 +1,985 @@
+/* ==========================================================================
+   Admin Pro — G5 Grading (Nộp bài, Chấm bài, Phúc khảo, Phòng thi)
+   Mọi rule bắt buộc có tiền tố html[data-admin-ui="pro"]
+   ========================================================================== */
+
+/* 1. Reset font và thẻ chung trên các view nhóm grading */
+html[data-admin-ui="pro"] :is(
+  #admin-history,
+  #assignment-review,
+  #question-appeals,
+  #exam-proctoring
+) :is(.page-title, h1, h2, h3, .card-title, #review-total-score) {
+  font-family: var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] :is(
+  #admin-history,
+  #assignment-review,
+  #question-appeals,
+  #exam-proctoring
+) {
+  box-sizing: border-box;
+  color: var(--ap-ink);
+  font-family: var(--ap-font);
+}
+
+html[data-admin-ui="pro"] :is(
+  #admin-history,
+  #assignment-review,
+  #question-appeals,
+  #exam-proctoring
+) .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] :is(
+  #admin-history,
+  #assignment-review,
+  #question-appeals,
+  #exam-proctoring
+) .page-header .page-title {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--ap-ink);
+  letter-spacing: -0.5px;
+}
+
+html[data-admin-ui="pro"] :is(
+  #admin-history,
+  #assignment-review,
+  #question-appeals,
+  #exam-proctoring
+) .page-header .page-description {
+  margin: 6px 0 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ap-muted);
+  line-height: 1.5;
+}
+
+/* 2. View 1: Lịch sử nộp bài (#admin-history) */
+html[data-admin-ui="pro"] #admin-history .btn-mode {
+  min-height: 44px;
+  padding: 10px 22px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  border-radius: 14px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #admin-history #btn-mode-class.active {
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #admin-history #btn-mode-class:not(.active) {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] #admin-history #btn-mode-trial.active {
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #admin-history #btn-mode-trial:not(.active) {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .btn-mode:hover {
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #admin-history .card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #admin-history :is(#admin-history-class-select, #admin-history-hw-select) {
+  min-height: 44px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  padding: 0 14px !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #admin-history :is(#admin-history-class-select, #admin-history-hw-select):focus {
+  border-color: var(--ap-accent) !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] #admin-history :is(#admin-history-search, #admin-history-lead-search) {
+  min-height: 44px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  padding: 0 14px 0 36px !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #admin-history .search-box i {
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .btn-subtab {
+  min-height: 42px;
+  padding: 0 18px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #admin-history .btn-subtab.active {
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .btn-subtab:not(.active) {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-muted) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .btn-subtab:hover:not(.active) {
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-ink) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #admin-history :is(
+  #btn-export-submissions-csv,
+  #btn-export-trial-csv,
+  #btn-export-unsubmitted-csv,
+  #btn-copy-reminder,
+  .redirect-edit-hw-btn,
+  #btn-bonus-whole-class
+) {
+  min-height: 40px;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  box-shadow: none !important;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+html[data-admin-ui="pro"] #admin-history :is(
+  #btn-export-submissions-csv,
+  #btn-export-trial-csv,
+  #btn-export-unsubmitted-csv,
+  #btn-copy-reminder,
+  .redirect-edit-hw-btn,
+  #btn-bonus-whole-class
+):hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+  transform: translateY(-1px);
+}
+
+/* Bảng lượt nộp trong #admin-history */
+html[data-admin-ui="pro"] #admin-history .data-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 14px !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .data-table thead tr {
+  background: var(--ap-surface2) !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .data-table thead th {
+  padding: 14px 16px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  color: var(--ap-muted) !important;
+  border: none !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .data-table tbody tr {
+  border-top: 1px solid var(--ap-line) !important;
+  transition: background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #admin-history .data-table tbody tr:hover {
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .data-table tbody td {
+  padding: 14px 16px !important;
+  color: var(--ap-ink) !important;
+  vertical-align: middle !important;
+}
+
+/* Nút hành động bảng lịch sử: Xem / Chi tiết, Cộng điểm, Khôi phục */
+html[data-admin-ui="pro"] #admin-history .view-detail-btn {
+  min-height: 38px;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  text-decoration: none !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #admin-history .view-detail-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #admin-history .bonus-btn {
+  min-height: 38px;
+  padding: 0 14px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-accent2) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #admin-history .bonus-btn:hover {
+  border-color: var(--ap-accent2) !important;
+  background: var(--ap-accent2-soft) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #admin-history .reopen-sub-btn {
+  min-height: 38px;
+  padding: 0 14px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-warn) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #admin-history .reopen-sub-btn:hover {
+  border-color: var(--ap-warn) !important;
+  background: var(--ap-warn-soft) !important;
+  transform: translateY(-1px);
+}
+
+/* 3. View 2: Chấm bài & xem lại bài nộp (#assignment-review) — Nhánh ADMIN */
+html[data-admin-ui="pro"] #assignment-review .card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #assignment-review #overview-banner-card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 24px !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review :is(
+  #view-exam-logs-btn,
+  #add-bonus-btn,
+  #reopen-submission-btn,
+  #toggle-pdf-btn
+) {
+  min-height: 44px;
+  padding: 0 18px !important;
+  border-radius: 14px !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #assignment-review #toggle-pdf-btn {
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review #add-bonus-btn {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-accent2) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review #add-bonus-btn:hover {
+  border-color: var(--ap-accent2) !important;
+  background: var(--ap-accent2-soft) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #assignment-review #reopen-submission-btn {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review #reopen-submission-btn:hover {
+  border-color: var(--ap-accent) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #assignment-review #view-exam-logs-btn {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review #view-exam-logs-btn:hover {
+  border-color: var(--ap-warn) !important;
+  transform: translateY(-1px);
+}
+
+/* Thẻ câu hỏi chi tiết (.review-question-card) */
+html[data-admin-ui="pro"] #assignment-review .review-question-card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 22px !important;
+  margin-bottom: 20px !important;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #assignment-review .question-badge {
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review .award-question-btn {
+  min-height: 38px;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #assignment-review .award-question-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review .edit-question-answer-btn {
+  min-height: 38px;
+  padding: 0 14px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #assignment-review .edit-question-answer-btn:hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+  transform: translateY(-1px);
+}
+
+/* Khối chấm tự luận trong review-question-card */
+html[data-admin-ui="pro"] #assignment-review .essay-score-input {
+  min-height: 42px;
+  width: 110px !important;
+  padding: 0 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #assignment-review .essay-score-input:focus {
+  border-color: var(--ap-accent) !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review .essay-feedback-input {
+  min-height: 42px;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #assignment-review .essay-feedback-input:focus {
+  border-color: var(--ap-accent) !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review .grade-essay-btn {
+  min-height: 42px;
+  padding: 0 18px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #assignment-review .grade-essay-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review :is(.solution-explanation-box, .review-explanation-card) {
+  border: 2px solid var(--ap-line) !important;
+  border-left: 6px solid var(--ap-accent) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  padding: 16px 20px !important;
+}
+
+/* 4. View 3: Hỏi về câu đã nộp (#question-appeals) */
+html[data-admin-ui="pro"] #question-appeals .card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  color: var(--ap-ink);
+  padding: 22px !important;
+  margin-bottom: 20px !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals #appeal-filters {
+  display: flex !important;
+  gap: 14px !important;
+  flex-wrap: wrap !important;
+  align-items: flex-end !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals #appeal-filters label {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: var(--ap-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals #appeal-filters :is(select, input) {
+  min-height: 44px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  padding: 0 14px !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #question-appeals #appeal-filters :is(select, input):focus {
+  border-color: var(--ap-accent) !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals #appeal-filters button[type="submit"] {
+  min-height: 44px;
+  padding: 0 20px !important;
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #question-appeals #appeal-filters button[type="submit"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals article.card[data-inbox-appeal] h3 {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin: 0 0 6px 0 !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals article.card[data-inbox-appeal] a {
+  color: var(--ap-accent) !important;
+  font-weight: 800 !important;
+  text-decoration: none !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals article.card[data-inbox-appeal] a:hover {
+  color: var(--ap-accent2) !important;
+  text-decoration: underline !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals article.card[data-inbox-appeal] textarea {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 14px !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #question-appeals article.card[data-inbox-appeal] textarea:focus {
+  border-color: var(--ap-accent) !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] #question-appeals article.card[data-inbox-appeal] button[type="submit"] {
+  min-height: 44px;
+  padding: 0 20px !important;
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #question-appeals article.card[data-inbox-appeal] button[data-appeal-close] {
+  min-height: 44px;
+  padding: 0 16px !important;
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-muted) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #question-appeals button[data-inbox-page] {
+  min-height: 44px;
+  padding: 0 18px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+
+/* 5. View 4: Giám sát phòng thi (#exam-proctoring) */
+html[data-admin-ui="pro"] #exam-proctoring .content-container > header {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 20px 24px !important;
+  margin-bottom: 20px !important;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #exam-proctoring #proctor-refresh-now {
+  min-height: 44px;
+  padding: 0 18px !important;
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring #proctor-refresh-now:hover {
+  border-color: var(--ap-accent) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #exam-proctoring .content-container > div:has(> div > strong) > div {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 18px 20px !important;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #exam-proctoring .content-container > div:has(> div > strong) > div strong {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring .content-container > div:has(> div > strong) > div span {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: var(--ap-muted) !important;
+  text-transform: uppercase !important;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring section {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  overflow: hidden !important;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring #tab-btn-sessions[aria-pressed="true"],
+html[data-admin-ui="pro"] #exam-proctoring #tab-btn-logs[aria-pressed="true"] {
+  min-height: 42px;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring #tab-btn-sessions[aria-pressed="false"],
+html[data-admin-ui="pro"] #exam-proctoring #tab-btn-logs[aria-pressed="false"] {
+  min-height: 42px;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid transparent !important;
+  background: transparent !important;
+  color: var(--ap-muted) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring #proctor-search {
+  min-height: 44px;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring table thead tr {
+  background: var(--ap-surface2) !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring table thead th {
+  padding: 14px 16px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: var(--ap-muted) !important;
+  border: none !important;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring table tbody tr {
+  border-top: 1px solid var(--ap-line) !important;
+  transition: background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring table tbody tr:hover {
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring table tbody td {
+  padding: 14px 16px !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring .view-session-logs-btn {
+  min-height: 38px;
+  padding: 0 14px !important;
+  border-radius: 10px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #exam-proctoring .view-session-logs-btn:hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #exam-proctoring :is(#sessions-prev, #sessions-next, #logs-prev, #logs-next, #detail-prev, #detail-next) {
+  min-height: 40px;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+
+/* 6. Modal Lịch sử nộp theo lớp (class-homework-history-modal) */
+html[data-admin-ui="pro"] :is(#modal-container, #qb-modal-container) .class-hw-wrong-card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 18px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+  padding: 18px !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] :is(#modal-container, #qb-modal-container) .class-hw-option {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] :is(#modal-container, #qb-modal-container) .class-hw-student-answer {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] :is(#modal-container, #qb-modal-container) .class-hw-correct {
+  border: 1.5px solid var(--ap-ok) !important;
+  border-radius: 10px !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] :is(#modal-container, #qb-modal-container) .class-hw-history-tab {
+  min-height: 38px;
+  padding: 0 14px !important;
+  border-radius: 10px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] :is(#modal-container, #qb-modal-container) .class-hw-history-tab[style*="0066cc"],
+html[data-admin-ui="pro"] :is(#modal-container, #qb-modal-container) .class-hw-history-tab.active {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+}
+
+/* 7. Cuộn ngang bảng an toàn (overflow-x: auto) */
+html[data-admin-ui="pro"] :is(
+  #admin-history,
+  #assignment-review,
+  #question-appeals,
+  #exam-proctoring,
+  #modal-container
+) :is(.table-responsive, [style*="overflow-x:auto"], [style*="overflow-x: auto"]) {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 8. Đáp ứng thiết bị nhỏ (Responsive Breakpoints: 900px và 640px) */
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] :is(#admin-history, #assignment-review, #question-appeals, #exam-proctoring) .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  html[data-admin-ui="pro"] #assignment-review #review-layout-wrapper {
+    grid-template-columns: 1fr !important;
+  }
+
+  html[data-admin-ui="pro"] #admin-history .card > div[style*="grid-template-columns"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] :is(#admin-history, #assignment-review, #question-appeals, #exam-proctoring) .page-header .page-title {
+    font-size: 24px !important;
+  }
+
+  html[data-admin-ui="pro"] :is(
+    #admin-history,
+    #assignment-review,
+    #question-appeals,
+    #exam-proctoring
+  ) :is(button, .btn-primary, .btn-secondary, input[type="search"], select) {
+    min-height: 44px !important;
+  }
+
+  html[data-admin-ui="pro"] #admin-history .card > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  html[data-admin-ui="pro"] #exam-proctoring .content-container > div:has(> div > strong) {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* 9. Chế độ Tối (Dark Theme Overrides) */
+html[data-admin-ui="pro"][data-theme="dark"] #admin-history .card {
+  border-color: var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] #assignment-review .review-question-card {
+  border-color: var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] #question-appeals .card {
+  border-color: var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] #exam-proctoring section {
+  border-color: var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] :is(#admin-history, #assignment-review, #question-appeals, #exam-proctoring) :is(
+  .search-box input,
+  input.form-input,
+  select.form-input,
+  textarea
+) {
+  background: var(--ap-surface2) !important;
+  border-color: var(--ap-line) !important;
+  color: var(--ap-ink) !important;
+}
