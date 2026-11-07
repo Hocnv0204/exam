@@ -213,3 +213,22 @@ test('queueAutoPdfGeneration: hiển thị toast tiến trình và kết quả t
   assert.equal(successToasts.length, 2)
   assert.ok(successToasts[0].msg.includes('Đã gắn PDF cho 1 đề'))
 })
+
+test('attachGeneratedPdfToHomeworks: sinh PDF bị treo → hết giờ báo lỗi đề đó, không upload/update, đề sau vẫn chạy', async () => {
+  const calls = { upload: [], update: [] }
+  const api = {
+    getHomeworkDetail: async (id) => ({ homework: { id, title: id }, questions: [{ question_number: 1, prompt: 'x' }] }),
+    uploadFile: async (file) => { calls.upload.push(file.name); return `https://r2.test/${file.name}` },
+    updateHomework: async (p) => { calls.update.push(p.homeworkId); return { success: true } }
+  }
+  let n = 0
+  const renderExamPdfBlob = () => (++n === 1
+    ? new Promise(() => {}) // đề 1 treo vĩnh viễn
+    : Promise.resolve(new Blob(['pdf'], { type: 'application/pdf' })))
+  const results = await attachGeneratedPdfToHomeworks(['hw-hang', 'hw-ok'], {}, { api, renderExamPdfBlob, renderTimeoutMs: 50 })
+  assert.equal(results[0].ok, false)
+  assert.match(results[0].error, /Quá thời gian/)
+  assert.equal(results[1].ok, true)
+  assert.deepEqual(calls.update, ['hw-ok'], 'chỉ đề sinh được PDF mới được gắn')
+  assert.equal(calls.upload.length, 1)
+})

@@ -571,6 +571,68 @@ const nextFrame = () => new Promise(resolve => {
 })
 const withTimeout = (promise, ms) => Promise.race([Promise.resolve(promise).catch(() => {}), wait(ms)])
 
+/** Như withTimeout nhưng HẾT GIỜ thì ném lỗi (dùng cho bước bắt buộc phải xong). */
+export function rejectAfter(promise, ms, message) {
+  let timer
+  return Promise.race([
+    Promise.resolve(promise).finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms) })
+  ])
+}
+
+/**
+ * Trích các khối @font-face từ CSS KaTeX, chỉ giữ nguồn woff2 (URL tuyệt đối). Hàm thuần để test.
+ * @returns {Array<{ css: string, url: string }>}
+ */
+export function extractKatexFontFaces(cssText, baseUrl) {
+  const faces = []
+  for (const m of String(cssText || '').matchAll(/@font-face\s*\{([^}]*)\}/g)) {
+    const body = m[1]
+    const woff2 = body.match(/url\(\s*['"]?([^'")]+\.woff2)['"]?\s*\)\s*format\(\s*['"]?woff2['"]?\s*\)/i)
+    if (!woff2) continue
+    const url = new URL(woff2[1], baseUrl).href
+    const rest = body.replace(/src\s*:[^;]*;?/i, '').trim().replace(/;?\s*$/, '')
+    faces.push({ css: rest, url })
+  }
+  return faces
+}
+
+let katexFontEmbedCssPromise = null
+/**
+ * CSS @font-face chỉ gồm font KaTeX (woff2 → data URL), tạo MỘT lần mỗi phiên.
+ * Truyền vào html-to-image (`fontEmbedCSS`) để nó KHÔNG tự quét & nhúng toàn bộ web font
+ * của trang (Google Fonts, Font Awesome…) ở mỗi lần chụp khối — việc đó làm treo nhiều phút.
+ * Lỗi mạng → '' (công thức dùng font dự phòng, vẫn ra PDF).
+ */
+function getKatexFontEmbedCss() {
+  if (katexFontEmbedCssPromise) return katexFontEmbedCssPromise
+  katexFontEmbedCssPromise = (async () => {
+    try {
+      const res = await rejectAfter(fetch(KATEX_CSS_URL), 10000, 'KaTeX CSS timeout')
+      const faces = extractKatexFontFaces(await res.text(), KATEX_CSS_URL)
+      const toDataUrl = blob => new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(blob)
+      })
+      const parts = await Promise.all(faces.map(async face => {
+        try {
+          const fontRes = await rejectAfter(fetch(face.url), 10000, 'font timeout')
+          const dataUrl = await toDataUrl(await fontRes.blob())
+          return `@font-face{${face.css};src:url(${dataUrl}) format('woff2')}`
+        } catch { return '' }
+      }))
+      return parts.join('\n')
+    } catch (err) {
+      console.warn('[exam-print] Không nhúng được font KaTeX:', err)
+      katexFontEmbedCssPromise = null
+      return ''
+    }
+  })()
+  return katexFontEmbedCssPromise
+}
+
 function waitStylesheet(link, ms) {
   if (!link) return Promise.resolve()
   try { if (link.sheet) return Promise.resolve() } catch { /* cross-origin sheet: coi như đã có */ return Promise.resolve() }
@@ -741,10 +803,18 @@ ${mode === 'answer'
     // foreignObject) CSS ẩn có thể không được áp → chữ bị lặp. Bỏ hẳn trước khi chụp.
     holder.querySelectorAll('.katex-mathml').forEach(el => el.remove())
 
+    // Chỉ nhúng font KaTeX (tạo 1 lần/phiên). Không truyền thì html-to-image tải + base64
+    // MỌI web font của trang cho TỪNG khối → đề vài chục câu treo nhiều phút.
+    const fontEmbedCSS = await getKatexFontEmbedCss()
+
     for (const block of blocks) {
       // margin:0 trên bản clone: html-to-image đo theo kích thước phần tử (không gồm margin)
       // nên giữ margin-top sẽ đẩy nội dung xuống và cắt mất phần dưới.
-      const raw = await toCanvas(block, { pixelRatio, backgroundColor: '#ffffff', style: { margin: '0' } })
+      const raw = await rejectAfter(
+        toCanvas(block, { pixelRatio, backgroundColor: '#ffffff', style: { margin: '0' }, fontEmbedCSS }),
+        30000,
+        'Quá thời gian dựng hình một câu khi tạo PDF'
+      )
       // Khoảng trắng sau mỗi khối (thay cho margin đã bỏ) — nằm trong canvas để phân trang tính luôn.
       const gapPx = block.classList.contains('pq-part') ? 4 : (block.classList.contains('ep-header') ? 14 : 12)
       const canvas = document.createElement('canvas')

@@ -432,3 +432,24 @@ test('buildScopedPrintCss: áp dụng tiền tố scope và không rò rỉ rule
   assert.doesNotMatch(scoped, /(?:^|\n)\s*body\s*\{/)
   assert.doesNotMatch(scoped, /(?:^|\n)\s*\*\s*\{/)
 })
+
+
+test('extractKatexFontFaces: chỉ lấy nguồn woff2, URL tuyệt đối theo file CSS, giữ font-family/weight/style', async () => {
+  const { extractKatexFontFaces } = await import('../src/js/utils/exam-print.js')
+  const css = "@font-face{font-display:block;font-family:KaTeX_AMS;font-style:normal;font-weight:400;src:url(fonts/KaTeX_AMS-Regular.woff2) format(\"woff2\"),url(fonts/KaTeX_AMS-Regular.woff) format(\"woff\"),url(fonts/KaTeX_AMS-Regular.ttf) format(\"truetype\")}" +
+    "@font-face{font-family:KaTeX_Main;font-style:italic;font-weight:700;src:url(fonts/KaTeX_Main-BoldItalic.woff2) format(\"woff2\")}" +
+    "@font-face{font-family:NoWoff2;src:url(x.ttf) format(\"truetype\")}"
+  const faces = extractKatexFontFaces(css, 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css')
+  assert.equal(faces.length, 2, 'bỏ font không có woff2')
+  assert.equal(faces[0].url, 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_AMS-Regular.woff2')
+  assert.match(faces[0].css, /font-family:KaTeX_AMS/)
+  assert.doesNotMatch(faces[0].css, /src\s*:/, 'src cũ phải bị bỏ để thay bằng data URL')
+  assert.match(faces[1].css, /font-weight:700/)
+  assert.match(faces[1].css, /font-style:italic/)
+})
+
+test('rejectAfter: hết giờ thì ném lỗi; xong trước hạn thì trả kết quả', async () => {
+  const { rejectAfter } = await import('../src/js/utils/exam-print.js')
+  assert.equal(await rejectAfter(Promise.resolve(7), 50, 'x'), 7)
+  await assert.rejects(rejectAfter(new Promise(() => {}), 20, 'Quá thời gian'), /Quá thời gian/)
+})

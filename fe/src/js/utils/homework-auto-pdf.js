@@ -2,7 +2,7 @@
  * homework-auto-pdf.js — Tự động sinh & gắn file PDF đề trắng khi tạo đề từ Ngân hàng câu hỏi.
  */
 import { api } from '../api.js'
-import { renderExamPdfBlob } from './exam-print.js'
+import { renderExamPdfBlob, rejectAfter } from './exam-print.js'
 import { showToast } from '../components/toast.js'
 
 /**
@@ -83,12 +83,14 @@ export async function attachGeneratedPdfToHomeworks(
       // 2. Sinh PDF đề trắng mode 'student' với tiêu đề thực tế của bài
       const examTitle = hw.title || title || 'Đề bài'
       const examDuration = hw.durationMinutes ?? durationMinutes
-      const pdfBlob = await renderPdf({
+      // Giới hạn thời gian sinh PDF (chỉ đọc/dựng ảnh, chưa ghi gì) để hàng đợi không treo
+      // vô hạn — hết giờ thì báo lỗi cho đề này và chuyển sang đề tiếp theo.
+      const pdfBlob = await rejectAfter(renderPdf({
         title: examTitle,
         meta: { durationMinutes: examDuration },
         questions,
         mode: 'student'
-      })
+      }), deps.renderTimeoutMs ?? 180000, 'Quá thời gian tạo file PDF')
 
       // 3. Đóng gói thành File với tên ASCII an toàn
       const safeName = toSafeAsciiFileName(examTitle)
