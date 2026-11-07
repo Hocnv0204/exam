@@ -1,0 +1,895 @@
+/* ========================================================
+   Mochi Pro — Ngân hàng câu hỏi (Group G4: question-bank)
+   MỌI rule scope: html[data-admin-ui="pro"]
+   ======================================================== */
+
+/* --- 1. Header & Page Actions --- */
+html[data-admin-ui="pro"] .ap-question-bank .page-header {
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .page-title {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 26px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  line-height: 1.2 !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .page-description {
+  color: var(--ap-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .page-header span[style*="background:linear-gradient(135deg, #0284c7, #0369a1)"] {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .page-header span[style*="color:#0284c7"][style*="background:#eff6ff"] {
+  border-radius: 999px !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  border: 1.5px solid var(--ap-line) !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  padding: 3px 10px !important;
+}
+
+/* Nút Header Action */
+html[data-admin-ui="pro"] .ap-question-bank #btn-open-sync-modal {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border-radius: var(--ap-radius) !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-ok) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: var(--ap-shadow) !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #btn-open-sync-modal:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #btn-open-matrix-gen {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border-radius: var(--ap-radius) !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  box-shadow: var(--ap-shadow) !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #btn-open-matrix-gen:hover {
+  background: var(--ap-accent2) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank :is(#btn-open-taxonomy-modal, #btn-open-import-md, #btn-open-import-hw) {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border-radius: var(--ap-radius) !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank :is(#btn-open-taxonomy-modal, #btn-open-import-md, #btn-open-import-hw):hover {
+  background: var(--ap-surface2) !important;
+  border-color: var(--ap-ink) !important;
+}
+
+/* --- 2. Thẻ thống kê KPI (Stats Cards) --- */
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#stat-total-q),
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#stat-mc-q),
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#stat-tf-q),
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#stat-sa-q),
+html[data-admin-ui="pro"] .ap-question-bank div[style*="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))"] > .card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 18px 20px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank div[style*="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))"] .card > div:first-child {
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank div[style*="font-size:11.5px"][style*="text-transform:uppercase"] {
+  color: var(--ap-muted) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.05em !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #stat-total-q {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #stat-mc-q {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #stat-tf-q {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #stat-sa-q {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank div[style*="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))"] div[style*="font-size:11px"] {
+  color: var(--ap-muted) !important;
+  font-weight: 700 !important;
+}
+
+/* --- 3. Thẻ Bộ lọc & Tìm kiếm (Filter & Search) --- */
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#qb-filter-grade-block),
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#qb-search-input) {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 20px 22px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#qb-filter-grade-block) > div:first-child {
+  border-bottom: 2px solid var(--ap-line) !important;
+  padding-bottom: 14px !important;
+  margin-bottom: 16px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#qb-filter-grade-block) span[style*="font-weight:700"] {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .card:has(#qb-filter-grade-block) label {
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank select:is(
+  #qb-filter-grade-block,
+  #qb-filter-class,
+  #qb-filter-chapter,
+  #qb-filter-question-type-id,
+  #qb-filter-type,
+  #qb-filter-difficulty,
+  #qb-filter-unassigned
+),
+html[data-admin-ui="pro"] .ap-question-bank input#qb-search-input {
+  min-height: 44px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background-color: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 700 !important;
+  font-size: 13.5px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank select:is(
+  #qb-filter-grade-block,
+  #qb-filter-class,
+  #qb-filter-chapter,
+  #qb-filter-question-type-id,
+  #qb-filter-type,
+  #qb-filter-difficulty,
+  #qb-filter-unassigned
+):focus,
+html[data-admin-ui="pro"] .ap-question-bank input#qb-search-input:focus {
+  border-color: var(--ap-accent) !important;
+  box-shadow: 0 0 0 3px var(--ap-accent-soft) !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-filter-lessons-box {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-btn-reset-filters {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 800 !important;
+  font-size: 13.5px !important;
+  cursor: pointer !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-btn-reset-filters:hover {
+  border-color: var(--ap-ink) !important;
+  color: var(--ap-ink) !important;
+}
+
+/* Hàng 3 search input container border top */
+html[data-admin-ui="pro"] .ap-question-bank div[style*="border-top:1px dashed #e2e8f0"] {
+  border-top: 2px dashed var(--ap-line) !important;
+  padding-top: 14px !important;
+}
+
+/* --- 4. Sticky Bulk Action Toolbar --- */
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-bar {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow-raised) !important;
+  padding: 12px 20px !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .ap-question-bank #qb-bulk-bar {
+  background: var(--ap-surface2) !important;
+  border-color: var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-bar span[style*="background:#0284c7"] {
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-bar span[style*="color:#f8fafc"] {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-selected-count {
+  color: var(--ap-accent) !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-diff-select {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 700 !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-apply-btn {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-weight: 800 !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-create-btn {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-ok) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-delete-btn {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-danger) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-deselect-btn {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 800 !important;
+}
+
+/* --- 5. Toolbar danh sách câu hỏi & Select All --- */
+html[data-admin-ui="pro"] .ap-question-bank label:has(#qb-select-all-page) {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+  padding: 8px 14px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-select-all-page {
+  accent-color: var(--ap-accent) !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank #qb-current-count {
+  color: var(--ap-accent) !important;
+  font-weight: 800 !important;
+}
+
+/* --- 6. Thẻ câu hỏi (Question Card) --- */
+html[data-admin-ui="pro"] .ap-question-bank .card.qb-question-card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 20px 22px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .card.qb-question-card:hover {
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .card.qb-question-card:has(.qb-select-card-chk:checked) {
+  border-color: var(--ap-accent) !important;
+  box-shadow: 0 4px 0 var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .qb-select-card-chk {
+  accent-color: var(--ap-accent) !important;
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Top meta row divider */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card > div:first-child {
+  border-bottom: 1.5px solid var(--ap-line) !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 14px !important;
+}
+
+/* Badge số thứ tự #N */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="border-radius:8px"][style*="background:#f1f5f9"] {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+}
+
+/* Badge Khối học */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="background:#eff6ff"][style*="color:#0284c7"]:has(i.fa-layer-group) {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+}
+
+/* Badge Constant */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="background:#ecfdf5"][style*="color:#059669"]:has(i.fa-certificate) {
+  border: 1.5px solid var(--ap-ok) !important;
+  border-radius: 999px !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+}
+
+/* Badge Đã sync */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="background:#eff6ff"][style*="color:#0369a1"]:has(i.fa-code-branch) {
+  border: 1.5px solid var(--ap-blue) !important;
+  border-radius: 999px !important;
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+  font-weight: 800 !important;
+}
+
+/* --- CHIP MỨC ĐỘ NHẬN THỨC (Theo Prototype Mochi Pro) --- */
+/* 1. Nhận biết = ok */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#f0fdf4"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#16a34a"][style*="text-transform:uppercase"] {
+  border: 1.5px solid var(--ap-ok) !important;
+  border-radius: 999px !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+  padding: 3px 12px !important;
+}
+
+/* 2. Thông hiểu = blue */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#ecfeff"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#0891b2"][style*="text-transform:uppercase"] {
+  border: 1.5px solid var(--ap-blue) !important;
+  border-radius: 999px !important;
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+  font-weight: 800 !important;
+  padding: 3px 12px !important;
+}
+
+/* 3. Vận dụng = warn */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#fff7ed"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#ea580c"][style*="text-transform:uppercase"] {
+  border: 1.5px solid var(--ap-warn) !important;
+  border-radius: 999px !important;
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  font-weight: 800 !important;
+  padding: 3px 12px !important;
+}
+
+/* 4. Vận dụng cao = accent2 */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#fff1f2"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="#e11d48"][style*="text-transform:uppercase"] {
+  border: 1.5px solid var(--ap-accent2) !important;
+  border-radius: 999px !important;
+  background: var(--ap-accent2-soft) !important;
+  color: var(--ap-accent2) !important;
+  font-weight: 800 !important;
+  padding: 3px 12px !important;
+}
+
+/* --- CHIP LOẠI CÂU HỎI (Theo Prototype Mochi Pro) --- */
+/* Trắc nghiệm = accent */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="text-transform:uppercase"][style*="#eff6ff"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="text-transform:uppercase"][style*="#0284c7"]:not(:has(i)) {
+  border: 2px solid var(--ap-accent) !important;
+  border-radius: 999px !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  font-weight: 800 !important;
+  padding: 3px 12px !important;
+}
+
+/* Đúng / Sai = blue */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="text-transform:uppercase"][style*="#fffbeb"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="text-transform:uppercase"][style*="#d97706"] {
+  border: 2px solid var(--ap-blue) !important;
+  border-radius: 999px !important;
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+  font-weight: 800 !important;
+  padding: 3px 12px !important;
+}
+
+/* Trả lời ngắn = ok */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="text-transform:uppercase"][style*="#faf5ff"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="text-transform:uppercase"][style*="#9333ea"] {
+  border: 2px solid var(--ap-ok) !important;
+  border-radius: 999px !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+  padding: 3px 12px !important;
+}
+
+/* Breadcrumbs Lớp / Chương / Bài & Số lần dùng */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="background:#f8fafc"][style*="border:1px solid #e2e8f0"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card span[style*="background:#f1f5f9"][style*="padding:3px 8px"] {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 700 !important;
+}
+
+/* Nút Sửa / Xóa trong thẻ câu hỏi */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .btn-edit-question {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .btn-edit-question:hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-accent-soft) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .btn-delete-question {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  border: 2px solid var(--ap-danger) !important;
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .btn-delete-question:hover {
+  background: var(--ap-danger) !important;
+  color: #ffffff !important;
+}
+
+/* --- 7. Nội dung đề bài & KaTeX / Hình ảnh / Bảng --- */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .math-content {
+  font-size: 15.5px !important;
+  line-height: 1.65 !important;
+  color: var(--ap-ink) !important;
+}
+
+/* Bảo toàn KaTeX và công thức toán */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .math-content .katex {
+  color: inherit !important;
+  font-size: 1.08em;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .math-content .katex-display {
+  margin: 0.8em 0 !important;
+}
+
+/* Hình minh họa */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card img {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface) !important;
+  padding: 4px !important;
+  max-width: 100% !important;
+}
+
+/* Bảng trong câu hỏi */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .math-content table {
+  border-collapse: separate !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  overflow: hidden !important;
+  margin: 12px 0 !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .math-content table th {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 800 !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+  padding: 8px 12px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card .math-content table td {
+  border-bottom: 1px solid var(--ap-line) !important;
+  color: var(--ap-ink) !important;
+  padding: 8px 12px !important;
+}
+
+/* --- 8. Khối đáp án (Card Answers) --- */
+/* Trắc nghiệm ABCD */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="grid-template-columns:repeat(auto-fit, minmax(240px, 1fr))"] > div {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  padding: 10px 14px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="grid-template-columns:repeat(auto-fit, minmax(240px, 1fr))"] > div[style*="#86efac"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="grid-template-columns:repeat(auto-fit, minmax(240px, 1fr))"] > div[style*="#f0fdf4"] {
+  border: 2px solid var(--ap-ok) !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="grid-template-columns:repeat(auto-fit, minmax(240px, 1fr))"] span[style*="border-radius:50%"] {
+  border: 1.5px solid var(--ap-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="grid-template-columns:repeat(auto-fit, minmax(240px, 1fr))"] span[style*="#16a34a"] {
+  background: var(--ap-ok) !important;
+  color: #ffffff !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="grid-template-columns:repeat(auto-fit, minmax(240px, 1fr))"] span[style*="#64748b"] {
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+}
+
+/* Đúng / Sai (a, b, c, d) */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="display:flex; flex-direction:column; gap:8px"] > div {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  padding: 10px 14px !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="display:flex; flex-direction:column; gap:8px"] span[style*="#dcfce7"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="display:flex; flex-direction:column; gap:8px"] span[style*="#15803d"] {
+  border: 1.5px solid var(--ap-ok) !important;
+  border-radius: 999px !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="display:flex; flex-direction:column; gap:8px"] span[style*="#fee2e2"],
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="display:flex; flex-direction:column; gap:8px"] span[style*="#b91c1c"] {
+  border: 1.5px solid var(--ap-danger) !important;
+  border-radius: 999px !important;
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+  font-weight: 800 !important;
+}
+
+/* Trả lời ngắn */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="display:inline-flex; align-items:center; gap:10px"] {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="display:inline-flex; align-items:center; gap:10px"] span[style*="font-family:monospace"] {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 8px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-accent) !important;
+  font-weight: 800 !important;
+}
+
+/* Lời giải chi tiết (Accordion) */
+html[data-admin-ui="pro"] .ap-question-bank .qb-question-card div[style*="border-top:1px dashed #e2e8f0"] {
+  border-top: 2px dashed var(--ap-line) !important;
+}
+
+/* --- 9. Modal Tạo đề theo ma trận & Tất cả Modal trong #qb-modal-container --- */
+html[data-admin-ui="pro"] #qb-modal-container .modal-backdrop {
+  background: color-mix(in srgb, var(--ap-ink) 45%, transparent) !important;
+  backdrop-filter: blur(6px);
+}
+
+html[data-admin-ui="pro"] #qb-modal-container .modal-content {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow-raised) !important;
+  font-family: var(--ap-font) !important;
+  overflow: hidden !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container .matrix-gen-header,
+html[data-admin-ui="pro"] #qb-modal-container .modal-content > div:first-child {
+  border-bottom: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  padding: 16px 22px !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container :is(h2, h3, h4, .matrix-gen-heading) {
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container .matrix-gen-icon {
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+}
+
+/* Unified Scope Container */
+html[data-admin-ui="pro"] #qb-modal-container #unified-scope-container > div:first-child {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container #gen-scope-grade-block {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 8px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container #scope-selection-badge {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+}
+
+/* Modal Table (Bảng ma trận & Bảng câu hỏi) */
+html[data-admin-ui="pro"] #qb-modal-container table {
+  border-collapse: separate !important;
+  border-color: var(--ap-line) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container table th {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+  letter-spacing: 0.5px !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container table td {
+  border-color: var(--ap-line) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container table tbody tr:hover td {
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container table input {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 8px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+}
+
+/* Modal Footer */
+html[data-admin-ui="pro"] #qb-modal-container .modal-content > div:last-child {
+  border-top: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  padding: 14px 22px !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container button.btn-primary,
+html[data-admin-ui="pro"] #qb-modal-container button[id*="submit"],
+html[data-admin-ui="pro"] #qb-modal-container button[id*="apply"] {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+  box-shadow: var(--ap-shadow) !important;
+  min-height: 44px !important;
+}
+
+html[data-admin-ui="pro"] #qb-modal-container button.btn-secondary,
+html[data-admin-ui="pro"] #qb-modal-container button[id*="cancel"],
+html[data-admin-ui="pro"] #qb-modal-container button[id*="close"] {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+  min-height: 44px !important;
+}
+
+/* --- 10. Dark mode color adjustments --- */
+html[data-admin-ui="pro"][data-theme="dark"] .ap-question-bank .page-header span[style*="background:linear-gradient(135deg, #0284c7, #0369a1)"] {
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .ap-question-bank .card:has(#stat-total-q) {
+  background: var(--ap-surface) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .ap-question-bank .qb-question-card div[style*="grid-template-columns:repeat(auto-fit, minmax(240px, 1fr))"] span[style*="#64748b"] {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  border-color: var(--ap-line) !important;
+}
+
+/* --- 11. Responsive (≤900px, ≤640px) --- */
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] .ap-question-bank .page-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-question-bank #qb-bulk-bar {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 16px !important;
+    left: 12px !important;
+    right: 12px !important;
+    z-index: 1000 !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-question-bank div[style*="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .ap-question-bank .content-body {
+    padding: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-question-bank div[style*="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-question-bank .card.qb-question-card {
+    padding: 16px 14px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-question-bank button:not(.btn-edit-question):not(.btn-delete-question),
+  html[data-admin-ui="pro"] .ap-question-bank select,
+  html[data-admin-ui="pro"] .ap-question-bank input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px !important;
+  }
+
+  html[data-admin-ui="pro"] #qb-modal-container .modal-content {
+    max-height: 96vh !important;
+    width: 96vw !important;
+  }
+
+  html[data-admin-ui="pro"] #qb-modal-container table {
+    display: block !important;
+    overflow-x: auto !important;
+  }
+}
+
+/* Orchestrator review: icon tròn gradient xanh (thống kê, trạng thái trống) bị ánh xạ thành navy đậm ở chế độ Sáng. */
+html[data-admin-ui="pro"] .ap-question-bank [style*="linear-gradient(135deg, #eff6ff, #dbeafe)"] {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+  box-shadow: none !important;
+}
+/* Chip "Phân cấp 4 tầng": chữ xanh nhạt trên nền nhạt. */
+html[data-admin-ui="pro"] .ap-question-bank [style*="color:#0284c7; background:#eff6ff; border:1px solid #bfdbfe"] {
+  color: var(--ap-blue) !important;
+  background: var(--ap-blue-soft) !important;
+  border-color: var(--ap-blue) !important;
+}
+/* Điện thoại: 4 thẻ thống kê thành lưới 2×2 thay vì 1 cột dài. */
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .ap-question-bank [style*="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  html[data-admin-ui="pro"] .ap-question-bank [style*="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))"] > .card {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 14px !important;
+  }
+}

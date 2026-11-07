@@ -18,6 +18,11 @@ import {
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 import { exportExamPdf, buildBankPrintQuestions } from '../utils/exam-print.js'
 import { queueAutoPdfGeneration, extractHomeworkIdsFromCreateResponse } from '../utils/homework-auto-pdf.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/admin-pro/pages/question-bank.css')
+}
 
 // ========================================================
 // View State
@@ -114,8 +119,9 @@ let generatorState = {
 // Main Render
 // ========================================================
 export function renderQuestionBankView() {
+  const isPro = isAdminProUI()
   return `
-    <div class="app-layout">
+    <div class="app-layout${isPro ? ' ap-question-bank' : ''}">
       ${renderSidebar('question-bank')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Ngân hàng câu hỏi')}
