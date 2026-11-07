@@ -10,7 +10,8 @@ import { isMochiUI } from '../ui-flag.js'
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
 const MOCHI_STUDENT_ROUTES = new Set([
   'student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar',
-  'homework-attempt', 'assignment-review', 'history', 'student-report'
+  'homework-attempt', 'assignment-review', 'history', 'student-report',
+  'attendance', 'achievements'
 ])
 
 function currentRoute() {
@@ -66,6 +67,7 @@ export function renderMochiNavbar() {
         <span>EduPortal</span>
       </a>
       <div class="m-shell-header-actions">
+        <span class="m-shell-progress" data-progress-slot hidden></span>
         ${renderStudentThemePicker('m-shell-theme-picker')}
         <div class="m-shell-account" title="Tài khoản ${escapeText(name)}">
           <span class="m-shell-account-name">${escapeText(name)}</span>

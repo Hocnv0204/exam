@@ -1,10 +1,10 @@
 const UI_STORAGE_KEY = 'eduportal-ui'
 
 export const MOCHI_FEATURES = Object.freeze({
-  streak: false,
-  xp: false,
-  badges: false,
-  leaderboard: false
+  streak: true,
+  xp: true,
+  badges: true,
+  leaderboard: true
 })
 
 function queryUI() {

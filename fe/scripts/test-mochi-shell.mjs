@@ -70,7 +70,11 @@ test('Mochi student shell có nav, tab bar, picker và route hiện tại', () =
   assert.equal((sidebar.match(/aria-current="page"/g) || []).length, 2, 'desktop và mobile cùng đánh dấu route')
   assert.match(navbar, /class="m-theme-picker m-shell-theme-picker"/)
   assert.equal((navbar.match(/data-student-theme-option=/g) || []).length, 4)
-  assert.doesNotMatch(shell, /Thành tích|\bXP\b|streak/i)
+  // Thành tích/Điểm danh là mục điều hướng; số liệu XP/streak không nằm trong shell tĩnh.
+  assert.match(sidebar, /href="#achievements"/)
+  assert.match(sidebar, /href="#attendance"/)
+  assert.match(sidebar, /<details class="m-tab-more is-active">/, 'mục phụ đang mở làm sáng ô Thêm')
+  assert.doesNotMatch(shell, /\bXP\b|streak/i)
   assert.doesNotMatch(shell, /data-student-theme-toggle/)
 })
 
@@ -85,7 +89,9 @@ test('mọi route con được ánh xạ về đúng mục điều hướng', ()
     ['weekly-calendar', '#weekly-calendar'],
     ['history', '#history'],
     ['assignment-review', '#history'],
-    ['student-report', '#history']
+    ['student-report', '#history'],
+    ['attendance', '#attendance'],
+    ['achievements', '#achievements']
   ])
   for (const [route, href] of expectations) {
     assert.match(renderSidebar(route), new RegExp(`href="${href}" aria-current="page"`), route)

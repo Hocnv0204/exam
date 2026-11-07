@@ -57,6 +57,9 @@ verify_jwt = true
 [functions.weekly-calendar]
 verify_jwt = true
 
+[functions.student-progress]
+verify_jwt = true
+
 [functions.question-appeals]
 verify_jwt = true
 

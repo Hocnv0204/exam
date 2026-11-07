@@ -480,6 +480,14 @@ async function request(endpoint, options = {}) {
   }
 }
 
+function progressQuery(scope, params = {}) {
+  const sp = new URLSearchParams({ scope })
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') sp.set(k, String(v))
+  })
+  return sp.toString()
+}
+
 export const api = {
   login: (username, password) => request('login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   completeOnboarding: (tourKey) => request('login', { method: 'PATCH', body: JSON.stringify({ tourKey }) }),
@@ -706,6 +714,13 @@ export const api = {
     })
     return request(`student-history?${sp.toString()}`, { method: 'GET', ...options })
   },
+  // Tiến độ cá nhân của học sinh (Edge Function student-progress, chỉ STUDENT, chỉ dữ liệu của chính mình).
+  // - attendance: { classId, fromDate?, toDate? } -> { classId, className, fromDate, toDate, summary, sessions }
+  // - achievements: {} -> { today, xp, streak, badges, rules }
+  // - leaderboard: { classId, period: 'week'|'month' } -> { classId, className, period, fromDate, toDate, entries, me, totalStudents }
+  getStudentAttendance: (params = {}, options = {}) => request(`student-progress?${progressQuery('attendance', params)}`, { method: 'GET', ...options }),
+  getStudentAchievements: (options = {}) => request(`student-progress?${progressQuery('achievements')}`, { method: 'GET', ...options }),
+  getClassLeaderboard: (params = {}, options = {}) => request(`student-progress?${progressQuery('leaderboard', params)}`, { method: 'GET', ...options }),
   // Quản lý link chia sẻ báo cáo tiến độ công khai (student-report-shares).
   // - createStudentReportShare POST /student-report-shares: { studentId, classId, fromDate, toDate, expiresInDays? }
   //   -> 201 { shareId, shareToken, expiresAt, createdAt, ..., status, period } (raw token chỉ 1 lần).

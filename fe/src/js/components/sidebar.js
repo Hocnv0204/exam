@@ -4,7 +4,8 @@ import { isMochiUI, MOCHI_FEATURES } from '../ui-flag.js'
 
 const MOCHI_STUDENT_ROUTES = new Set([
   'student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar',
-  'homework-attempt', 'assignment-review', 'history', 'student-report'
+  'homework-attempt', 'assignment-review', 'history', 'student-report',
+  'attendance', 'achievements'
 ])
 
 const MOCHI_NAV_ITEMS = [
@@ -12,8 +13,33 @@ const MOCHI_NAV_ITEMS = [
   { route: 'my-classes', label: 'Lớp của tôi', shortLabel: 'Lớp học', icon: 'fa-graduation-cap', routes: ['my-classes'] },
   { route: 'my-homeworks', label: 'Bài tập', icon: 'fa-list-check', routes: ['my-homeworks', 'homework-attempt'] },
   { route: 'weekly-calendar', label: 'Lịch học', shortLabel: 'Lịch', icon: 'fa-calendar-days', routes: ['weekly-calendar'] },
-  { route: 'history', label: 'Lịch sử làm bài', shortLabel: 'Lịch sử', icon: 'fa-clock-rotate-left', routes: ['history', 'assignment-review', 'student-report'] }
+  { route: 'attendance', label: 'Điểm danh', icon: 'fa-clipboard-user', routes: ['attendance'] },
+  { route: 'history', label: 'Lịch sử làm bài', shortLabel: 'Lịch sử', icon: 'fa-clock-rotate-left', routes: ['history', 'assignment-review', 'student-report'] },
+  { route: 'achievements', label: 'Thành tích', icon: 'fa-trophy', routes: ['achievements'] }
 ]
+
+// Tab bar điện thoại chỉ đủ 5 ô: 4 mục chính + "Thêm" chứa các mục còn lại.
+const MOCHI_TAB_PRIMARY = ['student-dashboard', 'my-classes', 'my-homeworks', 'history']
+
+function renderMochiTabbar(currentRoute) {
+  const primary = MOCHI_NAV_ITEMS.filter(item => MOCHI_TAB_PRIMARY.includes(item.route))
+  const extra = MOCHI_NAV_ITEMS.filter(item => !MOCHI_TAB_PRIMARY.includes(item.route))
+  const extraActive = extra.some(item => item.routes.includes(currentRoute))
+  return `
+    <nav class="m-tabbar" aria-label="Điều hướng nhanh">
+      ${primary.map(item => renderMochiNavLink(item, currentRoute, { compact: true })).join('')}
+      <details class="m-tab-more${extraActive ? ' is-active' : ''}">
+        <summary class="m-shell-nav-link m-tab-more-toggle">
+          <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+          <span>Thêm</span>
+        </summary>
+        <div class="m-tab-more-menu" role="list">
+          ${extra.map(item => renderMochiNavLink(item, currentRoute)).join('')}
+        </div>
+      </details>
+    </nav>
+  `
+}
 
 function isMochiStudentShell(currentRoute) {
   return state.user?.role === 'STUDENT' && Boolean(state.token) &&
@@ -41,9 +67,7 @@ export function renderMochiSidebar(currentRoute) {
         <span>Đăng xuất</span>
       </button>
     </aside>
-    <nav class="m-tabbar" aria-label="Điều hướng nhanh">
-      ${MOCHI_NAV_ITEMS.map(item => renderMochiNavLink(item, currentRoute, { compact: true })).join('')}
-    </nav>
+    ${renderMochiTabbar(currentRoute)}
   `
 }
 

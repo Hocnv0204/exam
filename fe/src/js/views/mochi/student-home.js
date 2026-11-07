@@ -1,7 +1,14 @@
+if (typeof document !== 'undefined' && document.head) {
+  import('../../../css/mochi/achievements.css')
+}
 import { renderSidebar } from '../../components/sidebar.js'
 import { renderNavbar } from '../../components/navbar.js'
 import { renderMascot } from '../../components/mascot.js'
 import { escapeHtml } from '../../utils/download-helper.js'
+import { mountHomeAchievementsWidget, renderHomeAchievementsSkeleton } from '../../components/progress-widgets.js'
+import { MOCHI_FEATURES } from '../../ui-flag.js'
+
+let currentStudentHomeClasses = []
 
 function firstName(user) {
   const name = String(user?.fullName || user?.full_name || user?.username || 'bạn').trim()
@@ -9,11 +16,16 @@ function firstName(user) {
 }
 
 export function renderMochiStudentHome({ classes = [], user } = {}) {
+  currentStudentHomeClasses = classes
   const firstClass = classes[0]
   const fallbackClassId = firstClass?.id ? escapeHtml(firstClass.id) : ''
   const today = new Intl.DateTimeFormat('vi-VN', {
     weekday: 'long', day: '2-digit', month: '2-digit'
   }).format(new Date())
+
+  const hasAchievementsFeature = Boolean(
+    MOCHI_FEATURES.xp || MOCHI_FEATURES.streak || MOCHI_FEATURES.badges || MOCHI_FEATURES.leaderboard
+  )
 
   return `
     <div class="app-layout navy-student m-student-page m-student-home">
@@ -40,6 +52,18 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
                 ${renderMascot({ mood: 'cheer', size: 160 })}
               </div>
             </section>
+
+            ${hasAchievementsFeature ? `
+              <section class="m-card m-home-achievements" id="m-home-achievements-card" aria-labelledby="m-achievements-title">
+                <div class="m-section-heading">
+                  <h2 id="m-achievements-title">Thành tích &amp; Hoạt động</h2>
+                  <a href="#achievements">Xem tất cả</a>
+                </div>
+                <div id="student-home-achievements" aria-live="polite">
+                  ${renderHomeAchievementsSkeleton()}
+                </div>
+              </section>
+            ` : ''}
 
             <section class="m-card m-home-progress" aria-labelledby="m-progress-title">
               <div class="m-section-heading">
@@ -105,4 +129,9 @@ export function bindMochiStudentHome({ loadStats, loadScores, loadHomeworks, loa
   loadWeakTopics?.()
   loadDrafts?.()
   startTour?.()
+
+  // Nạp bất đồng bộ khối thành tích & thi đua
+  if (MOCHI_FEATURES.xp || MOCHI_FEATURES.streak || MOCHI_FEATURES.badges || MOCHI_FEATURES.leaderboard) {
+    mountHomeAchievementsWidget({ classes: currentStudentHomeClasses })
+  }
 }

@@ -1,0 +1,751 @@
+/* fe/src/css/mochi/achievements.css - Scoped styles for Mochi Gamification & Achievements */
+
+/* Navbar streak chip */
+html[data-ui="mochi"] .m-shell-progress {
+  display: inline-flex;
+  align-items: center;
+}
+
+html[data-ui="mochi"] .m-shell-streak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 2px solid var(--m-ink);
+  border-radius: var(--m-radius-pill);
+  background: var(--m-warn-soft);
+  color: var(--m-warn);
+  font-family: var(--m-font-heading);
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: var(--m-shadow-sm);
+  transition: transform .12s ease;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+html[data-ui="mochi"] .m-shell-streak-chip:hover {
+  transform: translateY(-2px);
+}
+
+/* Student Home achievements card & widgets */
+html[data-ui="mochi"] .m-home-achievements {
+  margin-bottom: 0;
+}
+
+html[data-ui="mochi"] .m-home-achieve-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+html[data-ui="mochi"] .m-home-achieve-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  color: var(--m-ink);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-home-achieve-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-home-achieve-card-header--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+html[data-ui="mochi"] .m-home-class-chip {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-home-streak-status-wrap {
+  margin: 4px 0 2px;
+}
+
+html[data-ui="mochi"] .m-nowrap {
+  white-space: nowrap;
+}
+
+html[data-ui="mochi"] .m-home-achieve-card-title {
+  font-family: var(--m-font-heading);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--m-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-home-achieve-card-title i {
+  color: var(--m-accent);
+}
+
+html[data-ui="mochi"] .m-home-achieve-streak-title i {
+  color: var(--m-warn);
+}
+
+html[data-ui="mochi"] .m-home-achieve-val {
+  font-family: var(--m-font-heading);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--m-ink);
+  margin: 4px 0;
+}
+
+html[data-ui="mochi"] .m-home-achieve-sub {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--m-muted);
+  margin: 0;
+}
+
+html[data-ui="mochi"] .m-home-achieve-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+html[data-ui="mochi"] .m-home-achieve-badge-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 2px solid var(--m-ink);
+  border-radius: var(--m-radius-pill);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html[data-ui="mochi"] .m-home-achieve-badge-item i {
+  color: var(--m-warn);
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 0;
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--m-line);
+  min-width: 0;
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-item.is-me {
+  background: var(--m-accent-soft);
+  border: 2px solid var(--m-accent);
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-rank {
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  width: 20px;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-xp {
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  color: var(--m-accent);
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-align: right;
+  margin-left: 4px;
+}
+
+html[data-ui="mochi"] .m-home-leaderboard-my-rank {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--m-muted);
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* Home achievements loading & skeleton */
+html[data-ui="mochi"] .m-achieve-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+html[data-ui="mochi"] .m-achieve-skeleton-box {
+  min-height: 120px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  animation: m-achieve-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes m-achieve-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+html[data-ui="mochi"] .m-home-achieve-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  color: var(--m-ink);
+}
+
+html[data-ui="mochi"] .m-home-achieve-error p {
+  margin: 0;
+  font-weight: 700;
+  color: var(--m-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-home-achieve-error i {
+  color: var(--m-warn);
+}
+
+/* Achievements view styling */
+html[data-ui="mochi"] .m-achievements-page .m-achievements-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  border: 2px solid var(--m-ink);
+  border-radius: var(--m-radius-xl);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-lg);
+  box-sizing: border-box;
+  height: auto;
+  min-height: auto;
+}
+
+html[data-ui="mochi"] .m-achievements-hero-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+html[data-ui="mochi"] .m-achievements-hero-copy h1 {
+  margin: 10px 0 6px;
+}
+
+html[data-ui="mochi"] .m-achievements-hero-copy p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+html[data-ui="mochi"] .m-achievements-hero-mascot {
+  flex: 0 0 auto;
+}
+
+/* Stats grid: XP card & Streak card */
+html[data-ui="mochi"] .m-achievements-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+html[data-ui="mochi"] .m-stat-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-lg);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-md);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-stat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+html[data-ui="mochi"] .m-stat-card-title {
+  font-family: var(--m-font-heading);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--m-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-stat-hero-number {
+  font-family: var(--m-font-heading);
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--m-ink);
+  margin: 6px 0 2px;
+}
+
+html[data-ui="mochi"] .m-stat-progress-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+html[data-ui="mochi"] .m-stat-progress-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-stat-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--m-line);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+/* Badges section */
+html[data-ui="mochi"] .m-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+html[data-ui="mochi"] .m-badge-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-content: flex-start;
+  gap: 12px;
+  padding: 18px;
+  border-radius: var(--m-radius-lg);
+  box-sizing: border-box;
+  transition: transform .12s ease;
+}
+
+html[data-ui="mochi"] .m-badge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+html[data-ui="mochi"] .m-badge-card.is-earned {
+  border: 2px solid var(--m-ink);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-sm);
+}
+
+html[data-ui="mochi"] .m-badge-card.is-earned:hover {
+  transform: translateY(-2px);
+}
+
+html[data-ui="mochi"] .m-badge-card.is-locked {
+  border: 2px dashed var(--m-line);
+  background: var(--m-surface2);
+  opacity: 0.8;
+}
+
+html[data-ui="mochi"] .m-badge-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+html[data-ui="mochi"] .m-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  font-size: 24px;
+  border: 2px solid var(--m-ink);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-badge-card.is-earned .m-badge-icon {
+  background: var(--m-warn-soft);
+  color: var(--m-warn);
+}
+
+html[data-ui="mochi"] .m-badge-card.is-locked .m-badge-icon {
+  border-color: var(--m-line);
+  background: var(--m-surface);
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-badge-title {
+  font-family: var(--m-font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--m-ink);
+  margin: 0;
+}
+
+html[data-ui="mochi"] .m-badge-desc {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--m-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+html[data-ui="mochi"] .m-badge-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+}
+
+html[data-ui="mochi"] .m-badge-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--m-muted);
+}
+
+/* XP Rules section */
+html[data-ui="mochi"] .m-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+html[data-ui="mochi"] .m-rule-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface2);
+  font-weight: 700;
+  color: var(--m-ink);
+  box-sizing: border-box;
+  min-height: 104px;
+}
+
+html[data-ui="mochi"] .m-rule-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--m-ink);
+  line-height: 1.35;
+}
+
+html[data-ui="mochi"] .m-rule-xp {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--m-radius-pill);
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 14px;
+  white-space: nowrap;
+  margin-top: auto;
+}
+
+/* Leaderboard section */
+html[data-ui="mochi"] .m-leaderboard-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+html[data-ui="mochi"] .m-leaderboard-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+html[data-ui="mochi"] .m-leaderboard-select {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2px solid var(--m-ink);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font-family: var(--m-font-body);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-leaderboard-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--m-muted);
+  margin-bottom: 12px;
+}
+
+html[data-ui="mochi"] .m-leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-leaderboard-row {
+  display: grid;
+  grid-template-columns: 44px 44px 1fr 110px;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 8px 16px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-md);
+  background: var(--m-surface);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] .m-leaderboard-row.is-me {
+  border-color: var(--m-accent);
+  background: var(--m-accent-soft);
+  box-shadow: var(--m-shadow-sm);
+}
+
+html[data-ui="mochi"] .m-leaderboard-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-family: var(--m-font-heading);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+html[data-ui="mochi"] .m-leaderboard-rank.rank-1 {
+  background: var(--m-warn-soft);
+  color: var(--m-warn);
+}
+
+html[data-ui="mochi"] .m-leaderboard-rank.rank-2 {
+  background: var(--m-surface2);
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .m-leaderboard-rank.rank-3 {
+  background: var(--m-accent2-soft);
+  color: var(--m-accent2);
+}
+
+html[data-ui="mochi"] .m-leaderboard-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--m-ink);
+  border-radius: 50%;
+  background: var(--m-surface2);
+  color: var(--m-ink);
+  font-family: var(--m-font-heading);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+html[data-ui="mochi"] .m-leaderboard-name {
+  font-weight: 800;
+  color: var(--m-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="mochi"] .m-leaderboard-me-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--m-radius-pill);
+  background: var(--m-accent);
+  color: var(--m-accent-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+html[data-ui="mochi"] .m-leaderboard-xp {
+  font-family: var(--m-font-heading);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--m-accent);
+  text-align: right;
+  white-space: nowrap;
+}
+
+html[data-ui="mochi"] .m-leaderboard-my-rank {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px 20px;
+  border: 2px solid var(--m-accent);
+  border-radius: var(--m-radius-md);
+  background: var(--m-accent-soft);
+  color: var(--m-ink);
+  font-weight: 800;
+}
+
+html[data-ui="mochi"] .m-leaderboard-privacy-note {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--m-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  html[data-ui="mochi"] .m-achievements-page .m-achievements-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+    gap: 14px;
+    height: auto;
+    min-height: auto;
+  }
+  html[data-ui="mochi"] .m-achievements-hero-copy {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+  html[data-ui="mochi"] .m-achievements-hero-mascot {
+    order: -1;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-ui="mochi"] .m-shell-streak-chip {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 14px;
+    gap: 4px;
+  }
+  html[data-ui="mochi"] .m-shell-streak-chip .m-streak-unit {
+    display: none;
+  }
+  html[data-ui="mochi"] .m-achievements-page .m-achievements-hero {
+    padding: 16px;
+    gap: 12px;
+    height: auto;
+    min-height: auto;
+  }
+  html[data-ui="mochi"] .m-achievements-hero-mascot {
+    order: -1;
+    align-self: flex-start;
+    width: 80px;
+    height: 80px;
+    flex: 0 0 auto;
+    margin: 0;
+  }
+  html[data-ui="mochi"] .m-achievements-hero-mascot .m-mascot {
+    width: 80px;
+    height: 80px;
+    max-width: 80px;
+    max-height: 80px;
+  }
+  html[data-ui="mochi"] .m-achievements-hero-copy h1 {
+    font-size: 22px;
+    margin: 6px 0 4px;
+  }
+  html[data-ui="mochi"] .m-achievements-hero-copy p {
+    font-size: 14px;
+  }
+  html[data-ui="mochi"] .m-leaderboard-row {
+    grid-template-columns: 32px 36px 1fr auto;
+    gap: 10px;
+    padding: 8px 12px;
+  }
+  html[data-ui="mochi"] .m-badges-grid {
+    grid-template-columns: 1fr;
+  }
+  html[data-ui="mochi"] .m-rules-grid {
+    grid-template-columns: 1fr;
+  }
+  html[data-ui="mochi"] .m-stat-card {
+    padding: 18px;
+  }
+}

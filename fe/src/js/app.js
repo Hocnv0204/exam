@@ -69,7 +69,9 @@ const studentDarkRoutes = new Set([
   'homework-attempt',
   'assignment-review',
   'history',
-  'student-report'
+  'student-report',
+  'attendance',
+  'achievements'
 ])
 
 // Dark skins are keyed on these classes, so they follow the active theme.
@@ -155,6 +157,8 @@ const routes = {
   'homework-attempt': { render: renderHomeworkSolverView, bind: bindHomeworkSolverEvents },
   'assignment-review': { loader: () => import('./views/assignment-review.js'), renderName: 'renderAssignmentReviewView', bindName: 'bindAssignmentReviewEvents' },
   history: { render: renderLearningHistoryView, bind: bindLearningHistoryEvents },
+  attendance: { loader: () => import('./views/attendance.js'), renderName: 'renderAttendanceView', bindName: 'bindAttendanceEvents' },
+  achievements: { loader: () => import('./views/achievements.js'), renderName: 'renderAchievementsView', bindName: 'bindAchievementsEvents' },
   'admin-dashboard': { loader: () => import('./views/admin-dashboard.js'), renderName: 'renderAdminDashboardView', bindName: 'bindAdminDashboardEvents' },
   'admin-history': { loader: () => import('./views/admin-history.js'), renderName: 'renderAdminHistoryView', bindName: 'bindAdminHistoryEvents' },
   'class-details': { loader: () => import('./views/class-details.js'), renderName: 'renderClassDetailsView', bindName: 'bindClassDetailsEvents' },
@@ -254,7 +258,7 @@ async function router() {
   // Route Guard: Access Control based on Role
   if (state.token && state.user && !isPublicSharedReport) {
     const adminOnlyRoutes = ['admin-dashboard', 'students', 'grade-blocks', 'classes', 'classes-admin', 'curriculum', 'create-homework', 'homework', 'homework-mgmt', 'admin-history', 'question-bank', 'question-appeals', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management']
-    const studentOnlyRoutes = ['student-dashboard', 'my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room']
+    const studentOnlyRoutes = ['student-dashboard', 'my-classes', 'my-homeworks', 'homework-attempt', 'history', 'exam-room', 'attendance', 'achievements']
 
     if (state.user.role === 'STUDENT' && adminOnlyRoutes.includes(hash)) {
       showToast('Tài khoản học sinh không có quyền truy cập trang quản trị này.', 'error')
@@ -612,6 +616,13 @@ async function router() {
       bindRoute()
     } catch (bindErr) {
       console.error(`[Router] Error binding events for route "${hash}":`, bindErr)
+    }
+    // Chip chuỗi ngày học trên header Mochi: dùng cache 60s của progress-widgets nên không gọi API mỗi lần đổi trang.
+    if (state.user?.role === 'STUDENT' && app.querySelector('[data-progress-slot]')) {
+      import('./components/progress-widgets.js')
+        .then(mod => mod.fetchStudentAchievements())
+        .then(data => { if (!isStale()) import('./components/progress-widgets.js').then(mod => mod.updateNavbarStreak(data)) })
+        .catch(() => {})
     }
   }
 }

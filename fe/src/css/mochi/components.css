@@ -121,3 +121,13 @@ html[data-ui="mochi"] :where(.m-shell-header,.m-shell-sidebar,.m-tabbar) :focus-
    trong khung Mochi luôn dùng nền token Mochi để không lộ màu navy/pastel cũ. */
 html[data-ui="mochi"] .app-layout:has(.m-shell-sidebar):is(.navy-student,.admin-dark,.pastel-student) {background:var(--m-bg)!important}
 html[data-ui="mochi"] .app-layout:has(.m-shell-sidebar) > .main-content > .content-body {background:var(--m-bg)!important;color:var(--m-ink)}
+/* Tab bar điện thoại: ô "Thêm" mở menu các mục phụ (Lịch học, Điểm danh, Thành tích). */
+@media (max-width:640px) {
+  html[data-ui="mochi"] .m-tab-more {position:relative;display:flex;flex:1 1 0;min-width:0}
+  html[data-ui="mochi"] .m-tab-more>summary {list-style:none;cursor:pointer;width:100%}
+  html[data-ui="mochi"] .m-tab-more>summary::-webkit-details-marker {display:none}
+  html[data-ui="mochi"] .m-tab-more.is-active>summary,html[data-ui="mochi"] .m-tab-more[open]>summary {background:var(--m-accent);color:var(--m-accent-ink)}
+  html[data-ui="mochi"] .m-tab-more-menu {position:absolute;right:0;bottom:calc(100% + 12px);display:flex;flex-direction:column;gap:4px;min-width:200px;padding:8px;border:2px solid var(--m-ink);border-radius:var(--m-radius-md);background:var(--m-surface);box-shadow:var(--m-shadow-sm)}
+  html[data-ui="mochi"] .m-tabbar .m-tab-more-menu .m-shell-nav-link {flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:10px;min-height:48px;padding:4px 10px;font-size:15px;white-space:nowrap;text-align:left}
+  html[data-ui="mochi"] .m-tabbar .m-tab-more-menu .m-shell-nav-link i {width:30px;height:30px;font-size:16px}
+}

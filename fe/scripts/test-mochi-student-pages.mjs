@@ -151,7 +151,8 @@ test('Mochi bật có đúng các khối chính và không có tính năng chưa
   assert.match(detail, /Xem video[\s\S]*Đọc lý thuyết[\s\S]*Làm bài tập/)
 
   const all = home + map + detail
-  assert.doesNotMatch(all, /streak|\bXP\b|Huy hiệu|Bảng xếp hạng/i)
+  assert.match(home, /student-home-achievements|m-home-achievements/i)
+  assert.doesNotMatch(map + detail, /streak|\bXP\b|Huy hiệu|Bảng xếp hạng/i)
   assert.doesNotMatch(all, /Meet|mục lục/i)
   assert.doesNotMatch(detail, /Ghi chú/)
 })
