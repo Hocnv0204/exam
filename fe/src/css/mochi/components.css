@@ -103,3 +103,17 @@ html[data-ui="mochi"] :where(.m-shell-header,.m-shell-sidebar,.m-tabbar) :focus-
   html[data-ui="mochi"] .m-btn {transition:none}
   html[data-ui="mochi"] :where(.m-shell-nav-link,.m-shell-header-logout,.m-shell-logout) {scroll-behavior:auto;transition:none}
 }
+/* Sidebar thu gọn chỉ còn icon; rê chuột hoặc focus bàn phím thì mở rộng đè lên nội dung (không xô lệch layout). */
+@media (min-width:901px) and (hover:hover) and (pointer:fine) {
+  html[data-ui="mochi"] .app-layout:has(.m-shell-sidebar) {grid-template-columns:88px minmax(0,1fr)}
+  html[data-ui="mochi"] .m-shell-sidebar {width:88px!important;padding:24px 14px!important;overflow-x:hidden;overflow-y:auto;transition:width .2s ease,box-shadow .2s ease}
+  html[data-ui="mochi"] .m-shell-sidebar:is(:hover,:focus-within) {width:248px!important;border-right:2px solid var(--m-line);box-shadow:var(--m-shadow-sm),8px 0 24px rgba(0,0,0,.12)!important;z-index:95}
+  html[data-ui="mochi"] .m-shell-sidebar .m-shell-nav-link {padding:4px 9px}
+  html[data-ui="mochi"] .m-shell-sidebar :is(.m-shell-nav-link,.m-shell-logout)>span {opacity:0;transition:opacity .15s ease}
+  html[data-ui="mochi"] .m-shell-sidebar:is(:hover,:focus-within) :is(.m-shell-nav-link,.m-shell-logout)>span {opacity:1;transition-delay:.06s}
+  html[data-ui="mochi"] .m-shell-logout {justify-content:flex-start;padding:0 16px;white-space:nowrap}
+  html[data-ui="mochi"] .m-shell-logout i {flex:0 0 auto;width:20px;text-align:center}
+}
+@media (min-width:901px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:reduce) {
+  html[data-ui="mochi"] .m-shell-sidebar,html[data-ui="mochi"] .m-shell-sidebar :is(.m-shell-nav-link,.m-shell-logout)>span {transition:none}
+}
