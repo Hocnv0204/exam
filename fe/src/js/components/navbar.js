@@ -5,7 +5,7 @@ import { isImpersonating } from '../utils/impersonate.js'
 import { renderThemeToggle, renderStudentThemeToggle } from '../theme.js'
 import { renderStudentThemePicker } from './student-theme-picker.js'
 import { renderMascot } from './mascot.js'
-import { isMochiUI } from '../ui-flag.js'
+import { isMochiUI, isAdminProUI, ADMIN_PRO_ROUTES } from '../ui-flag.js'
 
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
 const MOCHI_STUDENT_ROUTES = new Set([
@@ -15,7 +15,8 @@ const MOCHI_STUDENT_ROUTES = new Set([
 ])
 
 function currentRoute() {
-  return (window.location.hash || '#student-dashboard').replace(/^#/, '').split('?')[0]
+  const fallback = state.user?.role === 'ADMIN' ? '#admin-dashboard' : '#student-dashboard'
+  return (window.location.hash || fallback).replace(/^#/, '').split('?')[0]
 }
 
 async function switchToHocnvSession() {
@@ -38,10 +39,47 @@ async function switchToHocnvSession() {
 window.switchToHocnvSession = switchToHocnvSession
 
 export function renderNavbar(breadcrumbText = 'Nền tảng / Bảng điều khiển', options = {}) {
+  if (state.token && ADMIN_PRO_ROUTES.has(currentRoute()) && isAdminProUI()) {
+    return renderAdminProNavbar(breadcrumbText, options)
+  }
   if (state.token && state.user?.role === 'STUDENT' && MOCHI_STUDENT_ROUTES.has(currentRoute()) && isMochiUI()) {
     return renderMochiNavbar()
   }
   return renderClassicNavbar(breadcrumbText, options)
+}
+
+export function renderAdminProNavbar(breadcrumbText = 'Quản trị / Bảng điều khiển', options = {}) {
+  const name = state.user?.fullName || 'Quản trị hệ thống'
+  const initials = name.split(' ').filter(Boolean).map(part => part[0]).join('').substring(0, 2).toUpperCase() || 'QT'
+  const themeToggle = options.themeToggle === false ? '' : renderThemeToggle('ap-theme-toggle')
+  return `
+    <header class="top-navbar ap-header">
+      <div class="ap-header-start">
+        <button id="sidebar-toggle-btn" class="ap-menu-button" type="button" aria-label="Mở menu điều hướng" aria-controls="app-sidebar" aria-expanded="false" title="Ẩn/Hiện sidebar">
+          <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
+        <a class="ap-header-brand" href="#admin-dashboard" aria-label="EduPortal - Dashboard quản trị">
+          ${renderMascot({ mood: 'happy', size: 42 })}
+          <span class="ap-brand-copy">EduPortal</span>
+          <small>Quản trị</small>
+        </a>
+        <span class="navbar-breadcrumb ap-breadcrumb" aria-label="Vị trí hiện tại" title="${escapeText(breadcrumbText)}">${escapeText(breadcrumbText)}</span>
+      </div>
+      <div class="top-navbar-right ap-header-actions">
+        ${themeToggle}
+        <button class="admin-impersonate-btn ap-icon-action" type="button" onclick="window.switchToHocnvSession()" aria-label="Xem như học sinh" title="Đổi sang phiên học sinh hocnv">
+          <i class="fa-solid fa-user-secret" aria-hidden="true"></i><span>Xem như HS</span>
+        </button>
+        <div class="user-profile-chip ap-account" title="Tài khoản ${escapeText(name)}">
+          <span>${escapeText(name)}</span>
+          <div class="user-avatar-circle" aria-hidden="true">${escapeText(initials)}</div>
+        </div>
+        <button type="button" class="ap-icon-action ap-header-logout" data-admin-logout aria-label="Đăng xuất" title="Đăng xuất">
+          <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Đăng xuất</span>
+        </button>
+      </div>
+    </header>
+  `
 }
 
 function renderImpersonationBanner(name) {

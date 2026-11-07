@@ -2,7 +2,7 @@ import { state } from './state.js'
 import { api } from './api.js'
 // Applies the saved global and student preferences before the first render.
 import { isDarkTheme, getTheme, getStudentTheme, getClassicStudentTheme, applyStudentThemeToDocument } from './theme.js'
-import { syncMochiUI, isMochiUI } from './ui-flag.js'
+import { syncMochiUI, syncAdminProUI, isMochiUI, isAdminProUI } from './ui-flag.js'
 
 // Skin học sinh đang hiển thị: Mochi dùng đủ 4 bảng màu; giao diện cũ chỉ dark/sakura.
 const studentSkin = () => (isMochiUI() ? getStudentTheme() : getClassicStudentTheme())
@@ -81,8 +81,11 @@ function applyThemeClasses(layout, hash) {
   const dark = isDarkTheme()
   const studentRoute = state.user?.role === 'STUDENT' && studentDarkRoutes.has(hash)
   const isStudentDark = studentRoute && studentSkin() === 'dark'
+  const adminPro = state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash) && isAdminProUI()
   // Student preference is independent of the global theme used by admin/public.
-  layout.classList.toggle('admin-dark', (dark && state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash)) || isStudentDark)
+  // Pro tái sử dụng bộ ánh xạ inline của admin-dark ở cả hai theme; token Pro
+  // ghi đè palette navy, còn classic giữ nguyên điều kiện dark trước đây.
+  layout.classList.toggle('admin-dark', adminPro || (dark && state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash)) || isStudentDark)
   layout.classList.toggle('navy-student', isStudentDark)
   layout.classList.toggle('pastel-student', studentRoute && studentSkin() === 'sakura')
 }
@@ -116,6 +119,7 @@ function syncDocumentTheme(hash) {
     : getTheme()
   applyStudentThemeToDocument(studentRoute)
   syncMochiUI(studentRoute)
+  syncAdminProUI(state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash))
   document.documentElement.dataset.theme = effective
   document.documentElement.style.colorScheme = effective
 }
@@ -603,9 +607,11 @@ async function router() {
       layout.dataset.role = state.user?.role || 'GUEST'
       // Desktop navigation uses an icon rail that expands over the content
       // on hover. Touch widths keep the existing drawer behaviour below.
-      layout.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && !!state.token)
+      const adminProShell = document.documentElement.dataset.adminUi === 'pro' && state.user?.role === 'ADMIN'
+      const desktopNavigation = window.innerWidth > (adminProShell ? 900 : 1024)
+      layout.classList.toggle('sidebar-hover-expand', desktopNavigation && !!state.token && !adminProShell)
       applyThemeClasses(layout, hash)
-      layout.classList.toggle('sidebar-collapsed', window.innerWidth <= 1024)
+      layout.classList.toggle('sidebar-collapsed', !desktopNavigation)
       const toggle = layout.querySelector('#sidebar-toggle-btn')
       toggle?.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))
       toggle?.setAttribute('aria-label', layout.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
@@ -642,8 +648,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (shell) {
       shell.dataset.route = hash
       shell.dataset.role = state.user?.role || 'GUEST'
-      shell.classList.toggle('sidebar-hover-expand', window.innerWidth > 1024 && !!state.token)
-      shell.classList.toggle('sidebar-collapsed', window.innerWidth <= 1024)
+      const adminProShell = document.documentElement.dataset.adminUi === 'pro' && state.user?.role === 'ADMIN'
+      const desktopNavigation = window.innerWidth > (adminProShell ? 900 : 1024)
+      shell.classList.toggle('sidebar-hover-expand', desktopNavigation && !!state.token && !adminProShell)
+      shell.classList.toggle('sidebar-collapsed', !desktopNavigation)
       const toggle = shell.querySelector('#sidebar-toggle-btn')
       toggle?.setAttribute('aria-expanded', String(!shell.classList.contains('sidebar-collapsed')))
       toggle?.setAttribute('aria-label', shell.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')
@@ -658,9 +666,10 @@ window.addEventListener('DOMContentLoaded', router)
 window.addEventListener('resize', () => {
   const layout = document.querySelector('.app-layout')
   if (!layout) return
-  const wasDesktop = layout.classList.contains('sidebar-hover-expand')
-  const desktop = window.innerWidth > 1024
-  layout.classList.toggle('sidebar-hover-expand', desktop && !!state.token)
+  const wasDesktop = layout.classList.contains('sidebar-hover-expand') || !layout.classList.contains('sidebar-collapsed')
+  const adminProShell = document.documentElement?.dataset?.adminUi === 'pro' && layout.dataset?.role === 'ADMIN'
+  const desktop = window.innerWidth > (adminProShell ? 900 : 1024)
+  layout.classList.toggle('sidebar-hover-expand', desktop && !!state.token && !adminProShell)
   if (desktop) layout.classList.remove('sidebar-collapsed')
   else if (wasDesktop) layout.classList.add('sidebar-collapsed')
   const toggle = layout.querySelector('#sidebar-toggle-btn')
@@ -674,6 +683,7 @@ document.addEventListener('click', (e) => {
   if (toggleBtn) {
     const layout = document.querySelector('.app-layout')
     if (layout) {
+      if (document.documentElement?.dataset?.adminUi === 'pro' && window.innerWidth > 900) return
       layout.classList.toggle('sidebar-collapsed')
       toggleBtn.setAttribute('aria-expanded', String(!layout.classList.contains('sidebar-collapsed')))
       toggleBtn.setAttribute('aria-label', layout.classList.contains('sidebar-collapsed') ? 'Mở menu điều hướng' : 'Đóng menu điều hướng')

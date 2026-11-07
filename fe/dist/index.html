@@ -20,7 +20,11 @@
       try { savedUser = JSON.parse(localStorage.getItem('edu_user') || 'null') } catch (_) {}
       var route = location.hash.slice(1).split('?')[0]
       if (!route && savedUser?.role === 'STUDENT') route = 'student-dashboard'
+      if (!route && savedUser?.role === 'ADMIN') route = 'admin-dashboard'
       var studentRoute = savedUser?.role === 'STUDENT' && ['student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar', 'homework-attempt', 'assignment-review', 'history', 'student-report', 'attendance', 'achievements', 'exam-room'].includes(route)
+      var adminRoute = savedUser?.role === 'ADMIN' && ['admin-dashboard', 'students', 'grade-blocks', 'classes', 'classes-admin', 'curriculum', 'create-homework', 'homework', 'homework-mgmt', 'admin-history', 'question-bank', 'question-appeals', 'exam-proctoring', 'tuition-ledger', 'activity-logs', 'trial-management', 'class-details', 'student-details', 'student-report', 'assignment-review', 'weekly-calendar'].includes(route)
+      if (adminRoute && mochiUI) document.documentElement.dataset.adminUi = 'pro'
+      else delete document.documentElement.dataset.adminUi
       if (studentRoute) document.documentElement.dataset.studentTheme = studentTheme
       document.documentElement.dataset.theme = studentRoute
         ? (skinTheme === 'dark' ? 'dark' : 'light') : globalTheme
@@ -48,7 +52,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <!-- SmilesDrawer (vẽ công thức cấu tạo Hóa học từ SMILES, dùng cho khối ```smiles) -->
   <script defer src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.0.1/dist/smiles-drawer.min.js"></script>
-  <script type="module" crossorigin src="/assets/index-qjeU6JSF.js"></script>
+  <script type="module" crossorigin src="/assets/index-ClQ-YAMc.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-fOZjq26j.css">
 </head>
 <body>

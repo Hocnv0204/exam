@@ -1,4 +1,14 @@
+import { state } from './state.js'
+
 const UI_STORAGE_KEY = 'eduportal-ui'
+
+export const ADMIN_PRO_ROUTES = new Set([
+  'admin-dashboard', 'students', 'grade-blocks', 'classes', 'classes-admin',
+  'curriculum', 'create-homework', 'homework', 'homework-mgmt', 'admin-history',
+  'question-bank', 'question-appeals', 'exam-proctoring', 'tuition-ledger',
+  'activity-logs', 'trial-management', 'class-details', 'student-details',
+  'student-report', 'assignment-review', 'weekly-calendar'
+])
 
 export const MOCHI_FEATURES = Object.freeze({
   streak: true,
@@ -35,6 +45,10 @@ export function isMochiUI() {
   }
 }
 
+export function isAdminProUI() {
+  return state.user?.role === 'ADMIN' && isMochiUI()
+}
+
 let stylesPromise
 export function loadMochiStyles() {
   // Unit-test/SSR documents have no head; route/flag state can still be tested
@@ -55,6 +69,37 @@ export function loadMochiStyles() {
     document.head.append(link)
   }
   return stylesPromise
+}
+
+let adminStylesPromise
+export function loadAdminProStyles() {
+  if (!document.createElement || !document.head) return Promise.resolve([])
+  if (!adminStylesPromise) {
+    adminStylesPromise = Promise.all([
+      import('../css/admin-pro/tokens.css'),
+      import('../css/admin-pro/components.css')
+    ])
+  }
+  // Dùng chung đúng bộ font với Mochi học sinh, không chèn link trùng.
+  if (!document.querySelector?.('[data-mochi-fonts]')) {
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap&subset=vietnamese'
+    link.dataset.mochiFonts = ''
+    document.head.append(link)
+  }
+  return adminStylesPromise
+}
+
+export function syncAdminProUI(adminRoute) {
+  const enabled = Boolean(adminRoute) && isAdminProUI()
+  if (enabled) {
+    document.documentElement.dataset.adminUi = 'pro'
+    loadAdminProStyles()
+  } else {
+    delete document.documentElement.dataset.adminUi
+  }
+  return enabled
 }
 
 export function syncMochiUI(studentRoute) {

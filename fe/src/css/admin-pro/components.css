@@ -1,0 +1,601 @@
+/* Mochi Pro chỉ hoạt động sau cổng data-admin-ui; classic không nhận rule nào. */
+html[data-admin-ui="pro"] body {
+  background: var(--ap-bg);
+  color: var(--ap-ink);
+  font-family: var(--ap-font);
+}
+
+/* Shell Pro dùng grid riêng, không kế thừa rail nổi/margin-left của classic. */
+html[data-admin-ui="pro"] .app-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--ap-bg) !important;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .app-layout::after { display: none !important; }
+html[data-admin-ui="pro"] .app-layout > .main-content { display: contents; }
+html[data-admin-ui="pro"] .app-layout > .main-content > .content-body {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+}
+
+/* Tái sử dụng bộ ánh xạ inline admin-dark, nhưng thay toàn bộ palette navy. */
+html[data-admin-ui="pro"] .app-layout.admin-dark,
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body,
+html[data-admin-ui="pro"] .app-layout.admin-dark[data-route="create-homework"] .content-body,
+html[data-admin-ui="pro"] :is(
+  .app-layout.admin-dark[data-route="admin-dashboard"],
+  .app-layout.admin-dark[data-route="student-report"],
+  .app-layout.admin-dark[data-route="assignment-review"]
+) {
+  --adm-bg: var(--ap-bg);
+  --adm-surface: var(--ap-surface);
+  --adm-surface-soft: var(--ap-surface2);
+  --adm-surface-strong: var(--ap-surface2);
+  --adm-border: var(--ap-line);
+  --adm-border-light: var(--ap-muted);
+  --adm-border-hover: var(--ap-accent);
+  --adm-text: var(--ap-ink);
+  --adm-text-muted: var(--ap-muted);
+  --adm-text-dim: var(--ap-muted);
+  --adm-accent: var(--ap-accent);
+  --adm-accent-soft: var(--ap-accent);
+  --adm-accent-strong: var(--ap-accent);
+  --adm-accent-glow: color-mix(in srgb, var(--ap-accent) 25%, transparent);
+  --adm-success: var(--ap-ok);
+  --adm-success-soft: var(--ap-ok);
+  --adm-success-bg: var(--ap-ok-soft);
+  --adm-warning: var(--ap-warn);
+  --adm-warning-soft: var(--ap-warn);
+  --adm-warning-bg: var(--ap-warn-soft);
+  --adm-danger: var(--ap-danger);
+  --adm-danger-soft: var(--ap-danger);
+  --adm-danger-bg: var(--ap-danger-soft);
+  --adm-card-shadow: var(--ap-shadow);
+  --bg-app: var(--ap-bg);
+  --bg-card: var(--ap-surface);
+  --border-color: var(--ap-line);
+  --text-main: var(--ap-ink);
+  --text-muted: var(--ap-muted);
+  --text-light: var(--ap-muted);
+  --primary: var(--ap-accent);
+  --primary-hover: var(--ap-accent2);
+  --primary-light: var(--ap-accent-soft);
+  --success: var(--ap-ok);
+  --success-bg: var(--ap-ok-soft);
+  --warning: var(--ap-warn);
+  --warning-bg: var(--ap-warn-soft);
+  --danger: var(--ap-danger);
+  --danger-bg: var(--ap-danger-soft);
+  --font-main: var(--ap-font);
+  --font-heading: var(--ap-font-heading);
+  background: var(--ap-bg);
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .main-content,
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body {
+  background: var(--ap-bg) !important;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body {
+  margin: 0;
+  padding: clamp(16px, 2.2vw, 30px);
+  border-radius: 0;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(h1, h2, h3, h4, h5, h6, .page-title, .dash-section-title) {
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.page-description, small) {
+  color: var(--ap-muted);
+}
+
+/* Shell */
+html[data-admin-ui="pro"] .ap-sidebar {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex !important;
+  position: sticky !important;
+  top: 70px !important;
+  bottom: auto !important;
+  align-self: start;
+  flex-direction: column;
+  width: auto !important;
+  height: calc(100vh - 70px);
+  padding: 16px 14px max(16px, env(safe-area-inset-bottom));
+  background: var(--ap-bg) !important;
+  border-right: 2px solid var(--ap-line);
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font);
+  overflow-x: hidden;
+  overflow-y: auto;
+  transform: none !important;
+  box-shadow: none !important;
+  box-sizing: border-box;
+  z-index: 20;
+}
+
+html[data-admin-ui="pro"] .ap-brand {
+  min-height: 50px;
+  gap: 10px;
+  margin: 0 4px 8px;
+  padding: 4px 6px;
+  color: var(--ap-ink);
+  font-family: var(--ap-font-heading);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-brand-mark {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ap-ink);
+  border-radius: 14px;
+  background: var(--ap-accent-soft);
+  color: var(--ap-accent);
+}
+
+html[data-admin-ui="pro"] .ap-brand small {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ap-accent-soft);
+  color: var(--ap-accent);
+  font: 800 10px var(--ap-font);
+  vertical-align: middle;
+}
+
+html[data-admin-ui="pro"] .ap-nav { display: flex; flex: 1; flex-direction: column; gap: 2px; }
+html[data-admin-ui="pro"] .ap-nav-group + .ap-nav-group { margin-top: 4px; }
+html[data-admin-ui="pro"] .ap-sidebar .nav-section-title {
+  display: block !important;
+  margin: 10px 10px 4px;
+  color: var(--ap-muted) !important;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .6px;
+}
+
+html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item,
+html[data-admin-ui="pro"] .ap-sidebar .ap-logout {
+  min-height: 44px;
+  margin: 2px 0;
+  padding: 4px 10px;
+  gap: 10px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: transparent !important;
+  color: var(--ap-ink) !important;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: none;
+  justify-content: flex-start !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item:hover,
+html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item:focus-visible,
+html[data-admin-ui="pro"] .ap-sidebar .ap-logout:hover {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-nav-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--ap-surface2);
+  color: var(--ap-accent);
+}
+
+html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item.active {
+  border-color: var(--ap-ink) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item.active .ap-nav-icon {
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+}
+html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item.active .ap-nav-icon i {
+  color: var(--ap-accent-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-sidebar-footer {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 2px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] .ap-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-sidebar .theme-toggle {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-sidebar .ap-logout { width: 100%; cursor: pointer; }
+html[data-admin-ui="pro"] .ap-sidebar .ap-logout i { color: var(--ap-accent2); }
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .ap-header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex !important;
+  min-height: 70px;
+  height: auto;
+  padding: 10px clamp(14px, 2vw, 28px);
+  border-bottom: 2px solid var(--ap-line);
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+html[data-admin-ui="pro"] .ap-header-start,
+html[data-admin-ui="pro"] .ap-header-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+html[data-admin-ui="pro"] .ap-header-brand {
+  --m-ink: var(--ap-ink);
+  --m-surface: var(--ap-surface);
+  --m-accent: var(--ap-accent);
+  --m-accent-ink: var(--ap-accent-ink);
+  --m-accent2-soft: var(--ap-accent2-soft);
+  --m-block: var(--ap-block);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ap-ink);
+  font: 800 24px var(--ap-font-heading);
+  letter-spacing: -.4px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+html[data-admin-ui="pro"] .ap-header-brand .m-mascot { flex: 0 0 auto; }
+html[data-admin-ui="pro"] .ap-header-brand small {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--ap-accent-soft);
+  color: var(--ap-accent);
+  font: 800 12px var(--ap-font);
+  letter-spacing: 0;
+}
+html[data-admin-ui="pro"] .ap-breadcrumb { margin-left: 8px; color: var(--ap-muted) !important; }
+
+html[data-admin-ui="pro"] .ap-menu-button,
+html[data-admin-ui="pro"] .ap-header .theme-toggle,
+html[data-admin-ui="pro"] .ap-icon-action {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-menu-button { display: none; }
+
+html[data-admin-ui="pro"] .ap-header .theme-toggle { display: inline-flex; align-items: center; gap: 8px; width: auto; }
+html[data-admin-ui="pro"] .ap-icon-action { display: inline-flex; align-items: center; gap: 7px; }
+html[data-admin-ui="pro"] .ap-header-logout { color: var(--ap-accent2) !important; }
+html[data-admin-ui="pro"] .ap-account {
+  padding: 4px 4px 4px 12px;
+  border-radius: 999px;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-weight: 800;
+}
+html[data-admin-ui="pro"] .ap-account .user-avatar-circle {
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--ap-ink);
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  font-family: var(--ap-font-heading);
+}
+
+/* Thành phần dùng chung */
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.card, .lw-card, .dash-kpi-card, .dash-chart-card, .class-banner-card, .class-kpi-card) {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.btn-primary, .btn-secondary, .btn-danger, button) {
+  min-height: 44px;
+  border-radius: var(--ap-radius) !important;
+  font-family: var(--ap-font);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .btn-primary {
+  width: auto;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .btn-primary:hover { background: var(--ap-accent2) !important; }
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .btn-secondary {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: none !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.btn-danger, .danger-btn, .btn-delete) {
+  border: 2px solid var(--ap-danger) !important;
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.form-input, input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  min-height: 44px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background-color: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font);
+  font-weight: 700;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(input, textarea)::placeholder { color: var(--ap-muted); opacity: .85; }
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(input, select, textarea):focus {
+  border-color: var(--ap-accent) !important;
+  box-shadow: 0 0 0 3px var(--ap-accent-soft) !important;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.table-responsive, .data-table, .md-table, table) {
+  border-color: var(--ap-line) !important;
+  color: var(--ap-ink) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.data-table, .md-table, table) th {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  border-color: var(--ap-line) !important;
+  font-weight: 800;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.data-table, .md-table, table) td {
+  color: var(--ap-ink) !important;
+  border-color: var(--ap-line) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.data-table, .md-table, table) tbody tr:hover td {
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is([class*="badge"], [class*="chip"]),
+html[data-admin-ui="pro"] #modal-container :is([class*="badge"], [class*="chip"]) {
+  border-radius: 999px;
+  font-weight: 800;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is([role="tablist"], .tabs, .tab-list) {
+  border-color: var(--ap-line) !important;
+  border-radius: 18px;
+  background: var(--ap-surface) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is([role="tab"][aria-selected="true"], .tab.active, .tab-btn.active) {
+  border-color: var(--ap-ink) !important;
+  border-radius: var(--ap-radius-sm);
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+}
+
+html[data-admin-ui="pro"] .pagination :is(button, a),
+html[data-admin-ui="pro"] .content-body :is(.pagination-btn, .page-btn) {
+  min-width: 44px;
+  min-height: 44px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+}
+
+/* Modal nằm ngoài layout nên lấy cổng từ html/body. */
+html[data-admin-ui="pro"] body:has(.app-layout.admin-dark) {
+  --adm-modal-surface: var(--ap-surface);
+  --adm-modal-surface-soft: var(--ap-surface2);
+  --adm-modal-surface-strong: var(--ap-surface2);
+  --adm-modal-border: var(--ap-line);
+  --adm-modal-text: var(--ap-ink);
+  --adm-modal-text-muted: var(--ap-muted);
+  --adm-modal-text-dim: var(--ap-muted);
+  --adm-modal-accent: var(--ap-accent);
+  --adm-modal-primary: var(--ap-accent);
+}
+html[data-admin-ui="pro"] body:has(.app-layout.admin-dark) :is(#modal-container, #qb-modal-container) .modal-backdrop {
+  background: color-mix(in srgb, var(--ap-ink) 40%, transparent) !important;
+  backdrop-filter: blur(6px);
+}
+html[data-admin-ui="pro"] body:has(.app-layout.admin-dark) :is(#modal-container, #qb-modal-container) .modal-content {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow-raised) !important;
+  color-scheme: normal;
+  font-family: var(--ap-font);
+}
+html[data-admin-ui="pro"] #modal-container .modal-content :is(h1, h2, h3, h4) {
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+}
+html[data-admin-ui="pro"] #modal-container .modal-content > div:first-child,
+html[data-admin-ui="pro"] #modal-container .modal-content > div:last-child { border-color: var(--ap-line) !important; }
+html[data-admin-ui="pro"] #modal-container #modal-close-btn { min-width: 44px; min-height: 44px; color: var(--ap-muted) !important; }
+html[data-admin-ui="pro"] #modal-container .btn-primary {
+  width: auto;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+html[data-admin-ui="pro"] #modal-container .btn-secondary {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .toast {
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  background: var(--ap-surface);
+  color: var(--ap-ink);
+  box-shadow: var(--ap-shadow);
+  font-family: var(--ap-font);
+}
+
+/* Các rule navy cũ viết màu cứng: đưa về token để Light không bị đảo màu. */
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.data-table td, .md-table td) { color: var(--ap-ink) !important; }
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body :is(.btn-secondary:hover, .calendar-day-btn:hover, .curriculum-lesson-item:hover) {
+  background: var(--ap-accent-soft) !important;
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-ink) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .curriculum-chapter-card.is-selected {
+  background: var(--ap-accent-soft) !important;
+  border-color: var(--ap-accent) !important;
+  box-shadow: 0 0 0 2px var(--ap-line) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .skeleton-bar {
+  background: linear-gradient(90deg, var(--ap-surface2) 25%, var(--ap-line) 50%, var(--ap-surface2) 75%) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark[data-route="admin-dashboard"] .content-body .card :is(input.form-input, select.form-input) {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body #quick-class-switcher option,
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body select option { background: var(--ap-surface); color: var(--ap-ink); }
+
+/* Dashboard: tăng tương phản chữ nhỏ/chỉ số màu trên các nền pastel (WCAG AA). */
+html[data-admin-ui="pro"] .app-layout[data-route="admin-dashboard"] .page-header .badge {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+}
+html[data-admin-ui="pro"] .app-layout[data-route="admin-dashboard"] .badge-academic {
+  background: var(--ap-blue-soft) !important;
+  border-color: var(--ap-blue) !important;
+  color: var(--ap-blue) !important;
+}
+html[data-admin-ui="pro"] .app-layout[data-route="admin-dashboard"] .badge-finance {
+  background: var(--ap-ok-soft) !important;
+  border-color: var(--ap-ok) !important;
+  color: var(--ap-ok) !important;
+}
+html[data-admin-ui="pro"] .app-layout[data-route="admin-dashboard"] .dash-kpi-value[style*="color:#3730a3"] {
+  color: var(--ap-accent) !important;
+}
+html[data-admin-ui="pro"] .app-layout[data-route="admin-dashboard"] .dash-kpi-value[style*="color:#059669"] {
+  color: var(--ap-ok) !important;
+}
+html[data-admin-ui="pro"] .app-layout[data-route="admin-dashboard"] .dash-kpi-value[style*="color:#dc2626"] {
+  color: var(--ap-danger) !important;
+}
+
+/* Bộ ánh xạ inline cũ trả về chữ sáng cố định; Light Pro cần giá trị sáng. */
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .content-body :is(
+  [style*="color:#0f172a"], [style*="color: #0f172a"],
+  [style*="color:#111827"], [style*="color: #111827"],
+  [style*="color:#1e293b"], [style*="color: #1e293b"],
+  [style*="color:#334155"], [style*="color: #334155"],
+  [style*="color:#374151"], [style*="color: #374151"]
+) { color: var(--ap-ink) !important; }
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .content-body :is(
+  [style*="color:#475569"], [style*="color: #475569"],
+  [style*="color:#64748b"], [style*="color: #64748b"],
+  [style*="color:#6b7280"], [style*="color: #6b7280"],
+  [style*="color:#94a3b8"], [style*="color: #94a3b8"]
+) { color: var(--ap-muted) !important; }
+
+@media (min-width: 901px) {
+  html[data-admin-ui="pro"] .app-layout.sidebar-collapsed .ap-sidebar { transform: none !important; }
+  html[data-admin-ui="pro"] .app-layout.sidebar-collapsed > .main-content { margin-left: 0 !important; }
+}
+
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] .app-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  html[data-admin-ui="pro"] .app-layout > .main-content > .content-body { grid-column: 1; grid-row: 2; }
+  html[data-admin-ui="pro"] .app-layout:not(.sidebar-collapsed)::after { display: block !important; }
+  html[data-admin-ui="pro"] .ap-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0;
+    bottom: 0 !important;
+    width: min(86vw, 300px) !important;
+    height: 100vh;
+    transform: translateX(-100%) !important;
+    box-shadow: 8px 0 24px color-mix(in srgb, var(--ap-ink) 22%, transparent) !important;
+    z-index: 1000;
+  }
+  html[data-admin-ui="pro"] .app-layout:not(.sidebar-collapsed) .ap-sidebar { transform: translateX(0) !important; }
+  html[data-admin-ui="pro"] .ap-menu-button { display: inline-flex; align-items: center; justify-content: center; }
+  html[data-admin-ui="pro"] .ap-header .navbar-breadcrumb { max-width: 42vw; }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .app-layout.admin-dark .ap-header { padding: 8px 10px; }
+  html[data-admin-ui="pro"] .ap-header .navbar-breadcrumb,
+  html[data-admin-ui="pro"] .ap-header-brand,
+  html[data-admin-ui="pro"] .ap-header .theme-toggle-label,
+  html[data-admin-ui="pro"] .ap-icon-action span,
+  html[data-admin-ui="pro"] .ap-account > span { display: none; }
+  html[data-admin-ui="pro"] .ap-header-actions { gap: 6px; }
+  html[data-admin-ui="pro"] .ap-header .theme-toggle,
+  html[data-admin-ui="pro"] .ap-icon-action { width: 44px; padding: 0; justify-content: center; }
+  html[data-admin-ui="pro"] .ap-account { padding: 2px; background: transparent; }
+  html[data-admin-ui="pro"] .app-layout.admin-dark .content-body { padding: 14px 10px 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-ui="pro"] *, html[data-admin-ui="pro"] *::before, html[data-admin-ui="pro"] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
+}

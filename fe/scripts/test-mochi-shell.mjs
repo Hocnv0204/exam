@@ -98,12 +98,14 @@ test('mọi route con được ánh xạ về đúng mục điều hướng', ()
   }
 })
 
-test('ADMIN không bị ảnh hưởng dù cờ Mochi bật', () => {
+test('ADMIN dùng shell Pro riêng khi cờ giao diện mới bật', () => {
   setMochi(true)
   state.token = 'admin-token'
   state.user = { id: 'admin-1', role: 'ADMIN', fullName: 'Quản trị viên', username: 'admin' }
-  assert.equal(renderSidebar('admin-dashboard'), renderClassicSidebar('admin-dashboard'))
-  assert.equal(renderNavbar('Quản trị / Dashboard'), renderClassicNavbar('Quản trị / Dashboard'))
+  window.location.hash = '#admin-dashboard'
+  assert.notEqual(renderSidebar('admin-dashboard'), renderClassicSidebar('admin-dashboard'))
+  assert.notEqual(renderNavbar('Quản trị / Dashboard'), renderClassicNavbar('Quản trị / Dashboard'))
+  assert.match(renderSidebar('admin-dashboard') + renderNavbar(), /ap-(?:sidebar|header)/)
   assert.doesNotMatch(renderSidebar('admin-dashboard') + renderNavbar(), /m-shell-(?:nav|header)/)
 })
 

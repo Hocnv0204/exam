@@ -1,0 +1,52 @@
+html[data-admin-ui="pro"] {
+  --ap-bg: #fff8f1;
+  --ap-surface: #ffffff;
+  --ap-surface2: #f6f2ff;
+  --ap-ink: #2b2340;
+  --ap-muted: #5e5674;
+  --ap-accent: #6a4cf0;
+  --ap-accent-ink: #ffffff;
+  --ap-accent-soft: #ece6ff;
+  --ap-accent2: #c9306c;
+  --ap-accent2-soft: #ffe4ee;
+  --ap-line: #e6dff5;
+  --ap-ok: #167a54;
+  --ap-ok-soft: #ddf5ea;
+  --ap-warn: #a93a0c;
+  --ap-warn-soft: #ffe8da;
+  --ap-block: #dcd2f3;
+  --ap-blue: #1d5fbf;
+  --ap-blue-soft: #e1ecff;
+  --ap-danger: #b4233f;
+  --ap-danger-soft: #ffe4e8;
+  --ap-radius-sm: 12px;
+  --ap-radius: 14px;
+  --ap-radius-lg: 22px;
+  --ap-shadow: 0 4px 0 var(--ap-block);
+  --ap-shadow-raised: 0 6px 0 var(--ap-block);
+  --ap-font: 'Nunito', system-ui, sans-serif;
+  --ap-font-heading: 'Baloo 2', system-ui, sans-serif;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] {
+  --ap-bg: #141127;
+  --ap-surface: #1e1a38;
+  --ap-surface2: #28224a;
+  --ap-ink: #f4f0ff;
+  --ap-muted: #b9b0da;
+  --ap-accent: #a18dff;
+  --ap-accent-ink: #141127;
+  --ap-accent-soft: #332a63;
+  --ap-accent2: #ff8fb8;
+  --ap-accent2-soft: #4a2440;
+  --ap-line: #3a3166;
+  --ap-ok: #5fd4a3;
+  --ap-ok-soft: #1d3a33;
+  --ap-warn: #ffad7a;
+  --ap-warn-soft: #45291c;
+  --ap-block: #0b0918;
+  --ap-blue: #8db8ff;
+  --ap-blue-soft: #1c2b4a;
+  --ap-danger: #ff9baa;
+  --ap-danger-soft: #4b2130;
+}

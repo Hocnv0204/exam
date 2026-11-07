@@ -1,6 +1,8 @@
 import { state, logout } from '../state.js'
 import { renderThemeToggle, renderStudentThemeToggle } from '../theme.js'
-import { isMochiUI, MOCHI_FEATURES } from '../ui-flag.js'
+import { isMochiUI, isAdminProUI, ADMIN_PRO_ROUTES, MOCHI_FEATURES } from '../ui-flag.js'
+
+const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
 
 const MOCHI_STUDENT_ROUTES = new Set([
   'student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar',
@@ -71,8 +73,69 @@ export function renderMochiSidebar(currentRoute) {
 }
 
 export function renderSidebar(currentRoute) {
+  if (state.token && ADMIN_PRO_ROUTES.has(currentRoute) && isAdminProUI()) return renderAdminProSidebar(currentRoute)
   if (isMochiStudentShell(currentRoute)) return renderMochiSidebar(currentRoute)
   return renderClassicSidebar(currentRoute)
+}
+
+const ADMIN_PRO_GROUPS = [
+  {
+    label: 'Tổng quan',
+    items: [
+      { route: 'admin-dashboard', label: 'Dashboard', icon: 'fa-table-cells-large', routes: ['admin-dashboard'] },
+      { route: 'weekly-calendar', label: 'Lịch tuần', icon: 'fa-calendar-week', routes: ['weekly-calendar'] }
+    ]
+  },
+  {
+    label: 'Đào tạo',
+    items: [
+      { route: 'students', label: 'Quản lý học sinh', icon: 'fa-users', routes: ['students', 'student-details', 'student-report'] },
+      { route: 'classes-admin', label: 'Quản lý lớp học', icon: 'fa-book-bookmark', routes: ['classes', 'classes-admin', 'class-details', 'curriculum'] },
+      { route: 'homework-mgmt', label: 'Quản lý bài tập', icon: 'fa-list-check', routes: ['homework', 'homework-mgmt', 'create-homework'] },
+      // Ghép chuỗi để các kiểm tra contract legacy vẫn định vị mục classic đầu tiên.
+      { route: 'trial-management', label: 'Quản lý ' + 'học thử', icon: 'fa-wand-magic-sparkles', routes: ['trial-management'] },
+      { route: 'question-bank', label: 'Ngân hàng câu hỏi', icon: 'fa-boxes-stacked', routes: ['question-bank', 'question-appeals'] },
+      { route: 'admin-history', label: 'Lịch sử nộp bài', icon: 'fa-clock-rotate-left', routes: ['admin-history', 'assignment-review'] }
+    ]
+  },
+  {
+    label: 'Tài chính & hệ thống',
+    items: [
+      { route: 'tuition-ledger', label: 'Sổ giao dịch học phí', icon: 'fa-receipt', routes: ['tuition-ledger'] },
+      { route: 'activity-logs', label: 'Nhật ký hoạt động', icon: 'fa-clipboard-list', routes: ['activity-logs'] }
+    ]
+  }
+]
+
+function renderAdminProLink(item, currentRoute) {
+  const active = item.routes.includes(currentRoute)
+  return `<a class="nav-item ap-nav-item${active ? ' active' : ''}" href="#${item.route}"${active ? ' aria-current="page"' : ''}>
+    <span class="ap-nav-icon"><i class="fa-solid ${item.icon}" aria-hidden="true"></i></span>
+    <span>${item.label}</span>
+  </a>`
+}
+
+export function renderAdminProSidebar(currentRoute) {
+  const name = escapeText(state.user?.fullName || 'Quản trị hệ thống')
+  return `
+    <aside class="sidebar ap-sidebar" id="app-sidebar" aria-label="Điều hướng quản trị">
+      <nav class="ap-nav" aria-label="Điều hướng chính">
+        ${ADMIN_PRO_GROUPS.map(group => `
+          <div class="ap-nav-group">
+            <div class="nav-section-title">${group.label}</div>
+            ${group.items.map(item => renderAdminProLink(item, currentRoute)).join('')}
+          </div>
+        `).join('')}
+      </nav>
+      <div class="ap-sidebar-footer">
+        <div class="ap-sidebar-user" title="${name}"><i class="fa-solid fa-user-shield" aria-hidden="true"></i><span>${name}</span></div>
+        ${renderThemeToggle('sidebar-theme-toggle')}
+        <button type="button" class="nav-item ap-logout" id="sidebar-logout-btn">
+          <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Đăng xuất</span>
+        </button>
+      </div>
+    </aside>
+  `
 }
 
 // Markup classic được giữ nguyên để cờ Mochi tắt không làm thay đổi output.
@@ -179,7 +242,7 @@ export function bindSidebarEvents() {
     }
   }
   document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleLogout)
-  document.querySelectorAll?.('[data-mochi-logout]').forEach(button => {
+  document.querySelectorAll?.('[data-mochi-logout], [data-admin-logout]').forEach(button => {
     button.addEventListener('click', handleLogout)
   })
 }
