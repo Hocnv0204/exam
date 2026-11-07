@@ -57,6 +57,8 @@ const run = (db, rows, mode = 'UPDATE') => processImportRows(rows, rows.map((_, 
 {
   const db = database([existing]); const result = await run(db, [question('lesson-1')], 'SKIP')
   assert.equal(result.skippedCount, 1); assert.deepEqual(db.rows[0], existing)
+  assert.deepEqual(result.skippedRows.map(r => r.questionNumber), [1])
+  assert.match(result.skippedRows[0].reason, /đã có trong Ngân hàng/)
 }
 {
   const otherBlock = { ...question(null, '11-Toán'), id: 'block', content_hash: 'same', mc_answer: 'A' }
@@ -71,6 +73,15 @@ const run = (db, rows, mode = 'UPDATE') => processImportRows(rows, rows.map((_, 
 {
   const db = database([]); const result = await run(db, [question('lesson-1'), question('lesson-1')])
   assert.equal(result.importedCount, 1); assert.equal(result.skippedCount, 1); assert.equal(db.rows.length, 1)
+  assert.deepEqual(result.skippedRows.map(r => r.questionNumber), [2])
+  assert.match(result.skippedRows[0].reason, /trong file nhập/)
+}
+{
+  const invalid = question('lesson-1'); invalid.mc_answer = null
+  const db = database([]); const result = await run(db, [invalid, question('lesson-1')])
+  assert.deepEqual(result.failedRows.map(r => r.questionNumber), [1])
+  assert.equal(result.importedCount, 1)
+  assert.equal(result.skippedCount, 0, 'câu lỗi không được chặn câu hợp lệ trùng nội dung phía sau')
 }
 {
   const db = database([])
@@ -121,3 +132,61 @@ console.log('question-bank import update tests passed')
   assert.equal(inserts, 1, 'phải insert theo lô, không phải từng câu')
 }
 console.log('bổ sung review: passed')
+
+{
+  // Lô nhập lớn phải chia truy vấn lookup; câu trùng ở lô cuối vẫn được nhận diện.
+  const rows = Array.from({ length: 222 }, (_, i) => question(i % 2 ? 'lesson-2' : 'lesson-1', '11-Hóa', `hash-${String(i).padStart(64, '0')}`))
+  const duplicate = { ...rows[221], id: 'already-there', content_hash: rows[221].prompt.text }
+  const db = database([duplicate])
+  const lookupSizes = []
+  const spy = { rows: db.rows, from(t) {
+    const q = db.from(t)
+    const origIn = q.in.bind(q)
+    q.in = (column, values) => {
+      if (column === 'content_hash') lookupSizes.push(values.length)
+      return origIn(column, values)
+    }
+    return q
+  } }
+  const result = await run(spy, rows, 'SKIP')
+  assert.equal(result.importedCount, 221)
+  assert.equal(result.skippedCount, 1)
+  assert.deepEqual(result.skippedRows.map(r => r.questionNumber), [222])
+  assert.equal(db.rows.length, 222)
+  assert.ok(lookupSizes.length > 1, 'phải chia tra cứu thành nhiều request')
+  assert.ok(lookupSizes.every(size => size <= 40), 'mỗi URL chỉ chứa tối đa 40 hash')
+}
+{
+  // Lookup thất bại phải dừng trước khi insert, không được hiểu nhầm là chưa có câu.
+  const db = database([])
+  const spy = { rows: db.rows, from(t) {
+    const q = db.from(t)
+    const origIn = q.in.bind(q)
+    q.in = (column, values) => {
+      if (column === 'content_hash') q.then = resolve => resolve({ data: null, error: { message: 'lookup failed' } })
+      return origIn(column, values)
+    }
+    return q
+  } }
+  await assert.rejects(run(spy, [question('lesson-1')]), error => error?.message === 'lookup failed')
+  assert.equal(db.rows.length, 0)
+}
+console.log('question-bank import lookup batching tests passed')
+
+{
+  // Kịch bản báo cáo 207 tạo mới, 14 bỏ qua, lỗi thiếu đáp án ở câu 201.
+  const rows = Array.from({ length: 222 }, (_, i) => question('lesson-1', '11-Hóa', `câu-${i + 1}`))
+  rows[200].mc_answer = null
+  for (let i = 0; i < 7; i++) rows[208 + i] = question('lesson-1', '11-Hóa', `câu-${i + 1}`)
+  const existingRows = rows.slice(201, 208).map((row, i) => ({ ...row, id: `existing-${i}`, content_hash: row.prompt.text }))
+  const db = database(existingRows)
+  const result = await run(db, rows, 'SKIP')
+  assert.equal(result.importedCount, 207)
+  assert.equal(result.skippedCount, 14)
+  assert.equal(result.skippedRows.length, result.skippedCount)
+  assert.deepEqual(result.skippedRows.map(row => row.questionNumber).sort((a, b) => a - b), Array.from({ length: 14 }, (_, i) => i + 202))
+  assert.ok(result.skippedRows.filter(row => row.questionNumber <= 208).every(row => /đã có trong Ngân hàng/.test(row.reason)))
+  assert.ok(result.skippedRows.filter(row => row.questionNumber >= 209).every(row => /trong file nhập/.test(row.reason)))
+  assert.deepEqual(result.failedRows.map(row => row.questionNumber), [201])
+  assert.match(result.failedRows[0].reason, /Thiếu đáp án đúng/)
+}

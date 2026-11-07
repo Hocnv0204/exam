@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { requireAdmin } from '../../shared/auth-middleware.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import { isStudentLockedOn } from '../../shared/student-lock.ts'
+import { fetchAllRows, isFetchAllRowsError } from '../../shared/fetch-all-rows.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -15,35 +16,44 @@ serve(async (req: Request) => {
     const { serviceRoleClient } = await requireAdmin(req)
 
     // Execute all independent aggregate and list queries in parallel via Promise.all
+    // Các query toàn bảng dùng fetchAllRows để không bị PostgREST cắt âm thầm ở 1000 dòng.
     const [
-      studentsRes,
-      classesRes,
-      studentClassesRes,
+      studentsData,
+      classesData,
+      studentClassesData,
       homeworkCountRes,
-      classSessionsRes,
-      studentSessionsRes,
-      studentLockIntervalsRes,
-      submissionsRes,
+      classSessionsData,
+      rawStudentSessions,
+      studentLockIntervalsData,
+      submissions,
       submissionCountRes,
       recentSubmissionsRes
     ] = await Promise.all([
       // 1. All Students List
-      serviceRoleClient
-        .from('profiles')
-        .select('id, username, full_name, class_id')
-        .eq('role', 'STUDENT')
-        .order('full_name', { ascending: true }),
+      fetchAllRows(() =>
+        serviceRoleClient
+          .from('profiles')
+          .select('id, username, full_name, class_id')
+          .eq('role', 'STUDENT')
+          .order('id')
+      ),
 
       // 2. All Classes
-      serviceRoleClient
-        .from('classes')
-        .select('id, name, tuition_fee, grade_block')
-        .order('name', { ascending: true }),
+      fetchAllRows(() =>
+        serviceRoleClient
+          .from('classes')
+          .select('id, name, tuition_fee, grade_block')
+          .order('id')
+      ),
 
       // 3. Student-Classes Mapping (many-to-many)
-      serviceRoleClient
-        .from('student_classes')
-        .select('student_id, class_id'),
+      fetchAllRows(() =>
+        serviceRoleClient
+          .from('student_classes')
+          .select('student_id, class_id')
+          .order('class_id')
+          .order('student_id')
+      ),
 
       // 4. Total Homeworks Count
       serviceRoleClient
@@ -51,27 +61,38 @@ serve(async (req: Request) => {
         .select('*', { count: 'exact', head: true }),
 
       // 5. Class study sessions
-      serviceRoleClient
-        .from('class_sessions')
-        .select('class_id, session_date'),
+      fetchAllRows(() =>
+        serviceRoleClient
+          .from('class_sessions')
+          .select('class_id, session_date')
+          .order('id')
+      ),
 
       // 6. Student attendance sessions
-      serviceRoleClient
-        .from('student_sessions')
-        .select('student_id, class_id, session_date, is_paid'),
+      fetchAllRows(() =>
+        serviceRoleClient
+          .from('student_sessions')
+          .select('student_id, class_id, session_date, is_paid')
+          .order('id')
+      ),
 
       // 6b. Lock intervals: loại buổi thuộc khoảng khóa khỏi công nợ/thống kê.
-      //     Dữ liệu pre-lock vẫn được giữ nguyên để admin xem lịch sử.
-      serviceRoleClient
-        .from('student_lock_intervals')
-        .select('student_id, start_date, end_date'),
+      fetchAllRows(() =>
+        serviceRoleClient
+          .from('student_lock_intervals')
+          .select('student_id, start_date, end_date')
+          .order('id')
+      ),
 
-      // 7. Submissions for score calculation, monthly trends & timing (bounded to latest 2,000 for sub-second aggregation)
-      serviceRoleClient
-        .from('submissions')
-        .select('id, total_score, max_score, student_id, homework_id, is_late, submitted_at')
-        .order('submitted_at', { ascending: false })
-        .limit(2000),
+      // 7. Submissions (lấy đủ tối đa 2000 bản ghi mới nhất qua helper, không bị cắt ngầm ở 1000)
+      fetchAllRows(() =>
+        serviceRoleClient
+          .from('submissions')
+          .select('id, total_score, max_score, student_id, homework_id, is_late, submitted_at')
+          .order('submitted_at', { ascending: false })
+          .order('id', { ascending: false }),
+        { limit: 2000 }
+      ),
 
       // 8. Total Submissions Count (exact count across all historical records)
       serviceRoleClient
@@ -96,26 +117,35 @@ serve(async (req: Request) => {
         .limit(10)
     ])
 
-    if (studentsRes.error) return errorResponse(studentsRes.error.message, 500)
-    if (classesRes.error) return errorResponse(classesRes.error.message, 500)
-    if (studentClassesRes.error) return errorResponse(studentClassesRes.error.message, 500)
     if (homeworkCountRes.error) return errorResponse(homeworkCountRes.error.message, 500)
-    if (classSessionsRes.error) return errorResponse(classSessionsRes.error.message, 500)
-    if (studentSessionsRes.error) return errorResponse(studentSessionsRes.error.message, 500)
-    if (studentLockIntervalsRes.error) return errorResponse(studentLockIntervalsRes.error.message, 500)
-    if (submissionsRes.error) return errorResponse(submissionsRes.error.message, 500)
     if (submissionCountRes.error) return errorResponse(submissionCountRes.error.message, 500)
     if (recentSubmissionsRes.error) return errorResponse(recentSubmissionsRes.error.message, 500)
 
-    const studentsData = studentsRes.data || []
-    const classesData = classesRes.data || []
-    const studentClassesData = studentClassesRes.data || []
     const homeworkCount = homeworkCountRes.count || 0
-    const classSessionsData = classSessionsRes.data || []
-    const studentSessionsData = (studentSessionsRes.data || []).filter((session: any) =>
-      !isStudentLockedOn(session.student_id, session.session_date, studentLockIntervalsRes.data || []),
-    )
-    const submissions = submissionsRes.data || []
+
+    // Phân trang cần order theo id; khôi phục thứ tự hiển thị cũ (học sinh theo tên, lớp theo tên)
+    // để các mục đồng hạng trong bảng thống kê giữ nguyên thứ tự như trước.
+    studentsData.sort((a: any, b: any) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'vi'))
+    classesData.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'vi'))
+
+    // Nhóm intervals theo student_id thay vì duyệt toàn bộ mảng mỗi lần
+    const intervalsByStudent = new Map<string, any[]>()
+    for (const it of studentLockIntervalsData) {
+      if (!it?.student_id) continue
+      let list = intervalsByStudent.get(it.student_id)
+      if (!list) {
+        list = []
+        intervalsByStudent.set(it.student_id, list)
+      }
+      list.push(it)
+    }
+
+    const studentSessionsData = rawStudentSessions.filter((session: any) => {
+      const intervals = intervalsByStudent.get(session.student_id)
+      if (!intervals || intervals.length === 0) return true
+      return !isStudentLockedOn(session.student_id, session.session_date, intervals)
+    })
+
     const totalSubmissions = submissionCountRes.count !== null && submissionCountRes.count !== undefined ? submissionCountRes.count : submissions.length
     const recentSubmissionsRaw = recentSubmissionsRes.data || []
 
@@ -520,6 +550,7 @@ serve(async (req: Request) => {
     })
   } catch (err: unknown) {
     const error = err as Error
-    return errorResponse(error.message || 'Unauthorized / Error', 401)
+    // Lỗi đọc DB (fetchAllRows) là lỗi máy chủ — trả 401 sẽ khiến FE đăng xuất người dùng.
+    return errorResponse(error.message || 'Unauthorized / Error', isFetchAllRowsError(err) ? 500 : 401)
   }
 })

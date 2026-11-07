@@ -388,8 +388,12 @@ async function loadStudentSchedule(studentId, classId, month) {
   }
 
   try {
-    // 1. Fetch Student Sessions
-    const sessions = await api.getStudentSessions(studentId, classId, month)
+    // Các nguồn dữ liệu độc lập: tải đồng thời; đổi tháng chỉ thay sessions.
+    const [sessions, homeworksWithMeta, historyResult] = await Promise.all([
+      api.getStudentSessions(studentId, classId, month),
+      api.getHomeworks('', classId),
+      api.getStudentHistory(`studentId=${studentId}`)
+    ])
     selectedSessionDates = new Map((sessions || []).map(s => [s.sessionDate, { isPaid: s.isPaid === true || s.isPaid === 'true' }]))
 
     const [year, m] = month.split('-').map(Number)
@@ -504,24 +508,21 @@ async function loadStudentSchedule(studentId, classId, month) {
     // Update Summary Metrics
     updateSummaryMetrics(currentClassTuitionFee())
 
-    // 2. Fetch homeworks under this class in a single request
-    const homeworksWithMeta = await api.getHomeworks('', classId) || []
-
-    // 3. Fetch Student Submissions History
-    const historyResult = await api.getStudentHistory(`studentId=${studentId}`)
+    // Dữ liệu đã được tải song song ở đầu hàm.
+    const homeworks = homeworksWithMeta || []
     const submissions = historyResult?.history || []
 
     // Calculate completed & uncompleted
-    const completedHomeworks = homeworksWithMeta.filter(hw => 
+    const completedHomeworks = homeworks.filter(hw =>
       submissions.some(sub => sub.homeworkId === hw.id)
     )
 
-    const uncompletedHomeworks = homeworksWithMeta.filter(hw => 
+    const uncompletedHomeworks = homeworks.filter(hw =>
       !submissions.some(sub => sub.homeworkId === hw.id)
     )
 
     if (statsContainer) {
-      const classHwIds = new Set(homeworksWithMeta.map(hw => hw.id))
+      const classHwIds = new Set(homeworks.map(hw => hw.id))
       const classSubmissions = submissions.filter(sub => classHwIds.has(sub.homeworkId))
       renderHomeworkStats(statsContainer, completedHomeworks, uncompletedHomeworks, classSubmissions)
     }

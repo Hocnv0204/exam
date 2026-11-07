@@ -52,10 +52,10 @@ serve(async (req: Request) => {
     const syntheticEmail = `${username.toLowerCase()}@system.local`
     const anonClient = createAnonClient()
 
-    // 1. Parallel: Try signIn with synthetic email + fetch profile
+    // 1. Parallel: Try signIn with synthetic email + fetch profile (embed student_classes)
     const profilePromise = serviceRoleClient
       .from('profiles')
-      .select('id, username, full_name, role, class_id, is_locked, seen_tours, auto_intro_pending')
+      .select('id, username, full_name, role, class_id, is_locked, seen_tours, auto_intro_pending, student_classes(class_id)')
       .eq('username', username)
       .maybeSingle()
 
@@ -118,11 +118,16 @@ serve(async (req: Request) => {
     // Get all classIds for students
     let classIds: string[] = []
     if (profile.role === 'STUDENT') {
-      const { data: stClasses } = await serviceRoleClient
-        .from('student_classes')
-        .select('class_id')
-        .eq('student_id', profile.id)
-      classIds = stClasses?.map((c) => c.class_id) || []
+      const stClasses = (profile as any).student_classes
+      if (Array.isArray(stClasses)) {
+        classIds = stClasses.map((c: any) => c.class_id).filter(Boolean)
+      } else {
+        const { data: stClassesData } = await serviceRoleClient
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', profile.id)
+        classIds = stClassesData?.map((c) => c.class_id) || []
+      }
     }
 
     // Ghi log đăng nhập (chạy nền, không chặn response)

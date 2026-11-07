@@ -1238,10 +1238,18 @@ serve(async (req: Request) => {
             .eq('class_id', classId)
         : Promise.resolve({ data: null, error: null })
 
-      const [hwsResult, subResult, enrolledResult] = await Promise.all([
+      const targetsPromise = (isClassHomeworkPopup && homeworkId)
+        ? serviceRoleClient
+            .from('homework_targets')
+            .select('student_id')
+            .eq('homework_id', homeworkId)
+        : Promise.resolve({ data: null, error: null })
+
+      const [hwsResult, subResult, enrolledResult, targetsResult] = await Promise.all([
         homeworksPromise,
         isClassHomeworkPopup ? loadAllAnalysisRows(buildSubmissionsQuery) : buildSubmissionsQuery(),
-        enrolledPromise
+        enrolledPromise,
+        targetsPromise
       ])
 
       classHomeworks = hwsResult
@@ -1252,9 +1260,8 @@ serve(async (req: Request) => {
 
       if (isClassHomeworkPopup && classHwIds.includes(homeworkId!)) {
         if (enrolledResult.error) return errorResponse('Không đọc được danh sách học sinh trong lớp', 500)
-        const { data: targets, error: targetError } = await serviceRoleClient
-          .from('homework_targets').select('student_id').eq('homework_id', homeworkId)
-        if (targetError) return errorResponse('Không đọc được danh sách học sinh được giao bài', 500)
+        if (targetsResult.error) return errorResponse('Không đọc được danh sách học sinh được giao bài', 500)
+        const targets = targetsResult.data
         const enrolledIds = new Set((prefetchedEnrolledStudents || []).map((row: any) => row.student_id))
         popupEligibleStudentIds = (targets || []).length
           ? new Set((targets || []).map((row: any) => row.student_id).filter((id: string) => enrolledIds.has(id)))
@@ -1271,26 +1278,6 @@ serve(async (req: Request) => {
         }
       }
     } else {
-      // Must wait for class homeworks to get classHwIds
-      classHomeworks = await homeworksPromise
-      classHwIds = classHomeworks.map((h: any) => h.id)
-
-      if (classId && classId !== 'TRIAL' && classHwIds.length === 0) {
-        return jsonResponse({
-          classId,
-          homeworkId: homeworkId || undefined,
-          totalSubmissions: 0,
-          total: 0,
-          page: 1,
-          pageSize: 20,
-          totalPages: 1,
-          history: [],
-          classHomeworks: [],
-          submissionStats: null,
-          unsubmittedStudents: []
-        })
-      }
-
       // Phân trang + tìm kiếm ở server cho màn theo dõi nộp bài (bài nộp mới nhất trước)
       const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
       const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get('pageSize') || '20', 10) || 20))
@@ -1309,6 +1296,7 @@ serve(async (req: Request) => {
         searchHwIds = (hwMatch.data || []).map((h: any) => h.id)
         searchStudentIds = (stMatch.data || []).map((s: any) => s.id)
         if (searchHwIds.length === 0 && searchStudentIds.length === 0) {
+          const classHomeworks = await homeworksPromise
           return jsonResponse({
             classId: classId || undefined,
             homeworkId: homeworkId || undefined,
@@ -1343,7 +1331,7 @@ serve(async (req: Request) => {
           guest_phone,
           submitted_at,
           profiles (id, username, full_name),
-          homeworks (
+          homeworks${classId && classId !== 'TRIAL' ? '!inner' : ''} (
             id,
             title,
             max_score,
@@ -1351,11 +1339,12 @@ serve(async (req: Request) => {
             deadline,
             pdf_path,
             type,
-            lessons (
+            is_published,
+            lessons${classId && classId !== 'TRIAL' ? '!inner' : ''} (
               id,
               title,
               is_trial,
-              chapters (
+              chapters${classId && classId !== 'TRIAL' ? '!inner' : ''} (
                 id,
                 title,
                 class_id,
@@ -1371,8 +1360,9 @@ serve(async (req: Request) => {
       if (user?.role === 'STUDENT') {
         q = q.eq('student_id', user.id)
       }
-      if (classHwIds.length > 0) {
-        q = q.in('homework_id', classHwIds)
+      if (classId && classId !== 'TRIAL') {
+        // Giữ đúng phạm vi cũ (.in(classHwIds)): chỉ bài nộp của bài tập ĐÃ XUẤT BẢN trong lớp.
+        q = q.eq('homeworks.lessons.chapters.class_id', classId).eq('homeworks.is_published', true)
       }
       if (search && searchHwIds !== null && searchStudentIds !== null) {
         const orParts: string[] = []
@@ -1384,7 +1374,30 @@ serve(async (req: Request) => {
       }
       q = q.range((page - 1) * pageSize, page * pageSize - 1)
 
-      const subResult = await q
+      const [hwsResult, subResult] = await Promise.all([
+        homeworksPromise,
+        q
+      ])
+
+      classHomeworks = hwsResult
+      classHwIds = classHomeworks.map((h: any) => h.id)
+
+      if (classId && classId !== 'TRIAL' && classHwIds.length === 0) {
+        return jsonResponse({
+          classId,
+          homeworkId: homeworkId || undefined,
+          totalSubmissions: 0,
+          total: 0,
+          page: 1,
+          pageSize: 20,
+          totalPages: 1,
+          history: [],
+          classHomeworks: [],
+          submissionStats: null,
+          unsubmittedStudents: []
+        })
+      }
+
       rawSubmissions = subResult.data || []
       fetchErr = subResult.error
       const totalCount: number = (subResult as any).count ?? rawSubmissions.length
@@ -1403,27 +1416,15 @@ serve(async (req: Request) => {
 
     // Nhật ký cộng điểm theo câu cho danh sách bài nộp của admin (theo dõi nộp bài):
     // 1 query duy nhất cho đúng submissions của current page (không N+1), CHỈ admin,
-    // học sinh không bao giờ nhận. Fetch lỗi -> fail-soft (danh sách không có cột log).
-    let awardLogsBySubmission: Map<string, any[]> | null = null
-    // Popup does not display award logs: avoid a large unused IN request.
-    if (user?.role === 'ADMIN' && !isTrialQuery && subIds.length > 0 && (!isClassHomeworkPopup || subIds.length <= ANALYSIS_SUBMISSION_CHUNK_SIZE)) {
-      const { data: awardRows, error: awardErr } = await serviceRoleClient
-        .from('question_award_logs')
-        .select(QUESTION_AWARD_LOG_SELECT)
-        .in('submission_id', subIds)
-        .order('created_at', { ascending: true })
-        .limit(AWARD_LOGS_LIST_LIMIT)
-      if (!awardErr && Array.isArray(awardRows)) {
-        awardLogsBySubmission = new Map()
-        for (const row of awardRows) {
-          const dto = mapQuestionAwardLogRow(row)
-          if (!dto.submissionId) continue
-          const bucket = awardLogsBySubmission.get(dto.submissionId)
-          if (bucket) bucket.push(dto)
-          else awardLogsBySubmission.set(dto.submissionId, [dto])
-        }
-      }
-    }
+    // học sinh không bao giờ nhận. Khởi chạy song song với wrong answers query.
+    const awardLogsPromise = (user?.role === 'ADMIN' && !isTrialQuery && subIds.length > 0 && (!isClassHomeworkPopup || subIds.length <= ANALYSIS_SUBMISSION_CHUNK_SIZE))
+      ? serviceRoleClient
+          .from('question_award_logs')
+          .select(QUESTION_AWARD_LOG_SELECT)
+          .in('submission_id', subIds)
+          .order('created_at', { ascending: true })
+          .limit(AWARD_LOGS_LIST_LIMIT)
+      : Promise.resolve({ data: null, error: null })
 
     const canSeeWrongAnalysis = (user?.role === 'ADMIN' || isTrialQuery) && subIds.length > 0
 
@@ -1435,19 +1436,7 @@ serve(async (req: Request) => {
           question_id,
           given_answer,
           is_correct,
-          score_earned,
-          questions (
-            id,
-            question_number,
-            question_type,
-            prompt,
-            ${isClassHomeworkPopup ? 'question_bank (id, qb_lesson_id, qb_question_types (id, lesson_id, name)),' : ''}
-            question_answers (
-              mc_answer,
-              tf_answers,
-              sa_answer
-            )
-          )
+          score_earned
         `)
         .in('submission_id', submissionIds)
         .eq('is_correct', false)
@@ -1458,6 +1447,34 @@ serve(async (req: Request) => {
       // Popup must never display a failed query as “no wrong questions”.
       if (analysisError && isClassHomeworkPopup) return errorResponse('Không tải được phân tích câu sai. Vui lòng thử lại.', 500)
       if (subAns) {
+        // Tải chi tiết questions 1 lần duy nhất theo danh sách question_id distinct (giảm payload & tránh duplicate)
+        const distinctQIds = [...new Set((subAns || []).map((sa: any) => sa.question_id).filter(Boolean))]
+        if (distinctQIds.length > 0) {
+          const { data: qRows, error: qLoadErr } = await serviceRoleClient
+            .from('questions')
+            .select(`
+              id,
+              question_number,
+              question_type,
+              prompt,
+              ${isClassHomeworkPopup ? 'question_bank (id, qb_lesson_id, qb_question_types (id, lesson_id, name)),' : ''}
+              question_answers (
+                mc_answer,
+                tf_answers,
+                sa_answer
+              )
+            `)
+            .in('id', distinctQIds)
+
+          if (qLoadErr && isClassHomeworkPopup) {
+            return errorResponse('Không tải được phân tích câu sai. Vui lòng thử lại.', 500)
+          }
+
+          const qMap = new Map((qRows || []).map((q: any) => [q.id, q]))
+          for (const sa of subAns) {
+            sa.questions = qMap.get(sa.question_id) || null
+          }
+        }
         const studentProfileMap = new Map(
           (rawSubmissions || []).map((s: any) => [
             s.id,
@@ -1591,6 +1608,19 @@ serve(async (req: Request) => {
             scoreEarned: sa.score_earned || 0
           })
         }
+      }
+    }
+
+    let awardLogsBySubmission: Map<string, any[]> | null = null
+    const { data: awardRows, error: awardErr } = await awardLogsPromise
+    if (!awardErr && Array.isArray(awardRows)) {
+      awardLogsBySubmission = new Map()
+      for (const row of awardRows) {
+        const dto = mapQuestionAwardLogRow(row)
+        if (!dto.submissionId) continue
+        const bucket = awardLogsBySubmission.get(dto.submissionId)
+        if (bucket) bucket.push(dto)
+        else awardLogsBySubmission.set(dto.submissionId, [dto])
       }
     }
 

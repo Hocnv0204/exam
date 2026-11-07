@@ -9,12 +9,14 @@ import {
   editReviewQuestionSchema,
 } from '../../shared/validators.ts'
 import { planQuestionRegrade, validateEditedKey } from './edit-question.ts'
+import { combineRegrade } from './regrade-preserve.ts'
 import {
   createSupabaseQuestionBankSyncAdapter,
   syncHomeworkQuestionsToConstantBank,
 } from './auto-bank-sync.ts'
 import { loadClassHomeworkProgress } from './class-progress.ts'
 import { scheduleHomeworkTelegram } from './telegram-notify.ts'
+import { fetchAllRows, fetchAllRowsInChunks, isFetchAllRowsError } from '../../shared/fetch-all-rows.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -32,12 +34,14 @@ serve(async (req: Request) => {
       // Trang "Bài tập của tôi": gộp bài được giao + lần nộp mới nhất, phân trang + lọc ở server
       // ?action=my-homeworks&status=all|done|todo&classId=&chapterId=&lessonId=&type=&search=&page=&pageSize=
       if (action === 'my-homeworks' && user.role === 'STUDENT') {
-        // Số dư luôn lấy mới từ profile của chính người gọi; không tin số dư
-        // lưu trong session/browser và không coi null là 0 đ.
-        const balanceRes = await serviceRoleClient.from('profiles')
-          .select('balance').eq('id', user.id).eq('role', 'STUDENT').single()
-        if (balanceRes.error || !balanceRes.data) return errorResponse('Failed to load student balance', 500)
-        const accountBalance = balanceRes.data.balance
+        // Số dư lấy trực tiếp từ requireAuth (auth-middleware đã nạp sẵn balance từ profile),
+        // fallback query nếu user.balance chưa có (0 round-trip thông thường).
+        const accountBalance = user.balance !== undefined
+          ? user.balance
+          : (await (async () => {
+              const bRes = await serviceRoleClient.from('profiles').select('balance').eq('id', user.id).eq('role', 'STUDENT').single()
+              return bRes.data?.balance ?? 0
+            })())
         if (!user.classIds || user.classIds.length === 0) {
           return jsonResponse({ items: [], total: 0, page: 1, pageSize: 10, totalPages: 1, stats: { total: 0, done: 0, todo: 0, avgScore: null }, accountBalance })
         }
@@ -352,23 +356,28 @@ serve(async (req: Request) => {
       if (includeStats) {
         statsPromise = (async () => {
           try {
-            const { data: allHws } = await serviceRoleClient
-              .from('homeworks')
-              .select('id, type, lessons(chapters(class_id))')
+            const [totalRes, examRes, practiceRes, hwsWithClass] = await Promise.all([
+              serviceRoleClient.from('homeworks').select('*', { count: 'exact', head: true }),
+              serviceRoleClient.from('homeworks').select('*', { count: 'exact', head: true }).eq('type', 'EXAM'),
+              serviceRoleClient.from('homeworks').select('*', { count: 'exact', head: true }).or('type.eq.PRACTICE,type.is.null'),
+              fetchAllRows(() =>
+                serviceRoleClient
+                  .from('homeworks')
+                  .select('id, lessons(chapters(class_id))')
+                  .order('id')
+              )
+            ])
 
-            const list = allHws || []
-            const total = list.length
-            const practiceCount = list.filter((h: any) => (h.type || 'PRACTICE') === 'PRACTICE').length
-            const examCount = list.filter((h: any) => h.type === 'EXAM').length
             const classIdSet = new Set<string>()
-            list.forEach((h: any) => {
+            ;(hwsWithClass || []).forEach((h: any) => {
               const cId = h.lessons?.chapters?.class_id
               if (cId) classIdSet.add(cId)
             })
+
             return {
-              total,
-              practiceCount,
-              examCount,
+              total: totalRes.count || 0,
+              practiceCount: practiceRes.count || 0,
+              examCount: examRes.count || 0,
               classesCount: classIdSet.size
             }
           } catch (_) {
@@ -1352,61 +1361,64 @@ serve(async (req: Request) => {
     return errorResponse('Method not allowed', 405)
   } catch (err: unknown) {
     const error = err as Error
-    return errorResponse(error.message || 'Unauthorized / Error', 401)
+    // Lỗi đọc DB (fetchAllRows) là lỗi máy chủ — trả 401 sẽ khiến FE đăng xuất người dùng.
+    return errorResponse(error.message || 'Unauthorized / Error', isFetchAllRowsError(err) ? 500 : 401)
   }
 })
 
 async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: string) {
-  // 1. Fetch homework max_score
-  const { data: homework } = await serviceRoleClient
-    .from('homeworks')
-    .select('id, max_score')
-    .eq('id', homeworkId)
-    .single()
+  // 1, 2, 3: Đọc song song 3 truy vấn độc lập bằng Promise.all: homework, questions, submissions
+  const [homeworkRes, questionsRes, submissions] = await Promise.all([
+    serviceRoleClient
+      .from('homeworks')
+      .select('id, max_score')
+      .eq('id', homeworkId)
+      .single(),
+    fetchAllRows(() =>
+      serviceRoleClient
+        .from('questions')
+        .select(`
+          id,
+          question_number,
+          question_type,
+          prompt,
+          points,
+          question_answers (
+            mc_answer,
+            tf_answers,
+            sa_answer,
+            sa_tolerance
+          )
+        `)
+        .eq('homework_id', homeworkId)
+        .order('question_number', { ascending: true })
+        .order('id', { ascending: true })
+    ),
+    fetchAllRows(() =>
+      serviceRoleClient
+        .from('submissions')
+        .select('id, bonus_score, max_score')
+        .eq('homework_id', homeworkId)
+        .order('id')
+    )
+  ])
 
-  const targetScale = homework?.max_score || 10.0
-
-  // 2. Fetch all questions and answer keys for this homework
-  const { data: questions, error: qErr } = await serviceRoleClient
-    .from('questions')
-    .select(`
-      id,
-      question_number,
-      question_type,
-      prompt,
-      points,
-      question_answers (
-        mc_answer,
-        tf_answers,
-        sa_answer,
-        sa_tolerance
-      )
-    `)
-    .eq('homework_id', homeworkId)
-    .order('question_number', { ascending: true })
-
-  if (qErr || !questions || questions.length === 0) return
-
-  // 3. Fetch all submissions for this homework
-  const { data: submissions, error: sErr } = await serviceRoleClient
-    .from('submissions')
-    .select('id')
-    .eq('homework_id', homeworkId)
-
-  if (sErr || !submissions || submissions.length === 0) return
+  const targetScale = homeworkRes.data?.max_score || 10.0
+  const questions = questionsRes || []
+  if (questions.length === 0 || !submissions || submissions.length === 0) return
 
   // Index questions by id
   const questionMap = new Map()
   for (const q of questions) {
-    const qaRaw = q.question_answers
+    const qaRaw = (q as any).question_answers
     const qa = Array.isArray(qaRaw) ? qaRaw[0] : qaRaw
-    const points = q.points !== undefined && q.points !== null && !isNaN(Number(q.points))
-      ? Number(q.points)
-      : (q.question_type === 'TRUE_FALSE' ? 1.0 : (q.question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
+    const points = (q as any).points !== undefined && (q as any).points !== null && !isNaN(Number((q as any).points))
+      ? Number((q as any).points)
+      : ((q as any).question_type === 'TRUE_FALSE' ? 1.0 : ((q as any).question_type === 'SHORT_ANSWER' ? 0.5 : 0.25))
 
     questionMap.set(q.id, {
       questionId: q.id,
-      questionType: q.question_type,
+      questionType: (q as any).question_type,
       points,
       mcAnswer: qa?.mc_answer || null,
       tfAnswers: qa?.tf_answers || null,
@@ -1415,36 +1427,57 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
     })
   }
 
-  // 4. Fetch ALL answers for all submissions of this homework in ONE single query!
+  // 4. Fetch ALL answers for all submissions using fetchAllRowsInChunks (chunk 200 submissions, order by id)
   const subIds = submissions.map((s: any) => s.id)
-  const { data: allSubAnswers, error: saErr } = await serviceRoleClient
-    .from('submission_answers')
-    .select('id, submission_id, question_id, given_answer')
-    .in('submission_id', subIds)
+  const allSubAnswers = await fetchAllRowsInChunks(
+    subIds,
+    200,
+    (chunk) =>
+      serviceRoleClient
+        .from('submission_answers')
+        .select('id, submission_id, question_id, given_answer, is_correct, score_earned')
+        .in('submission_id', chunk)
+        .order('id')
+  )
 
-  if (saErr || !allSubAnswers || allSubAnswers.length === 0) return
+  if (!allSubAnswers || allSubAnswers.length === 0) return
 
-  // Group answers by submission_id
-  const answersBySub = new Map<string, any[]>()
+  // Câu đã được admin cộng điểm thủ công (có log theo answer_id) phải giữ nguyên khi chấm lại.
+  const awardLogs = await fetchAllRowsInChunks(
+    subIds,
+    200,
+    (chunk) =>
+      serviceRoleClient
+        .from('question_award_logs')
+        .select('id, answer_id')
+        .in('submission_id', chunk)
+        .order('id')
+  )
+  const awardedAnswerIds = new Set<string>(
+    (awardLogs || []).map((l: any) => l.answer_id).filter(Boolean)
+  )
+
+  // Thay thế subAnswers.find lồng nhau bằng Map theo submission_id -> Map question_id
+  const answersBySubAndQ = new Map<string, Map<string, any>>()
   for (const ans of allSubAnswers) {
-    let list = answersBySub.get(ans.submission_id)
-    if (!list) {
-      list = []
-      answersBySub.set(ans.submission_id, list)
+    let qMap = answersBySubAndQ.get(ans.submission_id)
+    if (!qMap) {
+      qMap = new Map<string, any>()
+      answersBySubAndQ.set(ans.submission_id, qMap)
     }
-    list.push(ans)
+    qMap.set(ans.question_id, ans)
   }
 
   const allUpdatedAnswers: any[] = []
   const submissionsToUpdate: any[] = []
 
   for (const sub of submissions) {
-    const subAnswers = answersBySub.get(sub.id) || []
+    const qMap = answersBySubAndQ.get(sub.id)
     const gradeInputs: QuestionGradeInput[] = []
 
     for (const q of questions) {
       const qInfo = questionMap.get(q.id)
-      const studentAns = subAnswers.find((a: any) => a.question_id === q.id)
+      const studentAns = qMap?.get(q.id)
       if (qInfo) {
         gradeInputs.push({
           ...qInfo,
@@ -1454,11 +1487,22 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
     }
 
     const examGrading = gradeExam(gradeInputs, { targetScale, roundingStep: 0.01 })
+    // Giữ điểm cộng thủ công, điểm tự luận và bonus_score (xem regrade-preserve.ts).
+    const combined = combineRegrade({
+      questions: gradeInputs,
+      results: examGrading.questionResults,
+      oldAnswers: gradeInputs.map((g) => qMap?.get(g.questionId)),
+      awardedAnswerIds,
+      targetScale,
+      roundingStep: 0.01,
+      bonusScore: (sub as any).bonus_score,
+      maxScore: (sub as any).max_score,
+    })
 
-    for (let i = 0; i < gradeInputs.length; i++) {
+    for (const i of combined.regradedIndexes) {
       const gInput = gradeInputs[i]
       const gRes = examGrading.questionResults[i]
-      const studentAns = subAnswers.find((a: any) => a.question_id === gInput.questionId)
+      const studentAns = qMap?.get(gInput.questionId)
       if (studentAns) {
         allUpdatedAnswers.push({
           id: studentAns.id,
@@ -1473,9 +1517,9 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
 
     submissionsToUpdate.push({
       id: sub.id,
-      total_score: examGrading.totalScore,
-      correct_count: examGrading.correctCount,
-      wrong_count: examGrading.wrongCount,
+      total_score: combined.totalScore,
+      correct_count: combined.correctCount,
+      wrong_count: combined.wrongCount,
     })
   }
 
@@ -1490,19 +1534,23 @@ async function regradeHomeworkSubmissions(serviceRoleClient: any, homeworkId: st
     }
   }
 
-  // 6. Parallel update submissions
+  // 6. Update submissions theo lô giới hạn concurrency 20, không retry
   if (submissionsToUpdate.length > 0) {
-    await Promise.all(
-      submissionsToUpdate.map((sub: any) =>
-        serviceRoleClient
-          .from('submissions')
-          .update({
-            total_score: sub.total_score,
-            correct_count: sub.correct_count,
-            wrong_count: sub.wrong_count,
-          })
-          .eq('id', sub.id)
+    const BATCH_SIZE = 20
+    for (let i = 0; i < submissionsToUpdate.length; i += BATCH_SIZE) {
+      const batch = submissionsToUpdate.slice(i, i + BATCH_SIZE)
+      await Promise.all(
+        batch.map((sub: any) =>
+          serviceRoleClient
+            .from('submissions')
+            .update({
+              total_score: sub.total_score,
+              correct_count: sub.correct_count,
+              wrong_count: sub.wrong_count,
+            })
+            .eq('id', sub.id)
+        )
       )
-    )
+    }
   }
 }

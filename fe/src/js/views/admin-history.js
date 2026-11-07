@@ -32,6 +32,11 @@ let historyRequestId = 0
 let lastLoadError = null
 let isHistoryLoading = false
 let searchDebounceTimer = null
+let lastLoadedQueryKey = ''
+let lastLoadedAt = 0
+// Dùng lại kết quả khi chỉ đổi sub-tab (cùng query) trong thời gian ngắn; quá hạn thì tải lại
+// để không hiển thị bài nộp cũ khi quay lại trang.
+const HISTORY_REUSE_MS = 30000
 
 function parseQuestionPrompt(rawPrompt, qType) {
   let text = ''
@@ -1066,6 +1071,19 @@ function exportSubmissionsToCsv() {
 }
 
 export async function loadAdminHistoryData(classId = '', homeworkId = '', mode = '', opts = {}) {
+  const requestedPage = opts.page || currentPage
+  const requestedSearch = opts.search !== undefined ? opts.search : searchQuery
+  const queryKey = JSON.stringify([classId || '', homeworkId || '', mode || 'class', requestedPage, requestedSearch || ''])
+  if (!opts.force && queryKey === lastLoadedQueryKey && Date.now() - lastLoadedAt < HISTORY_REUSE_MS) {
+    currentMode = mode === 'trial' || classId === 'TRIAL' ? 'trial' : 'class'
+    selectedClassId = currentMode === 'trial' ? 'TRIAL' : (classId || '')
+    selectedHomeworkId = homeworkId || ''
+    currentPage = requestedPage
+    searchQuery = requestedSearch
+    lastLoadError = null
+    isHistoryLoading = false
+    return
+  }
   // Cancel previous pending request to prevent stale async overwrite
   if (historyAbortController) {
     try {
@@ -1146,6 +1164,8 @@ export async function loadAdminHistoryData(classId = '', homeworkId = '', mode =
     if (reqId !== historyRequestId || signal.aborted) {
       return
     }
+    lastLoadedQueryKey = queryKey
+    lastLoadedAt = Date.now()
 
     submissions = result?.history || []
     totalPages = result?.totalPages || 1
@@ -1755,6 +1775,8 @@ export function _resetAdminHistoryState() {
     historyAbortController = null
   }
   historyRequestId = 0
+  lastLoadedQueryKey = ''
+  lastLoadedAt = 0
   lastLoadError = null
   isHistoryLoading = false
   if (searchDebounceTimer) {

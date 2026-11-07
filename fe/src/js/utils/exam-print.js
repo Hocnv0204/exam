@@ -103,6 +103,20 @@ function cleanString(v) {
   return s ? s : null
 }
 
+/**
+ * Chuẩn hoá thứ tự câu từ Ngân hàng câu hỏi (đánh số 1..n theo thứ tự hiển thị, không mutate mảng/object gốc).
+ * @param {Array} rows - Danh sách dòng câu hỏi từ question_bank hoặc previewQuestions
+ * @returns {Array} Mảng các object mới với question_number: 1..n
+ */
+export function buildBankPrintQuestions(rows) {
+  if (!Array.isArray(rows)) return []
+  return rows.filter(r => r && typeof r === 'object').map((row, idx) => ({
+    ...row,
+    question_number: idx + 1,
+    questionNumber: idx + 1
+  }))
+}
+
 function isApiShape(q) {
   return 'question_type' in q || 'question_number' in q || 'answerKey' in q || ('prompt' in q && !('promptText' in q))
 }
@@ -123,6 +137,12 @@ export function normalizePrintQuestions(questions) {
       const tfStatements = Array.isArray(q.statements) && q.statements.length
         ? q.statements
         : (Array.isArray(prompt.statements) && prompt.statements.length ? prompt.statements : prompt.options)
+      const mcRaw = key ? key.mc_answer : q.mc_answer
+      const tfRaw = key ? key.tf_answers : q.tf_answers
+      const saRaw = key ? key.sa_answer : q.sa_answer
+      const explanation = key
+        ? String(key.explanation || prompt.explanation || '')
+        : String(q.explanation || prompt.explanation || '')
       return {
         number: q.question_number || q.questionNumber || idx + 1,
         type,
@@ -132,11 +152,11 @@ export function normalizePrintQuestions(questions) {
         options: type === 'MULTIPLE_CHOICE' ? normItems(mcOptions, false) : [],
         statements: type === 'TRUE_FALSE' ? normItems(tfStatements, true) : [],
         answer: {
-          mc: type === 'MULTIPLE_CHOICE' ? cleanString(key?.mc_answer)?.toUpperCase() ?? null : null,
-          tf: type === 'TRUE_FALSE' ? normTf(key?.tf_answers) : null,
-          sa: type === 'SHORT_ANSWER' || type === 'ESSAY' ? cleanString(key?.sa_answer) : null
+          mc: type === 'MULTIPLE_CHOICE' ? cleanString(mcRaw)?.toUpperCase() ?? null : null,
+          tf: type === 'TRUE_FALSE' ? normTf(tfRaw) : null,
+          sa: type === 'SHORT_ANSWER' || type === 'ESSAY' ? cleanString(saRaw) : null
         },
-        explanation: String(key?.explanation || prompt.explanation || '')
+        explanation
       }
     }
 
@@ -319,7 +339,7 @@ export function sanitizePrintTitle(title) {
   return s || 'De_bai'
 }
 
-const PRINT_CSS = `
+export const PRINT_CSS = `
 @page { size: A4; margin: 15mm; }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; color: #000; }
@@ -407,6 +427,137 @@ ${mode === 'answer'
   return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${escapeHtml(cleanTitle)}</title>
 <link rel="stylesheet" href="${KATEX_CSS_URL}" data-katex="1">
 <style>${PRINT_CSS}</style></head><body>${header}<main>${bodyHtml}</main></body></html>`
+}
+
+/**
+ * Xây dựng CSS in được scope trong container để không ảnh hưởng đến giao diện chính.
+ * @param {string} rootClass Tên class bao quanh container
+ * @returns {string} CSS đã scope
+ */
+export function buildScopedPrintCss(rootClass = 'exam-pdf-render-host') {
+  const scopedBase = `
+.${rootClass} {
+  box-sizing: border-box;
+  font-family: "Times New Roman", "Noto Serif", "DejaVu Serif", "Liberation Serif", Georgia, serif;
+  font-size: 12.5pt;
+  line-height: 1.45;
+  background: #ffffff;
+  color: #000000;
+  width: 180mm;
+}
+.${rootClass} * {
+  box-sizing: border-box;
+}
+.${rootClass} .ep-header { margin-bottom: 0; padding-bottom: 14pt; }
+.${rootClass} .pq-part { margin: 0; padding-top: 10pt; padding-bottom: 6pt; }
+.${rootClass} .pq { margin: 0; padding-bottom: 9pt; }
+.${rootClass} .pq-answer-key { margin: 0; padding-top: 12pt; }
+.${rootClass} .ep-header, .${rootClass} .pq-part, .${rootClass} .pq, .${rootClass} .pq-answer-key { background: #ffffff; }
+`
+  const rules = PRINT_CSS
+    .replace(/@page\s*\{[^}]*\}/g, '')
+    .replace(/html,\s*body\s*\{[^}]*\}/g, '')
+    .replace(/\*\s*\{[^}]*box-sizing:[^}]*\}/g, '')
+    .replace(/^body\s*\{[^}]*\}/gm, '')
+    .split('\n')
+    .map(line => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('/*')) return line
+      if (line.includes('{') && !line.startsWith('@')) {
+        const [selectors, rest] = line.split('{')
+        const scopedSelectors = selectors.split(',').map(s => {
+          const st = s.trim()
+          if (!st) return ''
+          return `.${rootClass} ${st}`
+        }).filter(Boolean).join(', ')
+        return `${scopedSelectors} {${rest}`
+      }
+      return line
+    })
+    .join('\n')
+
+  return `${scopedBase}\n${rules}`
+}
+
+/**
+ * Phân trang các khối nội dung lên trang in A4.
+ * Hàm THUẦN (không đụng DOM, phù hợp test độc lập).
+ *
+ * @param {number[]} blockHeights Chiều cao các khối (px) theo thứ tự
+ * @param {number} pageHeight Chiều cao khả dụng của một trang (px)
+ * @returns {Array<Array<{ blockIndex: number, offsetY: number, height: number }>>}
+ */
+export function paginateBlocks(blockHeights, pageHeight) {
+  if (!Array.isArray(blockHeights) || !Number.isFinite(pageHeight) || pageHeight <= 0) {
+    return []
+  }
+
+  const pages = []
+  let currentPage = []
+  let currentPageHeight = 0
+  const EPSILON = 1e-4
+
+  const flushPage = () => {
+    if (currentPage.length > 0) {
+      pages.push(currentPage)
+      currentPage = []
+      currentPageHeight = 0
+    }
+  }
+
+  for (let i = 0; i < blockHeights.length; i++) {
+    const rawH = blockHeights[i]
+    const h = Number(rawH)
+    if (!Number.isFinite(h) || h <= 0) continue
+
+    if (h <= pageHeight + EPSILON) {
+      const remainingSpace = pageHeight - currentPageHeight
+      if (h <= remainingSpace + EPSILON) {
+        currentPage.push({ blockIndex: i, offsetY: 0, height: h })
+        currentPageHeight += h
+        if (currentPageHeight >= pageHeight - EPSILON) {
+          flushPage()
+        }
+      } else {
+        flushPage()
+        currentPage.push({ blockIndex: i, offsetY: 0, height: h })
+        currentPageHeight = h
+        if (currentPageHeight >= pageHeight - EPSILON) {
+          flushPage()
+        }
+      }
+    } else {
+      // Khối cao hơn một trang: cắt thành nhiều đoạn liên tiếp, mỗi đoạn <= pageHeight
+      let remainingBlockHeight = h
+      let currentOffsetY = 0
+
+      // Nếu trang hiện tại còn chỗ, cắt đoạn đầu lấp đầy trang hiện tại
+      const remainingSpace = pageHeight - currentPageHeight
+      if (remainingSpace > EPSILON && currentPage.length > 0) {
+        currentPage.push({ blockIndex: i, offsetY: currentOffsetY, height: remainingSpace })
+        currentOffsetY += remainingSpace
+        remainingBlockHeight -= remainingSpace
+        flushPage()
+      } else if (currentPage.length > 0) {
+        flushPage()
+      }
+
+      while (remainingBlockHeight > EPSILON) {
+        const sliceH = Math.min(remainingBlockHeight, pageHeight)
+        currentPage.push({ blockIndex: i, offsetY: currentOffsetY, height: sliceH })
+        currentOffsetY += sliceH
+        remainingBlockHeight -= sliceH
+        currentPageHeight = sliceH
+
+        if (currentPageHeight >= pageHeight - EPSILON) {
+          flushPage()
+        }
+      }
+    }
+  }
+
+  flushPage()
+  return pages
 }
 
 /* ===================== Phần DOM (trình duyệt) ===================== */
@@ -518,3 +669,143 @@ export async function exportExamPdf({ title, meta = {}, questions, mode = 'stude
     return false
   }
 }
+
+/**
+ * Tự động tạo Blob PDF (application/pdf) thật sự từ danh sách câu hỏi đề thi,
+ * không mở hộp thoại in của trình duyệt.
+ *
+ * @param {Object} params
+ * @param {string} params.title Tên đề / bài tập
+ * @param {Object} [params.meta] Metadata ({ durationMinutes, subject, extra })
+ * @param {Array} params.questions Danh sách câu hỏi
+ * @param {'student'|'answer'} [params.mode='student'] Chế độ in ('student' = đề trắng)
+ * @returns {Promise<Blob>}
+ */
+export async function renderExamPdfBlob({ title, meta = {}, questions, mode = 'student' } = {}) {
+  const normalized = normalizePrintQuestions(questions)
+  if (!normalized.length) {
+    throw new Error('Đề chưa có câu hỏi để tạo file PDF.')
+  }
+
+  let holder = null
+  try {
+    const { toCanvas } = await import('html-to-image')
+    const jsPdfModule = await import('jspdf')
+    const jsPDF = jsPdfModule.jsPDF || jsPdfModule.default
+
+    const cleanTitle = sanitizePrintTitle(title)
+    const metaParts = []
+    if (meta?.subject) metaParts.push(`Môn: ${escapeHtml(meta.subject)}`)
+    const minutes = Number(meta?.durationMinutes)
+    if (Number.isFinite(minutes) && minutes > 0) metaParts.push(`Thời gian làm bài: ${minutes} phút`)
+    if (meta?.extra) metaParts.push(escapeHtml(meta.extra))
+    const headerHtml = `<header class="ep-header">
+<div class="ep-title">${escapeHtml(title || cleanTitle)}</div>
+${metaParts.length ? `<div class="ep-meta">${metaParts.join(' &nbsp;|&nbsp; ')}</div>` : ''}
+${mode === 'answer'
+    ? '<div class="ep-mode">(Đề kèm đáp án và lời giải)</div>'
+    : '<div class="ep-candidate"><span>Họ và tên: ......................................................</span><span>SBD: ....................</span></div>'}
+</header>`
+
+    const bodyHtml = buildExamPrintBody(normalized, { mode }) + (mode === 'answer' ? buildAnswerKeyHtml(normalized) : '')
+
+    holder = document.createElement('div')
+    holder.setAttribute('aria-hidden', 'true')
+    holder.className = 'exam-pdf-render-host'
+    holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:180mm;background:#fff;color:#000;pointer-events:none;z-index:-9999;'
+
+    const scopedCss = buildScopedPrintCss('exam-pdf-render-host')
+    holder.innerHTML = `<style>${scopedCss}</style><div class="exam-pdf-content">${headerHtml}${bodyHtml}</div>`
+    document.body.appendChild(holder)
+
+    await ensureKatexLoaded()
+    await renderMath(holder)
+    await nextFrame()
+    await nextFrame()
+    await wait(60)
+
+    await Promise.all(Array.from(holder.querySelectorAll('img')).map(img =>
+      typeof img.decode === 'function' ? withTimeout(img.decode(), 5000) : null))
+    if (document.fonts?.ready) await withTimeout(document.fonts.ready, 3000)
+
+    const blocks = Array.from(holder.querySelectorAll('.ep-header, .pq-part, .pq, .pq-answer-key'))
+    if (!blocks.length) {
+      throw new Error('Không thể phân tích các khối nội dung đề thi.')
+    }
+
+    const pixelRatio = 2
+    const blockCanvases = []
+    const blockHeights = []
+
+    // MathML ẩn của KaTeX chỉ phục vụ trợ năng; khi chụp ảnh (nhất là nhãn trong SVG
+    // foreignObject) CSS ẩn có thể không được áp → chữ bị lặp. Bỏ hẳn trước khi chụp.
+    holder.querySelectorAll('.katex-mathml').forEach(el => el.remove())
+
+    for (const block of blocks) {
+      // margin:0 trên bản clone: html-to-image đo theo kích thước phần tử (không gồm margin)
+      // nên giữ margin-top sẽ đẩy nội dung xuống và cắt mất phần dưới.
+      const raw = await toCanvas(block, { pixelRatio, backgroundColor: '#ffffff', style: { margin: '0' } })
+      // Khoảng trắng sau mỗi khối (thay cho margin đã bỏ) — nằm trong canvas để phân trang tính luôn.
+      const gapPx = block.classList.contains('pq-part') ? 4 : (block.classList.contains('ep-header') ? 14 : 12)
+      const canvas = document.createElement('canvas')
+      canvas.width = raw.width
+      canvas.height = raw.height + Math.round(gapPx * pixelRatio)
+      const gctx = canvas.getContext('2d')
+      gctx.fillStyle = '#ffffff'
+      gctx.fillRect(0, 0, canvas.width, canvas.height)
+      gctx.drawImage(raw, 0, 0)
+      blockCanvases.push(canvas)
+      blockHeights.push(canvas.height / pixelRatio)
+    }
+
+    const containerWidthPx = holder.getBoundingClientRect().width || 680
+    const pageHeightPx = containerWidthPx * (267 / 180)
+
+    const pages = paginateBlocks(blockHeights, pageHeightPx)
+    if (!pages.length) {
+      throw new Error('Không tạo được trang in cho đề thi.')
+    }
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+    pages.forEach((pageSegments, pageIdx) => {
+      if (pageIdx > 0) doc.addPage()
+      let currentYMm = 15
+
+      for (const seg of pageSegments) {
+        const sourceCanvas = blockCanvases[seg.blockIndex]
+        const segHeightMm = (seg.height / containerWidthPx) * 180
+        const isSliced = seg.offsetY > 0 || seg.height < (sourceCanvas.height / pixelRatio) - 0.5
+
+        let sliceCanvas = sourceCanvas
+        if (isSliced) {
+          const srcY = Math.round(seg.offsetY * pixelRatio)
+          const srcHeight = Math.round(seg.height * pixelRatio)
+          const srcWidth = sourceCanvas.width
+          const actualHeight = Math.min(srcHeight, Math.max(1, sourceCanvas.height - srcY))
+
+          sliceCanvas = document.createElement('canvas')
+          sliceCanvas.width = srcWidth
+          sliceCanvas.height = actualHeight
+          const ctx = sliceCanvas.getContext('2d')
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height)
+          ctx.drawImage(
+            sourceCanvas,
+            0, srcY, srcWidth, actualHeight,
+            0, 0, srcWidth, actualHeight
+          )
+        }
+
+        const imgData = sliceCanvas.toDataURL('image/jpeg', 0.92)
+        doc.addImage(imgData, 'JPEG', 15, currentYMm, 180, segHeightMm)
+        currentYMm += segHeightMm
+      }
+    })
+
+    return doc.output('blob')
+  } finally {
+    holder?.remove()
+  }
+}
+

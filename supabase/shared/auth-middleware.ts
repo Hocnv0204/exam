@@ -9,6 +9,8 @@ export interface AuthenticatedUser {
   role: UserRole
   classId: string | null
   classIds: string[]
+  studentClasses?: { class_id: string; status: string; classId: string }[]
+  balance?: number
 }
 
 /* ---------------------------------------------------------------------------
@@ -263,12 +265,12 @@ export async function requireAuth(req: Request): Promise<{
   const [profileRes, stClassesRes] = await Promise.all([
     serviceRoleClient
       .from('profiles')
-      .select('id, username, full_name, role, class_id, is_locked')
+      .select('id, username, full_name, role, class_id, is_locked, balance')
       .eq('id', userId)
       .single(),
     serviceRoleClient
       .from('student_classes')
-      .select('class_id')
+      .select('class_id, status')
       .eq('student_id', userId)
   ])
 
@@ -282,7 +284,11 @@ export async function requireAuth(req: Request): Promise<{
   }
 
   const profile = profileRes.data
-  const classIds = profile.role === 'STUDENT' ? (stClassesRes.data?.map((c) => c.class_id) || []) : []
+  const stRows = stClassesRes.data || []
+  const classIds = profile.role === 'STUDENT' ? (stRows.map((c: any) => c.class_id) || []) : []
+  const studentClasses = profile.role === 'STUDENT'
+    ? stRows.map((c: any) => ({ class_id: c.class_id, status: c.status, classId: c.class_id }))
+    : []
 
   const user: AuthenticatedUser = {
     id: profile.id,
@@ -292,6 +298,8 @@ export async function requireAuth(req: Request): Promise<{
     role: profile.role as UserRole,
     classId: profile.class_id || (classIds[0] || null),
     classIds,
+    studentClasses,
+    balance: profile.balance !== null && profile.balance !== undefined ? Number(profile.balance) : 0,
   }
 
   return { user, supabaseClient, serviceRoleClient }

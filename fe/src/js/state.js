@@ -12,16 +12,20 @@ export const state = {
   homeworks: [],
   submissions: [],
   classChapters: [],
+  classChaptersClassId: null,
   activeLessonHomeworks: []
+  ,sessionVersion: 0
 }
 
 export function setSession(user, token, refreshToken = null) {
+  state.sessionVersion++
   state.user = user
   state.token = token
   state.classes = []
   state.students = []
   state.studentsFetchedAt = 0
   state.classChapters = []
+  state.classChaptersClassId = null
   state.activeLessonHomeworks = []
   if (refreshToken) {
     state.refreshToken = refreshToken
@@ -37,6 +41,20 @@ export function setSession(user, token, refreshToken = null) {
     localStorage.removeItem('edu_token')
     localStorage.removeItem('edu_refresh_token')
     state.refreshToken = null
+  }
+}
+
+/**
+ * Chỉ thay access/refresh token sau khi refresh im lặng (cùng user).
+ * KHÔNG xoá cache classes/students như setSession — refresh token không đổi dữ liệu.
+ */
+export function updateTokens(token, refreshToken = null) {
+  if (!token || !state.user) return
+  state.token = token
+  localStorage.setItem('edu_token', token)
+  if (refreshToken) {
+    state.refreshToken = refreshToken
+    localStorage.setItem('edu_refresh_token', refreshToken)
   }
 }
 

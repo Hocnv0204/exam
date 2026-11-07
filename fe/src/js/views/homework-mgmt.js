@@ -329,6 +329,7 @@ async function loadData() {
 }
 
 async function fetchHomeworksData() {
+  const requestId = ++fetchHomeworksData.requestId
   const tableBody = document.getElementById('hw-table-body')
   const countBadge = document.getElementById('hw-filtered-count')
   const paginationWrapper = document.getElementById('hw-pagination-wrapper')
@@ -359,6 +360,7 @@ async function fetchHomeworksData() {
     if (filterState.type) params.type = filterState.type
 
     const res = await api.getHomeworks(params)
+    if (requestId !== fetchHomeworksData.requestId || !tableBody.isConnected) return
 
     if (Array.isArray(res)) {
       currentHomeworks = res
@@ -428,6 +430,7 @@ async function fetchHomeworksData() {
     attachRowActions(tableBody)
 
   } catch (err) {
+    if (requestId !== fetchHomeworksData.requestId || !tableBody.isConnected) return
     if (tableBody) {
       tableBody.innerHTML = `
         <tr>
@@ -440,6 +443,8 @@ async function fetchHomeworksData() {
     }
   }
 }
+
+fetchHomeworksData.requestId = 0
 
 function updateStats() {
   const statTotal = document.getElementById('stat-total-hw')

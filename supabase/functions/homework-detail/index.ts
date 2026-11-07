@@ -295,8 +295,14 @@ async function handleDraftAction(req: Request, action: string): Promise<Response
     const homeworkId: string | undefined = body.homeworkId || body.homework_id
     if (!homeworkId) return errorResponse('Missing homeworkId', 400)
     const answers = body.answers && typeof body.answers === 'object'
-      ? { mc: body.answers.mc || {}, tf: body.answers.tf || {}, sa: body.answers.sa || {} }
-      : { mc: {}, tf: {}, sa: {} }
+      ? {
+          mc: body.answers.mc && typeof body.answers.mc === 'object' ? body.answers.mc : {},
+          tf: body.answers.tf && typeof body.answers.tf === 'object' ? body.answers.tf : {},
+          sa: body.answers.sa && typeof body.answers.sa === 'object' ? body.answers.sa : {},
+          // Giữ essay (bản nháp cũ không có field này sẽ được FE coi là {} khi khôi phục).
+          essay: body.answers.essay && typeof body.answers.essay === 'object' ? body.answers.essay : {},
+        }
+      : { mc: {}, tf: {}, sa: {}, essay: {} }
 
     // Chỉ cho nháp bài đã xuất bản (rẻ: 1 hop select id)
     const { data: hw } = await serviceRoleClient

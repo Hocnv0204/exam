@@ -896,9 +896,9 @@ export function bindAssignmentReviewEvents() {
 
   if (state.user?.role === 'ADMIN' && hwId) {
     const maxV = subData.maxViolations || subData.max_violations || subData.homework?.maxViolations || subData.homework?.max_violations || 3
-    import('../api.js').then(({ api }) => {
-      api.getExamLogs(hwId).then(logs => {
-        const studentLogs = (logs || []).filter(l => l.student_id === studentId || l.studentId === studentId)
+    Promise.resolve().then(() => {
+      api.getExamLogs(hwId, `studentId=${encodeURIComponent(studentId || '')}`).then(logs => {
+        const studentLogs = (logs || []).filter(l => !studentId || l.student_id === studentId || l.studentId === studentId)
         
         if (logsContainer && studentLogs.length > 0) {
           const violationCount = studentLogs.filter(l => l.action !== 'RETURN_TAB').length
@@ -1167,7 +1167,7 @@ export function bindAssignmentReviewEvents() {
           }
           
           try {
-             const { api } = await import('../api.js')
+              // api đã được import tĩnh ở đầu module.
              await api.reopenSubmission(hwId, studentId, resetTimer, resetAnswers)
              import('../components/toast.js').then(({ showToast }) => showToast('Đã khôi phục bài thi thành công.', 'success'))
              setTimeout(() => {
@@ -1237,7 +1237,7 @@ export function bindAssignmentReviewEvents() {
           }
 
           try {
-            const { api } = await import('../api.js')
+              // api đã được import tĩnh ở đầu module.
             const res = await api.setBonus({ homeworkId: hwId, studentId: sId, bonus: bonusVal })
 
             // Update state so UI stays in sync without full reload

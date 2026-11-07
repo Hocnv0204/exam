@@ -17,7 +17,7 @@ const create = sandbox.module.exports.createExamLogHandler
 // trả về lỗi SQL missing-column giống thật để regression test tự thất bại nếu
 // code quay lại .select('id').
 const TABLE_COLUMNS = {
-  homeworks: ['id', 'type', 'is_published', 'max_violations', 'lessons'],
+  homeworks: ['id', 'type', 'is_published', 'max_violations', 'lessons', 'homework_targets'],
   student_classes: ['student_id', 'class_id', 'status'],
   homework_targets: ['student_id', 'homework_id'],
   exam_logs: ['id', 'session_id', 'attempt_no', 'action', 'event_id', 'counted', 'reason', 'severity',
@@ -48,6 +48,7 @@ function fixture() {
   const classId = id(4)
   let enrollment = { student_id: studentId, class_id: classId, status: 'ACTIVE' }
   let targets = []
+  let userStudentClasses = undefined
   const homework = { id: homeworkId, type: 'EXAM', is_published: true, max_violations: 2,
     lessons: { is_trial: false, chapters: { class_id: classId } } }
   const session = { id: sessionId, draft_answers: [], session_token: token }
@@ -64,8 +65,8 @@ function fixture() {
         maybeSingle: async () => {
           const missing = missingColumn(table, selectedColumns)
           if (missing) return { data: null, error: { message: `column ${table}.${missing} does not exist`, code: '42703' } }
-          if (errorTable === table) return { data: null, error: { message: 'database failure' } }
-          if (table === 'homeworks') return { data: homework, error: null }
+          if (errorTable === table || (table === 'homeworks' && errorTable === 'homework_targets')) return { data: null, error: { message: 'database failure' } }
+          if (table === 'homeworks') return { data: { ...homework, homework_targets: targets }, error: null }
           if (table === 'student_classes') {
             const row = enrollment && filters.every(([k, v]) => enrollment[k] === v) ? enrollment : null
             return { data: row, error: null }
@@ -116,13 +117,14 @@ function fixture() {
   }
   const handler = create({ requireAuth: async req => {
     if (!req.headers.get('authorization')) throw new Error('Unauthorized')
-    return { user: { id: studentId, role: req.headers.get('authorization') === 'admin' ? 'ADMIN' : 'STUDENT' }, serviceRoleClient: db }
+    return { user: { id: studentId, role: req.headers.get('authorization') === 'admin' ? 'ADMIN' : 'STUDENT', studentClasses: userStudentClasses }, serviceRoleClient: db }
   }, handleCors: () => null,
   jsonResponse: (data, status = 200) => Response.json({ data }, { status }),
   errorResponse: (error, status) => Response.json({ error }, { status }),
   submitInvoker: async (_db, args) => { calls.push(args); return typeof outcome === 'function' ? outcome() : outcome } })
   return { logs, calls, setOutcome: value => { outcome = value }, setError: value => { errorTable = value },
     setEnrollment: value => { enrollment = value }, setTargets: value => { targets = value },
+    setStudentClasses: value => { userStudentClasses = value },
     state: () => state, setStatus: value => { status = value },
     async request(body, query = '', auth = 'student', method = 'POST') {
       const res = await handler(new Request(`https://example.invalid/exam-log${query}`, {
@@ -247,6 +249,14 @@ const post = (action, eventId, extra = {}) => ({ homeworkId, action, eventId, se
   const assigned = await f.request(post('LEAVE_TAB', 'target-allowed-1'))
   assert.equal(assigned.status, 200)
   assert.equal(assigned.data.log.action, 'LEAVE_TAB')
+}
+{
+  // Preloaded studentClasses from auth-middleware: verifies enrollment without student_classes query.
+  const f = fixture()
+  f.setStudentClasses([{ class_id: id(4), status: 'ACTIVE' }])
+  f.setError('student_classes') // student_classes table errors in DB!
+  const res = await f.request(post('LEAVE_TAB', 'preloaded-classes-ok'))
+  assert.equal(res.status, 200, 'must pass using preloaded studentClasses even if student_classes DB errors')
 }
 const sql = readFileSync(new URL('../migrations/20261030020000_standardize_exam_logs.sql', import.meta.url), 'utf8')
 assert.match(sql, /FOR UPDATE/)

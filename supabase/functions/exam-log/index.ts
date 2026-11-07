@@ -29,7 +29,7 @@ export function createExamLogHandler({ requireAuth, handleCors, jsonResponse, er
       const homeworkId = req.method === 'POST' ? body.homeworkId : url.searchParams.get('homeworkId')
       if (!homeworkId || !UUID.test(homeworkId)) return errorResponse('Valid homeworkId is required', 400)
       const { data: homework, error: hwError } = await db.from('homeworks')
-        .select('id, type, is_published, max_violations, lessons(is_trial, chapters(class_id))')
+        .select('id, type, is_published, max_violations, lessons(is_trial, chapters(class_id)), homework_targets(student_id)')
         .eq('id', homeworkId).maybeSingle()
       if (hwError) return errorResponse('Failed to verify exam', 500)
       if (!homework || (req.method === 'POST' && !homework.is_published)) return errorResponse('Homework not found or not published', 404)
@@ -40,15 +40,26 @@ export function createExamLogHandler({ requireAuth, handleCors, jsonResponse, er
         const classId = homework.lessons?.chapters?.class_id
         if (!isTrial) {
           if (!classId) return errorResponse('Failed to verify exam class', 500)
-          // student_classes dùng khóa kép (student_id, class_id) — không có cột id;
-          // PK đảm bảo tối đa 1 dòng nên maybeSingle an toàn, không cần lo trùng lặp.
-          const { data: enrollment, error } = await db.from('student_classes').select('student_id, class_id, status')
-            .eq('student_id', user.id).eq('class_id', classId).eq('status', 'ACTIVE').maybeSingle()
-          if (error) return errorResponse('Failed to verify enrollment', 500)
-          if (!enrollment) return errorResponse('Forbidden: You are not enrolled in the class for this exam', 403)
+          if (user.studentClasses !== undefined) {
+            const isEnrolled = user.studentClasses.some(
+              (sc: any) => (sc.class_id === classId || sc.classId === classId) && sc.status === 'ACTIVE'
+            )
+            if (!isEnrolled) return errorResponse('Forbidden: You are not enrolled in the class for this exam', 403)
+          } else {
+            // student_classes dùng khóa kép (student_id, class_id) — không có cột id;
+            // PK đảm bảo tối đa 1 dòng nên maybeSingle an toàn, không cần lo trùng lặp.
+            const { data: enrollment, error } = await db.from('student_classes').select('student_id, class_id, status')
+              .eq('student_id', user.id).eq('class_id', classId).eq('status', 'ACTIVE').maybeSingle()
+            if (error) return errorResponse('Failed to verify enrollment', 500)
+            if (!enrollment) return errorResponse('Forbidden: You are not enrolled in the class for this exam', 403)
+          }
         }
-        const { data: targets, error } = await db.from('homework_targets').select('student_id').eq('homework_id', homeworkId)
-        if (error) return errorResponse('Failed to verify exam targets', 500)
+        let targets = (homework as any)?.homework_targets
+        if (targets === undefined) {
+          const { data: tRows, error: tErr } = await db.from('homework_targets').select('student_id').eq('homework_id', homeworkId)
+          if (tErr) return errorResponse('Failed to verify exam targets', 500)
+          targets = tRows
+        }
         if (targets?.length && !targets.some((t: any) => t.student_id === user.id))
           return errorResponse('Forbidden: You are not assigned to this exam', 403)
       }

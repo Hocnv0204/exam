@@ -606,6 +606,8 @@ async function validateAndResolveTypeScope(
   return null
 }
 
+const CANDIDATE_COLS = 'id, question_type, difficulty, usage_count, chapter_id, lesson_id, class_id, qb_chapter_id, qb_lesson_id, qb_class_id'
+
 async function buildPoolQuery(
   serviceRoleClient: any,
   scope: ScopeTarget,
@@ -3040,7 +3042,7 @@ serve(async (req: Request) => {
                   // Item distribution phải thu hẹp typeIds theo đúng Lớp/Chương/Bài của item.
                   itemScope.restrictTypePoolToScope = true
                 }
-                const { data: itemCandidates, error: itemCandErr } = await buildPoolQuery(serviceRoleClient, itemScope)
+                const { data: itemCandidates, error: itemCandErr } = await buildPoolQuery(serviceRoleClient, itemScope, CANDIDATE_COLS)
                 return { item, itemCandidates, itemCandErr }
               })
             )
@@ -3064,7 +3066,6 @@ serve(async (req: Request) => {
           }
           // Kịch bản B: Tỷ lệ trộn nguồn (sourceMix) giữa các lớp
           else if (sourceMix && typeof sourceMix === 'object' && Object.keys(sourceMix).length > 0) {
-            const CANDIDATE_COLS = 'id, question_type, difficulty, usage_count, chapter_id, lesson_id, class_id, qb_chapter_id, qb_lesson_id, qb_class_id'
             const { data: candidates, error: candError } = await buildPoolQuery(serviceRoleClient, scope, CANDIDATE_COLS)
             if (candError) return errorResponse(candError.message, 500)
             const allCandidates = candidates || []
@@ -3105,7 +3106,6 @@ serve(async (req: Request) => {
             (scope.classIds && scope.classIds.length > 1) ||
             ((scope.typeIds || []).length > 0 && (scope.typeLessonIds || []).length > 1)
           )) {
-            const CANDIDATE_COLS = 'id, question_type, difficulty, usage_count, chapter_id, lesson_id, class_id, qb_chapter_id, qb_lesson_id, qb_class_id'
             const { data: candidates, error: candError } = await buildPoolQuery(serviceRoleClient, scope, CANDIDATE_COLS)
             if (candError) return errorResponse(candError.message, 500)
             const allCandidates = candidates || []
@@ -3154,7 +3154,6 @@ serve(async (req: Request) => {
           }
           // Kịch bản D: Bốc theo Scope tổng với Ma trận nhận thức & cơ chế bù borrow
           else {
-            const CANDIDATE_COLS = 'id, question_type, difficulty, usage_count, chapter_id, lesson_id, class_id, qb_chapter_id, qb_lesson_id, qb_class_id'
             const { data: candidates, error: candError } = await buildPoolQuery(serviceRoleClient, scope, CANDIDATE_COLS)
             if (candError) return errorResponse(candError.message, 500)
             const allCandidates = candidates || []
@@ -3242,7 +3241,7 @@ serve(async (req: Request) => {
         let { data: candidates, error: swapErr } = await buildPoolQuery(
           serviceRoleClient,
           scope,
-          '*',
+          CANDIDATE_COLS,
           {
             questionType,
             difficulty: (sameDifficulty && currentDifficulty) ? currentDifficulty : undefined,
@@ -3259,7 +3258,7 @@ serve(async (req: Request) => {
           const { data: fallbackCandidates, error: fallbackErr } = await buildPoolQuery(
             serviceRoleClient,
             scope,
-            '*',
+            CANDIDATE_COLS,
             {
               questionType,
               difficulty: (sameDifficulty && currentDifficulty) ? currentDifficulty : undefined
@@ -3287,7 +3286,15 @@ serve(async (req: Request) => {
           .map(x => x.q)
 
         const topCandidates = sorted.slice(0, Math.max(1, candidateCount))
-        const replacement = topCandidates[0]
+        const topIds = topCandidates.map(q => q.id)
+        const { data: fullQuestions, error: fullErr } = await serviceRoleClient
+          .from('question_bank')
+          .select('*')
+          .in('id', topIds)
+        if (fullErr) return errorResponse(fullErr.message, 500)
+        const fullMap = new Map((fullQuestions || []).map((q: any) => [q.id, q]))
+        const fullTopCandidates = topCandidates.map(q => fullMap.get(q.id) || q)
+        const replacement = fullTopCandidates[0]
 
         // Nếu đổi câu trên đề thi đã xuất bản (Phase 4.1): unbump câu cũ và bump câu mới
         if (homeworkId && replacement) {
@@ -3309,7 +3316,7 @@ serve(async (req: Request) => {
         return jsonResponse({
           success: true,
           replacement,
-          candidates: topCandidates
+          candidates: fullTopCandidates
         })
       }
 

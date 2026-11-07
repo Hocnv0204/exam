@@ -6,24 +6,17 @@ import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
 import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
 import { renderStudentMgmtView, bindStudentMgmtEvents } from './views/student-mgmt.js'
-import { renderCreateHwView, bindCreateHwEvents, resetCreateForm } from './views/create-hw.js'
-import { renderCurriculumView, bindCurriculumEvents } from './views/curriculum.js'
 import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/homework-solver.js'
-import { renderAssignmentReviewView, bindAssignmentReviewEvents } from './views/assignment-review.js'
+// Các view lớn được nạp theo route ở dưới để giảm bundle khởi động.
 import { renderLearningHistoryView, bindLearningHistoryEvents } from './views/learning-history.js'
-import { renderAdminDashboardView, bindAdminDashboardEvents, updateAdminChartTheme } from './views/admin-dashboard.js'
-import { renderAdminHistoryView, bindAdminHistoryEvents, loadAdminHistoryData, resolveHistoryHomeworkId } from './views/admin-history.js'
-import { renderClassDetailsView, bindClassDetailsEvents } from './views/class-details.js'
+// class-details, question-bank, exam-proctoring dùng lazy loader.
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
-import { renderSharedReportView, renderStudentReportView, bindSharedReportEvents, bindStudentReportEvents, updateReportChartTheme } from './views/student-report.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
 import { renderTrialView, bindTrialEvents } from './views/trial.js'
 import { renderTrialManagementView, bindTrialManagementEvents } from './views/trial-management.js'
 import { renderMyHomeworksView, bindMyHomeworksEvents } from './views/my-homeworks.js'
-import { renderQuestionBankView, bindQuestionBankEvents } from './views/question-bank.js'
 import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } from './views/grade-blocks.js'
 import { renderExamRoomView, bindExamRoomEvents } from './views/exam-room.js'
-import { renderExamProctoringView, bindExamProctoringEvents } from './views/exam-proctoring.js'
 import { renderTuitionLedgerView, bindTuitionLedgerEvents } from './views/tuition-ledger.js'
 import { renderActivityLogsView, bindActivityLogsEvents } from './views/activity-logs.js'
 import { renderWeeklyCalendarView, bindWeeklyCalendarEvents } from './views/weekly-calendar.js'
@@ -126,12 +119,14 @@ function syncThemeClassesToDom() {
   document.querySelectorAll('.exam-room-layout').forEach(el => applyExamThemeClasses(el, hash))
 }
 
+let adminChartThemeUpdater = () => {}
+let reportChartThemeUpdater = () => {}
 document.addEventListener('eduportal:themechange', () => {
   syncThemeClassesToDom()
   // Never rerender a route to change color: it can destroy drafts, modal state,
   // chart instances and in-flight loading/error state.
-  updateAdminChartTheme()
-  updateReportChartTheme()
+  adminChartThemeUpdater()
+  reportChartThemeUpdater()
 })
 
 const routes = {
@@ -149,28 +144,32 @@ const routes = {
   students: { render: renderStudentMgmtView, bind: bindStudentMgmtEvents },
   classes: { render: renderClassMgmtView, bind: bindClassMgmtEvents },
   'classes-admin': { render: renderClassMgmtView, bind: bindClassMgmtEvents },
-  'create-homework': { render: renderCreateHwView, bind: bindCreateHwEvents },
-  curriculum: { render: renderCurriculumView, bind: bindCurriculumEvents },
+  'create-homework': { loader: () => import('./views/create-hw.js'), renderName: 'renderCreateHwView', bindName: 'bindCreateHwEvents' },
+  curriculum: { loader: () => import('./views/curriculum.js'), renderName: 'renderCurriculumView', bindName: 'bindCurriculumEvents' },
   'homework-attempt': { render: renderHomeworkSolverView, bind: bindHomeworkSolverEvents },
-  'assignment-review': { render: renderAssignmentReviewView, bind: bindAssignmentReviewEvents },
+  'assignment-review': { loader: () => import('./views/assignment-review.js'), renderName: 'renderAssignmentReviewView', bindName: 'bindAssignmentReviewEvents' },
   history: { render: renderLearningHistoryView, bind: bindLearningHistoryEvents },
-  'admin-dashboard': { render: renderAdminDashboardView, bind: bindAdminDashboardEvents },
-  'admin-history': { render: renderAdminHistoryView, bind: bindAdminHistoryEvents },
-  'class-details': { render: renderClassDetailsView, bind: bindClassDetailsEvents },
+  'admin-dashboard': { loader: () => import('./views/admin-dashboard.js'), renderName: 'renderAdminDashboardView', bindName: 'bindAdminDashboardEvents' },
+  'admin-history': { loader: () => import('./views/admin-history.js'), renderName: 'renderAdminHistoryView', bindName: 'bindAdminHistoryEvents' },
+  'class-details': { loader: () => import('./views/class-details.js'), renderName: 'renderClassDetailsView', bindName: 'bindClassDetailsEvents' },
   'student-details': { render: renderStudentDetailsView, bind: bindStudentDetailsEvents },
-  'student-report': { render: renderStudentReportView, bind: bindStudentReportEvents },
-  'shared-report': { render: renderSharedReportView, bind: bindSharedReportEvents },
+  'student-report': { loader: () => import('./views/student-report.js'), renderName: 'renderStudentReportView', bindName: 'bindStudentReportEvents' },
+  'shared-report': { loader: () => import('./views/student-report.js'), renderName: 'renderSharedReportView', bindName: 'bindSharedReportEvents' },
   homework: { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents },
   'homework-mgmt': { render: renderHomeworkMgmtView, bind: bindHomeworkMgmtEvents },
-  'question-bank': { render: renderQuestionBankView, bind: bindQuestionBankEvents },
+  'question-bank': { loader: () => import('./views/question-bank.js'), renderName: 'renderQuestionBankView', bindName: 'bindQuestionBankEvents' },
   'grade-blocks': { render: renderGradeBlocksView, bind: bindGradeBlocksEvents },
   'exam-room': { render: renderExamRoomView, bind: bindExamRoomEvents },
-  'exam-proctoring': { render: renderExamProctoringView, bind: bindExamProctoringEvents },
+  'exam-proctoring': { loader: () => import('./views/exam-proctoring.js'), renderName: 'renderExamProctoringView', bindName: 'bindExamProctoringEvents' },
   'tuition-ledger': { render: renderTuitionLedgerView, bind: bindTuitionLedgerEvents },
   'activity-logs': { render: renderActivityLogsView, bind: bindActivityLogsEvents }
 }
 
+let routeSeq = 0
+
 async function router() {
+  const currentRouteSeq = ++routeSeq
+  const isStale = () => currentRouteSeq !== routeSeq
   const hashUrl = window.location.hash.replace('#', '')
   const [routePath, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
@@ -203,7 +202,8 @@ async function router() {
       const homeworkId = params.get('homeworkId')
       if (homeworkId) {
         try {
-          const hwData = await api.getHomeworkDetail(homeworkId)
+           const hwData = await api.getHomeworkDetail(homeworkId)
+           if (isStale()) return
           state.currentHomework = hwData
           // Prefetch nháp server để khôi phục khi mở bài (luyện tập, đã đăng nhập)
           state.serverDraft = null
@@ -271,6 +271,16 @@ async function router() {
   }
 
   const route = routes[hash] || routes['login']
+  const routeModule = route.loader ? await route.loader() : route
+  if (isStale()) return
+  if (routeModule.updateAdminChartTheme) adminChartThemeUpdater = routeModule.updateAdminChartTheme
+  if (routeModule.updateReportChartTheme) reportChartThemeUpdater = routeModule.updateReportChartTheme
+  // Route tĩnh: { render, bind }. Route lazy: lấy hàm theo tên export đã khai báo.
+  const renderRoute = route.loader ? routeModule[route.renderName] : route.render
+  const bindRoute = route.loader ? routeModule[route.bindName] : route.bind
+  if (typeof renderRoute !== 'function' || typeof bindRoute !== 'function') {
+    throw new Error(`[Router] Route "${hash}" thiếu hàm render/bind`)
+  }
 
   // Pre-fetch state data if user is logged in
   // (bo qua khi route public #shared-report -> public view se tu goi student-history?scope=shared-report)
@@ -281,6 +291,7 @@ async function router() {
         const homeworkId = params.get('homeworkId')
         if (homeworkId) {
           const hwData = await api.getHomeworkDetail(homeworkId)
+          if (isStale()) return
           state.currentHomework = hwData
           if (hwData?.homework?.type && hwData.homework.type !== 'EXAM') {
             window.location.hash = `#homework-attempt?homeworkId=${homeworkId}`
@@ -306,17 +317,21 @@ async function router() {
       if (hash === 'create-homework') {
         const homeworkId = params.get('homeworkId')
         if (homeworkId) {
-          const hwData = await api.getHomeworkDetail(homeworkId)
+          const [hwData] = await Promise.all([
+            api.getHomeworkDetail(homeworkId),
+            api.getClasses()
+          ])
+          if (isStale()) return
           state.editHomeworkData = hwData
         } else {
           state.editHomeworkData = null
-          resetCreateForm()
+           routeModule.resetCreateForm?.()
         }
       }
 
       // Fetch Grade Blocks dynamically
       if (hash === 'grade-blocks') {
-        await fetchGradeBlocksData()
+         await fetchGradeBlocksData()
       }
 
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
@@ -329,8 +344,12 @@ async function router() {
         const lessonId = hash === 'my-classes' ? params.get('lessonId') : null
 
         const needClasses = true
-        const needChapters = Boolean(classId)
-        const needStudents = reportPrefetch || ['students', 'classes-admin', 'classes', 'class-details', 'student-details'].includes(hash)
+        // Chỉ dùng lại cây chương của cùng lớp trong 60s (đổi bài học liên tục không tải lại,
+        // nhưng bài tập mới giao vẫn hiện sau tối đa 60s mà không cần tải lại trang).
+        const hasChapters = classId && state.classChaptersClassId === classId && Array.isArray(state.classChapters) &&
+          Date.now() - (state.classChaptersFetchedAt || 0) < 60000
+        const needChapters = Boolean(classId) && !hasChapters
+        const needStudents = reportPrefetch || ['students', 'class-details', 'student-details'].includes(hash)
 
         const prefetchTasks = []
         const taskTypes = []
@@ -350,6 +369,7 @@ async function router() {
 
         if (prefetchTasks.length > 0) {
           const results = await Promise.all(prefetchTasks)
+          if (isStale()) return
           taskTypes.forEach((type, idx) => {
             const res = results[idx]
             if (type === 'classes') {
@@ -394,17 +414,12 @@ async function router() {
                 }))
               }))
               state.classChapters = sortClassChaptersLessons(mappedChapters)
+              state.classChaptersClassId = classId
+              state.classChaptersFetchedAt = Date.now()
             } else if (type === 'students') {
               state.students = Array.isArray(res) ? res : (res?.items || res?.students || [])
               state.studentsFetchedAt = Date.now()
             }
-          })
-        }
-
-        // Count student profiles associated with each class
-        if (Array.isArray(state.students) && Array.isArray(state.classes)) {
-          state.classes.forEach(c => {
-            c.studentsCount = state.students.filter(s => s.classIds ? s.classIds.includes(c.id) : (s.classId === c.id)).length
           })
         }
 
@@ -427,6 +442,7 @@ async function router() {
               } else {
                 try {
                   const rawHomeworks = await api.getHomeworks(lessonId)
+                  if (isStale()) return
                   const mappedHws = (rawHomeworks || []).map(h => ({
                     id: h.id,
                     title: h.title,
@@ -463,6 +479,7 @@ async function router() {
       // 4. Fetch Dashboard Overview and Submissions (for Admin Dashboard)
       if (hash === 'admin-dashboard') {
         const dashboardData = await api.getDashboard()
+        if (isStale()) return
         state.dashboard = dashboardData || { overview: {}, recentSubmissions: [] }
       }
 
@@ -472,6 +489,7 @@ async function router() {
         const currentSubId = state.lastSubmissionResult?.submissionId || state.lastSubmissionResult?.submission?.id
         if (submissionId && currentSubId !== submissionId) {
           const detail = await api.getStudentHistory(`submissionId=${submissionId}`)
+          if (isStale()) return
           if (detail && !detail.error) {
             state.lastSubmissionResult = detail
           }
@@ -481,6 +499,7 @@ async function router() {
       // 6. Fetch Submissions (for Student History page)
       if (hash === 'history') {
         const result = await api.getStudentHistory()
+        if (isStale()) return
         const historyList = result?.history || []
         state.submissions = historyList.map(s => {
           return {
@@ -510,13 +529,14 @@ async function router() {
         const classId = params.get('classId') || ''
         // Chỉ khôi phục homeworkId khi URL có dấu hiệu user tự chọn bài (pick=1).
         // Link/Lịch sử vào trang hoặc link cũ chứa homeworkId không được tự chọn bài.
-        const homeworkId = resolveHistoryHomeworkId(params)
+         const homeworkId = routeModule.resolveHistoryHomeworkId?.(params) || ''
         const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1)
         const search = params.get('search') || ''
 
         if (!state.classes || state.classes.length === 0) {
           try {
             const rawClasses = await api.getClasses()
+            if (isStale()) return
             state.classes = (rawClasses || []).map(c => ({
               id: c.id,
               name: c.name,
@@ -533,18 +553,21 @@ async function router() {
           ? 'TRIAL'
           : (classId || '')
 
-        await loadAdminHistoryData(targetClassId, homeworkId, mode, { page, search })
+         if (routeModule.loadAdminHistoryData) await routeModule.loadAdminHistoryData(targetClassId, homeworkId, mode, { page, search })
+        if (isStale()) return
       }
     } catch (err) {
       console.warn('[Router] Failed to pre-fetch real data from backend:', err.message)
     }
   }
 
+  if (isStale()) return
+
   const app = document.getElementById('app')
   if (app) {
     syncDocumentTheme(hash)
     try {
-      app.innerHTML = route.render()
+       app.innerHTML = renderRoute()
     } catch (renderErr) {
       console.error(`[Router] Error rendering view for route "${hash}":`, renderErr)
       app.innerHTML = `
@@ -580,7 +603,7 @@ async function router() {
     // Exam room has its own root, with or without a surrounding app layout.
     app.querySelectorAll('.exam-room-layout').forEach(el => applyExamThemeClasses(el, hash))
     try {
-      route.bind()
+      bindRoute()
     } catch (bindErr) {
       console.error(`[Router] Error binding events for route "${hash}":`, bindErr)
     }

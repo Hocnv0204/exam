@@ -77,13 +77,53 @@ serve(async (req: Request) => {
 
     const classIdOfHomework = (homework.lessons as unknown as { chapters: { class_id: string } })?.chapters?.class_id
 
+    // Launch independent queries concurrently (questions embed, targets, exam session, attempts limit)
+    const questionsPromise = serviceRoleClient
+      .from('questions')
+      .select('id, question_number, question_type, prompt, points, content, options, statements, part_title, question_answers(question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation)')
+      .eq('homework_id', homeworkId)
+      .order('question_number', { ascending: true })
+
+    const targetsPromise = (user && !isTrialHomework)
+      ? serviceRoleClient
+          .from('homework_targets')
+          .select('student_id')
+          .eq('homework_id', homeworkId)
+      : Promise.resolve({ data: null, error: null })
+
+    // Chỉ tra session khi có token; thiếu token vẫn báo 400 ở đúng vị trí cũ (sau kiểm tra giao bài).
+    const sessionPromise = (homework.type === 'EXAM' && user && sessionToken)
+      ? serviceRoleClient
+          .from('exam_sessions')
+          .select('id, session_token, created_at, status, attempt_no, draft_answers, submission_fingerprint')
+          .eq('homework_id', homeworkId)
+          .eq('student_id', user.id)
+          .eq('session_token', sessionToken)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null })
+
+    const attemptsPromise = (user && homework.max_attempts && homework.max_attempts > 0 && !isTrialHomework && homework.type !== 'EXAM')
+      ? serviceRoleClient
+          .from('submissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('homework_id', homeworkId)
+          .eq('student_id', user.id)
+          .eq('status', 'SUBMITTED')
+      : Promise.resolve({ count: null, error: null })
+
+    const [qRes, targetsRes, sessionRes, attemptsRes] = await Promise.all([
+      questionsPromise,
+      targetsPromise,
+      sessionPromise,
+      attemptsPromise
+    ])
+
     // Bài giao riêng: chỉ học sinh trong danh sách mới được nộp
     if (user && !isTrialHomework) {
-      const { data: targets } = await serviceRoleClient
-        .from('homework_targets')
-        .select('student_id')
-        .eq('homework_id', homeworkId)
-      const targetIds = (targets || []).map((t: { student_id: string }) => t.student_id)
+      if (targetsRes.error) return errorResponse('Failed to verify targets', 500)
+      const targetIds = (targetsRes.data || []).map((t: { student_id: string }) => t.student_id)
       if (targetIds.length > 0 && !targetIds.includes(user.id)) {
         return errorResponse('Forbidden: This homework was assigned to other students', 403)
       }
@@ -97,16 +137,7 @@ serve(async (req: Request) => {
       if (!sessionToken) {
         return errorResponse('sessionToken is required for EXAM', 400)
       }
-
-      const { data: session, error: sessionError } = await serviceRoleClient
-        .from('exam_sessions')
-        .select('id, session_token, created_at, status, attempt_no, draft_answers, submission_fingerprint')
-        .eq('homework_id', homeworkId)
-        .eq('student_id', user.id)
-        .eq('session_token', sessionToken)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const { data: session, error: sessionError } = sessionRes
 
       if (sessionError) return errorResponse('Failed to verify exam session', 500)
       if (!session) {
@@ -155,12 +186,7 @@ serve(async (req: Request) => {
     // Keep legacy PRACTICE/trial submission checks unchanged.
     if (user && homework.max_attempts && homework.max_attempts > 0 && !isTrialHomework &&
       !(homework.type === 'EXAM' && examSessionId)) {
-      const { count, error: countError } = await serviceRoleClient
-        .from('submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('homework_id', homeworkId)
-        .eq('student_id', user.id)
-        .eq('status', 'SUBMITTED')
+      const { count, error: countError } = attemptsRes
 
       if (countError) {
         return errorResponse('Failed to verify submission attempts limit', 500)
@@ -184,30 +210,21 @@ serve(async (req: Request) => {
       }
     }
 
-    // 2. Fetch all questions for homework
-    const { data: questions, error: qError } = await serviceRoleClient
-      .from('questions')
-      .select('id, question_number, question_type, prompt, points, content, options, statements, part_title')
-      .eq('homework_id', homeworkId)
-      .order('question_number', { ascending: true })
+    // 2. Fetch all questions for homework (from embedded query)
+    const { data: questions, error: qError } = qRes
 
     if (qError || !questions || questions.length === 0) {
       return errorResponse('Homework contains no questions', 400)
     }
 
-    // 3. Fetch Answer Keys using Service Role Client (Students cannot select question_answers via RLS!)
-    const questionIds = questions.map((q) => q.id)
-    const { data: answerKeys, error: keyError } = await serviceRoleClient
-      .from('question_answers')
-      .select('question_id, mc_answer, tf_answers, sa_answer, sa_tolerance, explanation')
-      .in('question_id', questionIds)
-
-    if (keyError || !answerKeys) {
-      return errorResponse('Failed to load homework answer key', 500)
+    // 3. Index answer keys by question_id from embedded question_answers
+    const keyMap = new Map()
+    for (const q of questions) {
+      const k = Array.isArray((q as any).question_answers)
+        ? (q as any).question_answers[0]
+        : (q as any).question_answers
+      if (k) keyMap.set(q.id, k)
     }
-
-    // Index answer keys by question_id
-    const keyMap = new Map(answerKeys.map((k) => [k.question_id, k]))
     const answerMap = new Map(answers.map((a) => [a.questionId, a.givenAnswer]))
 
     // 4. Grade each question using the Universal Scoring Engine
@@ -307,39 +324,61 @@ serve(async (req: Request) => {
     const saveGuestPhone = isTrialSubmission ? (guestPhone || null) : null
 
     const atomic = !!examSessionId
-    const atomicResult = atomic ? await serviceRoleClient.rpc('commit_exam_submission', {
-      p_homework_id: homeworkId, p_student_id: user.id, p_token: sessionToken,
-      p_answers: answers, p_rows: submissionAnswersToInsert,
-      p_total: finalScore, p_correct: correctCount, p_wrong: wrongCount,
-      p_duration: durationSecondsTaken || 0, p_disqualified: disqualified === true
-    }) : null
+    const signedUrlPromise = (homework.pdf_path && !homework.pdf_path.startsWith('http'))
+      ? serviceRoleClient.storage
+          .from('pdf-files')
+          .createSignedUrl(homework.pdf_path, 3600)
+      : Promise.resolve({ data: null, error: null })
+
+    const [atomicResult] = atomic
+      ? await Promise.all([
+          serviceRoleClient.rpc('commit_exam_submission', {
+            p_homework_id: homeworkId, p_student_id: user.id, p_token: sessionToken,
+            p_answers: answers, p_rows: submissionAnswersToInsert,
+            p_total: finalScore, p_correct: correctCount, p_wrong: wrongCount,
+            p_duration: durationSecondsTaken || 0, p_disqualified: disqualified === true
+          }),
+          signedUrlPromise
+        ])
+      : [null]
+
     if (atomicResult?.error) {
       const msg = atomicResult.error.message || ''
       if (/EXAM_EXPIRED|SUBMISSION_CONFLICT|INVALID_SESSION|INVALID_ANSWERS|INVALID_DISQUALIFICATION|FORBIDDEN/.test(msg))
         return errorResponse(msg, /FORBIDDEN|INVALID_SESSION/.test(msg) ? 403 : 409)
       return errorResponse('Failed to record exam submission', 500)
     }
-    const { data: submission, error: subError } = atomic
-      ? { data: atomicResult?.data, error: null }
-      : await serviceRoleClient
-      .from('submissions')
-      .insert({
-        homework_id: homeworkId,
-        student_id: user ? user.id : null,
-        total_score: finalScore,
-        max_score: homework.max_score,
-        correct_count: correctCount,
-        wrong_count: wrongCount,
-        duration_seconds_taken: durationSecondsTaken || 0,
-        is_late: isLate,
-        is_trial: isTrialSubmission,
-        guest_name: saveGuestName,
-        guest_phone: saveGuestPhone,
-        status: 'SUBMITTED',
-        attempt_no: examSessionId ? examSessionAttemptNo : 1
-      })
-      .select('id, submitted_at')
-      .single()
+
+    let submission: any = null
+    let subError: any = null
+    if (atomic) {
+      submission = atomicResult?.data
+    } else {
+      const [insertRes] = await Promise.all([
+        serviceRoleClient
+          .from('submissions')
+          .insert({
+            homework_id: homeworkId,
+            student_id: user ? user.id : null,
+            total_score: finalScore,
+            max_score: homework.max_score,
+            correct_count: correctCount,
+            wrong_count: wrongCount,
+            duration_seconds_taken: durationSecondsTaken || 0,
+            is_late: isLate,
+            is_trial: isTrialSubmission,
+            guest_name: saveGuestName,
+            guest_phone: saveGuestPhone,
+            status: 'SUBMITTED',
+            attempt_no: examSessionId ? examSessionAttemptNo : 1
+          })
+          .select('id, submitted_at')
+          .single(),
+        signedUrlPromise
+      ])
+      submission = insertRes.data
+      subError = insertRes.error
+    }
 
     if (subError || !submission) {
       return errorResponse(`Failed to record submission: ${subError?.message}`, 500)
@@ -365,14 +404,12 @@ serve(async (req: Request) => {
         score: submission.total_score, message: 'Bài thi đã được ghi nhận nộp thành công.' })
     }
 
-    // Generate Signed URL for PDF storage file
+    // Resolve Signed URL for PDF storage file (đã chạy song song từ trước)
     let pdfUrl = homework.pdf_path
     if (pdfUrl && !pdfUrl.startsWith('http')) {
-      const { data: signedUrlData, error: storageErr } = await serviceRoleClient.storage
-        .from('pdf-files')
-        .createSignedUrl(homework.pdf_path, 3600)
-      if (!storageErr && signedUrlData) {
-        pdfUrl = signedUrlData.signedUrl
+      const storageRes = await signedUrlPromise
+      if (!storageRes.error && storageRes.data) {
+        pdfUrl = storageRes.data.signedUrl
       }
     }
 

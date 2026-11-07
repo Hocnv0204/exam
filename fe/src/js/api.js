@@ -1,4 +1,4 @@
-import { state, logout, setSession } from './state.js'
+import { state, logout, updateTokens } from './state.js'
 import { redactQueryFromEndpoint } from './utils/report-share.js'
 
 // Supabase URL from Vite environment variables (falls back to local dev URL)
@@ -23,7 +23,78 @@ const FUNCTION_REGION = import.meta.env?.VITE_SUPABASE_FUNCTION_REGION || 'ap-so
 
 let activeRequests = 0
 let loadingOverlay = null
-let isRefreshing = false
+// Single-flight refresh: mọi request cần refresh cùng lúc chờ chung MỘT promise.
+// Trước đây cờ boolean khiến request thứ 2 nhận 401 trong lúc đang refresh bị logout.
+let refreshPromise = null
+const CLASSES_CACHE_TTL = 60 * 1000
+const classesCache = new Map()
+
+export function invalidateClassesCache() {
+  classesCache.clear()
+}
+
+function classesCacheKey(params) {
+  if (typeof params === 'string') return params.startsWith('?') ? params : (params ? `?${params}` : '')
+  const sp = new URLSearchParams()
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') sp.set(key, value)
+  })
+  const query = sp.toString()
+  return query ? `?${query}` : ''
+}
+
+function getClassesCached(params = '', options = {}) {
+  const { force = false, ...requestOptions } = options
+  const key = classesCacheKey(params)
+  const cacheKey = `${state.user?.id || 'anonymous'}:${state.sessionVersion}:${key}`
+  const now = Date.now()
+  const cached = classesCache.get(cacheKey)
+  if (!force && cached && now - cached.createdAt < CLASSES_CACHE_TTL) return cached.promise
+  const promise = request(`create-class${key}`, { method: 'GET', ...requestOptions })
+  classesCache.set(cacheKey, { createdAt: now, promise })
+  promise.catch(() => {
+    if (classesCache.get(cacheKey)?.promise === promise) classesCache.delete(cacheKey)
+  })
+  return promise
+}
+
+const classMutation = (endpoint, options) => request(endpoint, options).then(result => {
+  invalidateClassesCache()
+  return result
+})
+
+/**
+ * Làm mới access token (dùng chung giữa các request đồng thời).
+ * @returns {Promise<string|null>} access token mới, hoặc null nếu không refresh được.
+ */
+export function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise
+  const refreshTokenAtStart = state.refreshToken
+  if (!refreshTokenAtStart) return Promise.resolve(null)
+  refreshPromise = (async () => {
+    try {
+      const refreshRes = await fetch(`${SUPABASE_FUNCTIONS_URL}/refresh-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-region': FUNCTION_REGION },
+        body: JSON.stringify({ refreshToken: refreshTokenAtStart })
+      })
+      if (!refreshRes.ok) return null
+      const refreshResult = await refreshRes.json()
+      if (!refreshResult?.success || !refreshResult.data?.accessToken) return null
+      // Người dùng đã đăng xuất / đổi phiên trong lúc chờ → bỏ kết quả cũ.
+      if (state.refreshToken !== refreshTokenAtStart || !state.user) return null
+      const { accessToken, refreshToken } = refreshResult.data
+      updateTokens(accessToken, refreshToken)
+      return accessToken
+    } catch (err) {
+      console.error('[API] Silent token refresh failed:', err)
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+  return refreshPromise
+}
 
 function showLoading() {
   activeRequests++
@@ -305,27 +376,8 @@ async function request(endpoint, options = {}) {
   const omitAuthorization = options.omitAuthorization === true
 
   // If access token is missing but refresh token exists, attempt refresh before sending request
-  if (!state.token && !isPublicEndpoint && !omitAuthorization && state.refreshToken && !isRefreshing) {
-    isRefreshing = true
-    try {
-      console.log('[API] Access Token missing. Attempting silent token refresh before request...')
-      const refreshRes = await fetch(`${SUPABASE_FUNCTIONS_URL}/refresh-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-region': FUNCTION_REGION },
-        body: JSON.stringify({ refreshToken: state.refreshToken })
-      })
-      if (refreshRes.ok) {
-        const refreshResult = await refreshRes.json()
-        if (refreshResult.success && refreshResult.data) {
-          const { accessToken, refreshToken } = refreshResult.data
-          setSession(state.user, accessToken, refreshToken)
-        }
-      }
-    } catch (e) {
-      console.error('[API] Pre-request token refresh failed:', e)
-    } finally {
-      isRefreshing = false
-    }
+  if (!state.token && !isPublicEndpoint && !omitAuthorization && state.refreshToken) {
+    await refreshAccessToken()
   }
 
   // If still no token for protected endpoint, logout cleanly
@@ -338,14 +390,17 @@ async function request(endpoint, options = {}) {
     'Content-Type': 'application/json',
     // Pin Edge Function về đúng region của Database (xem FUNCTION_REGION)
     'x-region': FUNCTION_REGION,
-    ...(import.meta.env.VITE_SUPABASE_ANON_KEY ? { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY } : {}),
+    ...(import.meta.env?.VITE_SUPABASE_ANON_KEY ? { 'apikey': import.meta.env?.VITE_SUPABASE_ANON_KEY } : {}),
     ...(options.headers || {})
   }
 
+  // Token thực sự gửi đi — để khi 401 biết token đã được request khác làm mới hay chưa.
+  let sentToken = null
   if (state.token && !isPublicEndpoint && !omitAuthorization) {
+    sentToken = state.token
     headers['Authorization'] = `Bearer ${state.token}`
-  } else if (!omitAuthorization && import.meta.env.VITE_SUPABASE_ANON_KEY) {
-    headers['Authorization'] = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+  } else if (!omitAuthorization && import.meta.env?.VITE_SUPABASE_ANON_KEY) {
+    headers['Authorization'] = `Bearer ${import.meta.env?.VITE_SUPABASE_ANON_KEY}`
   }
 
   const isSilent = Boolean(options.silent || options.skipLoading)
@@ -367,35 +422,20 @@ async function request(endpoint, options = {}) {
     if (response.status === 401) {
       // If we have a refresh token and we're not currently refreshing, try to refresh
       // (endpoint public omitAuthorization KHÔNG refresh/retry vì không coi như đã auth)
-      if (state.refreshToken && !isRefreshing && !omitAuthorization && endpoint !== 'refresh-token') {
-        isRefreshing = true
-        try {
-          console.log('[API] Access Token expired. Attempting silent token refresh...')
-          const refreshRes = await fetch(`${SUPABASE_FUNCTIONS_URL}/refresh-token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-region': FUNCTION_REGION },
-            body: JSON.stringify({ refreshToken: state.refreshToken })
+      // Chỉ retry request đã gửi kèm token user (401 = bị từ chối ở bước auth, chưa thực thi
+      // nên gửi lại 1 lần là an toàn, kể cả request ghi).
+      if (sentToken && !omitAuthorization && endpoint !== 'refresh-token') {
+        // Request khác đã làm mới token trong lúc request này chạy → dùng luôn token mới,
+        // không refresh lần nữa (refresh token cũ có thể đã bị vô hiệu sau khi xoay vòng).
+        const newToken = (state.token && state.token !== sentToken)
+          ? state.token
+          : (state.refreshToken ? await refreshAccessToken() : null)
+        if (newToken) {
+          headers['Authorization'] = `Bearer ${newToken}`
+          response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
+            ...fetchOptions,
+            headers
           })
-
-          if (refreshRes.ok) {
-            const refreshResult = await refreshRes.json()
-            if (refreshResult.success && refreshResult.data) {
-              const { accessToken, refreshToken } = refreshResult.data
-              setSession(state.user, accessToken, refreshToken)
-              console.log('[API] Silent token refresh successful!')
-
-              // Retry the original request with the new access token
-              headers['Authorization'] = `Bearer ${accessToken}`
-              response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${endpoint}`, {
-                ...fetchOptions,
-                headers
-              })
-            }
-          }
-        } catch (refreshErr) {
-          console.error('[API] Silent token refresh failed:', refreshErr)
-        } finally {
-          isRefreshing = false
         }
       }
       if (response.status === 401) {
@@ -444,25 +484,25 @@ export const api = {
   login: (username, password) => request('login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   completeOnboarding: (tourKey) => request('login', { method: 'PATCH', body: JSON.stringify({ tourKey }) }),
   impersonateStudent: (studentId) => request('impersonate', { method: 'POST', body: JSON.stringify({ studentId }) }),
-  createStudent: (data) => request('create-student', { method: 'POST', body: JSON.stringify(data) }),
-  updateStudent: (data) => request('create-student', { method: 'PUT', body: JSON.stringify(data) }),
+  createStudent: (data) => classMutation('create-student', { method: 'POST', body: JSON.stringify(data) }),
+  updateStudent: (data) => classMutation('create-student', { method: 'PUT', body: JSON.stringify(data) }),
   addStudentBalance: (studentId, amount) => request('create-student?action=add-balance', { method: 'POST', body: JSON.stringify({ studentId, amount }) }),
   resetPassword: (data) => request('reset-password', { method: 'POST', body: JSON.stringify(data) }),
-  createClass: (data) => request('create-class', { method: 'POST', body: JSON.stringify(data) }),
-  updateClass: (data) => request('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),
-  getClasses: (params = '') => request(`create-class${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`, { method: 'GET' }),
+  createClass: (data) => classMutation('create-class', { method: 'POST', body: JSON.stringify(data) }),
+  updateClass: (data) => classMutation('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),
+  getClasses: (params = '', options = {}) => getClassesCached(params, options),
   getWeeklyCalendar: (params = {}, options = {}) => {
     const sp = new URLSearchParams()
     if (params.weekStart) sp.set('weekStart', params.weekStart)
     if (params.classId) sp.set('classId', params.classId)
     return request(`weekly-calendar?${sp.toString()}`, { ...options, method: 'GET', silent: true })
   },
-  deleteClass: (classId) => request(`create-class?classId=${classId}`, { method: 'DELETE' }),
-  removeStudentFromClass: (classId, studentId) => request('create-class?action=remove-student', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
+  deleteClass: (classId) => classMutation(`create-class?classId=${classId}`, { method: 'DELETE' }),
+  removeStudentFromClass: (classId, studentId) => classMutation('create-class?action=remove-student', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
   getGradeBlocks: (params = {}) => request(`create-class?action=get-grade-blocks${params?.includeStats ? '&includeStats=true' : ''}`, { method: 'GET' }),
-  createGradeBlock: (data) => request('create-class?action=create-grade-block', { method: 'POST', body: JSON.stringify(data) }),
-  updateGradeBlock: (data) => request('create-class?action=update-grade-block', { method: 'PUT', body: JSON.stringify(data) }),
-  deleteGradeBlock: (id) => request(`create-class?action=delete-grade-block&id=${id}`, { method: 'DELETE' }),
+  createGradeBlock: (data) => classMutation('create-class?action=create-grade-block', { method: 'POST', body: JSON.stringify(data) }),
+  updateGradeBlock: (data) => classMutation('create-class?action=update-grade-block', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteGradeBlock: (id) => classMutation(`create-class?action=delete-grade-block&id=${id}`, { method: 'DELETE' }),
   getClassSessions: (classId, month) => request(`create-class?action=get-sessions&classId=${classId}&month=${month}`, { method: 'GET' }),
   setClassSessions: (classId, sessionDates, month) => request('create-class?action=set-sessions', { method: 'POST', body: JSON.stringify({ classId, sessionDates, month }) }),
   getStudentSessions: (studentId, classId, month) => request(`create-class?action=get-student-sessions&studentId=${studentId}&classId=${classId}&month=${month}`, { method: 'GET' }),
@@ -483,9 +523,9 @@ export const api = {
   markStudentTuitionPaid: (classId, studentId) => request('create-class?action=mark-student-tuition-paid', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
   waiveTuition: (data) => request('create-class?action=waive-tuition', { method: 'POST', body: JSON.stringify(data) }),
   getTuitionTransactions: (params = '') => request(`create-class?action=list-transactions${params ? `&${params}` : ''}`, { method: 'GET' }),
-  updateStudentClassStatus: (classId, studentId, status) => request('create-class?action=update-student-class-status', { method: 'POST', body: JSON.stringify({ classId, studentId, status }) }),
-  addStudentToClass: (classId, studentId) => request('create-class?action=add-student-to-class', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
-  archiveClass: (classId, isArchived) => request('create-class?action=archive-class', { method: 'POST', body: JSON.stringify({ classId, isArchived }) }),
+  updateStudentClassStatus: (classId, studentId, status) => classMutation('create-class?action=update-student-class-status', { method: 'POST', body: JSON.stringify({ classId, studentId, status }) }),
+  addStudentToClass: (classId, studentId) => classMutation('create-class?action=add-student-to-class', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
+  archiveClass: (classId, isArchived) => classMutation('create-class?action=archive-class', { method: 'POST', body: JSON.stringify({ classId, isArchived }) }),
   createChapter: (data) => request('create-chapter', { method: 'POST', body: JSON.stringify(data) }),
   getChapters: (classId = '', options = {}) => {
     let includeLessons = false
@@ -605,7 +645,14 @@ export const api = {
   getMyHomeworks: (params = '') => request(`create-homework?action=my-homeworks${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET' }),
   submitHomework: (data) => request('submit-homework', { method: 'POST', body: JSON.stringify(data) }),
   submitExamLog: (data, options = {}) => request('exam-log', { method: 'POST', body: JSON.stringify(data), keepalive: true, silent: true, ...options }),
-  getExamLogs: (homeworkId, params = '', options = {}) => request(`exam-log?homeworkId=${homeworkId}${params ? (params.startsWith('&') ? params : `&${params}`) : ''}`, { method: 'GET', ...options }),
+  getExamLogs: (homeworkId, params = '', options = {}) => {
+    if (params && typeof params === 'object') {
+      options = params
+      params = ''
+    }
+    const query = params ? (params.startsWith('&') ? params : `&${params}`) : ''
+    return request(`exam-log?homeworkId=${homeworkId}${query}`, { method: 'GET', ...options })
+  },
   getExamSessions: (homeworkId, options = {}) => request(`exam-session?homeworkId=${homeworkId}`, { method: 'GET', ...options }),
   reopenSubmission: (homeworkId, studentId, resetTimer, resetAnswers, options = {}) => request(`reopen-submission`, { method: 'POST', body: JSON.stringify({ homeworkId, studentId, resetTimer, resetAnswers }), ...options }),
   awardQuestionPoints: (submissionId, answerId, options = {}) => {

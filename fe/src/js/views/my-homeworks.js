@@ -385,9 +385,9 @@ export async function bindMyHomeworksEvents() {
     classSel.value = filterClassId
   }
 
-  await loadChapterOptions()
-  if (!view.isConnected || state.user?.id !== userId) return
-  await fetchMyHomeworks()
+  const chapterOptionsPromise = loadChapterOptions()
+  const homeworksPromise = fetchMyHomeworks()
+  await Promise.all([chapterOptionsPromise, homeworksPromise])
   if (!view.isConnected || state.user?.id !== userId) return
 
   document.querySelectorAll('.myhw-status-btn').forEach(b => {

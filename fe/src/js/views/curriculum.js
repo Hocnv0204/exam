@@ -153,6 +153,19 @@ window.previewTheoryPdf = (disp, mappedUrl) => {
 
 let activeClassId = state.classes[0]?.id || 'c1'
 let isLoadingCurriculum = false
+const meetSessionCache = new Map()
+const MEET_CACHE_TTL = 30000
+function getCachedMeetSession(lessonId) {
+  const cached = meetSessionCache.get(lessonId)
+  if (cached && Date.now() - cached.fetchedAt < MEET_CACHE_TTL) return Promise.resolve(cached.data)
+  return api.getMeetSession(lessonId).then(data => {
+    meetSessionCache.set(lessonId, { data, fetchedAt: Date.now() })
+    return data
+  })
+}
+function invalidateMeetSession(lessonId) {
+  meetSessionCache.delete(lessonId)
+}
 let curriculumError = null
 let selectedLessonId = null
 let selectedChapterId = null
@@ -848,7 +861,6 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
   const fetchLessonsAndRefresh = async () => {
     isLoadingCurriculum = true
-    refreshUI()
     try {
       await fetchCurriculumLessons(activeClassId)
     } catch (err) {
@@ -1575,6 +1587,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         try {
           showToast('Đang tạo buổi học Google Meet...', 'info')
           const res = await api.createMeetSession(lessonId, lessonTitle)
+          invalidateMeetSession(lessonId)
           const uri = res?.meeting_uri || res?.meetingUri
           if (uri) window.open(uri, '_blank', 'noopener')
           showToast('Đã tạo buổi học Google Meet!', 'success')
@@ -1649,7 +1662,8 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
             // Renew: lấy drive_url mới về patch vào state rồi mới render,
             // tránh refreshUI từ dữ liệu cũ (vẫn hiện card chờ)
             try {
-              const meet = await api.getMeetSession(lessonId)
+              invalidateMeetSession(lessonId)
+              const meet = await getCachedMeetSession(lessonId)
               const driveUrl = meet?.recordings?.find(r => r.drive_url)?.drive_url
                if (driveUrl) {
                  syncLessonVideoUrl({
@@ -1681,7 +1695,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
       })
     }
 
-    api.getMeetSession(lessonId)
+    getCachedMeetSession(lessonId)
       .then(res => {
         if (!res || !res.session) {
           renderNoMeet()
@@ -1697,7 +1711,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
   const originBox = document.getElementById('meet-origin')
   if (originBox) {
     const lessonId = originBox.getAttribute('data-lesson-id')
-    api.getMeetSession(lessonId)
+    getCachedMeetSession(lessonId)
       .then(res => {
         const rec = res?.recordings?.find(r => r.drive_url) || res?.recordings?.[0]
         const driveUrl = rec?.drive_url
@@ -1847,32 +1861,28 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         }
       }
 
-      // Đảm bảo bài học có đầy đủ theoryFiles và videoUrl
+      // Sau khi có lesson từ chapter, chi tiết lesson và bài tập độc lập nên tải song song.
       let lesson = ch?.lessons?.find(l => l.id === lessonId)
       if (!lesson) {
         const allL = getCurriculumLessons(activeClassId, currObj?.chapters || [])
         lesson = allL.find(l => l.id === lessonId)
       }
 
-      if (lesson && (lesson.theoryFiles === null || lesson.theoryFiles === undefined)) {
-        try {
-          const fullLesson = await api.getLesson(lessonId).catch(() => null)
+      const needsLessonDetail = lesson && (lesson.theoryFiles === null || lesson.theoryFiles === undefined)
+      const needsHomeworks = lesson && (lesson.homeworks === null || lesson.homeworks === undefined)
+      if (needsLessonDetail || needsHomeworks) {
+        refreshUI()
+        const [fullLesson, rawHomeworks] = await Promise.all([
+          needsLessonDetail ? api.getLesson(lessonId).catch(() => null) : Promise.resolve(null),
+          needsHomeworks ? api.getHomeworks(lessonId) : Promise.resolve(null)
+        ])
+        if (needsLessonDetail) {
           if (fullLesson) {
             lesson.theoryFiles = fullLesson.theory_files || []
             lesson.videoUrl = fullLesson.video_url || lesson.videoUrl || ''
-          } else {
-            lesson.theoryFiles = []
-          }
-        } catch (_) {
-          lesson.theoryFiles = []
+          } else lesson.theoryFiles = []
         }
-      }
-
-      // Lazy-load bài tập của bài học này nếu chưa có
-      if (lesson && (lesson.homeworks === null || lesson.homeworks === undefined)) {
-        refreshUI()
-        try {
-          const rawHomeworks = await api.getHomeworks(lessonId)
+        if (needsHomeworks) {
           lesson.homeworks = (rawHomeworks || []).map(hw => ({
             id: hw.id,
             title: hw.title,
@@ -1884,12 +1894,12 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
             deadline: hw.deadline,
             isPublished: hw.is_published !== undefined ? hw.is_published : (hw.isPublished !== undefined ? hw.isPublished : true)
           }))
-        } catch (err) {
-          console.error('Failed to load homeworks:', err)
-          showToast('Không thể tải bài tập!', 'error')
-          lesson.homeworks = []
         }
       }
+      if (lesson && !Array.isArray(lesson.homeworks) && needsHomeworks) {
+        lesson.homeworks = []
+        showToast('Không thể tải bài tập!', 'error')
+        }
 
       refreshUI()
     })

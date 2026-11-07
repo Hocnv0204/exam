@@ -23,6 +23,8 @@ let sessionsPage = 1
 let logsPage = 1
 let requestVersion = 0
 let detailVersion = 0
+let pollingRequestInFlight = false
+let visibilityHandler = null
 
 function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
@@ -93,6 +95,17 @@ export function renderExamProctoringView() {
 }
 
 async function fetchProctoringData(isSilent = false) {
+  if (pollingRequestInFlight && isSilent) return
+  pollingRequestInFlight = true
+  try {
+    await fetchProctoringDataInner(isSilent)
+  } finally {
+    // Luôn nhả cờ, kể cả khi render ném lỗi — nếu không polling sẽ dừng vĩnh viễn.
+    pollingRequestInFlight = false
+  }
+}
+
+async function fetchProctoringDataInner(isSilent) {
   if (!currentHomeworkId) {
     renderProctoringContent()
     return
@@ -272,7 +285,7 @@ function setupAutoRefresh() {
   if (proctoringInterval) clearInterval(proctoringInterval)
   proctoringInterval = null
   if (isAutoRefresh) proctoringInterval = setInterval(() => {
-    if (window.location.hash.startsWith('#exam-proctoring')) fetchProctoringData(true)
+    if (window.location.hash.startsWith('#exam-proctoring') && !document.hidden) fetchProctoringData(true)
     else { clearInterval(proctoringInterval); proctoringInterval = null }
   }, 5000)
 }
@@ -281,11 +294,23 @@ export function bindExamProctoringEvents() {
   bindSidebarEvents()
   fetchProctoringData()
   setupAutoRefresh()
+  visibilityHandler = () => {
+    if (!document.hidden && isAutoRefresh && window.location.hash.startsWith('#exam-proctoring')) {
+      setupAutoRefresh()
+      fetchProctoringData(true)
+    } else if (document.hidden) {
+      if (proctoringInterval) clearInterval(proctoringInterval)
+      proctoringInterval = null
+    }
+  }
+  document.addEventListener('visibilitychange', visibilityHandler)
   const handleHashChange = () => {
     requestVersion++
     detailVersion++
     if (proctoringInterval) clearInterval(proctoringInterval)
     proctoringInterval = null
+    if (visibilityHandler) document.removeEventListener('visibilitychange', visibilityHandler)
+    visibilityHandler = null
     window.removeEventListener('hashchange', handleHashChange)
   }
   window.addEventListener('hashchange', handleHashChange)

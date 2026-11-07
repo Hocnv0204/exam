@@ -16,6 +16,8 @@ import {
   removeImageTagsFromSource
 } from '../utils/question-bank-image.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+import { exportExamPdf, buildBankPrintQuestions } from '../utils/exam-print.js'
+import { queueAutoPdfGeneration, extractHomeworkIdsFromCreateResponse } from '../utils/homework-auto-pdf.js'
 
 // ========================================================
 // View State
@@ -46,6 +48,8 @@ let constantTaxonomyState = {
 }
 
 let selectedQuestionIds = new Set()
+let selectedQuestionCache = new Map()
+let questionsRequestId = 0
 
 let filterState = {
   gradeBlock: '',
@@ -628,7 +632,6 @@ function setupFilterListeners() {
     populateQuestionTypeFilter()
     filterState.page = 1
     await fetchAndRenderQuestions({ includeStats: true })
-    await refreshStats()
   })
 
   // Clear all lessons
@@ -642,7 +645,6 @@ function setupFilterListeners() {
     populateQuestionTypeFilter()
     filterState.page = 1
     await fetchAndRenderQuestions({ includeStats: true })
-    await refreshStats()
   })
 
   // Close dropdown when clicking outside
@@ -663,6 +665,7 @@ function setupFilterListeners() {
     filterState.questionTypeId = ''
     filterState.page = 1
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
 
     const classSelect = document.getElementById('qb-filter-class')
     loadConstantClassesForGradeBlock(filterState.gradeBlock, classSelect)
@@ -683,6 +686,7 @@ function setupFilterListeners() {
     filterState.questionTypeId = ''
     filterState.page = 1
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
 
     loadConstantChaptersForGradeBlockOrClass(filterState.gradeBlock, filterState.classId, chapterSelect)
     populateMainFilterLessons('')
@@ -698,6 +702,7 @@ function setupFilterListeners() {
     filterState.questionTypeId = ''
     filterState.page = 1
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
 
     populateMainFilterLessons(filterState.chapterId)
     populateQuestionTypeFilter()
@@ -708,6 +713,7 @@ function setupFilterListeners() {
     filterState.questionTypeId = e.target.value
     filterState.page = 1
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
     await fetchAndRenderQuestions({ includeStats: true })
   })
 
@@ -716,6 +722,7 @@ function setupFilterListeners() {
     filterState.questionType = e.target.value
     filterState.page = 1
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
     await fetchAndRenderQuestions()
   })
 
@@ -724,6 +731,7 @@ function setupFilterListeners() {
     filterState.difficulty = e.target.value
     filterState.page = 1
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
     await fetchAndRenderQuestions()
   })
 
@@ -732,6 +740,7 @@ function setupFilterListeners() {
     filterState.unassigned = e.target.value
     filterState.page = 1
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
     await fetchAndRenderQuestions({ includeStats: true })
   })
 
@@ -743,6 +752,7 @@ function setupFilterListeners() {
       filterState.search = e.target.value
       filterState.page = 1
       selectedQuestionIds.clear()
+      selectedQuestionCache.clear()
       await fetchAndRenderQuestions()
     }, 350)
   })
@@ -764,6 +774,7 @@ function setupFilterListeners() {
       pageSize: 10
     }
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
     mainFilterLessonsCache = []
     if (gradeBlockSelect) gradeBlockSelect.value = ''
     const classSelectReset = document.getElementById('qb-filter-class')
@@ -872,7 +883,6 @@ function renderMainFilterLessonCheckboxes() {
       populateQuestionTypeFilter()
       filterState.page = 1
       await fetchAndRenderQuestions({ includeStats: true })
-      await refreshStats()
     })
   })
 }
@@ -956,7 +966,8 @@ function loadConstantChaptersForGradeBlockOrClass(gradeBlock, classId, targetSel
 async function loadChaptersForClass(classId, targetSelect) {
   if (!targetSelect) return
   try {
-    const chapters = await api.getChapters(classId, true)
+    // Dropdown này chỉ hiển thị chương, không đọc lessons từ response.
+    const chapters = await api.getChapters(classId)
     let html = '<option value="">-- Tất cả Chương --</option>'
     ;(chapters || []).forEach(ch => {
       html += `<option value="${ch.id}">${escapeHtml(ch.title)}</option>`
@@ -985,6 +996,7 @@ async function loadLessonsForChapter(chapterId, targetSelect) {
 // Fetch & Render Question Cards
 // ========================================================
 async function fetchAndRenderQuestions(options = {}) {
+  const requestId = ++questionsRequestId
   const container = document.getElementById('qb-questions-container')
   const countEl = document.getElementById('qb-current-count')
   const paginationContainer = document.getElementById('qb-pagination-container')
@@ -1023,6 +1035,7 @@ async function fetchAndRenderQuestions(options = {}) {
     }
 
     const res = await api.getQuestionBank(paramsObj.toString())
+    if (requestId !== questionsRequestId) return
     let questions = []
     let totalItems = 0
 
@@ -1109,6 +1122,7 @@ async function fetchAndRenderQuestions(options = {}) {
       })
     }
   } catch (err) {
+    if (requestId !== questionsRequestId) return
     console.error('[QuestionBank] Failed to fetch questions:', err)
     if (paginationContainer) paginationContainer.innerHTML = ''
     container.innerHTML = `
@@ -1415,8 +1429,11 @@ function bindQuestionCardEvents(container) {
       const qId = chk.getAttribute('data-id')
       if (chk.checked) {
         selectedQuestionIds.add(qId)
+        const qObj = allQuestions.find(q => String(q.id) === String(qId))
+        if (qObj) selectedQuestionCache.set(qId, qObj)
       } else {
         selectedQuestionIds.delete(qId)
+        selectedQuestionCache.delete(qId)
       }
       updateBulkActionBar()
     })
@@ -1450,6 +1467,7 @@ function bindQuestionCardEvents(container) {
         await api.deleteQuestionFromBank(qId)
         showToast('Đã xóa câu hỏi thành công!', 'success')
         selectedQuestionIds.delete(qId)
+        selectedQuestionCache.delete(qId)
         updateBulkActionBar()
         await refreshStats()
         await fetchAndRenderQuestions()
@@ -1929,8 +1947,7 @@ async function openSyncDynamicToConstantModal() {
       `
 
       showToast(res.message || 'Đã đồng bộ thành công!', 'success')
-      await fetchAndRenderQuestions({ includeStats: true })
-      await refreshStats()
+       await fetchAndRenderQuestions({ includeStats: true })
       // Đồng bộ thành công thì đóng popup để người dùng quay lại danh sách đã cập nhật.
       closeModal()
     } catch (err) {
@@ -3005,8 +3022,13 @@ function setupHeaderActionListeners() {
   document.getElementById('qb-select-all-page')?.addEventListener('change', (e) => {
     const isChecked = e.target.checked
     allQuestions.forEach(q => {
-      if (isChecked) selectedQuestionIds.add(q.id)
-      else selectedQuestionIds.delete(q.id)
+      if (isChecked) {
+        selectedQuestionIds.add(q.id)
+        selectedQuestionCache.set(q.id, q)
+      } else {
+        selectedQuestionIds.delete(q.id)
+        selectedQuestionCache.delete(q.id)
+      }
     })
     document.querySelectorAll('.qb-select-card-chk').forEach(chk => {
       chk.checked = isChecked
@@ -3016,6 +3038,7 @@ function setupHeaderActionListeners() {
 
   document.getElementById('qb-bulk-deselect-btn')?.addEventListener('click', () => {
     selectedQuestionIds.clear()
+    selectedQuestionCache.clear()
     document.querySelectorAll('.qb-select-card-chk').forEach(chk => {
       chk.checked = false
     })
@@ -3038,6 +3061,7 @@ function setupHeaderActionListeners() {
       const res = await api.updateQuestionInBank({ ids, difficulty: newDiff })
       showToast(res.message || `Đã cập nhật mức độ cho ${ids.length} câu hỏi thành công!`, 'success')
       selectedQuestionIds.clear()
+      selectedQuestionCache.clear()
       updateBulkActionBar()
       await refreshStats()
       await fetchAndRenderQuestions()
@@ -3076,6 +3100,7 @@ function setupHeaderActionListeners() {
       const res = await api.deleteQuestionsBulkFromBank(ids)
       showToast(res.message || `Đã xóa thành công ${count} câu hỏi khỏi Ngân hàng!`, 'success')
       selectedQuestionIds.clear()
+      selectedQuestionCache.clear()
       updateBulkActionBar()
       await refreshStats()
       await fetchAndRenderQuestions()
@@ -3138,9 +3163,19 @@ function openCreateFromSelectedModal(questionBankIds) {
             ${renderHomeworkConfigFields('cs')}
           </div>
         </div>
-        <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:flex-end; gap:12px;">
-          <button id="create-selected-cancel-btn" style="padding:9px 18px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; cursor:pointer;">Hủy</button>
-          <button id="create-selected-submit-btn" style="padding:9px 24px; font-size:13px; font-weight:600; border-radius:8px; background:#16a34a; color:#ffffff; border:none; cursor:pointer;">Tạo đề</button>
+        <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#f8fafc; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button type="button" id="create-selected-export-student" class="btn-secondary" style="width:auto; padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#0369a1; cursor:pointer;">
+              <i class="fa-regular fa-file-pdf"></i> Xuất PDF đề trắng
+            </button>
+            <button type="button" id="create-selected-export-answer" class="btn-secondary" style="width:auto; padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#15803d; cursor:pointer;">
+              <i class="fa-solid fa-file-pdf"></i> Xuất PDF kèm đáp án
+            </button>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <button id="create-selected-cancel-btn" style="padding:9px 18px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; cursor:pointer;">Hủy</button>
+            <button id="create-selected-submit-btn" style="padding:9px 24px; font-size:13px; font-weight:600; border-radius:8px; background:#16a34a; color:#ffffff; border:none; cursor:pointer;">Tạo đề</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3173,6 +3208,57 @@ function openCreateFromSelectedModal(questionBankIds) {
   })
   bindHomeworkConfigFields('cs')
   bindHomeworkTypeCoupling('create-selected-type', 'cs-attempts', 'cs-violations')
+
+  const handleSelectedExport = async (mode) => {
+    const btnStudent = document.getElementById('create-selected-export-student')
+    const btnAnswer = document.getElementById('create-selected-export-answer')
+    if (!questionBankIds || questionBankIds.length === 0) {
+      return showToast('Vui lòng chọn ít nhất một câu hỏi để xuất PDF!', 'warning')
+    }
+
+    const selectedQuestions = []
+    let missingAny = false
+    for (const id of questionBankIds) {
+      const q = selectedQuestionCache.get(id) || selectedQuestionCache.get(String(id))
+      if (!q) {
+        missingAny = true
+        break
+      }
+      selectedQuestions.push(q)
+    }
+
+    if (missingAny) {
+      return showToast('Một số câu chưa có dữ liệu, hãy chọn lại', 'warning')
+    }
+
+    const rawTitle = document.getElementById('create-selected-title')?.value.trim()
+    const title = rawTitle || 'De_bai'
+    const type = document.getElementById('create-selected-type')?.value || 'PRACTICE'
+    const cfg = collectHomeworkConfig('cs')
+    const duration = cfg?.durationMinutes
+
+    if (btnStudent) btnStudent.disabled = true
+    if (btnAnswer) btnAnswer.disabled = true
+
+    try {
+      const printQuestions = buildBankPrintQuestions(selectedQuestions)
+      await exportExamPdf({
+        title,
+        meta: { durationMinutes: Number.isFinite(duration) && duration > 0 ? duration : null },
+        questions: printQuestions,
+        mode,
+        role: state.user?.role,
+        homework: { type }
+      })
+    } finally {
+      if (btnStudent) btnStudent.disabled = false
+      if (btnAnswer) btnAnswer.disabled = false
+    }
+  }
+
+  document.getElementById('create-selected-export-student')?.addEventListener('click', () => handleSelectedExport('student'))
+  document.getElementById('create-selected-export-answer')?.addEventListener('click', () => handleSelectedExport('answer'))
+
   document.getElementById('create-selected-submit-btn')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget
     const title = document.getElementById('create-selected-title')?.value.trim()
@@ -3186,9 +3272,14 @@ function openCreateFromSelectedModal(questionBankIds) {
     try {
       const res = await api.createHomeworkFromBankQuestions({ targetLessonId, title, type, durationMinutes: cfg.durationMinutes, maxAttempts: type === 'EXAM' ? 1 : cfg.maxAttempts, maxViolations: cfg.maxViolations, deadline: cfg.deadline, showSolutions: cfg.showSolutions, questionBankIds })
       showToast(res.message || 'Đã tạo đề thành công!', 'success')
+      const createdIds = extractHomeworkIdsFromCreateResponse(res)
       selectedQuestionIds.clear()
+      selectedQuestionCache.clear()
       updateBulkActionBar()
       closeModal()
+      if (createdIds.length > 0) {
+        queueAutoPdfGeneration(createdIds, { title, durationMinutes: cfg.durationMinutes })
+      }
     } catch (err) {
       showToast('Lỗi tạo đề: ' + err.message, 'error')
       btn.disabled = false
@@ -4633,11 +4724,13 @@ async function openImportFromHomeworkModal() {
                 <option value="">-- Tất cả lớp học --</option>
                 ${allClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
               </select>
+              <input id="hw-import-search" type="search" placeholder="Tìm theo tên bài tập..." aria-label="Tìm bài tập" style="height:36px; min-width:220px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px;" />
             </div>
             <div style="font-size:13px; color:#64748b;">
               Đã chọn: <strong id="hw-selected-count" style="color:#0284c7;">0</strong> bài tập
             </div>
           </div>
+          <div id="hw-import-pagination" style="display:flex; justify-content:center; align-items:center; gap:10px; margin:-8px 0 18px;"></div>
 
           <!-- Homeworks list table -->
           <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; margin-bottom:18px;">
@@ -4695,31 +4788,40 @@ async function openImportFromHomeworkModal() {
   document.getElementById('import-hw-backdrop')?.addEventListener('click', closeModal)
 
   // Load homeworks
-  let rawHomeworks = []
-  try {
-    rawHomeworks = await api.getHomeworks('')
-    renderHomeworkTable(rawHomeworks)
-  } catch (err) {
-    document.getElementById('hw-list-tbody').innerHTML = `
-      <tr><td colspan="4" style="padding:20px; text-align:center; color:#dc2626;">Lỗi tải bài tập: ${err.message}</td></tr>
-    `
+  let homeworkPage = 1
+  const homeworkPageSize = 20
+  let homeworkSearch = ''
+  let homeworkRequestId = 0
+  const loadHomeworks = async () => {
+    const requestId = ++homeworkRequestId
+    const tbody = document.getElementById('hw-list-tbody')
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải bài tập...</td></tr>`
+    try {
+      const result = await api.getHomeworks({ classId: document.getElementById('hw-filter-class-sel')?.value || '', search: homeworkSearch, page: homeworkPage, pageSize: homeworkPageSize })
+      if (requestId !== homeworkRequestId) return
+      const items = Array.isArray(result) ? result : (result?.items || [])
+      renderHomeworkTable(items)
+      const pageEl = document.getElementById('hw-import-pagination')
+      const totalPages = Math.max(1, Number(result?.totalPages || Math.ceil((result?.total || items.length) / homeworkPageSize)))
+      if (pageEl) pageEl.innerHTML = `<button class="btn-secondary" ${homeworkPage <= 1 ? 'disabled' : ''} data-hw-page="prev" style="width:auto; padding:5px 10px;">Trang trước</button><span style="font-size:12px; color:#64748b;">Trang ${homeworkPage}/${totalPages}</span><button class="btn-secondary" ${homeworkPage >= totalPages ? 'disabled' : ''} data-hw-page="next" style="width:auto; padding:5px 10px;">Trang sau</button>`
+      pageEl?.querySelector('[data-hw-page="prev"]')?.addEventListener('click', () => { homeworkPage--; loadHomeworks() })
+      pageEl?.querySelector('[data-hw-page="next"]')?.addEventListener('click', () => { homeworkPage++; loadHomeworks() })
+    } catch (err) {
+      if (requestId === homeworkRequestId && tbody) tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#dc2626;">Lỗi tải bài tập: ${err.message}</td></tr>`
+    }
   }
+  await loadHomeworks()
+  let homeworkSearchTimer
+  document.getElementById('hw-import-search')?.addEventListener('input', (e) => {
+    clearTimeout(homeworkSearchTimer)
+    homeworkSearchTimer = setTimeout(() => { homeworkSearch = e.target.value.trim(); homeworkPage = 1; loadHomeworks() }, 300)
+  })
 
   // Filter homeworks by class (server-side filter)
   document.getElementById('hw-filter-class-sel')?.addEventListener('change', async (e) => {
     const clId = e.target.value
-    const tbody = document.getElementById('hw-list-tbody')
-    if (tbody) {
-      tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải bài tập...</td></tr>`
-    }
-    try {
-      const filtered = await api.getHomeworks('', clId)
-      renderHomeworkTable(filtered)
-    } catch (err) {
-      if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#dc2626;">Lỗi tải bài tập: ${err.message}</td></tr>`
-      }
-    }
+    homeworkPage = 1
+    await loadHomeworks()
   })
 
   function renderHomeworkTable(list) {
@@ -5176,9 +5278,15 @@ async function openMatrixGeneratorModal() {
                 22 câu hỏi • 60 phút
               </div>
             </div>
-            <div style="display:flex; gap:8px;">
-              <button id="btn-back-to-config" class="btn-secondary" style="padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button id="btn-back-to-config" class="btn-secondary" style="width:auto; padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer;">
                 <i class="fa-solid fa-arrow-left"></i> Chỉnh lại ma trận
+              </button>
+              <button type="button" id="btn-matrix-export-student" class="btn-secondary" style="width:auto; padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#0369a1; cursor:pointer;">
+                <i class="fa-regular fa-file-pdf"></i> Xuất PDF đề trắng
+              </button>
+              <button type="button" id="btn-matrix-export-answer" class="btn-secondary" style="width:auto; padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#15803d; cursor:pointer;">
+                <i class="fa-solid fa-file-pdf"></i> Xuất PDF kèm đáp án
               </button>
             </div>
           </div>
@@ -5326,7 +5434,7 @@ async function openMatrixGeneratorModal() {
     treeDataCache.expandedLessons.clear()
     renderTreeForGradeBlock(generatorState.gradeBlock)
     updateTreeSelectionBadge()
-    checkLiveAvailability()
+    scheduleLiveAvailability()
   })
 
   function updateTreeSelectionBadge() {
@@ -5504,7 +5612,7 @@ async function openMatrixGeneratorModal() {
   function applyTreeSelectionChange() {
     recomputeParentSelections()
     refreshTreeSelectionUI()
-    checkLiveAvailability()
+    scheduleLiveAvailability()
   }
 
   function handleClassCheckbox(clId, isChecked) {
@@ -6385,6 +6493,12 @@ async function openMatrixGeneratorModal() {
   // Discard responses for earlier selections so a slow request cannot overwrite
   // the counts shown for the currently selected scope.
   let availabilityRequestId = 0
+  let availabilityTimer = null
+  const scheduleLiveAvailability = () => {
+    if (typeof setTimeout !== 'function') return checkLiveAvailability()
+    if (typeof clearTimeout === 'function') clearTimeout(availabilityTimer)
+    availabilityTimer = setTimeout(() => checkLiveAvailability(), 250)
+  }
   function clearMatrixPreview() {
     rollRequestId++
     rolling = false
@@ -6475,7 +6589,7 @@ async function openMatrixGeneratorModal() {
   // Trigger initial tree render & availability check
   renderTreeForGradeBlock(generatorState.gradeBlock)
   updateTreeSelectionBadge()
-  checkLiveAvailability()
+  scheduleLiveAvailability()
 
   // Cụm cấu hình bài tập dùng chung form tạo bài tập
   bindHomeworkConfigFields('mx')
@@ -6638,6 +6752,49 @@ async function openMatrixGeneratorModal() {
     btnRollPreview.style.display = 'inline-flex'
     btnFinalize.style.display = 'none'
   })
+
+  // Export PDF from Matrix Step 2 Preview
+  const handleMatrixExport = async (mode) => {
+    if (!isCurrentMatrixModal()) return
+    const exportStudentBtn = document.getElementById('btn-matrix-export-student')
+    const exportAnswerBtn = document.getElementById('btn-matrix-export-answer')
+    const questions = generatorState.previewQuestions
+    if (!questions || questions.length === 0) {
+      return showToast('Đề chưa có câu hỏi để xuất PDF.', 'warning')
+    }
+    const isMultiVariants = document.getElementById('gen-multi-variants')?.checked
+    if (isMultiVariants) {
+      showToast('PDF xuất theo thứ tự xem trước (mã đề hoán vị được tạo khi xuất bản)', 'info')
+    }
+    const rawTitle = document.getElementById('gen-exam-title')?.value.trim()
+    const title = rawTitle || 'De_kiem_tra'
+    const hwType = document.getElementById('gen-exam-type')?.value || 'PRACTICE'
+    const mxCfg = collectHomeworkConfig('mx')
+    const duration = mxCfg?.durationMinutes || parseInt(document.getElementById('mx-duration')?.value || '90', 10)
+
+    if (exportStudentBtn) exportStudentBtn.disabled = true
+    if (exportAnswerBtn) exportAnswerBtn.disabled = true
+
+    try {
+      const printQuestions = buildBankPrintQuestions(questions)
+      await exportExamPdf({
+        title,
+        meta: { durationMinutes: Number.isFinite(duration) && duration > 0 ? duration : null },
+        questions: printQuestions,
+        mode,
+        role: state.user?.role,
+        homework: { type: hwType }
+      })
+    } finally {
+      if (isCurrentMatrixModal()) {
+        if (exportStudentBtn) exportStudentBtn.disabled = false
+        if (exportAnswerBtn) exportAnswerBtn.disabled = false
+      }
+    }
+  }
+
+  document.getElementById('btn-matrix-export-student')?.addEventListener('click', () => handleMatrixExport('student'))
+  document.getElementById('btn-matrix-export-answer')?.addEventListener('click', () => handleMatrixExport('answer'))
 
   // Render Preview Questions List with Cognitive Badges and Smart Swap
   function renderPreviewQuestionsList() {
@@ -6988,8 +7145,12 @@ async function openMatrixGeneratorModal() {
       })
 
       showToast(res.message || 'Đã tạo bài tập thành công!', 'success')
+      const createdIds = extractHomeworkIdsFromCreateResponse(res)
       closeModal()
       window.location.hash = '#homework-mgmt'
+      if (createdIds.length > 0) {
+        queueAutoPdfGeneration(createdIds, { title, durationMinutes: cfg.durationMinutes })
+      }
     } catch (err) {
       showToast('Lỗi khi tạo bài thi: ' + err.message, 'error')
       btnFinalize.disabled = false

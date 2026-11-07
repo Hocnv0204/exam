@@ -8,12 +8,16 @@
 // Phạm vi đối chiếu: (qb_lesson_id, hash) theo uq_qb_constant_lesson_hash, hoặc
 // (grade_block, hash) với qb_lesson_id NULL theo uq_qb_dynamic_block_hash.
 export const processImportRows = async (rows: any[], sourceQuestions: any[], mode: string, client: any, hashContent: any) => {
-  const result: { importedCount: number, updatedCount: number, skippedCount: number, failedRows: any[] } =
-    { importedCount: 0, updatedCount: 0, skippedCount: 0, failedRows: [] }
+  const result: { importedCount: number, updatedCount: number, skippedCount: number, skippedRows: any[], failedRows: any[] } =
+    { importedCount: 0, updatedCount: 0, skippedCount: 0, skippedRows: [], failedRows: [] }
   const dedupKey = (lessonId: any, gradeBlock: any, hash: any) =>
     lessonId ? `lesson:${lessonId}|${hash}` : `block:${gradeBlock || ''}|${hash}`
   const numberOf = (index: number) => (sourceQuestions?.[index]?.questionNumber) || index + 1
   const fail = (index: number, reason: string) => result.failedRows.push({ questionNumber: numberOf(index), reason })
+  const skip = (index: number, reason: string) => {
+    result.skippedCount++
+    result.skippedRows.push({ questionNumber: numberOf(index), reason })
+  }
 
   // Đáp án phải hợp lệ trước khi ghi: không biến đáp án thiếu thành A/false ngầm.
   const keyProblem = (row: any): string => {
@@ -59,10 +63,10 @@ export const processImportRows = async (rows: any[], sourceQuestions: any[], mod
       continue
     }
     const key = dedupKey(row.qb_lesson_id, row.grade_block, row.content_hash)
-    if (seenInFile.has(key)) { result.skippedCount++; continue }
-    seenInFile.add(key)
+    if (seenInFile.has(key)) { skip(index, 'Trùng nội dung với câu trước đó trong file nhập (cùng bài học/khối).'); continue }
     const problem = keyProblem(row)
     if (problem) { fail(index, problem); continue }
+    seenInFile.add(key)
     candidates.push({ row, index, key })
     if (!hashes.includes(row.content_hash)) hashes.push(row.content_hash)
   }
@@ -70,7 +74,9 @@ export const processImportRows = async (rows: any[], sourceQuestions: any[], mod
 
   // 2. Tra cứu theo lô (không mỗi câu một query) để biết câu nào đã có.
   const existingByKey = new Map<string, any[]>()
-  const CHUNK = 500
+  // Mỗi hash SHA-256 dài 64 ký tự: 500 hash tạo URL PostgREST hàng chục KB,
+  // có thể bị proxy từ chối/đứt HTTP/2 trước khi DB nhận được request.
+  const CHUNK = 40
   const lessonIds = Array.from(new Set(candidates.map(c => c.row.qb_lesson_id).filter(Boolean)))
   const blocks = Array.from(new Set(candidates.map(c => c.row.grade_block).filter(Boolean)))
   for (let i = 0; i < hashes.length; i += CHUNK) {
@@ -99,7 +105,7 @@ export const processImportRows = async (rows: any[], sourceQuestions: any[], mod
   for (const candidate of candidates) {
     const existingRows = existingByKey.get(candidate.key) || []
     if (existingRows.length === 0) { toInsert.push(candidate); continue }
-    if (mode !== 'UPDATE') { result.skippedCount++; continue }
+    if (mode !== 'UPDATE') { skip(candidate.index, 'Câu hỏi đã có trong Ngân hàng (cùng bài học/khối và nội dung); chế độ Bỏ qua trùng.'); continue }
 
     const row = candidate.row
     let updatedAny = false
@@ -138,7 +144,7 @@ export const processImportRows = async (rows: any[], sourceQuestions: any[], mod
         const { data, error: rowError } = await client.from('question_bank').insert(item.row).select('id').maybeSingle()
         if (!rowError && data) { result.importedCount++; continue }
         const message = rowError?.message || 'Không xác nhận được câu hỏi đã tạo.'
-        if (rowError?.code === '23505' || /duplicate key|unique constraint/i.test(message)) result.skippedCount++
+        if (rowError?.code === '23505' || /duplicate key|unique constraint/i.test(message)) skip(item.index, 'Câu hỏi đã được thêm bởi thao tác khác trong lúc nhập (trùng ràng buộc dữ liệu).')
         else fail(item.index, message)
       }
     }

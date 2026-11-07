@@ -35,6 +35,7 @@ let studentStatusFilter = 'ALL' // 'ALL' | 'ACTIVE' | 'PAUSED'
 // Lazy-load: scope nào đã tải xong cho lớp nào (`${classId}:${scope}`), scope: kpi | students | attendance | homework | curriculum
 let loadedScopes = {}
 let pendingLoads = {} // dedup request đang bay
+const weakTopicsCache = new Map()
 
 export function renderClassDetailsView() {
   const hashUrl = window.location.hash.replace('#', '')
@@ -984,7 +985,14 @@ function refreshCurriculumTabUI(classId, currentClass) {
     bindCurriculumTabEvents(classId, currentClass, () => refreshCurriculumTabUI(classId, currentClass))
     // Admin: gắn huy hiệu tỉ lệ sai cả lớp lên từng chương (học thích ứng)
     if (state.user?.role === 'ADMIN') {
-      api.getWeakTopics({ classId, limit: 50 }).then(res => {
+      const cached = weakTopicsCache.get(classId)
+      const weakTopicsPromise = cached && Date.now() - cached.fetchedAt < 60000
+        ? Promise.resolve(cached.data)
+        : api.getWeakTopics({ classId, limit: 50 }).then(data => {
+          weakTopicsCache.set(classId, { data, fetchedAt: Date.now() })
+          return data
+        })
+      weakTopicsPromise.then(res => {
         const chapters = res?.chapters || []
         chapters.forEach(c => {
           document.querySelectorAll(`[data-weak-chapter="${c.chapterId}"]`).forEach(el => {

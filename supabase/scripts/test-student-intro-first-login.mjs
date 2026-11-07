@@ -55,7 +55,7 @@ console.log('\n=== 1. Migration contract ===')
 
 console.log('\n=== 2. Login Edge Function contract ===')
 {
-  check('profile query select auto_intro_pending', /select\('id, username, full_name, role, class_id, is_locked, seen_tours, auto_intro_pending'\)/.test(loginSrc))
+  check('profile query select auto_intro_pending', /select\('id, username, full_name, role, class_id, is_locked, seen_tours, auto_intro_pending(, student_classes\(class_id\))?'\)/.test(loginSrc))
   check('autoIntro mặc định false (fail closed)', /let\s+autoIntro\s*=\s*false/.test(loginSrc))
   check('chỉ xét role STUDENT', /profile\.role\s*===\s*'STUDENT'\s*&&\s*\(profile as any\)\.auto_intro_pending\s*===\s*true/.test(loginSrc))
   check('CAS update WHERE auto_intro_pending = true', /\.update\(\{\s*auto_intro_pending:\s*false\s*\}\)[\s\S]*?\.eq\('auto_intro_pending',\s*true\)/.test(loginSrc))

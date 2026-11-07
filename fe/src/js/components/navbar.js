@@ -9,7 +9,7 @@ const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '
 async function switchToHocnvSession() {
   try {
     showToast('Đang mở phiên học sinh hocnv...', 'info')
-    const res = await api.getStudents()
+    const res = await api.getStudents({ search: 'hocnv' })
     const students = Array.isArray(res) ? res : (res?.items || res?.students || [])
     const target = students.find(s => (s.username || '').toLowerCase() === 'hocnv')
     if (!target) {

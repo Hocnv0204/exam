@@ -95,7 +95,7 @@ assert.ok(
   'Authorization user token phai duoc bo qua khi omitAuthorization'
 )
 assert.ok(
-  apiSrc.includes('!omitAuthorization && import.meta.env.VITE_SUPABASE_ANON_KEY'),
+  /!omitAuthorization && import\.meta\.env\??\.VITE_SUPABASE_ANON_KEY/.test(apiSrc),
   'Anon bearer cung phai bi bo qua khi omitAuthorization (KHONG gui Authorization nao)'
 )
 
