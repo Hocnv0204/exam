@@ -1,0 +1,1051 @@
+/* ==========================================================================
+   Admin Pro — G6 Students & Operations (Học sinh, Chi tiết, Báo cáo, Học thử, Nhật ký, Lịch tuần)
+   MỌI rule bắt buộc có tiền tố html[data-admin-ui="pro"]
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Typography & Thẻ chung trên các view nhóm Students
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] :is(.page-title, .report-section-title, .student-kpi-value, #wc-range, #wc-meet-heading) {
+  font-family: var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] :is(.student-top-bar, .report-section, .trial-kpi-card, .wc-day, .wc-event) {
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] .page-header .page-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--ap-ink);
+  letter-spacing: -0.5px;
+}
+
+html[data-admin-ui="pro"] .page-header .page-description {
+  margin: 6px 0 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+/* --------------------------------------------------------------------------
+   2. Quản lý học sinh (#students)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #open-create-student-btn {
+  min-height: 44px;
+  padding: 0 20px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+  box-shadow: var(--ap-shadow) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #open-create-student-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] #open-create-student-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #students .content-body .card,
+html[data-admin-ui="pro"] .content-body > .card {
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] .search-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  background: var(--ap-surface2);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .search-box:focus-within {
+  border-color: var(--ap-accent);
+}
+
+html[data-admin-ui="pro"] .search-box i {
+  color: var(--ap-muted);
+  font-size: 15px;
+}
+
+html[data-admin-ui="pro"] .search-box input {
+  border: none;
+  background: transparent;
+  color: var(--ap-ink);
+  font-family: var(--ap-font);
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  width: 100%;
+}
+
+html[data-admin-ui="pro"] .search-box input::placeholder {
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #class-filter-select,
+html[data-admin-ui="pro"] #activity-class-filter,
+html[data-admin-ui="pro"] #activity-action-filter,
+html[data-admin-ui="pro"] #activity-from-date,
+html[data-admin-ui="pro"] #activity-to-date,
+html[data-admin-ui="pro"] #details-class-selector,
+html[data-admin-ui="pro"] #details-month-picker,
+html[data-admin-ui="pro"] #report-from-date,
+html[data-admin-ui="pro"] #report-to-date,
+html[data-admin-ui="pro"] #trial-filter-class,
+html[data-admin-ui="pro"] #trial-filter-chapter,
+html[data-admin-ui="pro"] #trial-filter-status,
+html[data-admin-ui="pro"] #trial-filter-video {
+  min-height: 44px;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #class-filter-select:focus,
+html[data-admin-ui="pro"] #activity-class-filter:focus,
+html[data-admin-ui="pro"] #activity-action-filter:focus,
+html[data-admin-ui="pro"] #activity-from-date:focus,
+html[data-admin-ui="pro"] #activity-to-date:focus,
+html[data-admin-ui="pro"] #details-class-selector:focus,
+html[data-admin-ui="pro"] #details-month-picker:focus,
+html[data-admin-ui="pro"] #report-from-date:focus,
+html[data-admin-ui="pro"] #report-to-date:focus,
+html[data-admin-ui="pro"] #trial-filter-class:focus,
+html[data-admin-ui="pro"] #trial-filter-chapter:focus,
+html[data-admin-ui="pro"] #trial-filter-status:focus,
+html[data-admin-ui="pro"] #trial-filter-video:focus {
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .table-responsive {
+  overflow-x: auto;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  background: var(--ap-surface);
+  margin-top: 14px;
+}
+
+html[data-admin-ui="pro"] .data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+  font-family: var(--ap-font);
+}
+
+html[data-admin-ui="pro"] .data-table thead tr {
+  background: var(--ap-surface2);
+  border-bottom: 2px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] .data-table thead th {
+  padding: 13px 14px;
+  color: var(--ap-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  border: none;
+}
+
+html[data-admin-ui="pro"] .data-table tbody tr {
+  border-top: 1px solid var(--ap-line);
+  transition: background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .data-table tbody tr:hover {
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] .data-table tbody td {
+  padding: 13px 14px;
+  color: var(--ap-ink);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+html[data-admin-ui="pro"] .avatar-circle {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border: 2px solid var(--ap-line);
+  border-radius: 50%;
+  background: var(--ap-accent-soft);
+  color: var(--ap-accent);
+  font-family: var(--ap-font-heading);
+  font-weight: 800;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-admin-ui="pro"] .student-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+html[data-admin-ui="pro"] .student-info-cell strong,
+html[data-admin-ui="pro"] .student-info-cell div[style*="font-weight:700"] {
+  color: var(--ap-ink) !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .student-info-cell div[style*="font-size:12px"] {
+  color: var(--ap-muted) !important;
+}
+
+/* Ánh xạ badge lớp học và chip số dư/trạng thái */
+html[data-admin-ui="pro"] #students span[style*="background:#e0f2fe"],
+html[data-admin-ui="pro"] #students span[style*="background: #e0f2fe"] {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+  border: 1px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  padding: 3px 9px !important;
+}
+
+html[data-admin-ui="pro"] #students .badge-active,
+html[data-admin-ui="pro"] #students .badge[style*="#f0fdf4"] {
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  border: 1px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  padding: 4px 10px !important;
+}
+
+html[data-admin-ui="pro"] #students .badge-inactive,
+html[data-admin-ui="pro"] #students .badge[style*="#fef2f2"] {
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  border: 1px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  padding: 4px 10px !important;
+}
+
+html[data-admin-ui="pro"] #students td div[style*="color:#10b981"],
+html[data-admin-ui="pro"] #students td div[style*="color: #10b981"] {
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+}
+
+/* Nút thao tác dạng sticker icon trong bảng học sinh */
+html[data-admin-ui="pro"] #students td a,
+html[data-admin-ui="pro"] #students td .btn-view-activity,
+html[data-admin-ui="pro"] #students td .btn-unlock-student,
+html[data-admin-ui="pro"] #students td .btn-lock-student,
+html[data-admin-ui="pro"] #students td .btn-add-balance,
+html[data-admin-ui="pro"] #students td .btn-edit-balance,
+html[data-admin-ui="pro"] #students td .btn-edit-student,
+html[data-admin-ui="pro"] #students td .btn-delete-student {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-size: 15px !important;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-decoration: none;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+html[data-admin-ui="pro"] #students td a:hover,
+html[data-admin-ui="pro"] #students td .btn-view-activity:hover,
+html[data-admin-ui="pro"] #students td .btn-unlock-student:hover,
+html[data-admin-ui="pro"] #students td .btn-lock-student:hover,
+html[data-admin-ui="pro"] #students td .btn-add-balance:hover,
+html[data-admin-ui="pro"] #students td .btn-edit-balance:hover,
+html[data-admin-ui="pro"] #students td .btn-edit-student:hover,
+html[data-admin-ui="pro"] #students td .btn-delete-student:hover {
+  transform: translateY(-2px);
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+}
+
+/* --------------------------------------------------------------------------
+   3. Chi tiết học sinh (#student-details)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #student-details .content-body a.btn-secondary {
+  min-height: 44px;
+  padding: 0 16px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  text-decoration: none;
+  box-shadow: none;
+}
+
+html[data-admin-ui="pro"] #student-details .content-body a.btn-secondary:hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #student-details .card[style*="background:linear-gradient"],
+html[data-admin-ui="pro"] #student-details .card[style*="background: linear-gradient"] {
+  background: var(--ap-surface) !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 24px !important;
+}
+
+html[data-admin-ui="pro"] #student-details .card[style*="border:1px solid #10b981"],
+html[data-admin-ui="pro"] #student-details .card[style*="border: 1px solid #10b981"] {
+  background: var(--ap-surface) !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] #student-details .card[style*="border:1px solid #0284c7"],
+html[data-admin-ui="pro"] #student-details .card[style*="border: 1px solid #0284c7"] {
+  background: var(--ap-surface) !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] #student-details .card[style*="border:1px solid #fecaca"],
+html[data-admin-ui="pro"] #student-details .card[style*="border: 1px solid #fecaca"] {
+  background: var(--ap-surface) !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-amount-display {
+  font-family: var(--ap-font-heading) !important;
+  color: var(--ap-ok) !important;
+  font-size: 30px !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] #sessions-count-display {
+  font-family: var(--ap-font-heading) !important;
+  color: var(--ap-blue) !important;
+  font-size: 30px !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] #save-student-sessions-btn,
+html[data-admin-ui="pro"] #open-progress-report-btn {
+  min-height: 44px;
+  padding: 0 20px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  box-shadow: var(--ap-shadow) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #save-student-sessions-btn:hover,
+html[data-admin-ui="pro"] #open-progress-report-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] .calendar-day-btn {
+  font-family: var(--ap-font) !important;
+  border-radius: 12px !important;
+  min-height: 52px;
+  transition: transform 0.12s ease, border-color 0.12s ease !important;
+}
+
+html[data-admin-ui="pro"] .calendar-day-btn:hover {
+  transform: scale(1.04);
+}
+
+/* --------------------------------------------------------------------------
+   4. Báo cáo tiến độ Admin (#student-report)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #student-report .report-section {
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #student-report .report-section-title {
+  margin: 0 0 16px 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  letter-spacing: -0.3px;
+}
+
+html[data-admin-ui="pro"] #student-report .report-hero {
+  border: 2px solid var(--ap-ink);
+  border-radius: var(--ap-radius-lg);
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] #student-report .report-hero-name {
+  font-family: var(--ap-font-heading);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #student-report .report-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+html[data-admin-ui="pro"] #student-report .report-kpi {
+  border: 2px solid var(--ap-line);
+  border-radius: 18px;
+  background: var(--ap-surface2);
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #student-report .report-kpi-label {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--ap-muted);
+  letter-spacing: 0.4px;
+  margin: 0 0 4px 0;
+}
+
+html[data-admin-ui="pro"] #student-report .report-kpi-value {
+  font-size: 27px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  line-height: 1.2;
+}
+
+html[data-admin-ui="pro"] #student-report .report-kpi-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ap-muted);
+  margin: 4px 0 0 0;
+}
+
+html[data-admin-ui="pro"] #student-report .report-trend-block {
+  border: 2px solid var(--ap-line);
+  border-radius: 18px;
+  background: var(--ap-surface2);
+  padding: 18px;
+}
+
+html[data-admin-ui="pro"] #student-report .report-trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--ap-ok-soft);
+  color: var(--ap-ok);
+  border: 1px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] #student-report .report-trend-stat {
+  border: 2px solid var(--ap-line);
+  border-radius: 14px;
+  background: var(--ap-surface);
+  padding: 14px;
+}
+
+html[data-admin-ui="pro"] #student-report .report-chart-card,
+html[data-admin-ui="pro"] #student-report .report-chart-wrap {
+  border: 2px solid var(--ap-line);
+  border-radius: 18px;
+  background: var(--ap-surface2);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #student-report .report-topic-item {
+  border: 2px solid var(--ap-line);
+  border-radius: 16px;
+  background: var(--ap-surface2);
+  padding: 14px 18px;
+  margin-bottom: 10px;
+}
+
+html[data-admin-ui="pro"] #student-report .report-table-responsive {
+  overflow-x: auto;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  background: var(--ap-surface);
+}
+
+html[data-admin-ui="pro"] #student-report .report-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+}
+
+html[data-admin-ui="pro"] #student-report .report-table thead tr {
+  background: var(--ap-surface2);
+  border-bottom: 2px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] #student-report .report-table thead th {
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #student-report .report-table tbody tr {
+  border-top: 1px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] #student-report .report-table tbody td {
+  padding: 12px 14px;
+  color: var(--ap-ink);
+  font-size: 14px;
+}
+
+html[data-admin-ui="pro"] #share-create-btn {
+  min-height: 44px;
+  padding: 0 20px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  box-shadow: var(--ap-shadow) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+html[data-admin-ui="pro"] #share-create-btn:hover {
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] .report-share-active-box {
+  border: 2px solid var(--ap-line);
+  border-radius: 18px;
+  background: var(--ap-surface2);
+  padding: 20px;
+}
+
+/* --------------------------------------------------------------------------
+   5. Quản lý học thử (#trial-management)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #trial-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] #trial-kpis .card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 18px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 18px !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #trial-kpis .card div:first-child {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: var(--ap-muted) !important;
+  letter-spacing: 0.4px;
+}
+
+html[data-admin-ui="pro"] #trial-kpis .card div:last-child {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin-top: 6px !important;
+}
+
+html[data-admin-ui="pro"] #trial-filter-q {
+  min-height: 44px;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  outline: none;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #trial-filter-q:focus {
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #trial-mgmt-list {
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  overflow: hidden;
+  margin-top: 16px;
+}
+
+html[data-admin-ui="pro"] .trial-lesson-row {
+  border-top: 1px solid var(--ap-line) !important;
+  padding: 16px 20px !important;
+  background: var(--ap-surface);
+  transition: background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .trial-lesson-row:hover {
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] .trial-lesson-title {
+  font-family: var(--ap-font-heading);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .trial-lesson-meta {
+  color: var(--ap-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+html[data-admin-ui="pro"] #btn-trial-retry,
+html[data-admin-ui="pro"] #trial-mgmt-list button.btn-secondary,
+html[data-admin-ui="pro"] #trial-mgmt-list button.btn-primary {
+  min-height: 44px;
+  border-radius: 12px;
+  font-family: var(--ap-font);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   6. Nhật ký hoạt động (#activity-logs)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #activity-search-input {
+  min-height: 44px;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #activity-search-input:focus {
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #activity-apply-btn {
+  min-height: 44px;
+  padding: 0 20px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  box-shadow: var(--ap-shadow) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #activity-apply-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] #activity-reset-btn {
+  min-height: 44px;
+  padding: 0 18px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+html[data-admin-ui="pro"] #activity-reset-btn:hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #activity-logs .badge-paid {
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  border: 1px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  padding: 4px 10px !important;
+}
+
+/* --------------------------------------------------------------------------
+   7. Lịch tuần Admin (#weekly-calendar)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 24px !important;
+  margin-bottom: 24px !important;
+}
+
+html[data-admin-ui="pro"] .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero h1 {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .app-layout[data-role="ADMIN"] #weekly-calendar-root .navy-hero p {
+  color: var(--ap-muted) !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-note {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 14px 18px !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-toolbar {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 16px 20px !important;
+  gap: 12px !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-prev,
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-next,
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-export {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-prev:hover,
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-next:hover,
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-export:not(:disabled):hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-today {
+  min-height: 44px !important;
+  padding: 0 18px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 12px !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-class {
+  min-height: 44px !important;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-range {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin: 16px 0 8px 0 !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-day {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 18px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+  color: var(--ap-ink) !important;
+  padding: 16px 14px !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-day[aria-current="date"] {
+  border: 2px solid var(--ap-accent) !important;
+  box-shadow: 0 4px 0 var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-day h3 {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin: 0 0 12px 0 !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-event {
+  border-radius: 12px !important;
+  border: 1px solid var(--ap-line) !important;
+  border-left: 4px solid var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 10px !important;
+  margin-bottom: 10px !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-event.session {
+  border: 1px solid var(--ap-line) !important;
+  border-left: 4px solid var(--ap-ok) !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-meta {
+  color: var(--ap-muted) !important;
+  font-size: 12px !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-meet-heading {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar-root .wc-meet-list li {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 16px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+  padding: 16px !important;
+}
+
+/* --------------------------------------------------------------------------
+   8. Dark Mode Overrides
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"][data-theme="dark"] #students .card,
+html[data-admin-ui="pro"][data-theme="dark"] #student-details .card,
+html[data-admin-ui="pro"][data-theme="dark"] #student-report .report-section,
+html[data-admin-ui="pro"][data-theme="dark"] #trial-management .card,
+html[data-admin-ui="pro"][data-theme="dark"] #activity-logs .card {
+  background: var(--ap-surface);
+  border-color: var(--ap-line);
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .calendar-day-btn[style*="background:#ffffff"],
+html[data-admin-ui="pro"][data-theme="dark"] .calendar-day-btn[style*="background: #ffffff"],
+html[data-admin-ui="pro"][data-theme="dark"] .calendar-day-btn[style*="background:#fff"] {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  border-color: var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .calendar-day-btn[style*="#dcfce7"] {
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  border-color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .calendar-day-btn[style*="#fef3c7"] {
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  border-color: var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .student-info-cell div[style*="color:#0f172a"] {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] td[style*="color:#334155"] {
+  color: var(--ap-muted) !important;
+}
+
+/* --------------------------------------------------------------------------
+   9. Responsive Rules
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] #weekly-calendar-root .wc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-admin-ui="pro"] #student-details .grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+
+  html[data-admin-ui="pro"] #student-details .grid-3 > div {
+    grid-column: span 1 !important;
+  }
+
+  html[data-admin-ui="pro"] .table-responsive {
+    overflow-x: auto !important;
+  }
+
+  html[data-admin-ui="pro"] .report-table-responsive {
+    overflow-x: auto !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] #weekly-calendar-root .wc-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html[data-admin-ui="pro"] .page-header .page-title {
+    font-size: 26px !important;
+  }
+
+  html[data-admin-ui="pro"] .flex-wrap-mobile {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  html[data-admin-ui="pro"] .full-width-mobile {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  html[data-admin-ui="pro"] .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html[data-admin-ui="pro"] .report-table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html[data-admin-ui="pro"] #open-create-student-btn,
+  html[data-admin-ui="pro"] #activity-apply-btn,
+  html[data-admin-ui="pro"] #activity-reset-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}

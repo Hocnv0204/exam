@@ -4,6 +4,9 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
 
 let currentPage = 1
 let pageSize = 20
@@ -41,8 +44,9 @@ function logDetail(log) {
 }
 
 export function renderActivityLogsView() {
+  const proUI = typeof isAdminProUI === 'function' && isAdminProUI()
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="activity-logs" data-route="activity-logs" data-role="ADMIN' : ''}">
       ${renderSidebar('activity-logs')}
       <div class="main-content">
         ${renderNavbar('Quản trị / Nhật ký hoạt động')}

@@ -3,6 +3,9 @@ import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
 
 let selectedSessionDates = new Map()
 
@@ -12,10 +15,11 @@ export function renderStudentDetailsView() {
   const params = new URLSearchParams(queryString || '')
   const studentId = params.get('studentId')
   
+  const proUI = isAdminProUI()
   const student = state.students.find(s => s.id === studentId)
   if (!student) {
     return `
-      <div class="app-layout">
+      <div class="app-layout${proUI ? ' admin-dark" id="student-details" data-route="student-details" data-role="ADMIN' : ''}">
         ${renderSidebar('students')}
         <div class="main-content">
           ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -37,7 +41,7 @@ export function renderStudentDetailsView() {
 
   if (!currentClass) {
     return `
-      <div class="app-layout">
+      <div class="app-layout${proUI ? ' admin-dark" id="student-details" data-route="student-details" data-role="ADMIN' : ''}">
         ${renderSidebar('students')}
         <div class="main-content">
           ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -77,7 +81,7 @@ export function renderStudentDetailsView() {
   const defaultReportFrom = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="student-details" data-route="student-details" data-role="ADMIN' : ''}">
       ${renderSidebar('students')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Chi tiết học sinh')}

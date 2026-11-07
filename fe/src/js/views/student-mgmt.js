@@ -6,6 +6,9 @@ import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
 
 let currentPage = 1
 let pageSize = 10
@@ -41,9 +44,10 @@ export function renderStudentMgmtView() {
 
   const from = (currentPage - 1) * pageSize
   const pagedStudents = currentList.slice(from, from + pageSize)
+  const proUI = isAdminProUI()
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="students" data-route="students" data-role="ADMIN' : ''}">
       ${renderSidebar('students')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -112,6 +116,7 @@ export function renderStudentMgmtView() {
 }
 
 function renderStudentRow(s) {
+  const proUI = isAdminProUI()
   const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
   const isLocked = Boolean(s.isLocked)
   
@@ -154,15 +159,15 @@ function renderStudentRow(s) {
       <td style="color:#64748b;">${s.createdAt || 'Mới khởi tạo'}</td>
       <td>
         <div style="display:flex; gap:10px; align-items:center;">
-          <a href="#student-details?studentId=${s.id}&classId=${s.classId || (s.classIds && s.classIds[0]) || ''}" title="Xem chi tiết học tập & học phí" style="color:#10b981; font-size:16px; text-decoration:none; display:inline-flex; align-items:center;"><i class="fa-solid fa-circle-user"></i></a>
-          <button class="btn-view-activity" data-id="${s.id}" data-name="${s.fullName}" title="Xem nhật ký hoạt động" style="background:none; border:none; color:#7c3aed; cursor:pointer; font-size:16px;"><i class="fa-solid fa-clock-rotate-left"></i></button>
+          <a href="#student-details?studentId=${s.id}&classId=${s.classId || (s.classIds && s.classIds[0]) || ''}" title="Xem chi tiết học tập & học phí"${proUI ? ` aria-label="Xem chi tiết ${escapeHtml(s.fullName || '')}"` : ''} style="color:#10b981; font-size:16px; text-decoration:none; display:inline-flex; align-items:center;"><i class="fa-solid fa-circle-user"></i></a>
+          <button class="btn-view-activity" data-id="${s.id}" data-name="${s.fullName}" title="Xem nhật ký hoạt động"${proUI ? ` aria-label="Xem nhật ký hoạt động của ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#7c3aed; cursor:pointer; font-size:16px;"><i class="fa-solid fa-clock-rotate-left"></i></button>
           ${isLocked ? `
-          <button class="btn-unlock-student" data-id="${s.id}" data-name="${s.fullName}" title="Mở khóa tài khoản" style="background:none; border:none; color:#16a34a; cursor:pointer; font-size:16px;"><i class="fa-solid fa-lock-open"></i></button>` : `
-          <button class="btn-lock-student" data-id="${s.id}" data-name="${s.fullName}" title="Tạm khóa tài khoản" style="background:none; border:none; color:#d97706; cursor:pointer; font-size:16px;"><i class="fa-solid fa-lock"></i></button>`}
-          <button class="btn-add-balance" data-id="${s.id}" data-name="${s.fullName}" title="Nạp học phí (thêm số dư)" style="background:none; border:none; color:#f59e0b; cursor:pointer; font-size:16px;"><i class="fa-solid fa-wallet"></i></button>
-          <button class="btn-edit-balance" data-id="${s.id}" data-name="${s.fullName}" title="Sửa số dư" style="background:none; border:none; color:#16a34a; cursor:pointer; font-size:16px;"><i class="fa-solid fa-money-bill-transfer"></i></button>
-          <button class="btn-edit-student" data-id="${s.id}" title="Chỉnh sửa thông tin học sinh" style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;"><i class="fa-solid fa-pen-to-square"></i></button>
-          <button class="btn-delete-student" data-id="${s.id}" data-name="${s.fullName}" title="Xóa" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;"><i class="fa-solid fa-trash"></i></button>
+          <button class="btn-unlock-student" data-id="${s.id}" data-name="${s.fullName}" title="Mở khóa tài khoản"${proUI ? ` aria-label="Mở khóa tài khoản ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#16a34a; cursor:pointer; font-size:16px;"><i class="fa-solid fa-lock-open"></i></button>` : `
+          <button class="btn-lock-student" data-id="${s.id}" data-name="${s.fullName}" title="Tạm khóa tài khoản"${proUI ? ` aria-label="Tạm khóa tài khoản ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#d97706; cursor:pointer; font-size:16px;"><i class="fa-solid fa-lock"></i></button>`}
+          <button class="btn-add-balance" data-id="${s.id}" data-name="${s.fullName}" title="Nạp học phí (thêm số dư)"${proUI ? ` aria-label="Nạp học phí cho ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#f59e0b; cursor:pointer; font-size:16px;"><i class="fa-solid fa-wallet"></i></button>
+          <button class="btn-edit-balance" data-id="${s.id}" data-name="${s.fullName}" title="Sửa số dư"${proUI ? ` aria-label="Sửa số dư của ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#16a34a; cursor:pointer; font-size:16px;"><i class="fa-solid fa-money-bill-transfer"></i></button>
+          <button class="btn-edit-student" data-id="${s.id}" title="Chỉnh sửa thông tin học sinh"${proUI ? ` aria-label="Chỉnh sửa thông tin của ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#0066cc; cursor:pointer; font-size:16px;"><i class="fa-solid fa-pen-to-square"></i></button>
+          <button class="btn-delete-student" data-id="${s.id}" data-name="${s.fullName}" title="Xóa"${proUI ? ` aria-label="Xóa học sinh ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;"><i class="fa-solid fa-trash"></i></button>
         </div>
       </td>
     </tr>

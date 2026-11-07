@@ -24,6 +24,9 @@ import { renderNavbar } from '../components/navbar.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { escapeHtml } from '../utils/download-helper.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
 import {
   classifyVideoUrl,
   isValidVideoUrl,
@@ -538,9 +541,10 @@ export function renderTrialManagementView() {
   viewState = 'loading'
   loadErrorMessage = ''
   serverKpis = null
+  const proUI = typeof isAdminProUI === 'function' && isAdminProUI()
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="trial-management" data-route="trial-management" data-role="ADMIN' : ''}">
       ${renderSidebar('trial-management')}
       <div class="main-content">
         ${renderNavbar('Quản lý học thử')}

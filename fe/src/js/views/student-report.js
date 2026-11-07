@@ -1,5 +1,6 @@
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/student-report.css')
+  import('../../css/admin-pro/pages/students.css')
 }
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
@@ -8,7 +9,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
-import { isMochiUI } from '../ui-flag.js'
+import { isMochiUI, isAdminProUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
 import QRCode from 'qrcode'
 import {
@@ -189,8 +190,9 @@ function renderBackdrop(breadcrumb, options = {}) {
       </a>
     </div>
   `
+  const proUI = !isPublic && state.user?.role === 'ADMIN' && typeof isAdminProUI === 'function' && isAdminProUI()
   return `
-    <div class="app-layout${isPublic ? ' public-report-layout' : ''}">
+    <div class="app-layout${isPublic ? ' public-report-layout' : ''}${proUI ? ' admin-dark" id="student-report" data-route="student-report" data-role="ADMIN' : ''}">
       ${sidebarRole ? renderSidebar(sidebarRole) : ''}
       <div class="main-content">
         ${isPublic ? '' : renderNavbar(breadcrumb)}
@@ -891,6 +893,42 @@ export function reportChartPalette(canvas) {
       tooltipBorder: 'rgba(229, 177, 215, 0.7)'
     }
   }
+  // Admin Pro UI: dùng token Pro tương ứng ở cả sáng và tối
+  if (canvas?.closest?.('.app-layout.admin-dark[data-route="student-report"]')) {
+    const isPro = typeof isAdminProUI === 'function' && isAdminProUI()
+    if (isPro) {
+      const dark = typeof document !== 'undefined' && document.documentElement?.getAttribute('data-theme') === 'dark'
+      if (dark) {
+        return {
+          text: '#b9b0da',
+          legend: '#f4f0ff',
+          grid: 'rgba(58, 49, 102, 0.6)',
+          line: 'rgba(161, 141, 255, 0.85)',
+          pointBorder: '#1e1a38',
+          labelBackground: 'rgba(30, 26, 56, 0.96)',
+          labelBorder: 'rgba(161, 141, 255, 0.6)',
+          labelText: '#f4f0ff',
+          tooltipBackground: 'rgba(20, 17, 39, 0.98)',
+          tooltipText: '#f4f0ff',
+          tooltipBorder: 'rgba(161, 141, 255, 0.5)'
+        }
+      }
+      return {
+        text: '#5e5674',
+        legend: '#2b2340',
+        grid: '#e6dff5',
+        line: 'rgba(106, 76, 240, 0.85)',
+        pointBorder: '#ffffff',
+        labelBackground: 'rgba(255, 255, 255, 0.96)',
+        labelBorder: 'rgba(106, 76, 240, 0.5)',
+        labelText: '#2b2340',
+        tooltipBackground: 'rgba(43, 35, 64, 0.96)',
+        tooltipText: '#fff8f1',
+        tooltipBorder: 'rgba(230, 223, 245, 0.7)'
+      }
+    }
+  }
+
   // Admin/student navy uses a dark surface; public reports keep light colors.
   const isDark = Boolean(canvas?.closest('.app-layout.admin-dark[data-route="student-report"], .app-layout.navy-student'))
   if (!isDark) {

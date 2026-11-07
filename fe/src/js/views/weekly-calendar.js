@@ -1,12 +1,13 @@
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/weekly-calendar.css')
+  import('../../css/admin-pro/pages/students.css')
 }
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import mascotUrl from '../../assets/mascot-study.svg'
 import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
-import { isMochiUI } from '../ui-flag.js'
+import { isMochiUI, isAdminProUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
 import { escapeHtml } from '../utils/download-helper.js'
 import {
@@ -19,8 +20,9 @@ function isMochiMode() {
 }
 
 export function renderClassicWeeklyCalendarView() {
+  const proUI = state.user?.role === 'ADMIN' && typeof isAdminProUI === 'function' && isAdminProUI()
   return `
-    <div class="app-layout navy-student">
+    <div class="app-layout navy-student${proUI ? ' admin-dark" id="weekly-calendar" data-route="weekly-calendar" data-role="ADMIN' : ''}">
       ${renderSidebar('weekly-calendar')}
       <div class="main-content">
         ${renderNavbar('Học tập / Lịch tuần')}
