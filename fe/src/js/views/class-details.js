@@ -11,6 +11,7 @@ import { openClassHomeworkHistoryModal } from './class-homework-history-modal.js
 import { renderHomeworkMarkdownPreview } from '../utils/homework-markdown-preview.js'
 import { renderMath } from '../utils/exam-parser.js'
 import { downloadHomeworkPdf } from '../utils/download-helper.js'
+import { exportExamPdf } from '../utils/exam-print.js'
 import { renderCurriculumTabHTML, bindCurriculumTabEvents, ensureCurriculumLoaded } from './curriculum.js'
 
 // Module-level state for the active class view
@@ -2290,8 +2291,29 @@ function bindHomeworkTabEvents(classId, currentClass) {
         const body = document.getElementById('modal-container')?.querySelector('.modal-body')
         if (!body || !body.contains(loading)) return
         if (detail?.homework?.id !== homework.id || detail.homework.classId !== classId) throw new Error('Dữ liệu bài tập không hợp lệ.')
-        body.innerHTML = `<div style="line-height:1.6;">${renderHomeworkMarkdownPreview(detail.questions)}</div>`
+        const hasQuestions = Array.isArray(detail.questions) && detail.questions.length > 0
+        body.innerHTML = `${hasQuestions ? `<div class="class-homework-print-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            <button type="button" class="btn-secondary" data-print-mode="student" style="width:auto;padding:7px 12px;font-size:13px;cursor:pointer;"><i class="fa-regular fa-file-pdf"></i> Xuất PDF đề trắng</button>
+            <button type="button" class="btn-primary" data-print-mode="answer" style="width:auto;padding:7px 12px;font-size:13px;cursor:pointer;"><i class="fa-solid fa-file-pdf"></i> Xuất PDF kèm đáp án</button>
+          </div>` : ''}<div style="line-height:1.6;">${renderHomeworkMarkdownPreview(detail.questions)}</div>`
         renderMath(body)
+        body.querySelectorAll('[data-print-mode]').forEach(printBtn => {
+          printBtn.onclick = async () => {
+            if (printBtn.disabled || state.user?.role !== 'ADMIN' || state.user?.id !== userId) return
+            const all = body.querySelectorAll('[data-print-mode]')
+            all.forEach(b => { b.disabled = true })
+            try {
+              await exportExamPdf({
+                title: detail.homework.title || homework.title,
+                meta: { durationMinutes: detail.homework.durationMinutes },
+                questions: detail.questions,
+                mode: printBtn.dataset.printMode,
+                role: state.user?.role,
+                homework: detail.homework
+              })
+            } finally { all.forEach(b => { b.disabled = false }) }
+          }
+        })
       } catch (err) {
         if (loading?.isConnected && currentViewingClassId === classId && state.user?.id === userId) loading.textContent = `Không tải được nội dung đề bài: ${err.message || 'Vui lòng thử lại.'}`
       } finally { button.disabled = false }

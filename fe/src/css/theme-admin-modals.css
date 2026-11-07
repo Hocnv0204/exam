@@ -104,6 +104,31 @@ body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-r
    2. CÁC MODAL TỰ RENDER — #qb-modal-container (question-bank, matrix...)
    ========================================================================= */
 
+/* Popup Ma trận / Markdown: chỉ phần nội dung cuộn. Khóa cuộn trang và backdrop
+   khi popup tồn tại; :has tự nhả khóa khi đóng hoặc đổi route. */
+html:has(:is(#matrix-gen-backdrop, #import-md-backdrop)),
+body:has(:is(#matrix-gen-backdrop, #import-md-backdrop)) {
+  overflow-y: hidden;
+}
+
+#qb-modal-container :is(#matrix-gen-backdrop, #import-md-backdrop) {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+:is(#matrix-gen-backdrop, #import-md-backdrop) .modal-content {
+  min-height: 0;
+}
+
+:is(#matrix-gen-backdrop, #import-md-backdrop) :is(.matrix-gen-header, .matrix-gen-footer, .md-import-header, .md-import-footer) {
+  flex: 0 0 auto;
+}
+
+:is(#matrix-gen-backdrop, #import-md-backdrop) :is(.matrix-gen-body, .md-import-body) {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
 body:has(:is(.app-layout.admin-dark, .exam-room-layout.navy-student):not([data-route="create-homework"])) #qb-modal-container .modal-backdrop {
   background: rgba(2, 6, 23, 0.72);
   backdrop-filter: blur(6px);

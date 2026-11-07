@@ -2,7 +2,7 @@ import { renderMarkdown } from './exam-parser.js'
 
 const escapeHtml = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 
-function parsePrompt(raw, fallback) {
+export function parsePrompt(raw, fallback) {
   let data = {}
   if (raw && typeof raw === 'object') data = raw
   else if (typeof raw === 'string') {
@@ -22,7 +22,7 @@ function parsePrompt(raw, fallback) {
   return { ...data, text: typeof data.text === 'string' && data.text ? data.text : (fallback || '') }
 }
 
-const safeImage = url => typeof url === 'string' && /^(https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url) ? escapeHtml(url) : ''
+export const safeImage = url => typeof url === 'string' && /^(https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url) ? escapeHtml(url) : ''
 
 export function renderHomeworkMarkdownPreview(questions) {
   if (!Array.isArray(questions) || !questions.length) return '<p>Đề bài này chưa có nội dung Markdown để xem trước.</p>'

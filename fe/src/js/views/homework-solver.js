@@ -16,7 +16,6 @@ let studentAnswers = {
   essay: {} // { 1: 'Văn bản nhiều dòng', ... }
 }
 let isDraftRestored = false
-let saDebounceTimer = null
 let flaggedQuestions = new Set()
 
 // Lưu nháp server (tiếp tục làm bài trên mọi thiết bị)
@@ -25,8 +24,130 @@ let solverSubmitted = false
 let draftSyncEnabled = false
 let currentDraftHwId = null
 let solverTimeLeft = null
-let serverDraftDirty = false
-let serverDraftTimer = null
+let homeworkDraftAutosave = null
+let pendingDraftWrite = Promise.resolve()
+
+// === DRAFT_AUTOSAVE_ENGINE_START ===
+// Động cơ autosave nháp: debounce ngắn sau mỗi lần sửa, serialize request
+// (chỉ 1 request đang bay; sửa trong lúc chờ sẽ được gửi ở lượt kế với bản
+// mới nhất, không ghi đè ngược), giữ dirty khi lỗi + retry có giới hạn.
+// deps: { delayMs, isEnabled(), isLocked(), snapshot(), save(snap, keepalive), onSaved(snap), onError(err, willRetry) }
+function createDraftAutosaveEngine(deps) {
+  const delayMs = deps.delayMs != null ? deps.delayMs : 800
+  let timer = null
+  let dirty = false
+  let revision = 0
+  let confirmedRevision = 0
+  let retryCount = 0
+  let inFlight = null
+  let disposed = false
+  const clearTimer = () => { if (timer) { clearTimeout(timer); timer = null } }
+  const alive = () => !disposed && deps.isEnabled() && !deps.isLocked()
+  function schedule(delay) {
+    if (!alive()) return
+    dirty = true
+    revision++
+    retryCount = 0
+    clearTimer()
+    timer = setTimeout(() => { timer = null; void flush() }, delay != null ? delay : delayMs)
+  }
+  function flush(keepalive) {
+    clearTimer()
+    if (!alive()) return Promise.resolve(false)
+    if (inFlight) return inFlight
+    if (!dirty) return Promise.resolve(true)
+    const run = (async () => {
+      while (dirty && alive()) {
+        const rev = revision
+        const snap = deps.snapshot()
+        dirty = false
+        try {
+          await deps.save(snap, !!keepalive)
+          if (rev > confirmedRevision) confirmedRevision = rev
+          retryCount = 0
+          if (alive() && deps.onSaved) deps.onSaved(snap, rev)
+        } catch (err) {
+          dirty = true // giữ dirty cục bộ: bản mới nhất chưa được máy chủ xác nhận
+          retryCount++
+          const willRetry = retryCount <= 2
+          if (deps.onError) deps.onError(err, willRetry)
+          if (willRetry && alive()) {
+            clearTimer()
+            timer = setTimeout(() => { timer = null; void flush() }, 800 * retryCount)
+          }
+          break
+        }
+      }
+      return !dirty
+    })()
+    inFlight = run
+    void run.finally(() => { if (inFlight === run) inFlight = null })
+    return run
+  }
+  return {
+    schedule,
+    flush,
+    dispose() { disposed = true; clearTimer(); return inFlight || Promise.resolve() },
+    isDirty: () => dirty,
+    getRevision: () => revision,
+    getConfirmedRevision: () => confirmedRevision,
+  }
+}
+// === DRAFT_AUTOSAVE_ENGINE_END ===
+
+function cloneDraftAnswers(value) {
+  try { return JSON.parse(JSON.stringify(value || {})) } catch (_) { return { mc: {}, tf: {}, sa: {}, essay: {} } }
+}
+
+function ensureHomeworkAutosave() {
+  if (!homeworkDraftAutosave) {
+    homeworkDraftAutosave = createDraftAutosaveEngine({
+      delayMs: 800,
+      isEnabled: () => draftSyncEnabled && !!currentDraftHwId,
+      isLocked: () => solverSubmitted,
+      snapshot: () => {
+        const a = cloneDraftAnswers(studentAnswers)
+        return { mc: a.mc || {}, tf: a.tf || {}, sa: a.sa || {}, essay: a.essay || {} }
+      },
+      save: async (snap, keepalive) => {
+        const hwId = currentDraftHwId
+        const timeLeft = typeof solverTimeLeft === 'number' ? solverTimeLeft : null
+        await pendingDraftWrite // lượt mở bài trước vẫn có thể đang hoàn tất request
+        return api.saveDraft({
+          homeworkId: hwId,
+          answers: snap,
+          timeLeft,
+          answeredCount: countAnsweredFor(snap),
+        }, keepalive ? { keepalive: true } : {})
+      },
+      onSaved: () => { if (!homeworkDraftAutosave?.isDirty()) updateAutosaveIndicator(true) },
+      onError: (err) => {
+        console.warn('[Draft] Server save failed (local draft kept):', err?.message)
+        const el = document.getElementById('autosave-status')
+        if (el) el.textContent = 'Đã lưu trên thiết bị · chờ đồng bộ'
+      },
+    })
+  }
+  return homeworkDraftAutosave
+}
+
+function scheduleServerDraft(hwId) {
+  if (!draftSyncEnabled || solverSubmitted) return
+  if (hwId && currentDraftHwId && hwId !== currentDraftHwId) return
+  ensureHomeworkAutosave().schedule()
+}
+
+function flushServerDraft(useKeepalive = false) {
+  if (!draftSyncEnabled || !currentDraftHwId || solverSubmitted) return Promise.resolve(false)
+  return ensureHomeworkAutosave().flush(!!useKeepalive)
+}
+
+function disposeHomeworkAutosave() {
+  const pending = homeworkDraftAutosave?.dispose() || Promise.resolve()
+  homeworkDraftAutosave = null
+  pendingDraftWrite = Promise.allSettled([pendingDraftWrite, pending]).then(() => {})
+  return pending
+}
 
 function escapeHtml(str) {
   if (!str) return ''
@@ -398,7 +519,9 @@ function loadDraftFromStorage(hwId) {
   }
 }
 
-function saveDraftToStorage(hwId, answers, timeLeft) {
+function saveDraftToStorage(hwId, answers, timeLeft, syncServer = true) {
+  // Fallback cục bộ: ghi ngay lập tức sau mỗi lần sửa (MC/TF/SA/essay,
+  // kể cả bỏ chọn), không đợi mạng — server sync chạy ngầm sau đó.
   try {
     const data = {
       answers,
@@ -406,60 +529,32 @@ function saveDraftToStorage(hwId, answers, timeLeft) {
       updatedAt: new Date().toISOString()
     }
     localStorage.setItem(getDraftStorageKey(hwId), JSON.stringify(data))
-    updateAutosaveIndicator(true)
+    if (syncServer) updateAutosaveIndicator(!draftSyncEnabled)
   } catch (e) {
     console.warn('[Draft] Failed to save draft:', e)
   }
-  markServerDraftDirty(hwId)
+  if (syncServer) scheduleServerDraft(hwId)
 }
 
-function countAnswered() {
+function countAnsweredFor(answers) {
+  const a = answers || {}
   let n = 0
-  Object.values(studentAnswers.mc || {}).forEach(v => {
+  Object.values(a.mc || {}).forEach(v => {
     if (v !== null && v !== undefined && v !== '') n++
   })
-  Object.values(studentAnswers.tf || {}).forEach(tf => {
+  Object.values(a.tf || {}).forEach(tf => {
     if (tf && ['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) n++
   })
-  Object.values(studentAnswers.sa || {}).forEach(v => {
+  Object.values(a.sa || {}).forEach(v => {
     if (String(v ?? '').trim() !== '') n++
   })
-  Object.values(studentAnswers.essay || {}).forEach(v => {
-    if (String(v || '').trim()) answered++
+  Object.values(a.essay || {}).forEach(v => {
+    if (String(v ?? '').trim() !== '') n++
   })
   return n
 }
 
-function markServerDraftDirty(hwId) {
-  if (!draftSyncEnabled || solverSubmitted) return
-  if (hwId && currentDraftHwId && hwId !== currentDraftHwId) return
-  serverDraftDirty = true
-  if (serverDraftTimer) return
-  serverDraftTimer = setTimeout(() => {
-    serverDraftTimer = null
-    flushServerDraft(false)
-  }, 30000)
-}
-
-async function flushServerDraft(useKeepalive = false) {
-  if (!draftSyncEnabled || !currentDraftHwId || solverSubmitted) {
-    serverDraftDirty = false
-    return
-  }
-  if (!serverDraftDirty) return
-  serverDraftDirty = false
-  if (countAnswered() === 0) return
-  try {
-    await api.saveDraft({
-      homeworkId: currentDraftHwId,
-      answers: studentAnswers,
-      timeLeft: typeof solverTimeLeft === 'number' ? solverTimeLeft : null,
-      answeredCount: countAnswered()
-    }, useKeepalive ? { keepalive: true } : {})
-  } catch (e) {
-    console.warn('[Draft] Server save failed:', e?.message)
-  }
-}
+function countAnswered() { return countAnsweredFor(studentAnswers) }
 
 function clearDraftStorage(hwId) {
   try {
@@ -874,8 +969,7 @@ export function bindHomeworkSolverEvents() {
   // Reset trạng thái nháp cho lượt mở bài này
   const isTrialMode = window.location.hash.includes('trial=true') || !state.token
   solverSubmitted = false
-  serverDraftDirty = false
-  if (serverDraftTimer) { clearTimeout(serverDraftTimer); serverDraftTimer = null }
+  disposeHomeworkAutosave()
   draftSyncEnabled = Boolean(
     state.token && state.user?.role === 'STUDENT' && !isTrialMode && hw.type !== 'EXAM'
   )
@@ -911,11 +1005,10 @@ export function bindHomeworkSolverEvents() {
     )
     setTimeout(() => {
       document.getElementById('exit-save-draft-btn')?.addEventListener('click', async () => {
-        serverDraftDirty = true
         try {
           saveDraftToStorage(hw.id, studentAnswers, solverTimeLeft)
-          await flushServerDraft(false)
-          showToast('Đã lưu nháp bài làm!', 'success')
+          const saved = await flushServerDraft(false)
+          showToast(saved ? 'Đã lưu nháp bài làm!' : 'Bản nháp còn trên thiết bị, chưa xác nhận lưu trên máy chủ.', saved ? 'success' : 'warning')
         } catch (e) {
           showToast('Lưu nháp thất bại, bản nháp trên máy vẫn còn.', 'error')
         }
@@ -927,7 +1020,6 @@ export function bindHomeworkSolverEvents() {
           clearDraftStorage(hw.id)
           if (draftSyncEnabled) await api.deleteDraft(hw.id)
         } catch (_) {}
-        serverDraftDirty = false
         closeModal()
         window.location.hash = fallback
       })
@@ -954,8 +1046,8 @@ export function bindHomeworkSolverEvents() {
       btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang lưu...'
       try {
         saveDraftToStorage(hw.id, studentAnswers, solverTimeLeft)
-        serverDraftDirty = true
-        await flushServerDraft(false)
+        const saved = await flushServerDraft(false)
+        if (!saved && draftSyncEnabled) throw new Error('Chưa xác nhận lưu trên máy chủ')
         const now = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         showToast(`Đã lưu nháp lúc ${now}! Mở lại bài này để tiếp tục.`, 'success')
       } catch (e) {
@@ -970,7 +1062,6 @@ export function bindHomeworkSolverEvents() {
   // Cảnh báo native khi tải lại / đóng tab giữa chừng + lưu nháp server
   const handleSolverUnload = (e) => {
     if (solverSubmitted || countAnswered() === 0) return
-    serverDraftDirty = true
     flushServerDraft(true)
     e.preventDefault()
   }
@@ -1120,10 +1211,8 @@ export function bindHomeworkSolverEvents() {
         }
 
         updateInteractiveProgress()
-        clearTimeout(saDebounceTimer)
-        saDebounceTimer = setTimeout(() => {
-          saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-        }, 500)
+        // Ghi local ngay; server debounce ngầm qua saveDraftToStorage -> scheduleServerDraft.
+        saveDraftToStorage(hw.id, studentAnswers, solverTimeLeft)
       })
     })
     document.querySelectorAll('#interactive-solver-container .student-interactive-essay-input').forEach(input => {
@@ -1133,8 +1222,7 @@ export function bindHomeworkSolverEvents() {
         studentAnswers.essay[qNum] = val
         document.getElementById(`nav-btn-q-${qNum}`)?.classList.toggle('answered', !!val.trim())
         updateInteractiveProgress()
-        clearTimeout(saDebounceTimer)
-        saDebounceTimer = setTimeout(() => saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds), 500)
+        saveDraftToStorage(hw.id, studentAnswers, solverTimeLeft)
       })
     })
 
@@ -1313,10 +1401,7 @@ export function bindHomeworkSolverEvents() {
         studentAnswers.sa[qNum] = e.target.value
 
         updateAutosaveIndicator(false)
-        clearTimeout(saDebounceTimer)
-        saDebounceTimer = setTimeout(() => {
-          saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-        }, 400)
+        saveDraftToStorage(hw.id, studentAnswers, solverTimeLeft)
       })
     })
   }
@@ -1424,8 +1509,12 @@ export function bindHomeworkSolverEvents() {
     if (timerInterval) clearInterval(timerInterval)
     if (heartbeatInterval) clearInterval(heartbeatInterval)
     if (autosaveInterval) clearInterval(autosaveInterval)
+    // Không cho autosave mới xen vào submit; đợi request đang bay hoàn tất
+    // để một phản hồi cũ không tạo lại nháp sau khi submit xóa nháp.
+    const pendingDraft = disposeHomeworkAutosave()
 
     try {
+      await pendingDraft
       showToast('Đang gửi bài làm lên máy chủ chấm điểm...', 'info')
       
       const submissionAnswers = buildSubmissionAnswers()
@@ -1455,8 +1544,7 @@ export function bindHomeworkSolverEvents() {
       
       // Đánh dấu đã nộp để tắt cảnh báo thoát + không lưu nháp nữa
       solverSubmitted = true
-      serverDraftDirty = false
-      if (serverDraftTimer) { clearTimeout(serverDraftTimer); serverDraftTimer = null }
+      disposeHomeworkAutosave()
       // Clear local draft storage on successful submit
       clearDraftStorage(hw.id)
 
@@ -1613,7 +1701,7 @@ export function bindHomeworkSolverEvents() {
       updateTimerDisplay()
 
       if (timeLeftSeconds % 10 === 0) {
-        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds, false)
       }
 
       if (timeLeftSeconds === 300) {
@@ -1628,7 +1716,6 @@ export function bindHomeworkSolverEvents() {
 
   // Cleanup handler for route changes to clear intervals
   const hashChangeListener = () => {
-    serverDraftDirty = true
     flushServerDraft(true)
     window.removeEventListener('beforeunload', handleSolverUnload)
     if (timerInterval) clearInterval(timerInterval)

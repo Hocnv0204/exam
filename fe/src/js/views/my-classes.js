@@ -586,6 +586,14 @@ export function renderMyClassesView() {
             </div>
           </div>
 
+          <!-- In-progress drafts: tiếp tục bài đang làm dở -->
+          <div class="card" id="inprogress-drafts-card" style="padding:14px 18px; margin-bottom:20px; border:1px solid #fde68a; background:#fffbeb; display:none;">
+            <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-hourglass-half" style="color:#d97706;"></i> Đang làm dở
+            </h3>
+            <div id="inprogress-drafts-container"></div>
+          </div>
+
           <section class="card" aria-label="Tiến độ bài tập của tôi" style="padding:18px;margin-bottom:20px;">
             <h2 style="font-size:17px;margin:0 0 12px;">Thống kê bài tập</h2>
             <div id="student-dashboard-stats" aria-live="polite">Đang tải tiến độ học tập...</div>
@@ -595,13 +603,6 @@ export function renderMyClassesView() {
             <h2 style="font-size:17px;margin:0 0 12px;">Điểm 10 bài nộp gần nhất</h2>
             <div id="student-dashboard-scores" aria-live="polite">Đang tải biểu đồ điểm số...</div>
           </section>
-          <!-- In-progress drafts: tiếp tục bài đang làm dở -->
-          <div class="card" id="inprogress-drafts-card" style="padding:14px 18px; margin-bottom:20px; border:1px solid #fde68a; background:#fffbeb; display:none;">
-            <h3 style="font-family:var(--font-heading); font-size:15px; font-weight:700; margin:0 0 10px 0; display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-hourglass-half" style="color:#d97706;"></i> Đang làm dở
-            </h3>
-            <div id="inprogress-drafts-container"></div>
-          </div>
 
           ` : ''}
           ${!isDashboard ? `<!-- Classes Cards Grid -->

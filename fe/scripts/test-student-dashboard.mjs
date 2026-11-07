@@ -37,6 +37,8 @@ test('bỏ banner dashboard, bài mới giao ở trước thống kê và vẫn 
   const view = read('../src/js/views/my-classes.js')
   const dashboard = view.slice(view.indexOf('// Case 2: List of All Classes for Student'), view.indexOf('async function loadStudentDashboardStats'))
   assert.match(dashboard, /\$\{!isDashboard \? `<div class="navy-hero">/)
+  assert.ok(dashboard.indexOf('id="tour-latest-hw"') < dashboard.indexOf('id="inprogress-drafts-card"'))
+  assert.ok(dashboard.indexOf('id="inprogress-drafts-card"') < dashboard.indexOf('id="student-dashboard-stats"'))
   assert.ok(dashboard.indexOf('id="tour-latest-hw"') < dashboard.indexOf('id="student-dashboard-stats"'))
   assert.ok(dashboard.indexOf('id="student-dashboard-stats"') < dashboard.indexOf('id="student-dashboard-scores"'))
   assert.match(dashboard, /id="btn-replay-tour"/)

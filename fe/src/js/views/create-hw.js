@@ -1,7 +1,8 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
-import { openModal } from '../components/modal.js'
+import { openModal, closeModal } from '../components/modal.js'
+import { exportExamPdf } from '../utils/exam-print.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
@@ -519,6 +520,9 @@ function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
           <input type="file" id="hw-md-file-input" accept=".md,.markdown,.txt" style="display:none;">
           <button type="button" class="btn-primary" id="btn-parse-markdown" style="padding:5px 12px; font-size:12px; border-radius:6px; cursor:pointer; background:linear-gradient(135deg, #0284c7, #0066cc);">
             <i class="fa-solid fa-bolt"></i> Phân tích & Xem trước
+          </button>
+          <button type="button" class="btn-secondary" id="btn-export-exam-pdf" style="width:auto; padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Xuất đề ra PDF (in qua trình duyệt, chọn Lưu dưới dạng PDF)">
+            <i class="fa-solid fa-file-pdf" style="color:#dc2626;"></i> Xuất PDF
           </button>
         </div>
       ` : ''}
@@ -1745,6 +1749,60 @@ export function bindCreateHwEvents() {
       } else {
         showToast('Không tìm thấy câu hỏi hợp lệ trong văn bản!', 'error')
       }
+    })
+
+    // Xuất PDF đề (đề trắng / kèm đáp án) từ nội dung Markdown hiện tại
+    document.getElementById('btn-export-exam-pdf')?.addEventListener('click', () => {
+      openModal('Xuất PDF đề bài', `
+        <p style="margin:0 0 12px; font-size:13px; color:#475569;">Chọn loại bản in. Trình duyệt sẽ mở hộp thoại in — chọn <strong>Lưu dưới dạng PDF</strong>.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="btn-secondary" id="btn-export-pdf-student" style="width:auto; padding:10px 16px; cursor:pointer;">
+            <i class="fa-regular fa-file-lines"></i> Đề trắng
+          </button>
+          <button type="button" class="btn-primary" id="btn-export-pdf-answer" style="width:auto; padding:10px 16px; cursor:pointer;">
+            <i class="fa-solid fa-file-circle-check"></i> Đề kèm đáp án & lời giải
+          </button>
+        </div>
+      `, null, { cancelLabel: 'Đóng' })
+      const runExport = async (mode) => {
+        closeModal()
+        const text = document.getElementById('hw-markdown-input')?.value || ''
+        if (!text.trim()) {
+          showToast('Nội dung đề đang trống, chưa thể xuất PDF.', 'warning')
+          return
+        }
+        const parsed = parseExamMarkdown(text)
+        const questions = parsed.questions || []
+        if (!questions.length) {
+          showToast(parsed.error || 'Không tìm thấy câu hỏi hợp lệ để xuất PDF!', 'error')
+          return
+        }
+        questions.forEach((q, idx) => { q.questionNumber = idx + 1 })
+        // Giữ ảnh đã dán thủ công (giống nút Phân tích)
+        questions.forEach((newQ, idx) => {
+          let oldQ = interactiveQuestions[idx]
+          if (!oldQ || oldQ.questionType !== newQ.questionType || oldQ.questionNumber !== newQ.questionNumber) {
+            oldQ = interactiveQuestions.find(x => x.questionType === newQ.questionType && x.questionNumber === newQ.questionNumber)
+          }
+          if (oldQ && oldQ.imageUrl && !newQ.imageUrl) newQ.imageUrl = oldQ.imageUrl
+        })
+        const diagErrors = questions.reduce((sum, q) => sum + validateQuestionDiagrams(q).errors.length, 0)
+        if (diagErrors > 0) {
+          showToast(`Đề có ${diagErrors} lỗi khối hình — bản in sẽ hiển thị hộp báo lỗi tại vị trí đó.`, 'warning')
+        }
+        const hwType = document.getElementById('hw-type')?.value || 'PRACTICE'
+        const duration = parseInt(document.getElementById('hw-duration')?.value || '', 10)
+        await exportExamPdf({
+          title: document.getElementById('hw-title')?.value.trim() || 'De_bai',
+          meta: { durationMinutes: Number.isFinite(duration) ? duration : null },
+          questions,
+          mode,
+          role: state.user?.role,
+          homework: { type: hwType }
+        })
+      }
+      document.getElementById('btn-export-pdf-student')?.addEventListener('click', () => runExport('student'))
+      document.getElementById('btn-export-pdf-answer')?.addEventListener('click', () => runExport('answer'))
     })
   }
 

@@ -20,7 +20,6 @@ let studentAnswers = {
   essay: {}  // { 1: 'Văn bản nhiều dòng', ... }
 }
 let isDraftRestored = false
-let saDebounceTimer = null
 let flaggedQuestions = new Set()
 
 function escapeHtml(str) {
@@ -141,6 +140,67 @@ function showAutosaveError() {
     el.textContent = 'Chưa lưu được nháp lên máy chủ (nháp trên thiết bị vẫn được giữ)'
     el.style.color = '#b45309'
   }
+}
+
+// === EXAM_AUTOSAVE_ENGINE_START ===
+// Autosave server ngay sau mỗi thay đổi đáp án (MC/TF/SA/essay incl. bỏ chọn).
+// Local ghi ngay qua saveDraftToStorage; engine bên dưới debounce ~800ms,
+// serialize (chỉ 1 request bay; sửa trong lúc chờ được gửi lượt kế với bản mới
+// nhất, không ghi đè ngược), snapshot clone để confirmedServerDraft chỉ chứa
+// bản ĐÃ được máy chủ xác nhận. Lỗi: giữ dirty cục bộ + retry tối đa 2 lần.
+function createExamAutosaveEngine(deps) {
+  const delayMs = deps.delayMs != null ? deps.delayMs : 800
+  let timer = null
+  let dirty = false
+  let revision = 0
+  let retryCount = 0
+  let inFlight = null
+  let disposed = false
+  const clearTimer = () => { if (timer) { clearTimeout(timer); timer = null } }
+  const alive = () => !disposed && deps.isEnabled() && !deps.isLocked()
+  function schedule() {
+    if (!alive()) return
+    dirty = true; revision++; retryCount = 0
+    clearTimer()
+    timer = setTimeout(() => { timer = null; void flush() }, delayMs)
+  }
+  function flush() {
+    clearTimer()
+    if (!alive()) return Promise.resolve(false)
+    if (inFlight) return inFlight
+    if (!dirty) return Promise.resolve(true)
+    const run = (async () => {
+      while (dirty && alive()) {
+        const rev = revision
+        const snap = deps.snapshot()
+        dirty = false
+        try {
+          await deps.save(snap)
+          retryCount = 0
+          if (deps.onSaved) deps.onSaved(snap, rev === revision && !dirty)
+        } catch (err) {
+          dirty = true
+          retryCount++
+          if (deps.onError) deps.onError(err, retryCount <= 2)
+          if (retryCount <= 2 && alive()) {
+            clearTimer()
+            timer = setTimeout(() => { timer = null; void flush() }, 800 * retryCount)
+          }
+          break
+        }
+      }
+      return true
+    })()
+    inFlight = run
+    void run.finally(() => { if (inFlight === run) inFlight = null })
+    return run
+  }
+  return { schedule, flush, dispose() { disposed = true; clearTimer() }, isDirty: () => dirty, getRevision: () => revision }
+}
+// === EXAM_AUTOSAVE_ENGINE_END ===
+
+function cloneJSON(value) {
+  try { return JSON.parse(JSON.stringify(value)) } catch (_) { return value }
 }
 
 // =========================================================
@@ -582,9 +642,38 @@ export function bindExamRoomEvents() {
   let clockBaseMs = null
   let clockBaseTick = null
   let confirmedServerDraft = []
-  let autosaveInFlight = false
   let autosaveFailed = false
   let submittedOrUncertain = false
+  let examAutosave = null
+  const getExamAutosave = () => {
+    if (!examAutosave) {
+      examAutosave = createExamAutosaveEngine({
+        delayMs: 800,
+        isEnabled: () => examStarted && !!examSessionToken,
+        isLocked: () => engineClosed || examLocked || isSubmitting || remainingSeconds() <= 0,
+        snapshot: () => cloneJSON(buildSubmissionAnswers()),
+        save: (snap) => api.autosaveExamSession(hw.id, examSessionToken, snap),
+        onSaved: (snap, latest) => {
+          if (!engineClosed && !examLocked && !isSubmitting && remainingSeconds() > 0) {
+            confirmedServerDraft = snap
+            if (latest) updateAutosaveIndicator(true)
+            if (autosaveFailed) { autosaveFailed = false; recordSignal('AUTOSAVE_RECOVERED') }
+          }
+        },
+        onError: (e) => {
+          if (e?.message && (e.message.includes('INVALID_TOKEN') || e.message.includes('ghi đè') || e.message.includes('403'))) {
+            handleSessionOverridden()
+          } else {
+            console.warn('Autosave blip:', e)
+            autosaveFailed = true
+            showAutosaveError()
+          }
+        },
+      })
+    }
+    return examAutosave
+  }
+  const scheduleExamAutosave = () => { saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds); if (examStarted) getExamAutosave().schedule() }
   const remainingSeconds = () => deadlineMs === null ? timeLeftSeconds :
     Math.max(0, Math.ceil((deadlineMs - (clockBaseMs + performance.now() - clockBaseTick)) / 1000))
   const configureDeadline = (res) => {
@@ -718,7 +807,7 @@ export function bindExamRoomEvents() {
       }
 
       updateExamProgress(questions.length)
-      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+      scheduleExamAutosave()
     })
   })
 
@@ -774,7 +863,7 @@ export function bindExamRoomEvents() {
       const tfCount = ['a', 'b', 'c', 'd'].filter(k => studentAnswers.tf[qNum][k] !== undefined).length
       updatePaletteButton(qNum, tfCount === 4, tfCount > 0 && tfCount < 4)
       updateExamProgress(questions.length)
-      saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
+      scheduleExamAutosave()
     })
   })
 
@@ -799,10 +888,8 @@ export function bindExamRoomEvents() {
       updatePaletteButton(qNum, hasVal)
       updateExamProgress(questions.length)
 
-      clearTimeout(saDebounceTimer)
-      saDebounceTimer = setTimeout(() => {
-        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-      }, 300)
+      // Ghi local ngay + debounce server (~800ms) qua engine, không chặn gõ.
+      scheduleExamAutosave()
     })
   })
   document.querySelectorAll('.student-interactive-essay-input').forEach(input => {
@@ -816,8 +903,7 @@ export function bindExamRoomEvents() {
       studentAnswers.essay[qNum] = val
       updatePaletteButton(qNum, !!val.trim())
       updateExamProgress(questions.length)
-      clearTimeout(saDebounceTimer)
-      saDebounceTimer = setTimeout(() => saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds), 500)
+      scheduleExamAutosave()
     })
   })
 
@@ -981,7 +1067,8 @@ export function bindExamRoomEvents() {
 
     // After expiry only the last acknowledged server snapshot is eligible; never claim
     // a debounced/local or in-flight autosave was accepted.
-    clearTimeout(saDebounceTimer)
+    // Khóa autosave trước khi nộp: không gửi thêm nháp sau submit/lock.
+    if (examAutosave) examAutosave.dispose()
     if (!expired) saveDraftToStorage(hw.id, studentAnswers, remainingSeconds())
     closeModal()
     disableAllInputs()
@@ -1215,34 +1302,13 @@ export function bindExamRoomEvents() {
     }, 15000)
   }
 
+  // Backup định kỳ mỗi 15s (giữ nguyên hành vi cũ) qua cùng engine đã serialize:
+  // nếu đang có request bay, flush() trả về promise của request đó, không gửi trùng.
   const startAutosave = () => {
     if (autosaveInterval) clearInterval(autosaveInterval)
-    autosaveInterval = setInterval(async () => {
-      if (!examSessionToken || examLocked || isSubmitting || autosaveInFlight || remainingSeconds() <= 0) return
-      autosaveInFlight = true
-      try {
-        updateAutosaveIndicator(false)
-        const draftAnswers = buildSubmissionAnswers()
-        await api.autosaveExamSession(hw.id, examSessionToken, draftAnswers)
-        if (!examLocked && remainingSeconds() > 0) {
-          confirmedServerDraft = draftAnswers
-          updateAutosaveIndicator(true)
-          if (autosaveFailed) {
-            autosaveFailed = false
-            recordSignal('AUTOSAVE_RECOVERED')
-          }
-        }
-      } catch (e) {
-        if (e.message && (e.message.includes('INVALID_TOKEN') || e.message.includes('ghi đè') || e.message.includes('403'))) {
-          handleSessionOverridden()
-        } else {
-          console.warn('Autosave blip:', e)
-          autosaveFailed = true
-          showAutosaveError()
-        }
-      } finally {
-        autosaveInFlight = false
-      }
+    autosaveInterval = setInterval(() => {
+      if (!examSessionToken || examLocked || isSubmitting || remainingSeconds() <= 0) return
+      if (examAutosave?.isDirty()) void examAutosave.flush()
     }, 15000)
   }
 
@@ -1451,6 +1517,7 @@ export function bindExamRoomEvents() {
 
   const cleanupExamEngine = () => {
     engineClosed = true
+    if (examAutosave) examAutosave.dispose()
     if (timerInterval) clearInterval(timerInterval)
     if (heartbeatInterval) clearInterval(heartbeatInterval)
     if (autosaveInterval) clearInterval(autosaveInterval)

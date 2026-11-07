@@ -3214,7 +3214,7 @@ async function openImportMarkdownModal() {
       <div class="modal-content" onclick="event.stopPropagation()" style="width:100%; max-width:1180px; max-height:94vh; background:#ffffff; border-radius:18px; box-shadow:0 24px 60px rgba(15,23,42,.24); display:flex; flex-direction:column; overflow:hidden;">
         
         <!-- Modal Header -->
-        <div style="padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,#f8fbff,#ffffff);">
+        <div class="md-import-header" style="padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,#f8fbff,#ffffff);">
           <div style="display:flex; align-items:center; gap:10px;">
             <div style="width:36px; height:36px; border-radius:10px; background:#eff6ff; color:#0284c7; display:flex; align-items:center; justify-content:center; font-size:18px;">
               <i class="fa-solid fa-file-arrow-up"></i>
@@ -3234,7 +3234,7 @@ async function openImportMarkdownModal() {
         </div>
 
         <!-- Modal Body (Scrollable) -->
-        <div style="padding:18px 24px; overflow-y:auto; flex:1; background:#f8fafc;">
+        <div class="md-import-body" style="padding:18px 24px; overflow-y:auto; flex:1; background:#f8fafc;">
           
           <!-- Categorization: Class > Chapter > Lesson -->
           <div style="background:#ffffff; border:1px solid #dbe5f0; border-radius:12px; padding:14px 16px; margin-bottom:14px; box-shadow:0 1px 2px rgba(15,23,42,.03);">
@@ -3359,7 +3359,7 @@ async function openImportMarkdownModal() {
                 </button>
               </div>
             </div>
-            <div id="md-preview-questions-list" style="max-height:560px; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
+            <div id="md-preview-questions-list" style="padding:14px; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
               <!-- Rendered question cards -->
             </div>
             <div id="md-question-detail" style="display:none; margin:0 12px 12px; border:1px solid #bfdbfe; border-radius:10px; background:#ffffff; overflow:hidden;"></div>
@@ -3368,7 +3368,7 @@ async function openImportMarkdownModal() {
         </div>
 
         <!-- Modal Footer -->
-        <div style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#ffffff; display:flex; justify-content:flex-end; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="md-import-footer" style="padding:14px 24px; border-top:1px solid #e2e8f0; background:#ffffff; display:flex; justify-content:flex-end; align-items:center; gap:10px; flex-wrap:wrap;">
           <button id="import-md-cancel-btn" class="btn-secondary" style="width:auto !important; min-width:108px; padding:10px 18px; font-size:13px; font-weight:700; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer;">
             Hủy bỏ
           </button>
@@ -4558,15 +4558,15 @@ async function openImportMarkdownModal() {
     try {
       const result = await api.importQuestionBank(payload)
       const failed = result.failedRows || []
+      const skippedRows = [...(result.skippedRows || [])].sort((a, b) => Number(a.questionNumber) - Number(b.questionNumber))
       const created = result.importedCount || 0
       const updated = result.updatedCount || 0
       const skipped = result.skippedCount || 0
       closeModal()
       await fetchAndRenderQuestions({ includeStats: true })
-      if (failed.length === 0) {
+      if (failed.length === 0 && skipped === 0) {
         const parts = [`tạo mới ${created} câu`]
         if (updated > 0) parts.push(`cập nhật ${updated} câu`)
-        if (skipped > 0) parts.push(`bỏ qua ${skipped} câu trùng`)
         showToast(`Ngân hàng câu hỏi: ${parts.join(', ')}.`, created + updated > 0 ? 'success' : 'warning')
         return
       }
@@ -4574,8 +4574,12 @@ async function openImportMarkdownModal() {
       openModal('Kết quả nhập câu hỏi', `
         <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
           <div>Tạo mới <strong>${created}</strong> · Cập nhật <strong>${updated}</strong> · Bỏ qua <strong>${skipped}</strong> · Lỗi <strong>${failed.length}</strong>.</div>
-          <div style="max-height:280px; overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
-            ${failed.map(f => `<div style="padding:8px 12px; border-bottom:1px solid #f1f5f9;"><strong>Câu ${escapeHtml(String(f.questionNumber ?? ''))}:</strong> ${escapeHtml(String(f.reason || ''))}</div>`).join('')}
+          <div style="max-height:320px; overflow:auto; border:1px solid #475569; border-radius:8px;">
+            ${failed.length ? `<div style="padding:8px 12px; font-weight:700;">Lỗi (${failed.length})</div>
+              ${failed.map(f => `<div style="padding:8px 12px; border-top:1px solid #475569;"><strong>Câu ${escapeHtml(String(f.questionNumber ?? ''))}:</strong> ${escapeHtml(String(f.reason || ''))}</div>`).join('')}` : ''}
+            ${skipped ? `<div style="padding:8px 12px; font-weight:700; border-top:1px solid #475569;">Bỏ qua (${skipped})</div>
+              ${skippedRows.map(s => `<div style="padding:8px 12px; border-top:1px solid #475569;"><strong>Câu ${escapeHtml(String(s.questionNumber ?? ''))}:</strong> ${escapeHtml(String(s.reason || 'Trùng nội dung.'))}</div>`).join('')}
+              ${skippedRows.length < skipped ? `<div style="padding:8px 12px; border-top:1px solid #475569;">${skipped - skippedRows.length} câu còn lại chưa có chi tiết từ phiên bản backend hiện tại.</div>` : ''}` : ''}
           </div>
           <div style="color:#64748b;">Chỉ Ngân hàng câu hỏi thay đổi; bài tập đã tạo và điểm đã chấm không bị ảnh hưởng.</div>
         </div>`, null, { showCancel: false, confirmLabel: 'Đã hiểu' })
