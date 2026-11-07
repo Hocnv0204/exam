@@ -1486,34 +1486,35 @@ function showAddStudentModal(classId, currentClass) {
 
     showToast(`Đang thêm ${selectedIds.length} học sinh vào lớp...`, 'info')
     try {
-      for (const sId of selectedIds) {
-        await api.addStudentToClass(classId, sId)
-        
-        // Add to local state
-        const studentObj = state.students.find(s => s.id === sId)
-        if (studentObj) {
-          studentObj.classIds = studentObj.classIds || []
-          if (!studentObj.classIds.includes(classId)) {
-            studentObj.classIds.push(classId)
-          }
-          studentObj.classId = classId
+      const result = await api.addStudentsToClass(classId, selectedIds)
+      const added = Array.isArray(result?.added) ? result.added : []
+      const skipped = Array.isArray(result?.skipped) ? result.skipped : []
 
-          cachedClassStudents.push({
-            id: studentObj.id,
-            studentId: studentObj.id,
-            fullName: studentObj.fullName,
-            username: studentObj.username,
-            studentCode: studentObj.studentCode || 'N/A',
-            status: 'ACTIVE',
-            attendanceRate: 100,
-            unpaidDebt: 0
-          })
+      // Server đã trả danh sách thực sự thêm được; chỉ đồng bộ các em này.
+      for (const sId of added) {
+        const studentObj = state.students.find(s => s.id === sId)
+        if (!studentObj) continue
+        studentObj.classIds = studentObj.classIds || []
+        if (!studentObj.classIds.includes(classId)) {
+          studentObj.classIds.push(classId)
         }
+        studentObj.classId = classId
       }
 
-      showToast(`Đã thêm thành công ${selectedIds.length} học sinh vào lớp`, 'success')
-      refreshStudentsTable(currentClass)
-      api.getClassKpiStats(classId).then(updateKpiUI)
+      if (skipped.length > 0) {
+        const reasons = [...new Set(skipped.map(s => s.reason).filter(Boolean))].join('; ')
+        showToast(
+          `Đã thêm ${added.length} học sinh. Bỏ qua ${skipped.length} học sinh${reasons ? `: ${reasons}` : ''}`,
+          'error'
+        )
+      } else {
+        showToast(`Đã thêm thành công ${added.length} học sinh vào lớp`, 'success')
+      }
+
+      await Promise.all([
+        loadStudentsScope(classId, currentClass, true),
+        loadKpiStats(classId, true),
+      ])
       return true
     } catch (err) {
       showToast(`Thêm thất bại: ${err.message}`, 'error')
@@ -1998,20 +1999,76 @@ function bindTuitionTabEvents(classId, currentClass) {
   const collectAllBtn = document.getElementById('btn-collect-all-class-tuition')
   if (collectAllBtn) {
     collectAllBtn.onclick = async () => {
+      if (collectAllBtn.disabled) return
       if (!confirm('Bạn có chắc chắn muốn đánh dấu đã đóng học phí cho TẤT CẢ các học sinh còn nợ trong lớp?')) return
 
+      collectAllBtn.disabled = true
+      collectAllBtn.style.opacity = '0.6'
+      collectAllBtn.style.cursor = 'wait'
       showToast('Đang xử lý thu toàn bộ nợ của lớp...', 'info')
+
+      // Chụp tên trước khi refresh để vẫn hiển thị được học sinh bị skip
+      // kể cả khi cache học sinh/debt vừa bị thay mới.
+      const nameById = new Map(
+        (cachedDebtSummary || []).map(d => [d.studentId, d.fullName || d.username || ''])
+      )
       try {
-        const debtList = cachedDebtSummary || []
-        for (const s of debtList) {
-          if ((s.unpaidDebt || 0) > 0) {
-            await api.markStudentTuitionPaid(classId, s.studentId)
-          }
-        }
-        showToast('Đã đánh dấu đã đóng toàn bộ học phí cho lớp', 'success')
+        const result = await api.collectClassTuition(classId)
+        const collected = Array.isArray(result?.collected) ? result.collected : []
+        const skipped = Array.isArray(result?.skipped) ? result.skipped : []
+        const totalAmount = collected.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+
         await Promise.all([loadStudentsScope(classId, currentClass, true), loadKpiStats(classId, true)])
+
+        if (skipped.length > 0) {
+          const skippedRows = skipped.map(item => {
+            const studentId = item?.studentId ? String(item.studentId) : ''
+            const cachedStudent = state.students.find(s => s.id === studentId)
+            const displayName = nameById.get(studentId) || cachedStudent?.fullName || cachedStudent?.username || studentId || 'Không xác định'
+            const reason = item?.reason ? String(item.reason) : 'Không rõ lý do'
+            return `
+              <li style="display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #f1f5f9;">
+                <i class="fa-solid fa-circle-exclamation" style="color:#dc2626; margin-top:3px;"></i>
+                <div style="flex:1;">
+                  <div style="font-weight:700; color:#0f172a; font-size:13px;">${escapeHtml(displayName)}</div>
+                  <div style="font-size:12px; color:#b91c1c;">${escapeHtml(reason)}</div>
+                  ${studentId && displayName !== studentId ? `<div style="font-size:11px; color:#94a3b8;">ID: ${escapeHtml(studentId)}</div>` : ''}
+                </div>
+              </li>
+            `
+          }).join('')
+
+          openModal('Kết quả thu học phí', `
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:12px 14px; color:#065f46; font-size:13px;">
+                Đã thu <strong>${collected.length}</strong> học sinh
+                (<strong>${totalAmount.toLocaleString('vi-VN')} VND</strong>).
+                Bỏ qua <strong>${skipped.length}</strong> học sinh.
+              </div>
+              <div>
+                <div style="font-weight:700; color:#0f172a; font-size:13px; margin-bottom:6px;">Học sinh bị bỏ qua:</div>
+                <ul style="list-style:none; margin:0; padding:0; max-height:320px; overflow-y:auto;">
+                  ${skippedRows}
+                </ul>
+              </div>
+            </div>
+          `, () => true, {
+            showCancel: false,
+            confirmLabel: 'Đóng',
+            contentStyle: 'max-width:640px;',
+          })
+        } else {
+          showToast(
+            `Đã thu toàn bộ nợ của ${collected.length} học sinh (${totalAmount.toLocaleString('vi-VN')} VND)`,
+            'success'
+          )
+        }
       } catch (err) {
         showToast(`Xử lý thất bại: ${err.message}`, 'error')
+      } finally {
+        collectAllBtn.disabled = false
+        collectAllBtn.style.opacity = ''
+        collectAllBtn.style.cursor = ''
       }
     }
   }

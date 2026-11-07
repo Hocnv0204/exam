@@ -521,10 +521,12 @@ export const api = {
   getClassDebtSummary: (classId) => request(`create-class?action=get-class-debt-summary&classId=${classId}`, { method: 'GET' }),
   markTuitionPaid: (data) => request('create-class?action=mark-tuition-paid', { method: 'POST', body: JSON.stringify(data) }),
   markStudentTuitionPaid: (classId, studentId) => request('create-class?action=mark-student-tuition-paid', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
+  collectClassTuition: (classId) => classMutation('create-class?action=collect-class-tuition', { method: 'POST', body: JSON.stringify({ classId }) }),
   waiveTuition: (data) => request('create-class?action=waive-tuition', { method: 'POST', body: JSON.stringify(data) }),
   getTuitionTransactions: (params = '') => request(`create-class?action=list-transactions${params ? `&${params}` : ''}`, { method: 'GET' }),
   updateStudentClassStatus: (classId, studentId, status) => classMutation('create-class?action=update-student-class-status', { method: 'POST', body: JSON.stringify({ classId, studentId, status }) }),
   addStudentToClass: (classId, studentId) => classMutation('create-class?action=add-student-to-class', { method: 'POST', body: JSON.stringify({ classId, studentId }) }),
+  addStudentsToClass: (classId, studentIds) => classMutation('create-class?action=add-students-to-class', { method: 'POST', body: JSON.stringify({ classId, studentIds }) }),
   archiveClass: (classId, isArchived) => classMutation('create-class?action=archive-class', { method: 'POST', body: JSON.stringify({ classId, isArchived }) }),
   createChapter: (data) => request('create-chapter', { method: 'POST', body: JSON.stringify(data) }),
   getChapters: (classId = '', options = {}) => {

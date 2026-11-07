@@ -5,6 +5,7 @@
 - Theo yêu cầu người dùng, primary assistant đóng vai trò **orchestrator**: làm rõ phạm vi, chọn worker, giao việc, review diff và xác minh kết quả trước bàn giao.
 - Được chủ động dùng subagent để implement các yêu cầu code tiếp theo trong repository này, không cần hỏi lại mỗi lần. Yêu cầu cụ thể mới của người dùng được ưu tiên.
 - Worker nhận task phải tự hoàn thành phạm vi được giao; **không spawn thêm subagent**. Quy tắc điều phối này chỉ dành cho primary, không tạo chuỗi delegation đệ quy.
+- **Khi prompt giao việc ghi rõ bạn là worker/reviewer** (kể cả khi chạy qua `opencode run`, `agy` hay subagent), toàn bộ vai trò orchestrator và mục "Chọn model Free" bên dưới **không áp dụng**: không gọi `agy`, `opencode`, subagent hay model khác; tự làm bằng công cụ của mình. Nếu không làm được (thiếu quyền, lỗi model), dừng lại và báo cáo trung thực nguyên nhân, không tự chuyển việc sang worker khác.
 - Với câu hỏi/plan chỉ cần đọc vài file hoặc sửa tài liệu nhỏ, primary làm trực tiếp để tránh overhead. Với tác vụ code, mặc định một worker; chỉ tăng worker khi có các phần thực sự độc lập.
 - Với task nhiều phase/subtask, primary được dùng đồng thời Gemini qua CLI `agy` và các model Free OpenCode. Chỉ chạy song song khi task không sửa trùng file; shared API/schema/renderer phải chạy tuần tự.
 - Primary là orchestrator/reviewer cuối: chia phase, hợp nhất thay đổi, review diff, chạy full test/build và verify acceptance criteria. Không coi báo cáo worker là bằng chứng hoàn thành.

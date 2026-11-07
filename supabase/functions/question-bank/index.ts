@@ -1228,146 +1228,51 @@ serve(async (req: Request) => {
         const typeScopeError = await validateAndResolveTypeScope(serviceRoleClient, scope)
         if (typeScopeError) return errorResponse(typeScopeError, 400)
 
-        const { data: rows, error: availErr } = await buildPoolQuery(
-          serviceRoleClient,
-          scope,
-          'id, question_type, difficulty, grade_block, class_id, chapter_id, lesson_id, qb_class_id, qb_chapter_id, qb_lesson_id, qb_question_type_id'
-        )
-        if (availErr) return errorResponse(availErr.message, 500)
-
-        const all = rows || []
-        const mc = all.filter(q => q.question_type === 'MULTIPLE_CHOICE').length
-        const tf = all.filter(q => q.question_type === 'TRUE_FALSE').length
-        const sa = all.filter(q => q.question_type === 'SHORT_ANSWER').length
-
-        // Phân nhóm theo bài học và chương (hỗ trợ cả constant & động)
-        const byChapter: Record<string, { total: number; mc: number; tf: number; sa: number }> = {}
-        const byLesson: Record<string, { total: number; mc: number; tf: number; sa: number }> = {}
-
-        all.forEach(q => {
-          const chId = q.qb_chapter_id || q.chapter_id
-          const lsId = q.qb_lesson_id || q.lesson_id
-          if (chId) {
-            if (!byChapter[chId]) byChapter[chId] = { total: 0, mc: 0, tf: 0, sa: 0 }
-            byChapter[chId].total++
-            if (q.question_type === 'MULTIPLE_CHOICE') byChapter[chId].mc++
-            if (q.question_type === 'TRUE_FALSE') byChapter[chId].tf++
-            if (q.question_type === 'SHORT_ANSWER') byChapter[chId].sa++
-          }
-          if (lsId) {
-            if (!byLesson[lsId]) byLesson[lsId] = { total: 0, mc: 0, tf: 0, sa: 0 }
-            byLesson[lsId].total++
-            if (q.question_type === 'MULTIPLE_CHOICE') byLesson[lsId].mc++
-            if (q.question_type === 'TRUE_FALSE') byLesson[lsId].tf++
-            if (q.question_type === 'SHORT_ANSWER') byLesson[lsId].sa++
+        const { data: rpcCounts, error: rpcErr } = await serviceRoleClient.rpc('fn_qb_counts', {
+          p_filters: {
+            mode: 'pool',
+            scopeType: scope.scopeType,
+            gradeBlock: scope.gradeBlock,
+            constantOnly: scope.constantOnly,
+            typeIds: scope.typeIds,
+            untypedLessonIds: scope.untypedLessonIds,
+            classIds: scope.classIds,
+            chapterIds: scope.chapterIds,
+            lessonIds: scope.lessonIds,
+            restrictTypePoolToScope: scope.restrictTypePoolToScope,
+            tags: scope.tags
           }
         })
+        if (rpcErr) return errorResponse(rpcErr.message, 500)
 
-        const diffCounts = {
-          NHAN_BIET: all.filter(q => q.difficulty === 'NHAN_BIET').length,
-          THONG_HIEU: all.filter(q => q.difficulty === 'THONG_HIEU').length,
-          VAN_DUNG: all.filter(q => q.difficulty === 'VAN_DUNG').length,
-          VAN_DUNG_CAO: all.filter(q => q.difficulty === 'VAN_DUNG_CAO').length
-        }
-
-        const byTypeAndDifficulty = {
-          MULTIPLE_CHOICE: {
-            NHAN_BIET: all.filter(q => q.question_type === 'MULTIPLE_CHOICE' && q.difficulty === 'NHAN_BIET').length,
-            THONG_HIEU: all.filter(q => q.question_type === 'MULTIPLE_CHOICE' && q.difficulty === 'THONG_HIEU').length,
-            VAN_DUNG: all.filter(q => q.question_type === 'MULTIPLE_CHOICE' && q.difficulty === 'VAN_DUNG').length,
-            VAN_DUNG_CAO: all.filter(q => q.question_type === 'MULTIPLE_CHOICE' && q.difficulty === 'VAN_DUNG_CAO').length
-          },
-          TRUE_FALSE: {
-            NHAN_BIET: all.filter(q => q.question_type === 'TRUE_FALSE' && q.difficulty === 'NHAN_BIET').length,
-            THONG_HIEU: all.filter(q => q.question_type === 'TRUE_FALSE' && q.difficulty === 'THONG_HIEU').length,
-            VAN_DUNG: all.filter(q => q.question_type === 'TRUE_FALSE' && q.difficulty === 'VAN_DUNG').length,
-            VAN_DUNG_CAO: all.filter(q => q.question_type === 'TRUE_FALSE' && q.difficulty === 'VAN_DUNG_CAO').length
-          },
-          SHORT_ANSWER: {
-            NHAN_BIET: all.filter(q => q.question_type === 'SHORT_ANSWER' && q.difficulty === 'NHAN_BIET').length,
-            THONG_HIEU: all.filter(q => q.question_type === 'SHORT_ANSWER' && q.difficulty === 'THONG_HIEU').length,
-            VAN_DUNG: all.filter(q => q.question_type === 'SHORT_ANSWER' && q.difficulty === 'VAN_DUNG').length,
-            VAN_DUNG_CAO: all.filter(q => q.question_type === 'SHORT_ANSWER' && q.difficulty === 'VAN_DUNG_CAO').length
-          }
-        }
-
-        return jsonResponse({
-          total: all.length,
-          mc,
-          tf,
-          sa,
-          byTypeAndDifficulty,
-          byDifficulty: diffCounts,
-          byChapter,
-          byLesson
-        })
+        return jsonResponse(rpcCounts)
       }
 
       // Nếu chỉ yêu cầu thống kê chung
       if (statsOnly) {
-        let stClassIds: string[] = []
-        let stChapterIds: string[] = []
-        if (gradeBlock && filterLessonIds.length === 0 && !chapterId && !classId) {
-          const [dynIds, constIds] = await Promise.all([
-            getScopeTargetIds(serviceRoleClient, gradeBlock),
-            getConstantScopeTargetIds(serviceRoleClient, gradeBlock)
-          ])
-          stClassIds = [...dynIds.classIds, ...constIds.classIds]
-          stChapterIds = [...dynIds.chapterIds, ...constIds.chapterIds]
-        }
-
-        const statsQueryFactory = () => {
-          let baseQuery = serviceRoleClient.from('question_bank').select('id, question_type, difficulty')
-          if (subject) baseQuery = baseQuery.eq('subject', subject)
-          if (gradeLevel) baseQuery = baseQuery.eq('grade_level', parseInt(gradeLevel, 10))
-          if (qbQuestionTypeId) baseQuery = baseQuery.eq('qb_question_type_id', qbQuestionTypeId)
-
-          if (unassigned === 'no_class') {
-            baseQuery = baseQuery.is('class_id', null).is('qb_class_id', null)
-          } else if (unassigned === 'no_chapter') {
-            baseQuery = baseQuery.is('chapter_id', null).is('qb_chapter_id', null)
-          } else if (unassigned === 'no_lesson') {
-            baseQuery = baseQuery.is('lesson_id', null).is('qb_lesson_id', null)
+        const { data: rpcCounts, error: rpcErr } = await serviceRoleClient.rpc('fn_qb_counts', {
+          p_filters: {
+            mode: 'stats',
+            subject,
+            gradeLevel: gradeLevel ? parseInt(gradeLevel, 10) : null,
+            qbQuestionTypeId,
+            unassigned,
+            filterLessonIds,
+            chapterId,
+            classId,
+            gradeBlock
+            // Giữ đúng hành vi cũ của stats=true: KHÔNG áp dụng search/lessonId.
           }
+        })
+        if (rpcErr) return errorResponse(rpcErr.message, 500)
 
-          if (filterLessonIds.length > 0) {
-            baseQuery = baseQuery.or(`qb_lesson_id.in.(${filterLessonIds.join(',')}),lesson_id.in.(${filterLessonIds.join(',')})`)
-          } else if (chapterId) {
-            baseQuery = baseQuery.or(`qb_chapter_id.eq.${chapterId},chapter_id.eq.${chapterId}`)
-          } else if (classId) {
-            baseQuery = baseQuery.or(`qb_class_id.eq.${classId},class_id.eq.${classId}`)
-          } else if (gradeBlock) {
-            const orClauses = [`grade_block.eq.${gradeBlock}`]
-            if (stClassIds.length > 0) {
-              orClauses.push(`class_id.in.(${stClassIds.join(',')})`)
-              orClauses.push(`qb_class_id.in.(${stClassIds.join(',')})`)
-            }
-            if (stChapterIds.length > 0) {
-              orClauses.push(`chapter_id.in.(${stChapterIds.join(',')})`)
-              orClauses.push(`qb_chapter_id.in.(${stChapterIds.join(',')})`)
-            }
-            baseQuery = baseQuery.or(orClauses.join(','))
-          }
-
-          return baseQuery
-        }
-
-        const { data: qData, error: qErr } = await fetchAllQueryRows(statsQueryFactory)
-        if (qErr) return errorResponse(qErr.message, 500)
-
-        const total = (qData || []).length
-        const mc = (qData || []).filter(q => q.question_type === 'MULTIPLE_CHOICE').length
-        const tf = (qData || []).filter(q => q.question_type === 'TRUE_FALSE').length
-        const sa = (qData || []).filter(q => q.question_type === 'SHORT_ANSWER').length
-
-        const diffCounts = {
-          NHAN_BIET: (qData || []).filter(q => q.difficulty === 'NHAN_BIET').length,
-          THONG_HIEU: (qData || []).filter(q => q.difficulty === 'THONG_HIEU').length,
-          VAN_DUNG: (qData || []).filter(q => q.difficulty === 'VAN_DUNG').length,
-          VAN_DUNG_CAO: (qData || []).filter(q => q.difficulty === 'VAN_DUNG_CAO').length,
-        }
-
-        return jsonResponse({ total, mc, tf, sa, diffCounts })
+        return jsonResponse({
+          total: rpcCounts.total,
+          mc: rpcCounts.mc,
+          tf: rpcCounts.tf,
+          sa: rpcCounts.sa,
+          diffCounts: rpcCounts.diffCounts
+        })
       }
 
       // Truy vấn chi tiết câu hỏi kèm thông tin Chương, Bài học, Lớp
@@ -1494,47 +1399,23 @@ serve(async (req: Request) => {
       }
 
       // Stats promise if includeStats=true
-      let statsPromise = Promise.resolve<{ data: any[] | null; error: any }>({ data: null, error: null })
+      let statsPromise = Promise.resolve<{ data: any; error: any }>({ data: null, error: null })
       if (includeStats) {
-        const statsQueryFactory = () => {
-          let statsQuery = serviceRoleClient
-            .from('question_bank')
-            .select('id, question_type, difficulty')
-           if (subject) statsQuery = statsQuery.eq('subject', subject)
-           if (gradeLevel) statsQuery = statsQuery.eq('grade_level', parseInt(gradeLevel, 10))
-           if (qbQuestionTypeId) statsQuery = statsQuery.eq('qb_question_type_id', qbQuestionTypeId)
-
-          if (unassigned === 'no_class') {
-            statsQuery = statsQuery.is('class_id', null).is('qb_class_id', null)
-          } else if (unassigned === 'no_chapter') {
-            statsQuery = statsQuery.is('chapter_id', null).is('qb_chapter_id', null)
-          } else if (unassigned === 'no_lesson') {
-            statsQuery = statsQuery.is('lesson_id', null).is('qb_lesson_id', null)
+        statsPromise = serviceRoleClient.rpc('fn_qb_counts', {
+          p_filters: {
+            mode: 'stats',
+            subject,
+            gradeLevel: gradeLevel ? parseInt(gradeLevel, 10) : null,
+            qbQuestionTypeId,
+            unassigned,
+            filterLessonIds,
+            lessonId,
+            chapterId,
+            classId,
+            gradeBlock,
+            search: null
           }
-
-          if (filterLessonIds.length > 0) {
-            statsQuery = statsQuery.or(`qb_lesson_id.in.(${filterLessonIds.join(',')}),lesson_id.in.(${filterLessonIds.join(',')})`)
-          } else if (lessonId) {
-            statsQuery = statsQuery.or(`qb_lesson_id.eq.${lessonId},lesson_id.eq.${lessonId}`)
-          } else if (chapterId) {
-            statsQuery = statsQuery.or(`qb_chapter_id.eq.${chapterId},chapter_id.eq.${chapterId}`)
-          } else if (classId) {
-            statsQuery = statsQuery.or(`qb_class_id.eq.${classId},class_id.eq.${classId}`)
-          } else if (gradeBlock) {
-            const orClauses = [`grade_block.eq.${gradeBlock}`]
-            if (qbScopeTargetIds.classIds.length > 0) {
-              orClauses.push(`class_id.in.(${qbScopeTargetIds.classIds.join(',')})`)
-              orClauses.push(`qb_class_id.in.(${qbScopeTargetIds.classIds.join(',')})`)
-            }
-            if (qbScopeTargetIds.chapterIds.length > 0) {
-              orClauses.push(`chapter_id.in.(${qbScopeTargetIds.chapterIds.join(',')})`)
-              orClauses.push(`qb_chapter_id.in.(${qbScopeTargetIds.chapterIds.join(',')})`)
-            }
-            statsQuery = statsQuery.or(orClauses.join(','))
-          }
-          return statsQuery
-        }
-        statsPromise = fetchAllQueryRows(statsQueryFactory)
+        })
       }
 
       const [{ data: questions, count, error }, statsRes] = await Promise.all([
@@ -1543,6 +1424,8 @@ serve(async (req: Request) => {
       ])
 
       if (error) return errorResponse(error.message, 500)
+      // RPC thống kê lỗi (vd function deploy trước migration) phải báo rõ, không âm thầm trả stats null.
+      if (includeStats && statsRes?.error) return errorResponse(statsRes.error.message || 'Không tính được thống kê ngân hàng câu hỏi', 500)
 
       const totalItems = count !== null && count !== undefined ? count : (questions || []).length
       const totalPages = isPaginated ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1
@@ -1571,16 +1454,11 @@ serve(async (req: Request) => {
       if (includeStats && statsRes.data) {
         const qData = statsRes.data
         stats = {
-          total: qData.length,
-          mc: qData.filter((q: any) => q.question_type === 'MULTIPLE_CHOICE').length,
-          tf: qData.filter((q: any) => q.question_type === 'TRUE_FALSE').length,
-          sa: qData.filter((q: any) => q.question_type === 'SHORT_ANSWER').length,
-          diffCounts: {
-            NHAN_BIET: qData.filter((q: any) => q.difficulty === 'NHAN_BIET').length,
-            THONG_HIEU: qData.filter((q: any) => q.difficulty === 'THONG_HIEU').length,
-            VAN_DUNG: qData.filter((q: any) => q.difficulty === 'VAN_DUNG').length,
-            VAN_DUNG_CAO: qData.filter((q: any) => q.difficulty === 'VAN_DUNG_CAO').length,
-          }
+          total: qData.total,
+          mc: qData.mc,
+          tf: qData.tf,
+          sa: qData.sa,
+          diffCounts: qData.diffCounts
         }
       }
 

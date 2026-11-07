@@ -55,57 +55,15 @@ serve(async (req: Request) => {
     }
 
     const sid = studentId as string
-    // 1. Lấy các submission của học sinh (lọc theo lớp nếu có classId).
-    let subQuery = serviceRoleClient.from('submissions').select('id')
-    if (classId) {
-      subQuery = serviceRoleClient
-        .from('submissions')
-        .select('id, homeworks!inner(id, lessons!inner(chapters!inner(class_id)))')
-        .eq('homeworks.lessons.chapters.class_id', classId)
-    }
-    const { data: subs, error: subErr } = await subQuery.eq('student_id', sid)
-    if (subErr) return errorResponse(subErr.message, 500)
-    const submissionIds = (subs || []).map((s: { id: string }) => s.id)
-    if (submissionIds.length === 0) {
-      return jsonResponse({ studentId, topics: [], totalAnswered: 0, totalWrong: 0 })
-    }
+    const { data: studentWeak, error: rpcErr } = await serviceRoleClient.rpc('fn_weak_topics', {
+      p_class_id: classId || null,
+      p_student_id: sid,
+      p_min_answered: minAnswered,
+      p_limit: limit,
+    })
+    if (rpcErr) return errorResponse(rpcErr.message, 500)
 
-    // 2. Lấy đáp án từng câu kèm chương (giới hạn an toàn 5000 dòng).
-    const { data: answers, error: ansErr } = await serviceRoleClient
-      .from('submission_answers')
-      .select('is_correct, questions!inner(homeworks!inner(lessons!inner(chapters!inner(id, title, class_id))))')
-      .in('submission_id', submissionIds)
-      .limit(5000)
-    if (ansErr) return errorResponse(ansErr.message, 500)
-
-    // 3. Gom theo chương: đã làm / sai / tỉ lệ sai.
-    const byChapter = new Map<string, { chapterId: string; chapterTitle: string; classId: string | null; answered: number; wrong: number }>()
-    for (const a of (answers || []) as Array<{ is_correct: boolean; questions: { homeworks: { lessons: { chapters: { id: string; title: string; class_id: string } | null } } } | null }>) {
-      const ch = a.questions?.homeworks?.lessons?.chapters
-      if (!ch?.id) continue
-      if (classId && ch.class_id !== classId) continue
-      let entry = byChapter.get(ch.id)
-      if (!entry) {
-        entry = { chapterId: ch.id, chapterTitle: ch.title || 'Chương', classId: ch.class_id || null, answered: 0, wrong: 0 }
-        byChapter.set(ch.id, entry)
-      }
-      entry.answered++
-      if (!a.is_correct) entry.wrong++
-    }
-
-    let totalAnswered = 0
-    let totalWrong = 0
-    const topics = [...byChapter.values()]
-      .map((t) => {
-        totalAnswered += t.answered
-        totalWrong += t.wrong
-        return { ...t, wrongRate: t.answered > 0 ? Math.round((t.wrong / t.answered) * 1000) / 10 : 0 }
-      })
-      .filter((t) => t.answered >= minAnswered)
-      .sort((a, b) => b.wrongRate - a.wrongRate || b.wrong - a.wrong)
-      .slice(0, limit)
-
-    return jsonResponse({ studentId: sid, topics, totalAnswered, totalWrong })
+    return jsonResponse(studentWeak || { studentId: sid, topics: [], totalAnswered: 0, totalWrong: 0 })
   } catch (err: unknown) {
     const error = err as Error
     return errorResponse(error.message || 'Unauthorized', 401)

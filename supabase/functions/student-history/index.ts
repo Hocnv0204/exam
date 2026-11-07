@@ -196,16 +196,6 @@ serve(async (req: Request) => {
       }
     }
 
-    if (user?.role === 'ADMIN') {
-      // Auto-cleanup: ensure formal student submissions are never marked as trial
-      serviceRoleClient
-        .from('submissions')
-        .update({ is_trial: false, guest_name: null, guest_phone: null })
-        .not('student_id', 'is', null)
-        .eq('is_trial', true)
-        .then(() => {})
-        .catch(() => {})
-    }
 
     // 0.5 Progress Report (scope=report | shared-report)
     // Cả hai scope dùng CHUNG logic bên dưới để KPI không bị lệch.

@@ -22,6 +22,10 @@ const migration = readFileSync(
   new URL('../migrations/20261103000000_student_lock_intervals.sql', import.meta.url),
   'utf8',
 )
+const aggregateMigration = readFileSync(
+  new URL('../migrations/20261107002000_debt_and_dashboard_rpc.sql', import.meta.url),
+  'utf8',
+)
 const userActivity = readFileSync(
   new URL('../functions/user-activity/index.ts', import.meta.url),
   'utf8',
@@ -72,9 +76,11 @@ test('class reporting loads intervals and excludes only the locked student/date'
   assert.equal(isStudentLockedOn(A, '2026-11-10', intervals), false)
   assert.equal(isStudentLockedOn(B, '2026-11-05', intervals), false)
   assert.equal(isStudentLockedOn(B, '2026-11-12', intervals), true)
-  assert.match(createClass, /get-attendance-history[\s\S]*?const eligible = .*isStudentLockedOn/)
-  assert.match(createClass, /get-class-kpi-stats[\s\S]*?const eligible = .*isStudentLockedOn/)
-  assert.match(createClass, /get-class-debt-summary[\s\S]*?const eligible = .*isStudentLockedOn/)
+  assert.match(createClass, /get-attendance-history[\s\S]*?rpc\('fn_get_class_attendance_history'/)
+  assert.match(createClass, /get-class-kpi-stats[\s\S]*?rpc\('fn_get_class_kpi_stats'/)
+  assert.match(createClass, /get-class-debt-summary[\s\S]*?rpc\('fn_get_class_debt_summary'/)
+  assert.match(aggregateMigration, /sli\.start_date <= (?:ss|ase)\.session_date/)
+  assert.match(aggregateMigration, /sli\.end_date IS NULL OR (?:ss|ase)\.session_date < sli\.end_date/)
   assert.match(migration, /trg_student_classes_locked_guard/)
   assert.match(migration, /trg_profiles_locked_state_guard/)
   assert.match(migration, /'lock_settlement', -COALESCE\(v_old_balance, 0\), 0/)
@@ -246,6 +252,8 @@ test('edge functions use DB interval guards, not optimistic UI-only checks', () 
   assert.match(createClass, /Học sinh đang bị khóa tài khoản, không thể thêm vào lớp/)
   assert.match(createClass, /lock_interval_id: null/)
 
-  assert.match(dashboard, /from\('student_lock_intervals'\)/)
-  assert.match(dashboard, /isStudentLockedOn/)
+  assert.match(dashboard, /rpc\('fn_get_dashboard_financial_stats'/)
+  assert.match(aggregateMigration, /CREATE OR REPLACE FUNCTION public\.fn_get_dashboard_financial_stats/)
+  assert.match(aggregateMigration, /sli\.start_date <= ss\.session_date/)
+  assert.match(aggregateMigration, /sli\.end_date IS NULL OR ss\.session_date < sli\.end_date/)
 })

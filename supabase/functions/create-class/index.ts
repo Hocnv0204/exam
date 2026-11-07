@@ -14,7 +14,7 @@ import {
   filterStudentSessionDates,
   isStudentLockedOn,
 } from '../../shared/student-lock.ts'
-import { fetchAllRows, fetchAllRowsInChunks, isFetchAllRowsError } from '../../shared/fetch-all-rows.ts'
+import { fetchAllRows, isFetchAllRowsError } from '../../shared/fetch-all-rows.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -330,8 +330,6 @@ serve(async (req: Request) => {
         if (user.role !== 'ADMIN') return errorResponse('Forbidden: Admin access required', 403)
         const classId = url.searchParams.get('classId')
         if (!classId) return errorResponse('classId is required', 400)
-        // Phân trang server: ?month=YYYY-MM&page=1&pageSize=10
-        // Không truyền month/page/pageSize -> trả mảng cũ (tương thích ngược)
         const monthParam = url.searchParams.get('month')
         const hasPaging = monthParam !== null || url.searchParams.get('page') !== null || url.searchParams.get('pageSize') !== null
         const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
@@ -340,730 +338,38 @@ serve(async (req: Request) => {
           return errorResponse('month phải có dạng YYYY-MM', 400)
         }
 
-        // 1. Fetch Class, Students, Attendance Sessions, Student Sessions
-        const [classRes, scData, legacyData, sessionsData, studentSessionsRaw] = await Promise.all([
-          serviceRoleClient
-            .from('classes')
-            .select('id, name, tuition_fee')
-            .eq('id', classId)
-            .single(),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('student_classes')
-              .select('student_id, status, profiles:student_id(id, username, full_name, role)')
-              .eq('class_id', classId)
-              .order('student_id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('profiles')
-              .select('id, username, full_name, role')
-              .eq('class_id', classId)
-              .eq('role', 'STUDENT')
-              .order('id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('attendance_sessions')
-              .select(`
-                id,
-                class_id,
-                session_date,
-                note,
-                fee_per_session,
-                created_at,
-                attendance_records (
-                  id,
-                  student_id,
-                  is_present,
-                  fee_amount,
-                  payment_status
-                )
-              `)
-              .eq('class_id', classId)
-              .order('session_date', { ascending: false })
-              .order('id', { ascending: false })
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('student_sessions')
-              .select('id, student_id, session_date, is_paid')
-              .eq('class_id', classId)
-              .order('id')
-          )
-        ])
-
-        if (classRes.error) return errorResponse(classRes.error.message, 500)
-
-        const tuitionFee = Number(classRes.data?.tuition_fee || 0)
-
-        const studentMap = new Map<string, any>()
-        for (const sc of scData) {
-          const prof = (sc as any).profiles
-          if (prof && prof.role === 'STUDENT') {
-            studentMap.set(prof.id, {
-              id: prof.id,
-              username: prof.username,
-              fullName: prof.full_name || prof.username,
-              status: sc.status || 'ACTIVE'
-            })
-          }
-        }
-        for (const ls of legacyData) {
-          if (!studentMap.has(ls.id)) {
-            studentMap.set(ls.id, {
-              id: ls.id,
-              username: ls.username,
-              fullName: ls.full_name || ls.username,
-              status: 'ACTIVE'
-            })
-          }
-        }
-
-        const totalEnrolledStudents = studentMap.size
-        let lockIntervals
-        try { lockIntervals = await fetchLockIntervalsForStudents(serviceRoleClient, [...studentMap.keys()]) }
-        catch (err) { return errorResponse((err as Error).message, 500) }
-
-        const intervalsByStudent = new Map<string, any[]>()
-        for (const interval of lockIntervals) {
-          if (!interval?.student_id) continue
-          let list = intervalsByStudent.get(interval.student_id)
-          if (!list) {
-            list = []
-            intervalsByStudent.set(interval.student_id, list)
-          }
-          list.push(interval)
-        }
-        const eligible = (studentId: string, date: string) => !isStudentLockedOn(studentId, date, intervalsByStudent.get(studentId) || [])
-        const attendanceSessionsData = sessionsData
-        const studentSessionsData = studentSessionsRaw.filter((ss: any) => studentMap.has(ss.student_id) && eligible(ss.student_id, ss.session_date))
-
-        // Collect all distinct dates from both attendance_sessions and student_sessions
-        const dateMap = new Map<string, {
-          sessionId: string | null,
-          note: string | null,
-          feePerSession: number,
-          createdAt: string | null,
-          studentRecords: Map<string, { isPresent: boolean, paymentStatus: string, feeAmount: number }>
-        }>()
-
-        // 1. Fill dates from attendance_sessions
-        attendanceSessionsData.forEach((s: any) => {
-          const fee = Number(s.fee_per_session || tuitionFee)
-          const sRecMap = new Map<string, { isPresent: boolean, paymentStatus: string, feeAmount: number }>()
-
-          const recs = (s.attendance_records || []).filter((r: any) => studentMap.has(r.student_id) && eligible(r.student_id, s.session_date))
-          recs.forEach((r: any) => {
-            sRecMap.set(r.student_id, {
-              isPresent: r.is_present === true,
-              paymentStatus: r.payment_status || 'none',
-              feeAmount: Number(r.fee_amount || fee)
-            })
-          })
-
-          dateMap.set(s.session_date, {
-            sessionId: s.id,
-            note: s.note,
-            feePerSession: fee,
-            createdAt: s.created_at,
-            studentRecords: sRecMap
-          })
+        const { data, error } = await serviceRoleClient.rpc('fn_get_class_attendance_history', {
+          p_class_id: classId,
+          p_month: monthParam || null,
+          p_page: page,
+          p_page_size: pageSize,
+          p_has_paging: hasPaging
         })
-
-        // 2. Merge/Add dates from student_sessions
-        studentSessionsData.forEach((ss: any) => {
-          let dateEntry = dateMap.get(ss.session_date)
-          if (!dateEntry) {
-            dateEntry = {
-              sessionId: null,
-              note: null,
-              feePerSession: tuitionFee,
-              createdAt: null,
-              studentRecords: new Map()
-            }
-            dateMap.set(ss.session_date, dateEntry)
-          }
-
-          const existing = dateEntry.studentRecords.get(ss.student_id)
-          if (!existing) {
-            dateEntry.studentRecords.set(ss.student_id, {
-              isPresent: true,
-              paymentStatus: ss.is_paid ? 'paid' : 'unpaid',
-              feeAmount: dateEntry.feePerSession
-            })
-          } else if (ss.is_paid && existing.paymentStatus !== 'paid') {
-            existing.paymentStatus = 'paid'
-          }
-        })
-
-        // Format dates into history array sorted descending by date
-        const sortedDates = Array.from(dateMap.keys()).sort().reverse()
-        const months = [...new Set(sortedDates.map(d => d.substring(0, 7)))].filter(Boolean)
-        const scopedDates = monthParam ? sortedDates.filter(d => d.startsWith(monthParam)) : sortedDates
-        const formatted = scopedDates.map(date => {
-          const entry = dateMap.get(date)!
-          const recList = Array.from(entry.studentRecords.values())
-          const presentCount = recList.filter(r => r.isPresent).length
-          const activeOnDate = [...studentMap.keys()].filter(id => eligible(id, date)).length
-          const totalCount = totalEnrolledStudents > 0 ? activeOnDate : recList.length
-          const absentCount = totalCount > presentCount ? (totalCount - presentCount) : 0
-          const paidCount = recList.filter(r => r.isPresent && r.paymentStatus === 'paid').length
-          const unpaidCount = recList.filter(r => r.isPresent && r.paymentStatus === 'unpaid').length
-          const totalFee = recList.filter(r => r.isPresent && r.paymentStatus !== 'waived').reduce((sum, r) => sum + r.feeAmount, 0)
-          const attendanceRate = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0
-
-          return {
-            id: entry.sessionId || `session-${date}`,
-            classId,
-            sessionDate: date,
-            note: entry.note,
-            feePerSession: entry.feePerSession,
-            createdAt: entry.createdAt,
-            presentCount,
-            absentCount,
-            totalCount,
-            paidCount,
-            unpaidCount,
-            totalFee,
-            attendanceRate
-          }
-        })
-
-        if (!hasPaging) {
-          return jsonResponse(formatted)
-        }
-        const total = formatted.length
-        const totalPages = Math.max(1, Math.ceil(total / pageSize))
-        const safePage = Math.min(page, totalPages)
-        return jsonResponse({
-          items: formatted.slice((safePage - 1) * pageSize, safePage * pageSize),
-          total,
-          page: safePage,
-          pageSize,
-          totalPages,
-          months
-        })
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse(data)
       }
       if (action === 'get-class-kpi-stats') {
         if (user.role !== 'ADMIN') return errorResponse('Forbidden: Admin access required', 403)
         const classId = url.searchParams.get('classId')
         if (!classId) return errorResponse('classId is required', 400)
 
-        // 1. Fetch Class, Students, Student Sessions, Attendance Sessions, Homeworks
-        const [classRes, scData, legacyData, studentSessionsData, attendanceSessionsData, classHomeworks] = await Promise.all([
-          serviceRoleClient
-            .from('classes')
-            .select('id, name, tuition_fee')
-            .eq('id', classId)
-            .single(),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('student_classes')
-              .select('student_id, status, profiles:student_id(role)')
-              .eq('class_id', classId)
-              .order('student_id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('profiles')
-              .select('id')
-              .eq('class_id', classId)
-              .eq('role', 'STUDENT')
-              .order('id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('student_sessions')
-              .select('id, student_id, session_date, is_paid')
-              .eq('class_id', classId)
-              .order('id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('attendance_sessions')
-              .select(`
-                id,
-                session_date,
-                fee_per_session,
-                note,
-                attendance_records (
-                  id,
-                  student_id,
-                  is_present,
-                  fee_amount,
-                  payment_status
-                )
-              `)
-              .eq('class_id', classId)
-              .order('session_date', { ascending: false })
-              .order('id', { ascending: false })
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('homeworks')
-              .select(`
-                id,
-                title,
-                deadline,
-                is_published,
-                lessons!inner (
-                  chapters!inner (
-                    class_id
-                  )
-                )
-              `)
-              .eq('lessons.chapters.class_id', classId)
-              .order('id')
-          )
-        ])
-
-        if (classRes.error) return errorResponse(classRes.error.message, 500)
-
-        const tuitionFee = Number(classRes.data?.tuition_fee || 0)
-
-        // Parse student counts
-        const studentMap = new Map<string, string>()
-        for (const sc of scData) {
-          const prof = (sc as any).profiles
-          if (prof && prof.role === 'STUDENT') {
-            studentMap.set(sc.student_id, sc.status || 'ACTIVE')
-          }
-        }
-        for (const ls of legacyData) {
-          if (!studentMap.has(ls.id)) {
-            studentMap.set(ls.id, 'ACTIVE')
-          }
-        }
-
-        let activeStudents = 0
-        let pausedStudents = 0
-        for (const st of studentMap.values()) {
-          if (st === 'PAUSED') pausedStudents++
-          else activeStudents++
-        }
-        const totalStudents = studentMap.size
-
-        const now = new Date()
-        const nowIso = now.toISOString()
-        const openHomeworks = classHomeworks.filter((h: any) => h.is_published && (!h.deadline || h.deadline >= nowIso))
-        const openHwIds = openHomeworks.map((h: any) => h.id)
-
-        // Query độc lập chạy song song qua Promise.all: lock intervals của học sinh & submissions của open homeworks
-        let lockIntervals: any[] = []
-        let subData: any[] = []
-        try {
-          const [intervalsRes, submissionsRes] = await Promise.all([
-            fetchLockIntervalsForStudents(serviceRoleClient, [...studentMap.keys()]),
-            openHwIds.length > 0 && totalStudents > 0
-              ? fetchAllRowsInChunks(
-                  openHwIds,
-                  100,
-                  (chunk) =>
-                    serviceRoleClient
-                      .from('submissions')
-                      .select('homework_id, student_id')
-                      .in('homework_id', chunk)
-                      .eq('status', 'SUBMITTED')
-                      .order('id')
-                )
-              : Promise.resolve([])
-          ])
-          lockIntervals = intervalsRes || []
-          subData = submissionsRes || []
-        } catch (err) {
-          return errorResponse((err as Error).message, 500)
-        }
-
-        const intervalsByStudent = new Map<string, any[]>()
-        for (const interval of lockIntervals) {
-          if (!interval?.student_id) continue
-          let list = intervalsByStudent.get(interval.student_id)
-          if (!list) {
-            list = []
-            intervalsByStudent.set(interval.student_id, list)
-          }
-          list.push(interval)
-        }
-
-        const eligible = (studentId: string, date: string) => !isStudentLockedOn(studentId, date, intervalsByStudent.get(studentId) || [])
-
-        // Build unified student session map: studentId -> Map<sessionDate, { isPresent, isPaid, feeAmount }>
-        const unifiedMap = new Map<string, Map<string, { isPresent: boolean; isPaid: boolean; feeAmount: number }>>()
-        for (const sId of studentMap.keys()) {
-          unifiedMap.set(sId, new Map())
-        }
-
-        // Add from student_sessions (configured via #student-details) - ONLY for students in this class
-        studentSessionsData
-          .filter((ss: any) => studentMap.has(ss.student_id) && eligible(ss.student_id, ss.session_date))
-          .forEach((ss: any) => {
-            const sMap = unifiedMap.get(ss.student_id)
-            if (sMap) {
-              sMap.set(ss.session_date, {
-                isPresent: true,
-                isPaid: ss.is_paid === true,
-                feeAmount: tuitionFee
-              })
-            }
-          })
-
-        // Merge from attendance_sessions & attendance_records - ONLY for students in this class
-        attendanceSessionsData.forEach((as: any) => {
-          const recs = as.attendance_records || []
-          const fee = Number(as.fee_per_session || tuitionFee)
-          recs
-            .filter((r: any) => studentMap.has(r.student_id) && eligible(r.student_id, as.session_date))
-            .forEach((r: any) => {
-              const sMap = unifiedMap.get(r.student_id)
-              if (sMap) {
-                const existing = sMap.get(as.session_date)
-                if (r.is_present) {
-                  const isPaid = r.payment_status === 'paid' || (existing?.isPaid ?? false)
-                  const isWaived = r.payment_status === 'waived'
-                  sMap.set(as.session_date, {
-                    isPresent: true,
-                    isPaid: isPaid || isWaived,
-                    feeAmount: isWaived ? 0 : Number(r.fee_amount || existing?.feeAmount || fee)
-                  })
-                } else if (!existing) {
-                  sMap.set(as.session_date, {
-                    isPresent: false,
-                    isPaid: false,
-                    feeAmount: 0
-                  })
-                }
-              }
-            })
+        const { data, error } = await serviceRoleClient.rpc('fn_get_class_kpi_stats', {
+          p_class_id: classId,
+          p_now: new Date().toISOString()
         })
-
-        // Parse 30-day attendance rate (dùng `now` khai báo ở trên)
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
-
-        let last30Present = 0
-        let last30Total = 0
-        unifiedMap.forEach((sMap) => {
-          sMap.forEach((sess, dateStr) => {
-            if (dateStr >= thirtyDaysAgoStr) {
-              last30Total++
-              if (sess.isPresent) last30Present++
-            }
-          })
-        })
-        const attendanceRate30Days = last30Total > 0 ? Math.round((last30Present / last30Total) * 1000) / 10 : 100
-
-        // Parse uncollected tuition (strictly across enrolled students)
-        let totalUnpaidAmount = 0
-        const owingStudentSet = new Set<string>()
-        unifiedMap.forEach((sMap, sId) => {
-          let studentDebt = 0
-          sMap.forEach((sess) => {
-            if (sess.isPresent && !sess.isPaid) {
-              studentDebt += sess.feeAmount
-            }
-          })
-          if (studentDebt > 0) {
-            totalUnpaidAmount += studentDebt
-            owingStudentSet.add(sId)
-          }
-        })
-
-        // Parse latest session
-        const allDates = new Set<string>()
-        studentSessionsData
-          .filter((ss: any) => studentMap.has(ss.student_id) && eligible(ss.student_id, ss.session_date))
-          .forEach((ss: any) => allDates.add(ss.session_date))
-        attendanceSessionsData.forEach((as: any) => allDates.add(as.session_date))
-        const sortedDates = Array.from(allDates).sort().reverse()
-        const latestDate = sortedDates[0] || null
-
-        // Tổng số buổi đã học + số buổi trong tháng hiện tại (tính đến hôm nay)
-        const todayStr = now.toISOString().split('T')[0]
-        const monthPrefix = todayStr.slice(0, 7)
-        const monthHeld = sortedDates.filter((d) => d.slice(0, 7) === monthPrefix && d <= todayStr).length
-
-        let latestSessionInfo = null
-        if (latestDate) {
-          let presentCount = 0
-          let totalCount = 0
-          unifiedMap.forEach((sMap) => {
-            const sess = sMap.get(latestDate)
-            if (sess) {
-              totalCount++
-              if (sess.isPresent) presentCount++
-            }
-          })
-          if (totalCount === 0) totalCount = activeStudents
-          latestSessionInfo = {
-            sessionDate: latestDate,
-            presentCount,
-            totalCount,
-            note: attendanceSessionsData.find((as: any) => as.session_date === latestDate)?.note || null
-          }
-        }
-
-        // Parse homework stats (classHomeworks / openHomeworks đã tính ở trên)
-        let pendingSubmissionsCount = 0
-        if (openHomeworks.length > 0 && totalStudents > 0) {
-          const submittedSet = new Set((subData || []).map((s: any) => `${s.homework_id}|${s.student_id}`))
-          openHomeworks.forEach((h: any) => {
-            studentMap.forEach((_, sId) => {
-              const sIntervals = intervalsByStudent.get(sId)
-              if (sIntervals && sIntervals.some(i => i.end_date == null)) return
-              if (!submittedSet.has(`${h.id}|${sId}`)) {
-                pendingSubmissionsCount++
-              }
-            })
-          })
-        }
-
-        return jsonResponse({
-          totalStudents: {
-            total: totalStudents,
-            active: activeStudents,
-            paused: pausedStudents
-          },
-          attendanceRate30Days,
-          uncollectedTuition: {
-            totalAmount: totalUnpaidAmount,
-            owingStudentsCount: owingStudentSet.size
-          },
-          homeworks: {
-            totalCount: classHomeworks.length,
-            openCount: openHomeworks.length,
-            pendingSubmissionsCount
-          },
-          sessions: {
-            totalHeld: sortedDates.length,
-            monthHeld,
-            month: monthPrefix
-          },
-          latestSession: latestSessionInfo
-        })
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse(data)
       }
-
       if (action === 'get-class-debt-summary') {
         if (user.role !== 'ADMIN') return errorResponse('Forbidden: Admin access required', 403)
         const classId = url.searchParams.get('classId')
         if (!classId) return errorResponse('classId is required', 400)
 
-        // 1. Get Class, Students, Student Sessions, Attendance Records
-        const [classRes, scData, legacyData, studentSessionsRaw, recordsRaw] = await Promise.all([
-          serviceRoleClient
-            .from('classes')
-            .select('id, name, tuition_fee')
-            .eq('id', classId)
-            .single(),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('student_classes')
-              .select('student_id, status, profiles:student_id(id, username, full_name, role, balance)')
-              .eq('class_id', classId)
-              .order('student_id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('profiles')
-              .select('id, username, full_name, role, balance')
-              .eq('class_id', classId)
-              .eq('role', 'STUDENT')
-              .order('id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('student_sessions')
-              .select('id, student_id, session_date, is_paid')
-              .eq('class_id', classId)
-              .order('id')
-          ),
-          fetchAllRows(() =>
-            serviceRoleClient
-              .from('attendance_records')
-              .select(`
-                id,
-                student_id,
-                is_present,
-                fee_amount,
-                payment_status,
-                paid_at,
-                attendance_sessions!inner(
-                  id,
-                  class_id,
-                  session_date,
-                  note
-                )
-              `)
-              .eq('attendance_sessions.class_id', classId)
-              .order('id')
-          )
-        ])
-
-        if (classRes.error) return errorResponse(classRes.error.message, 500)
-
-        const tuitionFee = Number(classRes.data?.tuition_fee || 0)
-
-        const studentMap = new Map<string, any>()
-        for (const sc of scData) {
-          const prof = (sc as any).profiles
-          if (prof && prof.role === 'STUDENT') {
-            studentMap.set(prof.id, {
-              studentId: prof.id,
-              username: prof.username,
-              fullName: prof.full_name || prof.username,
-              studentCode: `HS-${prof.username}`,
-              status: sc.status || 'ACTIVE',
-              balance: prof.balance || 0
-            })
-          }
-        }
-        for (const ls of legacyData) {
-          if (!studentMap.has(ls.id)) {
-            studentMap.set(ls.id, {
-              studentId: ls.id,
-              username: ls.username,
-              fullName: ls.full_name || ls.username,
-              studentCode: `HS-${ls.username}`,
-              status: 'ACTIVE',
-              balance: ls.balance || 0
-            })
-          }
-        }
-
-        let lockIntervals
-        try { lockIntervals = await fetchLockIntervalsForStudents(serviceRoleClient, [...studentMap.keys()]) }
-        catch (err) { return errorResponse((err as Error).message, 500) }
-
-        const intervalsByStudent = new Map<string, any[]>()
-        for (const it of lockIntervals) {
-          if (!it?.student_id) continue
-          let list = intervalsByStudent.get(it.student_id)
-          if (!list) {
-            list = []
-            intervalsByStudent.set(it.student_id, list)
-          }
-          list.push(it)
-        }
-
-        const eligible = (studentId: string, date: string) => !isStudentLockedOn(studentId, date, intervalsByStudent.get(studentId) || [])
-
-        const studentSessionsData = studentSessionsRaw.filter((s: any) => eligible(s.student_id, s.session_date))
-        const attendanceRecordsData = recordsRaw.filter((r: any) => eligible(r.student_id, r.attendance_sessions?.session_date))
-
-        // Total distinct class dates across the class
-        const allClassDates = new Set<string>()
-        studentSessionsData.forEach((ss: any) => allClassDates.add(ss.session_date))
-        attendanceRecordsData.forEach((ar: any) => allClassDates.add((ar as any).attendance_sessions?.session_date))
-        const totalClassSessionsCount = allClassDates.size
-
-        // Nhóm trước dữ liệu theo student_id để tránh .filter lặp lại trong vòng lặp học sinh
-        const sessionsByStudent = new Map<string, any[]>()
-        for (const ss of studentSessionsData) {
-          let list = sessionsByStudent.get(ss.student_id)
-          if (!list) {
-            list = []
-            sessionsByStudent.set(ss.student_id, list)
-          }
-          list.push(ss)
-        }
-
-        const recordsByStudent = new Map<string, any[]>()
-        for (const ar of attendanceRecordsData) {
-          let list = recordsByStudent.get(ar.student_id)
-          if (!list) {
-            list = []
-            recordsByStudent.set(ar.student_id, list)
-          }
-          list.push(ar)
-        }
-
-        const result = Array.from(studentMap.values()).map(s => {
-          const sMap = new Map<string, any>()
-
-          // 1. Load from student_sessions (where individual calendar dates are stored via #student-details)
-          const studentSessions = sessionsByStudent.get(s.studentId) || []
-          studentSessions.forEach((ss: any) => {
-            sMap.set(ss.session_date, {
-              recordId: ss.id,
-              sessionId: null,
-              sessionDate: ss.session_date,
-              sessionNote: null,
-              isPresent: true,
-              isPaid: ss.is_paid === true,
-              feeAmount: tuitionFee,
-              paymentStatus: ss.is_paid ? 'paid' : 'unpaid',
-              paidAt: null,
-              source: 'student_sessions'
-            })
-          })
-
-          // 2. Merge from attendance_records
-          const studentRecords = recordsByStudent.get(s.studentId) || []
-          studentRecords.forEach((ar: any) => {
-            const date = (ar as any).attendance_sessions?.session_date
-            const existing = sMap.get(date)
-            if (ar.is_present) {
-              const isPaid = ar.payment_status === 'paid' || (existing?.isPaid ?? false)
-              sMap.set(date, {
-                recordId: ar.id,
-                sessionId: (ar as any).attendance_sessions?.id,
-                sessionDate: date,
-                sessionNote: (ar as any).attendance_sessions?.note,
-                isPresent: true,
-                isPaid,
-                feeAmount: Number(ar.fee_amount || existing?.feeAmount || tuitionFee),
-                paymentStatus: isPaid ? 'paid' : (ar.payment_status === 'waived' ? 'waived' : 'unpaid'),
-                paidAt: ar.paid_at || existing?.paidAt || null,
-                source: 'attendance_records'
-              })
-            } else if (!existing) {
-              sMap.set(date, {
-                recordId: ar.id,
-                sessionId: (ar as any).attendance_sessions?.id,
-                sessionDate: date,
-                sessionNote: (ar as any).attendance_sessions?.note,
-                isPresent: false,
-                isPaid: false,
-                feeAmount: 0,
-                paymentStatus: 'none',
-                paidAt: null,
-                source: 'attendance_records'
-              })
-            }
-          })
-
-          const studentRecs = Array.from(sMap.values())
-          const attendedSessions = studentRecs.filter(r => r.isPresent).length
-          const totalSessions = studentRecs.length
-          const paidSessions = studentRecs.filter(r => r.isPresent && r.isPaid).length
-          const unpaidSessions = studentRecs.filter(r => r.isPresent && !r.isPaid && r.paymentStatus !== 'waived').length
-          const waivedSessions = studentRecs.filter(r => r.isPresent && r.paymentStatus === 'waived').length
-          const unpaidDebt = studentRecs
-            .filter(r => r.isPresent && !r.isPaid && r.paymentStatus !== 'waived')
-            .reduce((sum, r) => sum + r.feeAmount, 0)
-
-          const attendanceRate = totalSessions > 0 ? Math.round((attendedSessions / totalSessions) * 100) : 100
-
-          const paidAmount = studentRecs
-            .filter(r => r.isPresent && r.isPaid)
-            .reduce((sum, r) => sum + r.feeAmount, 0)
-
-          return {
-            ...s,
-            attendedSessions,
-            totalSessions,
-            paidSessions,
-            unpaidSessions,
-            waivedSessions,
-            paidAmount,
-            unpaidDebt,
-            attendanceRate,
-            isFullyPaid: unpaidDebt === 0,
-            sessions: studentRecs.sort((a, b) => b.sessionDate.localeCompare(a.sessionDate))
-          }
+        const { data, error } = await serviceRoleClient.rpc('fn_get_class_debt_summary', {
+          p_class_id: classId
         })
-
-        return jsonResponse(result)
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse(data)
       }
 
       if (action === 'list-transactions') {
@@ -1697,63 +1003,77 @@ serve(async (req: Request) => {
         const { classId, studentId } = body
         if (!classId || !studentId) return errorResponse('classId and studentId are required', 400)
 
-        // 1. Always update all unpaid student_sessions for this student in this class
-        const { error: ssErr } = await serviceRoleClient
-          .from('student_sessions')
-          .update({ is_paid: true })
-          .eq('student_id', studentId)
-          .eq('class_id', classId)
-          .eq('is_paid', false)
-        if (ssErr) return errorResponse(lockAwareErrorMessage(ssErr), isLockedStudentError(ssErr) ? 409 : 500)
+        // Toàn bộ việc thu nợ (student_sessions + attendance_records + ledger)
+        // chạy trong một transaction ở DB. Lỗi trigger khóa hoặc lỗi ghi sổ
+        // sẽ rollback toàn bộ thay vì để trạng thái nửa vời như code cũ.
+        const { data: collectResult, error: collectErr } = await serviceRoleClient
+          .rpc('fn_collect_student_tuition', {
+            p_class_id: classId,
+            p_student_id: studentId,
+            p_actor_id: user.id,
+            p_receipt_no: generateTuitionReceiptNo(),
+          })
 
-        // 2. Also update attendance_records if any exist
-        const { data: unpaidRecords } = await serviceRoleClient
-          .from('attendance_records')
-          .select('id, attendance_sessions!inner(class_id)')
-          .eq('attendance_sessions.class_id', classId)
-          .eq('student_id', studentId)
-          .eq('is_present', true)
-          .eq('payment_status', 'unpaid')
-
-        const recIds = (unpaidRecords || []).map((r: any) => r.id)
-        if (recIds.length > 0) {
-          const { error: recErr } = await serviceRoleClient
-            .from('attendance_records')
-            .update({
-              payment_status: 'paid',
-              paid_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .in('id', recIds)
-          if (recErr) {
-            if (/ATTENDANCE_LOCKED_STUDENT/.test(String(recErr.message || ''))) {
-              return errorResponse(
-                'Không thể thu học phí: có buổi thuộc khoảng khóa tài khoản của học sinh.',
-                409,
-              )
-            }
-            return errorResponse(recErr.message, 500)
-          }
-          // Ghi sổ thu toàn bộ nợ của HS
-          try {
-            const { data: feeRows } = await serviceRoleClient
-              .from('attendance_records')
-              .select('fee_amount')
-              .in('id', recIds)
-            const total = (feeRows || []).reduce((s: number, r: any) => s + Number(r.fee_amount || 0), 0)
-            await serviceRoleClient.from('tuition_transactions').insert({
-              student_id: studentId,
-              class_id: classId,
-              type: 'manual_collect',
-              amount: total,
-              receipt_no: 'BL-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(),
-              note: `Thu toàn bộ nợ (${recIds.length} buổi)`,
-              created_by: user.id
-            })
-          } catch (_) {}
+        if (collectErr) {
+          return errorResponse(
+            lockAwareErrorMessage(collectErr),
+            isLockedStudentError(collectErr) ? 409 : 500,
+          )
         }
 
-        return jsonResponse({ success: true, updatedCount: recIds.length })
+        return jsonResponse({
+          success: true,
+          updatedCount: Number(collectResult?.updated_records || 0),
+        })
+      }
+
+      if (action === 'collect-class-tuition') {
+        if (user.role !== 'ADMIN') return errorResponse('Forbidden: Admin access required', 403)
+        const body = await req.json().catch(() => ({}))
+        const { classId } = body
+        if (!classId) return errorResponse('classId is required', 400)
+
+        // Cùng định nghĩa nợ với get-class-debt-summary: present + chưa đóng
+        // và không waived, đã loại các buổi thuộc khoảng khóa tài khoản.
+        let debtRows: Array<{ studentId: string; debt: number }>
+        try {
+          debtRows = await loadClassDebtStudents(serviceRoleClient, classId)
+        } catch (err) {
+          return errorResponse((err as Error).message, 500)
+        }
+
+        const collected: Array<{ studentId: string; amount: number; updatedCount: number }> = []
+        const skipped: Array<{ studentId: string; reason: string }> = []
+
+        // Mỗi học sinh là một transaction riêng. Không retry: lỗi được báo
+        // lại trong skipped để admin xử lý thủ công.
+        for (const row of debtRows) {
+          const { data: collectResult, error: collectErr } = await serviceRoleClient
+            .rpc('fn_collect_student_tuition', {
+              p_class_id: classId,
+              p_student_id: row.studentId,
+              p_actor_id: user.id,
+              p_receipt_no: generateTuitionReceiptNo(),
+            })
+
+          if (collectErr) {
+            skipped.push({
+              studentId: row.studentId,
+              reason: isLockedStudentError(collectErr)
+                ? 'Học sinh đang bị khóa tài khoản, không thể thu học phí.'
+                : String(collectErr.message || 'Thu học phí thất bại'),
+            })
+            continue
+          }
+
+          collected.push({
+            studentId: row.studentId,
+            amount: Number(collectResult?.amount || 0),
+            updatedCount: Number(collectResult?.updated_records || 0),
+          })
+        }
+
+        return jsonResponse({ success: true, collected, skipped })
       }
 
       if (action === 'waive-tuition') {
@@ -1865,6 +1185,67 @@ serve(async (req: Request) => {
           .is('class_id', null)
 
         return jsonResponse({ success: true, message: 'Student added to class successfully' })
+      }
+
+      if (action === 'add-students-to-class') {
+        if (user.role !== 'ADMIN') return errorResponse('Forbidden: Admin access required', 403)
+        const body = await req.json().catch(() => ({}))
+        const { classId } = body
+        const rawStudentIds = body.studentIds
+
+        if (!classId || typeof classId !== 'string') {
+          return errorResponse('classId is required', 400)
+        }
+        if (!Array.isArray(rawStudentIds)) {
+          return errorResponse('studentIds phải là một mảng UUID', 400)
+        }
+
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        const studentIds: string[] = []
+        const seen = new Set<string>()
+        for (const raw of rawStudentIds) {
+          if (typeof raw !== 'string' || !UUID_RE.test(raw.trim())) {
+            return errorResponse('studentIds chứa ID không hợp lệ', 400)
+          }
+          const id = raw.trim()
+          if (!seen.has(id)) {
+            seen.add(id)
+            studentIds.push(id)
+          }
+        }
+        if (studentIds.length === 0) {
+          return errorResponse('studentIds không được rỗng', 400)
+        }
+        if (studentIds.length > 200) {
+          return errorResponse('Chỉ được thêm tối đa 200 học sinh mỗi lần', 400)
+        }
+
+        const { data: targetClass, error: classErr } = await serviceRoleClient
+          .from('classes')
+          .select('id')
+          .eq('id', classId)
+          .maybeSingle()
+        if (classErr) return errorResponse(classErr.message, 500)
+        if (!targetClass) return errorResponse('Không tìm thấy lớp học', 404)
+
+        const { data: addResult, error: addErr } = await serviceRoleClient
+          .rpc('fn_add_students_to_class', {
+            p_class_id: classId,
+            p_student_ids: studentIds,
+          })
+
+        if (addErr) {
+          if (/Không tìm thấy lớp học/.test(String(addErr.message || ''))) {
+            return errorResponse('Không tìm thấy lớp học', 404)
+          }
+          return errorResponse(addErr.message, 500)
+        }
+
+        return jsonResponse({
+          success: true,
+          added: addResult?.added || [],
+          skipped: addResult?.skipped || [],
+        })
       }
 
       if (action === 'archive-class') {
@@ -2284,6 +1665,172 @@ serve(async (req: Request) => {
     return errorResponse(error.message || 'Unauthorized / Error', isFetchAllRowsError(err) ? 500 : 401)
   }
 })
+
+function generateTuitionReceiptNo(): string {
+  return 'BL-' +
+    new Date().toISOString().slice(0, 10).replace(/-/g, '') +
+    '-' +
+    crypto.randomUUID().slice(0, 6).toUpperCase()
+}
+
+/**
+ * Trả danh sách học sinh còn nợ của lớp theo đúng định nghĩa
+ * get-class-debt-summary (present & unpaid & !waived, theo cả
+ * student_sessions lẫn attendance_records, loại buổi thuộc khoảng khóa).
+ */
+async function loadClassDebtStudents(
+  serviceRoleClient: any,
+  classId: string,
+): Promise<Array<{ studentId: string; debt: number }>> {
+  const [classRes, scData, legacyData, studentSessionsRaw, recordsRaw] = await Promise.all([
+    serviceRoleClient
+      .from('classes')
+      .select('id, tuition_fee')
+      .eq('id', classId)
+      .single(),
+    fetchAllRows(() =>
+      serviceRoleClient
+        .from('student_classes')
+        .select('student_id, status, profiles:student_id(id, role)')
+        .eq('class_id', classId)
+        .order('student_id')
+    ),
+    fetchAllRows(() =>
+      serviceRoleClient
+        .from('profiles')
+        .select('id, role')
+        .eq('class_id', classId)
+        .eq('role', 'STUDENT')
+        .order('id')
+    ),
+    fetchAllRows(() =>
+      serviceRoleClient
+        .from('student_sessions')
+        .select('id, student_id, session_date, is_paid')
+        .eq('class_id', classId)
+        .order('id')
+    ),
+    fetchAllRows(() =>
+      serviceRoleClient
+        .from('attendance_records')
+        .select(`
+          id,
+          student_id,
+          is_present,
+          fee_amount,
+          payment_status,
+          attendance_sessions!inner(
+            id,
+            class_id,
+            session_date
+          )
+        `)
+        .eq('attendance_sessions.class_id', classId)
+        .order('id')
+    ),
+  ])
+
+  if (classRes.error) throw new Error(classRes.error.message)
+  const tuitionFee = Number(classRes.data?.tuition_fee || 0)
+
+  const studentIds = new Set<string>()
+  for (const sc of scData) {
+    const prof = (sc as any).profiles
+    if (prof?.role === 'STUDENT' && prof.id) studentIds.add(String(prof.id))
+  }
+  for (const ls of legacyData) {
+    if ((ls as any).id) studentIds.add(String((ls as any).id))
+  }
+
+  const lockIntervals = await fetchLockIntervalsForStudents(serviceRoleClient, [...studentIds])
+  const intervalsByStudent = new Map<string, any[]>()
+  for (const interval of lockIntervals) {
+    if (!interval?.student_id) continue
+    let list = intervalsByStudent.get(interval.student_id)
+    if (!list) {
+      list = []
+      intervalsByStudent.set(interval.student_id, list)
+    }
+    list.push(interval)
+  }
+  const eligible = (studentId: string, date: string) =>
+    !isStudentLockedOn(studentId, date, intervalsByStudent.get(studentId) || [])
+
+  const sessionsByStudent = new Map<string, any[]>()
+  for (const ss of studentSessionsRaw) {
+    if (!studentIds.has(String(ss.student_id))) continue
+    let list = sessionsByStudent.get(ss.student_id)
+    if (!list) {
+      list = []
+      sessionsByStudent.set(ss.student_id, list)
+    }
+    list.push(ss)
+  }
+
+  const recordsByStudent = new Map<string, any[]>()
+  for (const ar of recordsRaw) {
+    if (!studentIds.has(String(ar.student_id))) continue
+    let list = recordsByStudent.get(ar.student_id)
+    if (!list) {
+      list = []
+      recordsByStudent.set(ar.student_id, list)
+    }
+    list.push(ar)
+  }
+
+  const result: Array<{ studentId: string; debt: number }> = []
+  for (const studentId of studentIds) {
+    const sMap = new Map<string, { isPresent: boolean; isPaid: boolean; isWaived: boolean; feeAmount: number }>()
+
+    // student_sessions là nguồn chính (mỗi ngày 1 buổi có mặt).
+    for (const ss of sessionsByStudent.get(studentId) || []) {
+      if (!ss.session_date || !eligible(studentId, ss.session_date)) continue
+      sMap.set(ss.session_date, {
+        isPresent: true,
+        isPaid: ss.is_paid === true,
+        isWaived: false,
+        feeAmount: tuitionFee,
+      })
+    }
+
+    // attendance_records override theo cùng ngày, giống debt summary.
+    for (const ar of recordsByStudent.get(studentId) || []) {
+      const sess = (ar as any).attendance_sessions
+      const date = sess?.session_date
+      if (!date || !eligible(studentId, date)) continue
+      const existing = sMap.get(date)
+      if (ar.is_present) {
+        const isPaid = ar.payment_status === 'paid' || (existing?.isPaid ?? false)
+        const isWaived = ar.payment_status === 'waived'
+        sMap.set(date, {
+          isPresent: true,
+          isPaid,
+          isWaived,
+          feeAmount: isWaived
+            ? 0
+            : Number(ar.fee_amount || existing?.feeAmount || tuitionFee),
+        })
+      } else if (!existing) {
+        sMap.set(date, {
+          isPresent: false,
+          isPaid: false,
+          isWaived: false,
+          feeAmount: 0,
+        })
+      }
+    }
+
+    let debt = 0
+    sMap.forEach((sess) => {
+      if (sess.isPresent && !sess.isPaid && !sess.isWaived) {
+        debt += Number(sess.feeAmount || 0)
+      }
+    })
+    if (debt > 0) result.push({ studentId, debt })
+  }
+
+  return result
+}
 
 async function sendTelegramAttendanceNotification(
   serviceRoleClient: any,
