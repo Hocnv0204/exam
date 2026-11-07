@@ -47,6 +47,7 @@ await db.exec(`
   create table public.qb_chapters(id uuid primary key, class_id uuid references public.qb_classes, title text);
   create table public.qb_lessons(id uuid primary key, chapter_id uuid references public.qb_chapters, title text);
   create table public.qb_question_types(id uuid primary key, lesson_id uuid references public.qb_lessons, name text);
+  create type public.qb_difficulty as enum ('NHAN_BIET', 'THONG_HIEU', 'VAN_DUNG', 'VAN_DUNG_CAO');
   create table public.question_bank(
     id uuid primary key default gen_random_uuid(),
     subject text not null default 'TOAN',
@@ -60,7 +61,7 @@ await db.exec(`
     qb_lesson_id uuid references public.qb_lessons,
     qb_question_type_id uuid references public.qb_question_types,
     question_type text not null,
-    difficulty text not null,
+    difficulty public.qb_difficulty not null,
     prompt jsonb not null default '{"text": "Sample"}'::jsonb,
     tags text[] default '{}',
     created_at timestamptz not null default now()
@@ -139,6 +140,14 @@ console.log('--- 3. Migration 2: RPC fn_qb_counts ---')
 const mig2 = readFileSync(new URL('../migrations/20261107000001_rpc_qb_counts.sql', import.meta.url), 'utf8')
 await db.exec(mig2)
 await db.exec(mig2) // Idempotency check
+
+// Lỗi production: dù extraDifficulty rỗng, PostgreSQL vẫn phân tích enum = text.
+await assert.rejects(() => db.query(`select public.fn_qb_counts('{"mode":"stats"}'::jsonb)`),
+  err => err.message.includes('operator does not exist: qb_difficulty = text'))
+const enumFix = readFileSync(new URL('../migrations/20261107000003_fix_qb_counts_difficulty_enum.sql', import.meta.url), 'utf8')
+await db.exec(enumFix)
+await db.exec(enumFix) // Idempotency check
+assert.equal((await db.query(`select public.fn_qb_counts('{"mode":"stats"}'::jsonb) as res`)).rows[0].res.total, 0)
 
 // Quyền hạn: anon & authenticated không thể gọi RPC
 for (const role of ['anon', 'authenticated']) {
@@ -380,6 +389,18 @@ await verifyRpcVsOracle(
   'Stats: search "đạo hàm"',
   { mode: 'stats', search: 'đạo hàm' },
   fixtureQuestions.filter(q => q.prompt.text.toLowerCase().includes('đạo hàm'))
+)
+
+// Optional enum-vs-text filter must work when present and when unrecognized.
+await verifyRpcVsOracle(
+  'Pool: extraDifficulty VAN_DUNG',
+  { mode: 'pool', extraDifficulty: 'VAN_DUNG' },
+  fixtureQuestions.filter(q => q.difficulty === 'VAN_DUNG')
+)
+await verifyRpcVsOracle(
+  'Stats: extraDifficulty lạ trả rỗng',
+  { mode: 'stats', extraDifficulty: 'KHONG_HOP_LE' },
+  []
 )
 
 console.log('--- 4. Migration 3: RPC fn_weak_topics (adaptive) ---')
