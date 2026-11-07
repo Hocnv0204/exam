@@ -77,7 +77,9 @@ export function loadAdminProStyles() {
   if (!adminStylesPromise) {
     adminStylesPromise = Promise.all([
       import('../css/admin-pro/tokens.css'),
-      import('../css/admin-pro/components.css')
+      import('../css/admin-pro/components.css'),
+      // Chế độ Sáng: trỏ màu viết cứng (cho nền tối) của theme admin cũ về token Pro.
+      import('../css/admin-pro/light-overrides.css')
     ])
   }
   // Dùng chung đúng bộ font với Mochi học sinh, không chèn link trùng.

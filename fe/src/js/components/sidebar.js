@@ -36,6 +36,10 @@ function renderMochiTabbar(currentRoute) {
         </summary>
         <div class="m-tab-more-menu" role="list">
           ${extra.map(item => renderMochiNavLink(item, currentRoute)).join('')}
+          <button type="button" class="m-tab-more-logout" data-mochi-logout>
+            <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+            <span>Đăng xuất</span>
+          </button>
         </div>
       </details>
     </nav>

@@ -633,3 +633,6 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .conte
     animation-duration: .01ms !important;
   }
 }
+
+/* Sidebar Pro là cột cố định: tắt hiệu ứng trượt vào kế thừa từ sidebar cũ. */
+html[data-admin-ui="pro"] .ap-sidebar {transform: none !important; transition: none !important}

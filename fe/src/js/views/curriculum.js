@@ -7,6 +7,9 @@ import { api, SUPABASE_URL } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { openAssignHomeworkModal } from '../components/assign-homework-modal.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
 import {
   normalizeSearchText,
   highlightMatch,
@@ -1926,6 +1929,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
 // Standalone View compatibility wrapper (redirects to class details tab)
 export function renderCurriculumView() {
+  const proUI = isAdminProUI()
   if (state.classes.length > 0 && !state.classes.some(c => c.id === activeClassId)) {
     activeClassId = state.classes[0].id
   }
@@ -1936,7 +1940,7 @@ export function renderCurriculumView() {
       window.location.hash = `#class-details?classId=${currentClass.id}&tab=curriculum`
     }, 0)
     return `
-      <div class="app-layout">
+      <div class="app-layout${proUI ? ' admin-dark" id="curriculum" data-route="curriculum" data-role="ADMIN' : ''}">
         ${renderSidebar('classes-admin')}
         <div class="main-content">
           ${renderNavbar('Nền tảng / Chương trình học')}
@@ -1950,7 +1954,7 @@ export function renderCurriculumView() {
   }
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="curriculum" data-route="curriculum" data-role="ADMIN' : ''}">
       ${renderSidebar('classes-admin')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Chương trình học')}

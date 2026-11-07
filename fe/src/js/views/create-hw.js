@@ -8,6 +8,11 @@ import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { renderMath, renderMarkdown, parseExamMarkdown, formatQuestionToMarkdown, formatExamToMarkdown, compressImage, validateQuestionDiagrams, MATH_TEMPLATE, CHEM_TEMPLATE, getDefaultQuestionPoints } from '../utils/exam-parser.js'
 import { calculateExamRawMax, applyExamPreset, EXAM_PRESETS } from '../utils/scoring-engine.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/admin-pro/pages/homework.css')
+}
 
 // In-memory state for building the answer matrix
 let currentConfig = {
@@ -590,6 +595,7 @@ function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
 }
 
 export function renderCreateHwView() {
+  const isPro = isAdminProUI()
   const isEdit = !!state.editHomeworkData
   const hw = isEdit ? state.editHomeworkData.homework : null
   const questions = isEdit ? (state.editHomeworkData.questions || []) : []
@@ -735,7 +741,7 @@ export function renderCreateHwView() {
   }
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${isPro ? ' ap-create-homework' : ''}">
       ${renderSidebar('create-homework')}
       <div class="main-content">
         ${renderNavbar(isEdit ? 'Quản trị / Sửa bài tập' : 'Quản trị / Tạo bài tập')}

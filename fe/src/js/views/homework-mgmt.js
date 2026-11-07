@@ -6,6 +6,11 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 import { openAssignHomeworkModal } from '../components/assign-homework-modal.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/admin-pro/pages/homework.css')
+}
 
 let currentHomeworks = []
 let totalHomeworks = 0
@@ -85,8 +90,9 @@ async function copyTextToClipboard(text) {
 }
 
 export function renderHomeworkMgmtView() {
+  const isPro = isAdminProUI()
   return `
-    <div class="app-layout">
+    <div class="app-layout${isPro ? ' ap-homework-mgmt' : ''}">
       ${renderSidebar('homework-mgmt')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Quản lý bài tập')}
@@ -603,6 +609,7 @@ function attachFilterListeners() {
 
 function renderHomeworkTableRows(list, tableBody, fromIndex) {
   let html = ''
+  const isPro = isAdminProUI()
   list.forEach((hw, index) => {
     const isExam = hw.type === 'EXAM'
     const typeBadge = isExam
@@ -658,24 +665,24 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
               <i class="fa-solid fa-link"></i>
             </button>
             ${isExam ? `
-              <button class="btn-secondary btn-proctor-hw" data-id="${hw.id}" title="Giám sát phòng thi trực tuyến" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626;">
+              <button class="btn-secondary btn-proctor-hw" data-id="${hw.id}" ${isPro ? 'aria-label="Giám sát phòng thi trực tuyến"' : ''} title="Giám sát phòng thi trực tuyến" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626;">
                 <i class="fa-solid fa-desktop"></i>
               </button>
             ` : ''}
-            <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" title="Xem kết quả & lịch sử làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
+            <button class="btn-secondary btn-history-hw" data-id="${hw.id}" data-classid="${hw.classId || ''}" ${isPro ? 'aria-label="Xem kết quả và lịch sử làm bài"' : ''} title="Xem kết quả & lịch sử làm bài" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #bae6fd; color:#0284c7;">
               <i class="fa-solid fa-chart-pie"></i>
             </button>
             ${(hw.pdfPath && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath !== 'INTERACTIVE') ? `
-            <button class="btn-secondary btn-pdf-hw" data-id="${hw.id}" title="Mở file PDF đề bài trong tab mới" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #fecaca; color:#ef4444;">
+            <button class="btn-secondary btn-pdf-hw" data-id="${hw.id}" ${isPro ? 'aria-label="Mở file PDF đề bài"' : ''} title="Mở file PDF đề bài trong tab mới" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #fecaca; color:#ef4444;">
               <i class="fa-solid fa-file-pdf"></i>
             </button>` : ''}
-            <button class="btn-secondary btn-assign-hw" data-id="${hw.id}" title="Gán bài tập cho lớp khác" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a;">
+            <button class="btn-secondary btn-assign-hw" data-id="${hw.id}" ${isPro ? 'aria-label="Gán bài tập cho lớp khác"' : ''} title="Gán bài tập cho lớp khác" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a;">
               <i class="fa-solid fa-share-nodes"></i>
             </button>
-            <button class="btn-secondary btn-edit-hw" data-id="${hw.id}" title="Sửa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #cbd5e1; color:#0066cc;">
+            <button class="btn-secondary btn-edit-hw" data-id="${hw.id}" ${isPro ? 'aria-label="Sửa bài tập"' : ''} title="Sửa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #cbd5e1; color:#0066cc;">
               <i class="fa-solid fa-pen-to-square"></i>
             </button>
-            <button class="btn-secondary btn-delete-hw" data-id="${hw.id}" data-title="${hw.title}" title="Xóa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #fecaca; color:#dc2626;">
+            <button class="btn-secondary btn-delete-hw" data-id="${hw.id}" data-title="${hw.title}" ${isPro ? 'aria-label="Xóa bài tập"' : ''} title="Xóa bài tập" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#ffffff; border:1px solid #fecaca; color:#dc2626;">
               <i class="fa-solid fa-trash-can"></i>
             </button>
           </div>

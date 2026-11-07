@@ -4,6 +4,9 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
 
 export const DEFAULT_GRADE_BLOCKS = ['12-Toán', '12-Hóa', '11-Toán', '11-Hóa']
 
@@ -34,9 +37,10 @@ export async function fetchGradeBlocks(forceRefresh = false) {
 
 export function renderClassMgmtView() {
   const classes = state.classes
+  const proUI = isAdminProUI()
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="classes-admin" data-route="classes-admin" data-role="ADMIN' : ''}">
       ${renderSidebar('classes-admin')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}

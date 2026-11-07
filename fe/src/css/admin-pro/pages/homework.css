@@ -1,0 +1,699 @@
+/* Mochi Pro — Quản lý và tạo bài tập (G3). Mọi selector đi qua cổng Pro. */
+
+/* ===== Danh sách bài tập ===== */
+html[data-admin-ui="pro"] .ap-homework-mgmt .content-body {
+  overflow-x: hidden;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .page-header {
+  align-items: flex-start !important;
+  margin-bottom: 26px !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .page-title {
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-size: clamp(27px, 3vw, 34px) !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .page-description {
+  max-width: 720px;
+  margin-top: 6px !important;
+  color: var(--ap-muted) !important;
+  font-size: 15px !important;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt :is(#btn-goto-question-bank, #btn-create-homework) {
+  min-height: 46px !important;
+  padding: 0 18px !important;
+  border-radius: var(--ap-radius) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #btn-goto-question-bank {
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #btn-goto-question-bank i {
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #btn-create-homework {
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-total-hw),
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-practice-hw),
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-exam-hw),
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-classes-count) {
+  min-height: 96px;
+  padding: 18px 20px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-total-hw) > div:first-child,
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-practice-hw) > div:first-child,
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-exam-hw) > div:first-child,
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-classes-count) > div:first-child {
+  width: 50px !important;
+  height: 50px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 15px !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-total-hw) div[style*="text-transform:uppercase"],
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-practice-hw) div[style*="text-transform:uppercase"],
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-exam-hw) div[style*="text-transform:uppercase"],
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#stat-classes-count) div[style*="text-transform:uppercase"] {
+  color: var(--ap-muted) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: .045em;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt :is(#stat-total-hw, #stat-practice-hw, #stat-exam-hw, #stat-classes-count) {
+  margin-top: 3px;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-size: 29px !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) {
+  padding: 20px 22px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) label {
+  margin-bottom: 7px !important;
+  color: var(--ap-ink) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt :is(#hw-search-input, #hw-filter-class, #hw-filter-chapter, #hw-filter-lesson, #hw-filter-type, #hw-sort-select) {
+  min-height: 44px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) > div:last-child {
+  padding-top: 14px !important;
+  border-top: 2px dashed var(--ap-line) !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-filtered-count {
+  color: var(--ap-accent) !important;
+  font-family: var(--ap-font-heading);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-reset-filter-btn {
+  min-height: 44px !important;
+  padding: 0 15px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-table-body) {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .table-responsive {
+  max-width: 100%;
+  overflow-x: auto !important;
+  overscroll-behavior-inline: contain;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .table-responsive table {
+  min-width: 1040px;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .table-responsive thead tr {
+  border-bottom: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .table-responsive th {
+  padding: 14px 16px !important;
+  color: var(--ap-muted) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .055em;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body tr {
+  border-bottom: 2px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td {
+  padding: 14px 16px !important;
+  color: var(--ap-ink) !important;
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td strong {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body .badge {
+  padding: 4px 10px !important;
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  line-height: 1.2;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body .badge[style*="background:#fef2f2"] {
+  border-color: var(--ap-danger) !important;
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body .badge[style*="background:#f0fdf4"] {
+  border-color: var(--ap-ok) !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body .badge[style*="background:#fffbeb"] {
+  border-color: var(--ap-warn) !important;
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:nth-child(4) > div {
+  align-items: flex-start;
+  gap: 6px !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:nth-child(4) > div > div {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1.5px solid var(--ap-line);
+  border-radius: 999px;
+  background: var(--ap-surface2);
+  color: var(--ap-ink) !important;
+  font-size: 11px !important;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child > div {
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button {
+  width: 40px !important;
+  min-width: 40px;
+  min-height: 40px !important;
+  padding: 0 !important;
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body :is(.btn-copy-link-hw, .btn-edit-hw) {
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body :is(.btn-history-hw, .btn-pdf-hw) {
+  color: var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body .btn-assign-hw {
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body :is(.btn-delete-hw, .btn-proctor-hw) {
+  color: var(--ap-danger) !important;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-pagination-wrapper {
+  padding: 14px 20px !important;
+  border-top: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+}
+
+/* ===== Trình tạo bài tập ===== */
+html[data-admin-ui="pro"] .ap-create-homework .content-body {
+  overflow-x: hidden;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .split-homework-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.45fr) minmax(390px, .9fr) !important;
+  gap: 22px !important;
+  align-items: start;
+  max-width: 1700px;
+  margin: 0 auto;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane,
+html[data-admin-ui="pro"] .ap-create-homework .question-column {
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column {
+  gap: 22px !important;
+  padding: 0 6px 6px 0 !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column > .card,
+html[data-admin-ui="pro"] .ap-create-homework #answer-matrix-container > .card {
+  padding: 18px 20px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column h3 {
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  line-height: 1.3;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .exam-mode-switch {
+  display: inline-flex;
+  padding: 5px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 17px !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .exam-mode-tab {
+  min-height: 42px !important;
+  padding: 0 14px !important;
+  border: 2px solid transparent !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  color: var(--ap-muted) !important;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .exam-mode-tab.active {
+  border-color: var(--ap-ink) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane > div:first-child {
+  margin-bottom: 16px !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane > div:first-child > div:last-child {
+  gap: 8px !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework :is(#btn-load-math-tpl, #btn-load-chem-tpl, #btn-import-md-file, #btn-export-exam-pdf) {
+  padding: 0 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #btn-parse-markdown {
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .interactive-creator-wrapper {
+  gap: 18px !important;
+  padding: 0 6px 8px 0 !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .interactive-pdf-attachment-bar,
+html[data-admin-ui="pro"] .ap-create-homework .interactive-creator-wrapper > .card {
+  padding: 16px 18px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 18px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #hw-markdown-input {
+  min-height: 220px;
+  padding: 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  font-weight: 600 !important;
+  line-height: 1.6 !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #interactive-preview-container > div:first-child,
+html[data-admin-ui="pro"] .ap-create-homework .interactive-q-card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 18px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #interactive-preview-container > div:first-child {
+  padding: 14px 16px !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .interactive-q-card {
+  margin-bottom: 16px;
+  padding: 18px !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .interactive-q-header {
+  margin: -18px -18px 16px !important;
+  padding: 12px 16px !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+  border-radius: 16px 16px 0 0;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .interactive-q-card :is(.badge, [style*="border-radius:10px"]) {
+  border-color: var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .interactive-q-prompt,
+html[data-admin-ui="pro"] .ap-create-homework .interactive-q-card [style*="color:#334155"] {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .image-paste-zone {
+  padding: 18px !important;
+  border: 2px dashed var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .exam-option-card,
+html[data-admin-ui="pro"] .ap-create-homework .tf-statement-row {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .exam-option-card.selected {
+  border-color: var(--ap-ok) !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column label {
+  color: var(--ap-ink) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column :is(input.form-input, select.form-input) {
+  min-width: 0;
+  min-height: 44px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#hw-title) > div > div[style*="grid-template-columns"] {
+  gap: 12px !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#hw-title) div[style*="background:#fffbeb"] {
+  padding: 14px 16px !important;
+  border: 2px solid var(--ap-warn) !important;
+  border-radius: 15px !important;
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #assign-students-list {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #assign-students-list label:hover {
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #save-homework-btn {
+  width: 100% !important;
+  min-height: 48px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#hw-title) div:has(> #save-homework-btn) {
+  position: sticky;
+  bottom: 4px;
+  z-index: 4;
+  padding: 8px;
+  border: 2px solid var(--ap-line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ap-surface) 94%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#hw-show-solutions) div[style*="background:#f8fafc"] {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework :is(#hw-show-solutions, .assign-student-cb) {
+  accent-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#cfg-mc-count),
+html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#copy-sample-btn) {
+  border-color: var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#cfg-mc-count) > div > div {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework :is(#update-config-btn, #import-answers-btn) {
+  min-height: 44px !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #answer-matrix-container {
+  gap: 18px !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #answer-matrix-container .card > div:first-child {
+  padding-bottom: 10px !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #answer-matrix-container .card > div:not(:first-child) > div,
+html[data-admin-ui="pro"] .ap-create-homework #answer-matrix-container div[style*="background:#f8fafc"] {
+  border-color: var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework :is(.mc-option-btn, .tf-option-btn) {
+  min-width: 36px;
+  min-height: 36px !important;
+  border-width: 2px !important;
+  border-radius: 10px !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .pdf-viewer-container {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-lg) !important;
+  background: var(--ap-surface) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .pdf-toolbar {
+  margin: 0 !important;
+  padding: 12px 14px !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework #pdf-preview-container {
+  border: 0 !important;
+  border-radius: 0 0 20px 20px !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .ap-create-homework :is(code, .katex) {
+  color: var(--ap-ink);
+}
+
+@media (max-width: 1200px) {
+  html[data-admin-ui="pro"] .ap-create-homework .split-homework-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework :is(.interactive-creator-wrapper, .question-column) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] .ap-homework-mgmt .page-header {
+    align-items: stretch !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .page-header > div:last-child {
+    width: 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) > div:first-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .table-responsive {
+    overflow-x: auto !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane > div:first-child {
+    align-items: flex-start !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane > div:first-child > div:last-child {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .ap-homework-mgmt .page-header > div:last-child,
+  html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) > div:last-child,
+  html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) > div:last-child > div:last-child {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt :is(#btn-goto-question-bank, #btn-create-homework, #hw-reset-filter-btn) {
+    width: 100% !important;
+    justify-content: center;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) {
+    padding: 16px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .card:has(#hw-search-input) > div:first-child {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button {
+    width: 44px !important;
+    min-width: 44px;
+    min-height: 44px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .exam-mode-switch {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .exam-mode-tab {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane > div:first-child > div:last-child > button {
+    flex: 1 1 145px;
+    justify-content: center;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#hw-title) div[style*="grid-template-columns"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .question-column .card:has(#hw-title) div[style*="display:flex"][style*="gap:6px"] {
+    flex-wrap: wrap;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework #hw-deadline-date {
+    flex: 1 1 100% !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework :is(.interactive-pdf-attachment-bar, .pdf-toolbar) {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework :is(.interactive-pdf-attachment-bar, .pdf-toolbar) > div:last-child {
+    flex-wrap: wrap !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework :is(.interactive-pdf-attachment-bar, .pdf-toolbar) :is(button, a) {
+    min-height: 44px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .exam-options-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework :is(.mc-option-btn, .tf-option-btn) {
+    min-width: 44px;
+    min-height: 44px !important;
+  }
+}

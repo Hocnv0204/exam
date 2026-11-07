@@ -1,0 +1,1146 @@
+/* ==========================================================================
+   Admin Pro — G2 Classes (Lớp học, Chi tiết lớp, Chương trình, Khối lớp)
+   Mọi rule bắt buộc có tiền tố html[data-admin-ui="pro"]
+   ========================================================================== */
+
+/* 1. Reset font và thẻ chung trên các view lớp học */
+html[data-admin-ui="pro"] :is(.page-title, .class-title-heading, .class-kpi-value, .class-metric-value, .class-list-name) {
+  font-family: var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] :is(.class-top-bar, .class-banner-card, .class-kpi-card, .class-tabs-nav, .class-list-table-wrap) {
+  box-sizing: border-box;
+}
+
+/* 2. Trang Quản lý lớp học (#classes-admin / #classes) */
+html[data-admin-ui="pro"] .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] .page-header .page-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--ap-ink);
+  letter-spacing: -0.5px;
+}
+
+html[data-admin-ui="pro"] .page-header .page-description {
+  margin: 6px 0 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #open-manage-grade-blocks-btn {
+  min-height: 44px;
+  padding: 0 18px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+  box-shadow: none !important;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #open-manage-grade-blocks-btn:hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #open-manage-grade-blocks-btn i {
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #open-create-class-btn {
+  min-height: 44px;
+  padding: 0 20px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 14px !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #open-create-class-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #open-create-class-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 0 var(--ap-block) !important;
+}
+
+/* Thẻ card chính của bảng danh sách lớp */
+html[data-admin-ui="pro"] .content-body .card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 22px !important;
+}
+
+/* Ô tìm kiếm lớp học */
+html[data-admin-ui="pro"] .search-box {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface2) !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+html[data-admin-ui="pro"] .search-box i {
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .search-box input {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  width: 100%;
+}
+
+html[data-admin-ui="pro"] .search-box input::placeholder {
+  color: var(--ap-muted) !important;
+}
+
+/* Bảng danh sách lớp dạng sticker */
+html[data-admin-ui="pro"] .class-list-table-wrap {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 18px !important;
+  overflow: hidden;
+  background: var(--ap-surface) !important;
+}
+
+html[data-admin-ui="pro"] .data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+html[data-admin-ui="pro"] .data-table thead tr {
+  background: var(--ap-surface2) !important;
+  border-bottom: 2px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] .data-table thead th {
+  padding: 12px 16px !important;
+  font-family: var(--ap-font) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  color: var(--ap-muted) !important;
+  border: none !important;
+}
+
+html[data-admin-ui="pro"] .data-table tbody tr {
+  border-top: 1.5px solid var(--ap-line) !important;
+  transition: background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .data-table tbody tr:hover {
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] .class-list-row td {
+  padding: 14px 16px !important;
+  vertical-align: middle;
+}
+
+html[data-admin-ui="pro"] .class-list-name-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+html[data-admin-ui="pro"] .class-list-icon {
+  width: 44px !important;
+  height: 44px !important;
+  flex: 0 0 44px !important;
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 18px !important;
+}
+
+html[data-admin-ui="pro"] .class-list-name {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  line-height: 1.2 !important;
+  display: block;
+}
+
+html[data-admin-ui="pro"] .class-list-hint {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--ap-muted) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+html[data-admin-ui="pro"] .class-enter-btn {
+  min-height: 38px;
+  padding: 0 16px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 12px !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .class-enter-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .btn-edit-class {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-accent) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 15px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .btn-edit-class:hover {
+  border-color: var(--ap-accent) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] .btn-delete-class {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 15px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .btn-delete-class:hover {
+  border-color: var(--ap-danger) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] #class-count-summary {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--ap-muted) !important;
+}
+
+/* 3. Trang Chi tiết lớp học (#class-details) */
+
+/* Thanh điều hướng nhanh trên cùng */
+html[data-admin-ui="pro"] .class-top-bar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 14px !important;
+  padding: 14px 20px !important;
+  background: var(--ap-surface) !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  margin-bottom: 20px !important;
+}
+
+html[data-admin-ui="pro"] .class-top-breadcrumb {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .class-top-breadcrumb a {
+  color: var(--ap-accent) !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+html[data-admin-ui="pro"] #quick-class-switcher {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  height: 38px !important;
+  padding: 0 32px 0 12px !important;
+  outline: none !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .class-top-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+html[data-admin-ui="pro"] #btn-edit-class-info,
+html[data-admin-ui="pro"] .class-top-actions a.btn-secondary {
+  min-height: 38px !important;
+  padding: 0 16px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer;
+  box-shadow: none !important;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #btn-edit-class-info:hover,
+html[data-admin-ui="pro"] .class-top-actions a.btn-secondary:hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface) !important;
+}
+
+/* Thẻ Hero Banner tên lớp: viền ink, bóng lớn */
+html[data-admin-ui="pro"] .class-banner-card {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 24px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+  padding: 24px 28px !important;
+  margin-bottom: 22px !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-container {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 20px !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-main {
+  display: flex !important;
+  align-items: center !important;
+  gap: 18px !important;
+  min-width: 0 !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-icon {
+  width: 58px !important;
+  height: 58px !important;
+  flex: 0 0 58px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 18px !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  font-size: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-title-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+
+html[data-admin-ui="pro"] .class-title-heading {
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  line-height: 1.15 !important;
+  margin: 0 !important;
+}
+
+html[data-admin-ui="pro"] .badge-class-grade {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  padding: 4px 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-meta {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+  margin-top: 6px !important;
+}
+
+html[data-admin-ui="pro"] .class-id-pill {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  padding: 3px 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+html[data-admin-ui="pro"] .class-id-pill strong {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .btn-copy-id {
+  background: none !important;
+  border: none !important;
+  color: var(--ap-accent) !important;
+  cursor: pointer;
+  padding: 0 !important;
+  display: inline-flex !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-desc {
+  font-size: 14px !important;
+  color: var(--ap-muted) !important;
+  font-weight: 600 !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-metrics {
+  display: flex !important;
+  align-items: center !important;
+  gap: 20px !important;
+  background: var(--ap-surface2) !important;
+  padding: 12px 18px !important;
+  border-radius: 16px !important;
+  border: 1.5px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-metric-item {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+html[data-admin-ui="pro"] .class-banner-metric-item.has-divider {
+  border-left: 2px solid var(--ap-line) !important;
+  padding-left: 20px !important;
+}
+
+html[data-admin-ui="pro"] .class-metric-label {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: var(--ap-muted) !important;
+  letter-spacing: 0.5px !important;
+}
+
+html[data-admin-ui="pro"] .class-metric-value {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+}
+
+html[data-admin-ui="pro"] .class-metric-value.text-emerald {
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] .class-metric-value.text-slate {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .class-metric-unit {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--ap-muted) !important;
+}
+
+/* Thẻ KPI tổng quan (5 cards) */
+html[data-admin-ui="pro"] .class-kpi-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)) !important;
+  gap: 16px !important;
+  margin-bottom: 22px !important;
+}
+
+html[data-admin-ui="pro"] .class-kpi-card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 18px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 14px !important;
+  transition: transform 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .class-kpi-card:hover {
+  transform: translateY(-2px);
+}
+
+html[data-admin-ui="pro"] .class-kpi-icon {
+  width: 44px !important;
+  height: 44px !important;
+  flex: 0 0 44px !important;
+  border-radius: 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-accent) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 18px !important;
+}
+
+html[data-admin-ui="pro"] .class-kpi-content {
+  flex: 1;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .class-kpi-title {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  color: var(--ap-muted) !important;
+  margin-bottom: 4px !important;
+}
+
+html[data-admin-ui="pro"] .class-kpi-value {
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  line-height: 1.15 !important;
+  margin-bottom: 2px !important;
+}
+
+html[data-admin-ui="pro"] .class-kpi-subtitle {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--ap-muted) !important;
+}
+
+/* Thanh Tab dạng pill như prototype */
+html[data-admin-ui="pro"] .class-tabs-nav {
+  display: flex !important;
+  gap: 6px !important;
+  padding: 6px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 18px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  overflow-x: auto !important;
+  margin-bottom: 22px !important;
+}
+
+html[data-admin-ui="pro"] .class-tab-item {
+  min-height: 42px !important;
+  padding: 0 16px !important;
+  border-radius: 13px !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  border: 2px solid transparent !important;
+  background: transparent !important;
+  color: var(--ap-muted) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+  white-space: nowrap !important;
+  transition: all 0.15s ease;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] .class-tab-item:hover {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .class-tab-item.active {
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .class-tab-badge {
+  border-radius: 999px !important;
+  padding: 2px 8px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  display: inline-flex !important;
+}
+
+html[data-admin-ui="pro"] .class-tab-item.active .class-tab-badge {
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+}
+
+/* Tab Toolbar & Buttons */
+html[data-admin-ui="pro"] .class-tab-toolbar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 14px !important;
+  margin-bottom: 20px !important;
+}
+
+html[data-admin-ui="pro"] .class-tab-toolbar h2 {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin: 0 0 4px 0 !important;
+}
+
+html[data-admin-ui="pro"] .class-tab-toolbar p {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--ap-muted) !important;
+  margin: 0 !important;
+}
+
+html[data-admin-ui="pro"] #btn-open-attendance-modal {
+  min-height: 44px !important;
+  padding: 0 20px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 14px !important;
+  background: var(--ap-ok) !important;
+  color: #ffffff !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #btn-open-attendance-modal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #attendance-month-filter {
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  outline: none !important;
+  cursor: pointer;
+}
+
+/* Bảng lịch sử điểm danh */
+html[data-admin-ui="pro"] .btn-edit-attendance {
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .btn-edit-attendance:hover {
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .btn-delete-attendance {
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .badge.badge-present {
+  border: 1.5px solid var(--ap-ok) !important;
+  border-radius: 999px !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+  padding: 4px 10px !important;
+}
+
+html[data-admin-ui="pro"] .badge.badge-absent {
+  border: 1.5px solid var(--ap-warn) !important;
+  border-radius: 999px !important;
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  font-weight: 800 !important;
+  padding: 4px 10px !important;
+}
+
+/* 4. Modal Điểm danh (Roster danh sách học sinh) */
+html[data-admin-ui="pro"] #attendance-session-date-input {
+  min-height: 40px !important;
+  padding: 0 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] #btn-att-select-all,
+html[data-admin-ui="pro"] #btn-att-deselect-all {
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #btn-att-select-all:hover,
+html[data-admin-ui="pro"] #btn-att-deselect-all:hover {
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #attendance-realtime-counter {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  font-weight: 800 !important;
+  padding: 6px 14px !important;
+  display: inline-flex !important;
+}
+
+html[data-admin-ui="pro"] .attendance-roster-item {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 16px !important;
+  background: var(--ap-surface) !important;
+  padding: 12px 16px !important;
+  margin-bottom: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  transition: all 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .attendance-roster-item:hover {
+  background: var(--ap-surface2) !important;
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .attendance-roster-item.present {
+  border-color: var(--ap-ok) !important;
+  background: var(--ap-ok-soft) !important;
+}
+
+html[data-admin-ui="pro"] .attendance-check-box {
+  width: 22px !important;
+  height: 22px !important;
+  accent-color: var(--ap-ok) !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .attendance-roster-item .avatar-circle {
+  width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+  border-radius: 50% !important;
+  border: 2px solid var(--ap-ink) !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  font-family: var(--ap-font-heading) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+html[data-admin-ui="pro"] .attendance-student-name {
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .attendance-student-sub {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .att-status-pill {
+  min-height: 32px !important;
+  padding: 4px 14px !important;
+  border-radius: 999px !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 2px solid !important;
+}
+
+html[data-admin-ui="pro"] .att-status-pill.badge-present {
+  border-color: var(--ap-ok) !important;
+  background: var(--ap-ok) !important;
+  color: #ffffff !important;
+}
+
+html[data-admin-ui="pro"] .att-status-pill.badge-absent {
+  border-color: var(--ap-warn) !important;
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] #attendance-session-note {
+  min-height: 44px !important;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 700 !important;
+  outline: none !important;
+}
+
+/* 5. Chương trình học (#curriculum & Tab Chương trình) */
+html[data-admin-ui="pro"] #btn-quick-add-lesson {
+  min-height: 44px !important;
+  padding: 0 18px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 14px !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #btn-quick-add-lesson:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] #add-chapter-btn {
+  min-height: 44px !important;
+  padding: 0 18px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 14px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #add-chapter-btn:hover {
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #curriculum-chapter-filter,
+html[data-admin-ui="pro"] #curriculum-sort-select {
+  height: 42px !important;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  outline: none !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #curriculum-lesson-search-input {
+  height: 42px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] .curriculum-search-shortcut {
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 8px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  font-weight: 800 !important;
+  padding: 2px 6px !important;
+}
+
+html[data-admin-ui="pro"] .curriculum-lesson-card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 18px 20px !important;
+  margin-bottom: 12px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .curriculum-lesson-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .curriculum-lesson-card h3,
+html[data-admin-ui="pro"] .curriculum-lesson-card .curriculum-lesson-title {
+  font-family: var(--ap-font-heading) !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+/* 6. Khối lớp (#grade-blocks) */
+html[data-admin-ui="pro"] #open-create-block-modal-btn {
+  min-height: 44px !important;
+  padding: 0 20px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 14px !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #open-create-block-modal-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .grid-3 .card {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 20px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  padding: 18px 20px !important;
+}
+
+html[data-admin-ui="pro"] #grade-block-search-input {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  outline: none !important;
+}
+
+html[data-admin-ui="pro"] #refresh-grade-blocks-btn {
+  min-height: 40px !important;
+  padding: 0 16px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #refresh-grade-blocks-btn:hover {
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .btn-action-icon {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface2) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer;
+}
+
+/* 7. Dark Mode Overrides */
+html[data-admin-ui="pro"][data-theme="dark"] .class-list-icon {
+  background: var(--ap-surface2) !important;
+  border-color: var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .attendance-roster-item.present {
+  background: var(--ap-ok-soft) !important;
+  border-color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .class-banner-metrics {
+  background: var(--ap-surface2) !important;
+}
+
+/* 8. Responsive / Mobile Styles */
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] .class-banner-container {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  html[data-admin-ui="pro"] .class-banner-metrics {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    justify-content: space-around !important;
+  }
+
+  html[data-admin-ui="pro"] .class-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .page-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  html[data-admin-ui="pro"] .page-header > div:last-child {
+    width: 100% !important;
+  }
+
+  html[data-admin-ui="pro"] #open-manage-grade-blocks-btn,
+  html[data-admin-ui="pro"] #open-create-class-btn,
+  html[data-admin-ui="pro"] #open-create-block-modal-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  html[data-admin-ui="pro"] .class-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html[data-admin-ui="pro"] .class-banner-card {
+    padding: 18px !important;
+  }
+
+  html[data-admin-ui="pro"] .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}

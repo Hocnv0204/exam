@@ -4,6 +4,9 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
 
 let cachedGradeBlocks = []
 let searchQuery = ''
@@ -55,9 +58,10 @@ export function renderGradeBlocksView() {
   const totalBlocks = cachedGradeBlocks.length
   const totalClasses = cachedGradeBlocks.reduce((sum, b) => sum + (Number(b.classesCount) || 0), 0)
   const totalQuestions = cachedGradeBlocks.reduce((sum, b) => sum + (Number(b.questionsCount) || 0), 0)
+  const proUI = isAdminProUI()
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="grade-blocks" data-route="grade-blocks" data-role="ADMIN' : ''}">
       ${renderSidebar('grade-blocks')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Quản trị viên')}

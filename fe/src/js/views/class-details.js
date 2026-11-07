@@ -13,6 +13,9 @@ import { renderMath } from '../utils/exam-parser.js'
 import { downloadHomeworkPdf } from '../utils/download-helper.js'
 import { exportExamPdf } from '../utils/exam-print.js'
 import { renderCurriculumTabHTML, bindCurriculumTabEvents, ensureCurriculumLoaded } from './curriculum.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
 
 // Module-level state for the active class view
 let activeTab = 'students' // 'students' | 'curriculum' | 'attendance' | 'tuition' | 'homework' | 'settings'
@@ -70,9 +73,10 @@ export function renderClassDetailsView() {
   }
 
   const currentClass = state.classes.find(c => c.id === classId)
+  const proUI = isAdminProUI()
   if (!currentClass) {
     return `
-      <div class="app-layout">
+      <div class="app-layout${proUI ? ' admin-dark" id="class-details" data-route="class-details" data-role="ADMIN' : ''}">
         ${renderSidebar('classes-admin')}
         <div class="main-content">
           ${renderNavbar('Nền tảng / Chi tiết lớp học')}
@@ -96,7 +100,7 @@ export function renderClassDetailsView() {
   const shortId = currentClass.id ? `${currentClass.id.substring(0, 8)}...${currentClass.id.substring(currentClass.id.length - 4)}` : 'N/A'
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark" id="class-details" data-route="class-details" data-role="ADMIN' : ''}">
       ${renderSidebar('classes-admin')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Chi tiết lớp học')}
