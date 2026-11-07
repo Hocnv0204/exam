@@ -1,3 +1,6 @@
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/mochi/exam-room.css')
+}
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
@@ -7,6 +10,8 @@ import { openModal, closeModal } from '../components/modal.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
+import { isMochiUI } from '../ui-flag.js'
+import { renderMascot } from '../components/mascot.js'
 
 // Student's current answers state
 let studentAnswers = {
@@ -581,7 +586,11 @@ function updateAutosaveIndicator(saved = true) {
 
 
 
-export function renderHomeworkSolverView() {
+function isMochiMode() {
+  return Boolean(state.token) && state.user?.role === 'STUDENT' && isMochiUI()
+}
+
+export function renderClassicHomeworkSolverView() {
   const isTrial = window.location.hash.includes('trial=true') || !state.token
   const hw = state.currentHomework?.homework || state.currentHomework
   const questions = state.currentHomework?.questions || []
@@ -957,6 +966,663 @@ export function renderHomeworkSolverView() {
       </div>
     </div>
   `
+}
+
+function renderMochiInteractiveSolverQuestionCards(parsedQuestions) {
+  let currentSection = ''
+
+  return parsedQuestions.map(q => {
+    const qNum = q.questionNumber
+    let sectionHeader = ''
+
+    let newSection = ''
+    if (q.questionType === 'MULTIPLE_CHOICE') newSection = 'PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D)'
+    else if (q.questionType === 'TRUE_FALSE') newSection = 'PHẦN II: TRẮC NGHIỆM ĐÚNG / SAI (4 Ý a, b, c, d)'
+    else if (q.questionType === 'SHORT_ANSWER') newSection = 'PHẦN III: TRẢ LỜI NGẮN (ĐIỀN KẾT QUẢ SỐ)'
+    else if (q.questionType === 'ESSAY') newSection = 'PHẦN IV: TỰ LUẬN (NHẬP VĂN BẢN)'
+
+    if (newSection !== currentSection) {
+      currentSection = newSection
+      sectionHeader = `
+        <div class="m-exam-section-header" style="background:var(--m-surface2); border:2px solid var(--m-line); border-radius:var(--m-radius-md); padding:10px 16px; margin:${qNum === 1 ? '0' : '28px'} 0 14px 0; font-weight:800; font-family:var(--m-font-heading); font-size:15px; color:var(--m-ink); display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-bookmark" style="color:var(--m-accent);" aria-hidden="true"></i> ${currentSection}
+        </div>
+      `
+    }
+
+    const isFlagged = flaggedQuestions.has(qNum)
+
+    const tfStatements = (q.options && q.options.length > 0) ? q.options : [
+      { id: 'a', text: '' },
+      { id: 'b', text: '' },
+      { id: 'c', text: '' },
+      { id: 'd', text: '' }
+    ]
+
+    return `
+      ${sectionHeader}
+      <div class="interactive-q-card m-card ${isFlagged ? 'flagged' : ''}" id="exam-q-card-${qNum}" data-qnum="${qNum}">
+        <div class="interactive-q-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:12px; border-bottom:2px solid var(--m-line);">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-family:var(--m-font-heading); font-weight:800; font-size:18px; color:var(--m-ink);">Câu ${qNum}</span>
+            <span class="m-chip" style="font-size:12px; font-weight:700;">
+              (${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 1.0))} điểm)
+            </span>
+          </div>
+          <button type="button" class="btn-flag-question ${isFlagged ? 'active' : ''}" data-qnum="${qNum}" title="Đánh dấu để xem lại sau">
+            <i class="fa-solid fa-bookmark" aria-hidden="true"></i> <span>${isFlagged ? 'Đã đánh dấu' : 'Đánh dấu'}</span>
+          </button>
+        </div>
+
+        <!-- Prompt Text with Math & Markdown -->
+        <div class="interactive-q-prompt">${renderMarkdown(q.promptText || '')}</div>
+
+        <!-- Attached Image (if any) -->
+        ${q.imageUrl ? `
+          <div style="margin:10px 0 16px 0; text-align:center;">
+            <img src="${q.imageUrl}" alt="Hình câu ${qNum}" class="interactive-q-image" style="max-width:100%; max-height:360px; object-fit:contain; border-radius:14px; border:2px solid var(--m-line);">
+          </div>
+        ` : ''}
+
+        <!-- Answering Controls -->
+        ${q.questionType === 'MULTIPLE_CHOICE' ? `
+          <div class="exam-options-grid grid-2col">
+            ${(q.options || []).map(opt => {
+              const isSelected = studentAnswers.mc[qNum] === opt.id
+              return `
+                <div class="exam-option-card m-option ${isSelected ? 'selected' : ''}" data-qnum="${qNum}" data-optid="${opt.id}" role="button" tabindex="0" aria-pressed="${isSelected}">
+                  <div class="exam-opt-badge m-option-key">${opt.id}</div>
+                  <div style="flex:1 1 auto; line-height:1.5;">${renderMarkdown(opt.text || '')}</div>
+                </div>
+              `
+            }).join('')}
+          </div>
+        ` : (q.questionType === 'TRUE_FALSE' ? `
+          <div class="tf-statements-container" style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+            ${tfStatements.map(sub => {
+              const subKey = String(sub.id || '').toLowerCase()
+              const val = studentAnswers.tf[qNum]?.[subKey] !== undefined 
+                ? studentAnswers.tf[qNum][subKey] 
+                : studentAnswers.tf[qNum]?.[sub.id]
+              const displayText = sub.text ? renderMarkdown(sub.text) : `<span style="color:var(--m-muted); font-style:italic;">Ý ${subKey.toUpperCase()}</span>`
+              const isTrue = val === true || val === 'true'
+              const isFalse = val === false || val === 'false'
+
+              return `
+                <div class="tf-statement-row" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border:2px solid var(--m-line); border-radius:var(--m-radius-md); background:var(--m-surface2); gap:12px;">
+                  <div class="tf-statement-text" style="font-size:14.5px; color:var(--m-ink); line-height:1.5; flex:1;">
+                    <strong style="color:var(--m-accent); margin-right:6px;">${subKey})</strong> ${displayText}
+                  </div>
+                  <div class="tf-toggle-btns" style="display:flex; gap:8px; flex-shrink:0;">
+                    <button type="button" class="tf-toggle-btn true ${isTrue ? 'active' : ''}" data-qnum="${qNum}" data-sub="${subKey}" data-val="true">
+                      <i class="fa-solid fa-check" aria-hidden="true"></i> Đúng
+                    </button>
+                    <button type="button" class="tf-toggle-btn false ${isFalse ? 'active' : ''}" data-qnum="${qNum}" data-sub="${subKey}" data-val="false">
+                      <i class="fa-solid fa-xmark" aria-hidden="true"></i> Sai
+                    </button>
+                  </div>
+                </div>
+              `
+            }).join('')}
+          </div>
+        ` : (q.questionType === 'ESSAY' ? `
+          <div style="background:var(--m-surface2); border:2px solid var(--m-line); border-radius:var(--m-radius-md); padding:16px;">
+            <label style="display:block; font-size:13px; font-weight:800; color:var(--m-ink); margin-bottom:8px;">Nhập câu trả lời tự luận:</label>
+            <textarea class="form-input student-interactive-essay-input" data-qnum="${qNum}" rows="6" placeholder="Nhập câu trả lời của em..." style="width:100%; resize:vertical; font-size:14px; line-height:1.5;">${escapeHtml(studentAnswers.essay[qNum] || '')}</textarea>
+          </div>
+        ` : `
+          <div style="background:var(--m-surface2); border:2px solid var(--m-line); border-radius:var(--m-radius-md); padding:16px;">
+            <label style="display:block; font-size:13px; font-weight:800; color:var(--m-ink); margin-bottom:8px;">
+              <i class="fa-solid fa-pen" aria-hidden="true"></i> Nhập kết quả của bạn:
+            </label>
+            <input type="text" class="form-input student-interactive-sa-input" data-qnum="${qNum}" value="${escapeHtml(studentAnswers.sa[qNum] || '')}" placeholder="Điền đáp án số (ví dụ: 2.67 hoặc -5)..." style="font-size:16px; padding:10px 14px; font-weight:700; color:var(--m-ink); max-width:320px;">
+          </div>
+        `))}
+      </div>
+    `
+  }).join('')
+}
+
+function renderMochiInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, deadline) {
+  const totalQuestions = parsedQuestions.length
+  let answeredCount = 0
+
+  parsedQuestions.forEach(q => {
+    const qNum = q.questionNumber
+    if (q.questionType === 'MULTIPLE_CHOICE' && studentAnswers.mc[qNum]) answeredCount++
+    else if (q.questionType === 'TRUE_FALSE') {
+      const tf = studentAnswers.tf[qNum] || {}
+      if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answeredCount++
+    } else if (q.questionType === 'SHORT_ANSWER' && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
+      answeredCount++
+    } else if (q.questionType === 'ESSAY' && studentAnswers.essay[qNum] && String(studentAnswers.essay[qNum]).trim() !== '') {
+      answeredCount++
+    }
+  })
+
+  const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
+  const hasAttachedPdf = !!(hw && (hw.pdfUrl || (hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))))
+  const pdfDownloadUrl = (hw?.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+  const pdfDownloadName = (hw?.pdfPath && hw.pdfPath !== 'INTERACTIVE' && !hw.pdfPath.startsWith('http')) ? hw.pdfPath : `${hw.title || 'De_Bai'}.pdf`
+
+  return `
+    <div class="app-layout m-solver-layout">
+      ${renderSidebar('homework-attempt')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Bảng điều khiển')}
+        <div class="content-body" style="padding:16px 24px;">
+          ${isExpired ? `
+            <div style="background:var(--m-warn-soft); border:2px solid var(--m-warn); color:var(--m-warn); padding:12px 16px; border-radius:var(--m-radius-md); margin-bottom:16px; font-size:13.5px; display:flex; align-items:center; gap:10px; font-weight:700;">
+              <i class="fa-solid fa-clock-rotate-left" style="font-size:18px;"></i>
+              <div>
+                Bài tập này đã quá hạn nộp bài (${deadline ? new Date(deadline).toLocaleString('vi-VN') : ''}). Bài làm của bạn vẫn có thể nộp và sẽ được ghi nhận là <strong>Nộp muộn</strong>.
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Header Toolbar -->
+          <div style="display:flex; justify-content:space-between; align-items:center; background:var(--m-surface); padding:14px 20px; border-radius:var(--m-radius-xl); border:2px solid var(--m-line); margin-bottom:16px; box-shadow:var(--m-shadow-sm); flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 auto;">
+              <button type="button" class="btn-secondary btn-exit-solver m-btn m-btn--secondary" data-fallback="${isTrial ? '#trial' : '#my-classes'}" style="min-height:44px; padding:0 14px; font-size:13.5px; font-weight:800; cursor:pointer; flex-shrink:0;">
+                <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Học thử' : 'Quay lại'}
+              </button>
+              <div style="min-width:0; overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
+                  <span class="m-chip m-chip--accent2" style="font-weight:800; font-size:11px;">ĐỀ THI TƯƠNG TÁC TRỰC TUYẾN</span>
+                  ${isTrial ? '<span class="m-chip m-chip--warn" style="font-weight:800; font-size:11px;"><i class="fa-solid fa-sparkles"></i> HỌC THỬ</span>' : ''}
+                  <span id="autosave-status" class="m-chip m-chip--ok" style="font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="color:var(--m-ok);"></i> Tự động lưu nháp
+                  </span>
+                </div>
+                <h2 style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                  ${escapeHtml(hw.title)}
+                </h2>
+              </div>
+            </div>
+
+            <!-- Timer & Actions -->
+            <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+              ${hasAttachedPdf && pdfDownloadUrl && canViewHomeworkPdf(state.user?.role, hw) ? `
+                <button type="button" id="btn-download-solver-pdf" class="btn-secondary m-btn m-btn--secondary" style="min-height:44px; padding:0 14px; font-size:13px; font-weight:800; cursor:pointer;" title="Tải file PDF đề bài (${escapeHtml(pdfDownloadName)}) về máy">
+                  <i class="fa-solid fa-file-arrow-down" style="color:var(--m-accent);"></i> Tải file PDF
+                </button>
+              ` : ''}
+              <button type="button" class="btn-secondary btn-manual-save-draft m-btn m-btn--secondary" style="min-height:44px; padding:0 14px; font-size:13px; font-weight:800; cursor:pointer; flex-shrink:0;" title="Lưu nháp bài làm ngay">
+                <i class="fa-solid fa-floppy-disk" style="color:var(--m-ok);"></i> Lưu nháp
+              </button>
+              <div class="timer-box" role="timer" aria-label="Thời gian còn lại" style="display:inline-flex; align-items:center; gap:8px; height:44px; padding:0 16px; border-radius:var(--m-radius-pill); background:var(--m-warn-soft); color:var(--m-warn); border:2px solid var(--m-warn); font-family:var(--m-font-heading); font-weight:800; font-size:18px;">
+                <i class="fa-regular fa-clock" style="color:var(--m-warn);"></i> <span id="exam-timer-display">${hw.durationMinutes || 45}:00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Split Layout: Questions List (70%) vs Sticky Palette (30%) -->
+          <div class="split-homework-layout" style="display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:24px; align-items:start;">
+            
+            <!-- LEFT MAIN COLUMN: Scrollable Questions -->
+            <div id="interactive-solver-container" style="height:calc(100vh - 160px); overflow-y:auto; padding-right:8px;">
+              ${renderMochiInteractiveSolverQuestionCards(parsedQuestions)}
+            </div>
+
+            <!-- RIGHT COLUMN: Sticky Exam Navigation Palette & Submit Button -->
+            <div class="interactive-exam-sidebar m-exam-side" style="position:sticky; top:16px; background:var(--m-surface); border:2px solid var(--m-line); border-radius:var(--m-radius-xl); padding:20px; box-shadow:var(--m-shadow-md); display:flex; flex-direction:column; gap:16px; max-height:calc(100vh - 160px); overflow-y:auto;">
+              
+              <!-- Progress Indicator -->
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:800; color:var(--m-ink); margin-bottom:8px;">
+                  <span>Tiến độ hoàn thành:</span>
+                  <span id="exam-progress-text" style="color:var(--m-accent); font-weight:800;">${answeredCount}/${totalQuestions} câu (${progressPercent}%)</span>
+                </div>
+                <div class="m-progress" style="height:12px; border:2px solid var(--m-ink); border-radius:var(--m-radius-pill); background:var(--m-surface2); overflow:hidden;">
+                  <div id="exam-progress-bar" style="height:100%; width:${progressPercent}%; background:var(--m-accent); transition:width 0.25s ease;"></div>
+                </div>
+              </div>
+
+              <!-- Question Palette Grid -->
+              <div>
+                <div style="font-weight:800; font-family:var(--m-font-heading); font-size:14px; color:var(--m-ink); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;">
+                  <span>BẢNG ĐIỀU HƯỚNG CÂU HỎI</span>
+                  <span style="font-size:11px; color:var(--m-muted); font-weight:normal;">Bấm số để cuộn tới</span>
+                </div>
+
+                <div class="exam-nav-grid" id="exam-nav-palette" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px;">
+                  ${parsedQuestions.map(q => {
+                    const qNum = q.questionNumber
+                    const isFlagged = flaggedQuestions.has(qNum)
+                    let isAnswered = false
+                    let isPartial = false
+                    if (q.questionType === 'MULTIPLE_CHOICE') {
+                      isAnswered = !!studentAnswers.mc[qNum]
+                    } else if (q.questionType === 'TRUE_FALSE') {
+                      const tf = studentAnswers.tf[qNum] || {}
+                      const ansCount = ['a', 'b', 'c', 'd'].filter(k => tf[k] !== undefined).length
+                      isAnswered = ansCount === 4
+                      isPartial = ansCount > 0 && ansCount < 4
+                    } else if (q.questionType === 'SHORT_ANSWER') {
+                      isAnswered = studentAnswers.sa[qNum] !== undefined && String(studentAnswers.sa[qNum]).trim() !== ''
+                    } else if (q.questionType === 'ESSAY') {
+                      isAnswered = studentAnswers.essay[qNum] !== undefined && String(studentAnswers.essay[qNum]).trim() !== ''
+                    }
+
+                    return `
+                      <button type="button" class="exam-nav-btn ${isAnswered ? 'answered' : (isPartial ? 'partial' : '')} ${isFlagged ? 'flagged' : ''}" data-qnum="${qNum}" id="nav-btn-q-${qNum}" aria-label="Câu ${qNum}">
+                        ${qNum}
+                      </button>
+                    `
+                  }).join('')}
+                </div>
+
+                <!-- Legend -->
+                <div class="m-palette-legend" style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:2px solid var(--m-line); font-size:11px; font-weight:700; color:var(--m-muted); flex-wrap:wrap; gap:6px;">
+                  <span style="display:inline-flex; align-items:center; gap:4px;">
+                    <span style="width:10px; height:10px; border-radius:3px; background:var(--m-accent); display:inline-block;"></span> Đã xong
+                  </span>
+                  <span style="display:inline-flex; align-items:center; gap:4px;">
+                    <span style="width:10px; height:10px; border-radius:3px; background:var(--m-accent-soft); border:1px solid var(--m-accent); display:inline-block;"></span> Đang làm
+                  </span>
+                  <span style="display:inline-flex; align-items:center; gap:4px;">
+                    <span style="width:10px; height:10px; border-radius:3px; border:1px solid var(--m-line); background:var(--m-surface2); display:inline-block;"></span> Chưa làm
+                  </span>
+                  <span style="display:inline-flex; align-items:center; gap:4px;">
+                    <span style="width:10px; height:10px; border-radius:50%; background:var(--m-warn); display:inline-block;"></span> Đánh dấu
+                  </span>
+                </div>
+              </div>
+
+              <!-- Mascot Encouragement -->
+              <div class="m-mascot-box" style="display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--m-surface2); border:2px solid var(--m-line); border-radius:var(--m-radius-md);">
+                ${renderMascot({ mood: 'cheer', size: 60 })}
+                <div style="font-size:13px; font-weight:700; line-height:1.4; color:var(--m-ink);">
+                  Cố lên nhé, hoàn thành bài tập nào!
+                </div>
+              </div>
+
+              <!-- Big Submit Button -->
+              <div style="padding-top:10px; border-top:2px solid var(--m-line); margin-top:auto;">
+                <button type="button" class="btn-primary m-btn m-btn--primary" id="submit-answers-btn" style="width:100%; min-height:48px; font-size:16px;">
+                  <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Nộp bài làm ngay
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function renderMochiPdfSolverView(hw, isTrial, isExpired, deadline, mcQuestions, tfQuestions, saQuestions) {
+  return `
+    <div class="app-layout m-solver-layout">
+      ${renderSidebar('homework-attempt')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Bảng điều khiển')}
+        <div class="content-body" style="padding:16px 24px;">
+          ${isExpired ? `
+            <div style="background:var(--m-warn-soft); border:2px solid var(--m-warn); color:var(--m-warn); padding:12px 16px; border-radius:var(--m-radius-md); margin-bottom:16px; font-size:13.5px; display:flex; align-items:center; gap:10px; font-weight:700;">
+              <i class="fa-solid fa-clock-rotate-left" style="font-size:18px;"></i>
+              <div>
+                Bài tập này đã quá hạn nộp bài (${deadline ? new Date(deadline).toLocaleString('vi-VN') : ''}). Bài làm của bạn vẫn có thể nộp và sẽ được ghi nhận là <strong>Nộp muộn</strong>.
+              </div>
+            </div>
+          ` : ''}
+          <div class="split-homework-layout">
+            
+            <!-- LEFT COLUMN: PDF VIEWER -->
+            <div class="pdf-viewer-container" style="display:flex; flex-direction:column; overflow:hidden;">
+              <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:nowrap; gap:10px;">
+                <div style="font-weight:800; color:var(--m-ink); display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto;">
+                  <button type="button" class="btn-secondary btn-exit-solver m-btn m-btn--secondary" data-fallback="${isTrial ? '#trial' : '#my-classes'}" style="min-height:38px; padding:0 12px; font-size:12.5px; font-weight:800; border-radius:8px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; flex-shrink:0;">
+                    <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Học thử' : 'Quay lại'}
+                  </button>
+                  <i class="fa-solid fa-file-pdf" style="color:var(--m-accent2); font-size:18px; flex-shrink:0;"></i>
+                  <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(hw.pdfPath || 'De_Bai_Kiem_Tra.pdf')}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap; flex-shrink:0;">
+                  <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
+                  <button type="button" class="btn-secondary btn-manual-save-draft m-btn m-btn--secondary" style="min-height:38px; padding:0 14px; font-size:13px; font-weight:800; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; flex-shrink:0;" title="Lưu nháp bài làm ngay">
+                    <i class="fa-solid fa-floppy-disk" style="color:var(--m-ok);"></i> Lưu nháp
+                  </button>
+                  ${hw.pdfUrl && canViewHomeworkPdf(state.user?.role, hw) ? `
+                    <a id="btn-download-pdf-mode" href="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" download="${hw.pdfPath || 'De_Bai_Kiem_Tra.pdf'}" target="_blank" rel="noopener noreferrer" class="btn-secondary m-btn m-btn--secondary" style="min-height:38px; padding:0 14px; font-size:13px; font-weight:800; border-radius:8px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; flex-shrink:0; cursor:pointer;" title="Tải file PDF bài tập về máy">
+                      <i class="fa-solid fa-download" style="color:var(--m-accent);"></i> Tải PDF
+                    </a>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- PDF Iframe Preview -->
+              <div class="pdf-iframe-wrapper" style="flex-grow: 1; display: flex; height: calc(100vh - 180px); overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;">
+                <iframe src="${(hw.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')}" style="width: 100%; height: 100%; min-height: 100%; border: none; background:var(--m-surface2); -webkit-overflow-scrolling: touch;"></iframe>
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN: ANSWER ENTRY SHEET -->
+            <div class="question-column" style="overflow-y:auto; max-height:calc(100vh - 120px); display:flex; flex-direction:column; gap:20px;">
+              <div>
+                <!-- Header Info & Timer -->
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid var(--m-line);">
+                  <div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+                      <span class="m-chip m-chip--accent2" style="font-weight:800;">PHIẾU ĐIỀN ĐÁP ÁN</span>
+                      ${isTrial ? `
+                        <span class="m-chip m-chip--warn" style="font-weight:800; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-sparkles"></i> BÀI TẬP HỌC THỬ
+                        </span>
+                      ` : ''}
+                      <span id="autosave-status" class="m-chip m-chip--ok" style="font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-solid fa-cloud-arrow-up" style="color:var(--m-ok);"></i> Tự động lưu nháp
+                      </span>
+                    </div>
+                    <h3 style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); margin:0;">${escapeHtml(hw.title)}</h3>
+                  </div>
+                  <div class="timer-box" style="flex-shrink:0;">
+                    <i class="fa-regular fa-clock" style="color:var(--m-warn);"></i> <span id="exam-timer-display">${hw.durationMinutes || 45}:00</span>
+                  </div>
+                </div>
+
+                <!-- Section 1: MC ABCD Answer Inputs -->
+                ${mcQuestions.length === 0 ? '' : `
+                  <div style="margin-bottom:20px;">
+                    <div style="font-weight:800; font-family:var(--m-font-heading); font-size:14px; color:var(--m-ink); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-list-check" style="color:var(--m-accent);"></i> PHẦN 1: TRẮC NGHIỆM (${mcQuestions.length} câu)
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      ${mcQuestions.map((q, idx) => {
+                        const qNum = q.question_number || q.questionNumber || (idx + 1)
+                        const currentVal = studentAnswers.mc[qNum]
+                        return `
+                          <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--m-surface2); border:1.5px solid var(--m-line); border-radius:10px;">
+                            <span style="font-weight:800; font-family:var(--m-font-heading); font-size:14px; color:var(--m-ink); width:54px;">Câu ${idx + 1}</span>
+                            <div style="display:flex; gap:6px;">
+                              ${['A', 'B', 'C', 'D'].map(opt => `
+                                <button type="button" class="student-mc-btn ${currentVal === opt ? 'active' : ''}" data-qnum="${qNum}" data-option="${opt}" style="width:34px; height:34px; border-radius:8px; border:1.5px solid ${currentVal === opt ? 'var(--m-ink)' : 'var(--m-line)'}; background:${currentVal === opt ? 'var(--m-accent)' : 'var(--m-surface)'}; color:${currentVal === opt ? 'var(--m-accent-ink)' : 'var(--m-ink)'}; font-weight:800; cursor:pointer;">
+                                  ${opt}
+                                </button>
+                              `).join('')}
+                            </div>
+                          </div>
+                        `
+                      }).join('')}
+                    </div>
+                  </div>
+                `}
+
+                <!-- Section 2: True/False 4 statements -->
+                ${tfQuestions.length === 0 ? '' : `
+                  <div style="margin-bottom:20px;">
+                    <div style="font-weight:800; font-family:var(--m-font-heading); font-size:14px; color:var(--m-ink); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-square-check" style="color:var(--m-ok);"></i> PHẦN 2: ĐÚNG / SAI (${tfQuestions.length} câu)
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                      ${tfQuestions.map((q, idx) => {
+                        const qNum = q.question_number || q.questionNumber || (idx + 1)
+                        return `
+                          <div style="padding:10px 14px; background:var(--m-surface2); border:1.5px solid var(--m-line); border-radius:10px;">
+                            <div style="font-weight:800; font-family:var(--m-font-heading); font-size:14px; color:var(--m-ink); margin-bottom:8px;">Câu ${idx + 1}</div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                              ${['a', 'b', 'c', 'd'].map(sub => {
+                                const val = studentAnswers.tf[qNum]?.[sub]
+                                const isTrue = val === true || val === 'true'
+                                const isFalse = val === false || val === 'false'
+                                return `
+                                  <div style="display:flex; align-items:center; justify-content:space-between; background:var(--m-surface); padding:4px 8px; border-radius:6px; border:1px solid var(--m-line);">
+                                    <span style="font-weight:800; font-size:13px; color:var(--m-accent);">${sub})</span>
+                                    <div style="display:flex; gap:4px;">
+                                      <button type="button" class="student-tf-btn ${isTrue ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub}" data-val="true" style="padding:2px 8px; font-size:11px; font-weight:800; border-radius:4px; border:1px solid ${isTrue ? 'var(--m-ink)' : 'var(--m-line)'}; background:${isTrue ? 'var(--m-ok)' : 'var(--m-surface)'}; color:${isTrue ? '#ffffff' : 'var(--m-ink)'}; cursor:pointer;">Đ</button>
+                                      <button type="button" class="student-tf-btn ${isFalse ? 'active' : ''}" data-qnum="${qNum}" data-sub="${sub}" data-val="false" style="padding:2px 8px; font-size:11px; font-weight:800; border-radius:4px; border:1px solid ${isFalse ? 'var(--m-ink)' : 'var(--m-line)'}; background:${isFalse ? 'var(--m-warn)' : 'var(--m-surface)'}; color:${isFalse ? '#ffffff' : 'var(--m-ink)'}; cursor:pointer;">S</button>
+                                    </div>
+                                  </div>
+                                `
+                              }).join('')}
+                            </div>
+                          </div>
+                        `
+                      }).join('')}
+                    </div>
+                  </div>
+                `}
+
+                <!-- Section 3: Short Answer Inputs -->
+                ${saQuestions.length === 0 ? '' : `
+                  <div style="margin-bottom:20px;">
+                    <div style="font-weight:800; font-family:var(--m-font-heading); font-size:14px; color:var(--m-ink); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-pen-to-square" style="color:var(--m-warn);"></i> PHẦN 3: ĐIỀN ĐÁP ÁN (${saQuestions.length} câu)
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      ${saQuestions.map((q, idx) => {
+                        const qNum = q.question_number || q.questionNumber || (idx + 1)
+                        const val = studentAnswers.sa[qNum] !== undefined ? escapeHtml(studentAnswers.sa[qNum]) : ''
+                        return `
+                          <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--m-surface2); border:1.5px solid var(--m-line); border-radius:10px;">
+                            <span style="font-weight:800; font-family:var(--m-font-heading); font-size:14px; color:var(--m-ink); width:54px;">Câu ${idx + 1}</span>
+                            <input type="text" class="form-input student-sa-input" data-qnum="${qNum}" value="${val}" placeholder="Điền đáp án..." style="padding:6px 10px; font-size:13px; font-weight:700; background:var(--m-surface); color:var(--m-ink);">
+                          </div>
+                        `
+                      }).join('')}
+                    </div>
+                  </div>
+                `}
+              </div>
+
+              <!-- Footer Bar with Submit Button -->
+              <div style="padding-top:16px; border-top:2px solid var(--m-line); margin-top:auto;">
+                <button class="btn-primary m-btn m-btn--primary" id="submit-answers-btn" style="width:100%; min-height:48px; font-size:16px; cursor:pointer;">
+                  <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Nộp bài làm ngay
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function renderMochiHomeworkSolverView() {
+  const isTrial = window.location.hash.includes('trial=true') || !state.token
+  const hw = state.currentHomework?.homework || state.currentHomework
+  const questions = state.currentHomework?.questions || []
+
+  if (!hw || !hw.id) {
+    return `
+      <div class="app-layout m-solver-layout">
+        ${renderSidebar('homework-attempt')}
+        <div class="main-content">
+          ${renderNavbar('Nền tảng / Bảng điều khiển')}
+          <div class="content-body" style="padding:40px; text-align:center;">
+            <div class="m-card m-empty-state" style="max-width:520px; margin:40px auto; padding:40px 24px; text-align:center;">
+              ${renderMascot({ mood: 'wink', size: 120 })}
+              <h2 style="font-weight:800; font-family:var(--m-font-heading); margin:16px 0 8px; color:var(--m-ink);">Không tìm thấy bài tập</h2>
+              <p style="color:var(--m-muted); font-size:14.5px; line-height:1.6; margin-bottom:24px;">Vui lòng quay lại ${isTrial ? 'danh sách bài học thử' : 'danh sách lớp học'} và chọn một bài tập hợp lệ.</p>
+              <button class="m-btn m-btn--primary" onclick="window.location.hash = '${isTrial ? '#trial' : '#my-classes'}'">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> ${isTrial ? 'Quay lại trang học thử' : 'Quay lại danh sách lớp học'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  const attemptsCount = state.currentHomework?.attemptsCount || 0
+  const maxAttempts = hw.maxAttempts || hw.max_attempts || 0
+  const deadline = hw.deadline || hw.deadline_at || null
+
+  const isExpired = deadline ? new Date() > new Date(deadline) : false
+  const isExceeded = !isTrial && (maxAttempts > 0 && attemptsCount >= maxAttempts)
+
+  if (isExceeded) {
+    const warningTitle = "Đạt giới hạn số lần làm bài"
+    const warningMsg = `Bài tập này chỉ cho phép làm tối đa <strong>${maxAttempts}</strong> lần. Bạn đã thực hiện <strong>${attemptsCount}</strong> lần.`
+
+    return `
+      <div class="app-layout m-solver-layout">
+        ${renderSidebar('homework-attempt')}
+        <div class="main-content">
+          ${renderNavbar('Nền tảng / Bảng điều khiển')}
+          <div class="content-body" style="padding:40px; text-align:center;">
+            <div class="m-card m-empty-state" style="max-width:520px; margin:40px auto; padding:40px 24px; text-align:center;">
+              ${renderMascot({ mood: 'wink', size: 120 })}
+              <h2 style="font-weight:800; font-family:var(--m-font-heading); margin:16px 0 8px; color:var(--m-ink);">${warningTitle}</h2>
+              <p style="color:var(--m-muted); font-size:14.5px; line-height:1.6; margin-bottom:24px;">${warningMsg}</p>
+              <button class="m-btn m-btn--primary" onclick="window.location.hash = '${isTrial ? '#trial' : '#my-classes'}'">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> ${isTrial ? 'Quay lại trang học thử' : 'Quay lại danh sách lớp học'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  const serverDraft = (state.serverDraft?.homeworkId === hw.id) ? state.serverDraft.draft : null
+  let savedDraft = loadDraftFromStorage(hw.id)
+  if (serverDraft?.updated_at &&
+      (!savedDraft?.updatedAt || new Date(serverDraft.updated_at) > new Date(savedDraft.updatedAt))) {
+    savedDraft = {
+       answers: serverDraft.answers || { mc: {}, tf: {}, sa: {}, essay: {} },
+      timeLeft: serverDraft.time_left_seconds,
+      updatedAt: serverDraft.updated_at
+    }
+  }
+  mergedDraft = savedDraft
+
+  isDraftRestored = !!(savedDraft && savedDraft.answers && (
+    Object.keys(savedDraft.answers.mc || {}).length > 0 ||
+    Object.keys(savedDraft.answers.tf || {}).length > 0 ||
+     Object.keys(savedDraft.answers.sa || {}).length > 0 ||
+     Object.keys(savedDraft.answers.essay || {}).length > 0
+  ))
+
+  studentAnswers = {
+    mc: savedDraft?.answers?.mc || {},
+    tf: savedDraft?.answers?.tf || {},
+     sa: savedDraft?.answers?.sa || {},
+     essay: savedDraft?.answers?.essay || {}
+  }
+
+  const mcQuestions = questions.filter(q => {
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    return rawType === 'MULTIPLE_CHOICE' || rawType === 'MC'
+  })
+  const tfQuestions = questions.filter(q => {
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    return rawType === 'TRUE_FALSE' || rawType === 'TF'
+  })
+  const saQuestions = questions.filter(q => {
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    return rawType === 'SHORT_ANSWER' || rawType === 'SA'
+  })
+
+  questions.forEach(q => {
+    const qNum = q.question_number || q.questionNumber
+    const pObj = parsePromptPayload(q.prompt, q.content)
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
+    const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+    const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+
+    if (isTf && studentAnswers.tf[qNum] === undefined) {
+      studentAnswers.tf[qNum] = {}
+    } else if (isSa && studentAnswers.sa[qNum] === undefined) {
+      studentAnswers.sa[qNum] = ''
+    } else if (isEssay && studentAnswers.essay[qNum] === undefined) {
+      studentAnswers.essay[qNum] = ''
+    } else if (!isTf && !isSa && !isEssay && studentAnswers.mc[qNum] === undefined) {
+      studentAnswers.mc[qNum] = null
+    }
+  })
+
+  const isInteractive = isInteractiveHomework(hw, questions)
+
+  if (isInteractive) {
+    const parsedQuestionList = questions.map(q => {
+      const pObj = parsePromptPayload(q.prompt, q.content)
+      const qNum = q.question_number || q.questionNumber
+      const rawType = (q.question_type || q.questionType || '').toUpperCase()
+      const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
+      const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+      const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+      const questionType = isTf ? 'TRUE_FALSE' : (isEssay ? 'ESSAY' : (isSa ? 'SHORT_ANSWER' : 'MULTIPLE_CHOICE'))
+
+      let promptText = pObj.text || q.content || (typeof q.prompt === 'string' && !q.prompt.trim().startsWith('{') ? q.prompt : '') || `Câu hỏi số ${qNum}`
+      let options = []
+
+      if (isTf) {
+        let rawStatements = []
+        if (Array.isArray(q.statements) && q.statements.length > 0) {
+          rawStatements = q.statements
+        } else if (Array.isArray(pObj.statements) && pObj.statements.length > 0) {
+          rawStatements = pObj.statements
+        } else if (Array.isArray(q.options) && q.options.length > 0) {
+          rawStatements = q.options
+        } else if (Array.isArray(pObj.options) && pObj.options.length > 0) {
+          rawStatements = pObj.options
+        } else if (typeof q.statements === 'object' && q.statements !== null) {
+          rawStatements = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: q.statements[k] || '' }))
+        } else if (typeof pObj.statements === 'object' && pObj.statements !== null) {
+          rawStatements = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: pObj.statements[k] || '' }))
+        }
+
+        const tfKeys = ['a', 'b', 'c', 'd']
+        options = tfKeys.map((k, idx) => {
+          const found = rawStatements.find(s => {
+            if (!s) return false
+            const sKey = String(s.key || s.id || '').trim().toLowerCase()
+            return sKey === k
+          }) || rawStatements[idx]
+
+          let stmtText = ''
+          if (found) {
+            if (typeof found === 'string') stmtText = found
+            else if (typeof found === 'object') stmtText = found.text || found.content || found.prompt || ''
+          }
+          stmtText = stmtText.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
+          return { id: k, text: stmtText }
+        })
+      } else if (!isSa && !isEssay) {
+        let rawOptions = pObj.options.length > 0 ? pObj.options : (q.options || [])
+        if (Array.isArray(rawOptions) && rawOptions.length > 0) {
+          options = rawOptions.map((opt, idx) => {
+            if (typeof opt === 'string') {
+              return { id: ['A', 'B', 'C', 'D'][idx] || String(idx + 1), text: opt }
+            }
+            return {
+              id: (opt.id || opt.key || ['A', 'B', 'C', 'D'][idx] || '').toUpperCase(),
+              text: opt.text || opt.content || ''
+            }
+          })
+        } else if (typeof rawOptions === 'object' && rawOptions !== null) {
+          options = ['A', 'B', 'C', 'D'].map(k => ({ id: k, text: rawOptions[k] || '' }))
+        }
+        if (!options || options.length === 0) {
+          options = ['A', 'B', 'C', 'D'].map(k => ({ id: k, text: '' }))
+        }
+      }
+
+      return {
+        id: q.id,
+        questionNumber: qNum,
+        questionType,
+        points: q.points || (questionType === 'TRUE_FALSE' ? 1.0 : (questionType === 'SHORT_ANSWER' ? 0.5 : 1.0)),
+        promptText,
+        imageUrl: pObj.imageUrl || '',
+        options,
+        explanation: pObj.explanation || q.explanation || ''
+      }
+    })
+    return renderMochiInteractiveSolverView(hw, parsedQuestionList, isTrial, isExpired, deadline)
+  }
+  return renderMochiPdfSolverView(hw, isTrial, isExpired, deadline, mcQuestions, tfQuestions, saQuestions)
+}
+
+export function renderHomeworkSolverView() {
+  if (!isMochiMode()) return renderClassicHomeworkSolverView()
+  return renderMochiHomeworkSolverView()
 }
 
 export function bindHomeworkSolverEvents() {

@@ -3,8 +3,19 @@ import { showToast } from './toast.js'
 import { api } from '../api.js'
 import { isImpersonating } from '../utils/impersonate.js'
 import { renderThemeToggle, renderStudentThemeToggle } from '../theme.js'
+import { renderStudentThemePicker } from './student-theme-picker.js'
+import { renderMascot } from './mascot.js'
+import { isMochiUI } from '../ui-flag.js'
 
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
+const MOCHI_STUDENT_ROUTES = new Set([
+  'student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar',
+  'homework-attempt', 'assignment-review', 'history', 'student-report'
+])
+
+function currentRoute() {
+  return (window.location.hash || '#student-dashboard').replace(/^#/, '').split('?')[0]
+}
 
 async function switchToHocnvSession() {
   try {
@@ -26,6 +37,50 @@ async function switchToHocnvSession() {
 window.switchToHocnvSession = switchToHocnvSession
 
 export function renderNavbar(breadcrumbText = 'Nền tảng / Bảng điều khiển', options = {}) {
+  if (state.token && state.user?.role === 'STUDENT' && MOCHI_STUDENT_ROUTES.has(currentRoute()) && isMochiUI()) {
+    return renderMochiNavbar()
+  }
+  return renderClassicNavbar(breadcrumbText, options)
+}
+
+function renderImpersonationBanner(name) {
+  return `
+    <div class="m-shell-impersonation" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:13px; font-weight:600; padding:8px 16px; border-radius:0;">
+       <span><i class="fa-solid fa-user-secret"></i> Đang xem với tư cách học sinh <strong>${escapeText(name)}</strong> <span style="color:#b45309;">(@${escapeText(state.user?.username)})</span> <span style="background:#16a34a; color:#fff; font-size:10px; padding:2px 8px; border-radius:6px;">ROLE: STUDENT</span> <span style="font-weight:400;">— mọi thao tác giống tài khoản thật.</span></span>
+      <button onclick="window.stopImpersonation()" style="background:#b45309; color:#ffffff; border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i> Thoát về admin
+      </button>
+    </div>
+  `
+}
+
+export function renderMochiNavbar() {
+  const name = state.user?.fullName || 'Học sinh'
+  const initials = name.split(' ').map(part => part[0]).join('').substring(0, 2).toUpperCase()
+  const impersonating = isImpersonating()
+  return `
+    ${impersonating ? renderImpersonationBanner(name) : ''}
+    <header class="m-shell-header">
+      <a class="m-shell-brand" href="#student-dashboard" aria-label="EduPortal - Trang chủ">
+        ${renderMascot({ mood: 'happy', size: 44 })}
+        <span>EduPortal</span>
+      </a>
+      <div class="m-shell-header-actions">
+        ${renderStudentThemePicker('m-shell-theme-picker')}
+        <div class="m-shell-account" title="Tài khoản ${escapeText(name)}">
+          <span class="m-shell-account-name">${escapeText(name)}</span>
+          <span class="m-shell-avatar" aria-hidden="true">${escapeText(initials)}</span>
+        </div>
+        <button type="button" class="m-shell-header-logout" data-mochi-logout aria-label="Đăng xuất" title="Đăng xuất">
+          <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+  `
+}
+
+// Markup classic được giữ nguyên để cờ Mochi tắt không làm thay đổi output.
+export function renderClassicNavbar(breadcrumbText = 'Nền tảng / Bảng điều khiển', options = {}) {
   const isGuest = !state.token
   const name = isGuest ? 'Khách trải nghiệm' : (state.user?.fullName || 'Quản trị hệ thống')
   const initials = isGuest ? 'KT' : name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()

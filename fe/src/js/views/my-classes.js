@@ -17,6 +17,11 @@ import {
 } from '../utils/curriculum-search.js'
 import { getClassLessonsNewestFirst } from '../utils/student-lesson-sort.js'
 import { summarizeStudentProgress, studentBalanceIsZero, recentScores } from '../utils/student-dashboard.js'
+import { isMochiUI } from '../ui-flag.js'
+import { renderMascot } from '../components/mascot.js'
+import { renderMochiStudentHome, bindMochiStudentHome } from './mochi/student-home.js'
+import { renderMochiLessonMap, bindMochiLessonMap } from './mochi/lesson-map.js'
+import { renderMochiLessonDetail, bindMochiLessonDetail } from './mochi/lesson-detail.js'
 
 window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
   if (type === 'EXAM') {
@@ -68,6 +73,35 @@ function flushVideoTrack() {
 }
 
 export function renderMyClassesView() {
+  if (!(isMochiUI() && state.user?.role === 'STUDENT')) return renderClassicMyClassesView()
+
+  const hashUrl = window.location.hash.replace('#', '')
+  const [_, queryString] = hashUrl.split('?')
+  const params = new URLSearchParams(queryString || '')
+  const classId = params.get('classId')
+  const lessonId = params.get('lessonId')
+  const isDashboard = !hashUrl || hashUrl.split('?')[0] === 'student-dashboard'
+  let classes = state.classes || []
+  if (Array.isArray(state.user?.classIds)) classes = classes.filter(item => state.user.classIds.includes(item.id))
+  const classChapters = state.classChapters || []
+  let activeLesson = null
+  if (lessonId) {
+    for (const chapter of classChapters) {
+      activeLesson = (chapter.lessons || []).find(lesson => lesson.id === lessonId) || null
+      if (activeLesson) break
+    }
+  }
+  const activeLessonHomeworks = activeLesson && Array.isArray(activeLesson.homeworks) && activeLesson.homeworks.length
+    ? activeLesson.homeworks
+    : (state.activeLessonHomeworks || [])
+
+  if (isDashboard) return renderMochiStudentHome({ classes, user: state.user })
+  if (classId && activeLesson) return renderMochiLessonDetail({ classes, classChapters, activeLesson, activeLessonHomeworks, classId, role: state.user.role })
+  if (classId) return renderMochiLessonMap({ classes, classChapters, classId })
+  return renderClassicMyClassesView()
+}
+
+export function renderClassicMyClassesView() {
   const hashUrl = window.location.hash.replace('#', '')
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
@@ -559,7 +593,7 @@ export function renderMyClassesView() {
         ${renderNavbar(isDashboard ? 'Học tập / Dashboard' : 'Học tập / Lớp học của tôi')}
         <div class="content-body">
           ${!isDashboard ? `<div class="navy-hero">
-            <img src="${typeof mascotUrl !== 'undefined' ? mascotUrl : ''}" alt="Linh vật học tập">
+            ${isMochiUI() && state.user?.role === 'STUDENT' ? renderMascot({ mood: 'happy', size: 96 }) : `<img src="${typeof mascotUrl !== 'undefined' ? mascotUrl : ''}" alt="Linh vật học tập">`}
             <div>
               <h1>Lớp học của tôi</h1>
               <p>Chọn lớp để xem bài học và tài liệu.</p>
@@ -723,6 +757,39 @@ export function bindMyClassesEvents() {
   const params = new URLSearchParams(queryString || '')
   const classId = params.get('classId')
   const lessonId = params.get('lessonId')
+
+  const isDashboard = !hashUrl || hashUrl.split('?')[0] === 'student-dashboard'
+  if (isMochiUI() && state.user?.role === 'STUDENT' && (isDashboard || classId)) {
+    if (isDashboard) {
+      bindMochiStudentHome({
+        loadStats: loadStudentDashboardStats,
+        loadScores: loadStudentDashboardScores,
+        loadHomeworks: loadLatestHomeworksAll,
+        loadWeakTopics,
+        loadDrafts: loadInprogressDrafts,
+        startTour: maybeStartDashboardTour
+      })
+      return
+    }
+
+    bindMochiLessonTracking(classId, lessonId)
+    if (lessonId) {
+      bindMochiLessonDetail()
+      bindLessonResourceEvents()
+      maybeStartLessonTour()
+    } else {
+      bindMochiLessonMap({
+        classId,
+        rerender: () => {
+          const app = document.getElementById('app')
+          if (!app) return
+          app.innerHTML = renderMyClassesView()
+          bindMyClassesEvents()
+        }
+      })
+    }
+    return
+  }
 
   // Load todo homeworks for student notifications
   if (!classId && (!hashUrl || hashUrl.split('?')[0] === 'student-dashboard') && state.user?.role === 'STUDENT') {
@@ -1150,7 +1217,76 @@ export function bindMyClassesEvents() {
   })
 }
 
-async function loadInprogressDrafts() {
+function bindMochiLessonTracking(classId, lessonId) {
+  if (!videoTrackInstalled) {
+    videoTrackInstalled = true
+    window.addEventListener('hashchange', flushVideoTrack)
+    window.addEventListener('pagehide', flushVideoTrack)
+  }
+  flushVideoTrack()
+  if (!classId || !lessonId) return
+
+  let lessonTitle = ''
+  let className = ''
+  for (const chapter of (state.classChapters || [])) {
+    const found = (chapter.lessons || []).find(lesson => lesson.id === lessonId)
+    if (!found) continue
+    lessonTitle = found.title || ''
+    className = (state.classes || []).find(item => item.id === classId)?.name || ''
+    break
+  }
+  videoTrackStart = Date.now()
+  videoTrackMeta = { lessonId, classId, lessonTitle, className }
+  try {
+    api.logActivity({ action: 'LESSON_VIEW', metadata: { lessonId, classId, lessonTitle, className } })
+  } catch (_) {}
+}
+
+export function bindLessonResourceEvents() {
+  document.querySelectorAll('.btn-preview-theory').forEach(btn => {
+    btn.onclick = () => {
+      const file = btn.getAttribute('data-file')
+      if (!file) return
+      const rawName = file.startsWith('http') ? (file.split('/').pop() || file) : file
+      const displayName = rawName.split('_').slice(1).join('_') || rawName
+      const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+      const mappedUrl = file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+      openModal(
+        displayName,
+        `<div id="modal-pdf-container" style="width:100%; height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border-radius:8px;"></div>
+         <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+           <a href="${mappedUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; border-radius:8px;">
+             <i class="fa-solid fa-up-right-from-square"></i> Mở file PDF trong tab mới
+           </a>
+         </div>`
+      )
+      const modalPdfContainer = document.getElementById('modal-pdf-container')
+      if (modalPdfContainer) renderPdfViewer(modalPdfContainer, mappedUrl)
+      const modalContent = document.querySelector('#modal-container .modal-content')
+      if (modalContent) modalContent.style.maxWidth = '900px'
+    }
+  })
+
+  document.querySelectorAll('.btn-download-theory').forEach(btn => {
+    btn.onclick = () => {
+      const file = btn.getAttribute('data-file')
+      if (!file) return
+      const rawName = file.startsWith('http') ? (file.split('/').pop() || file) : file
+      const displayName = rawName.split('_').slice(1).join('_') || rawName
+      openModal(
+        'Xác nhận tải tài liệu',
+        `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">Bạn có chắc chắn muốn tải xuống tài liệu lý thuyết <strong>"${displayName}"</strong> không?</p>`,
+        () => {
+          const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+          window.open(file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321'), '_blank')
+          return true
+        }
+      )
+    }
+  })
+}
+
+export async function loadInprogressDrafts() {
   const card = document.getElementById('inprogress-drafts-card')
   const container = document.getElementById('inprogress-drafts-container')
   if (!card || !container) return
@@ -1250,7 +1386,7 @@ async function maybeStartDashboardTour() {
   })
 }
 
-async function loadLatestHomeworksAll() {
+export async function loadLatestHomeworksAll() {
   const container = document.getElementById('latest-homeworks-container')
   if (!container) return
   const userId = state.user?.id
@@ -1260,6 +1396,16 @@ async function loadLatestHomeworksAll() {
     const res = await api.getTodoHomeworks()
     if (!container.isConnected || state.user?.id !== userId) return
     const list = Array.isArray(res) ? res : (res?.items || [])
+    const continueButton = document.getElementById('m-home-continue')
+    if (continueButton && list.length > 0) {
+      const deadlineRank = item => {
+        const time = Date.parse(item?.deadline)
+        return Number.isFinite(time) ? Math.abs(time - Date.now()) : Number.POSITIVE_INFINITY
+      }
+      const nearest = [...list].sort((a, b) => deadlineRank(a) - deadlineRank(b))[0]
+      continueButton.dataset.homeworkId = nearest.id
+      continueButton.dataset.homeworkType = nearest.type === 'EXAM' ? 'EXAM' : (nearest.type || 'PRACTICE')
+    }
     const sorted = list
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
       .slice(0, 5)
@@ -1299,7 +1445,7 @@ async function loadLatestHomeworksAll() {
   }
 }
 
-async function loadWeakTopics() {
+export async function loadWeakTopics() {
   const container = document.getElementById('weak-topics-container')
   if (!container) return
   const userId = state.user?.id
@@ -1323,8 +1469,10 @@ async function loadWeakTopics() {
       const rate = t.wrongRate ?? 0
       const color = rate >= 60 ? '#ef4444' : rate >= 40 ? '#f59e0b' : '#eab308'
       const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'
+      const rowTag = isMochiUI() && t.classId ? 'button' : 'div'
+      const buttonAttrs = rowTag === 'button' ? 'type="button"' : ''
       return `
-        <div class="weak-topic-row" ${t.classId ? `data-class-id="${t.classId}"` : ''} style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:#ffffff; border:1px solid #fee2e2; border-radius:10px; margin-bottom:8px; ${t.classId ? 'cursor:pointer;' : ''}" ${t.classId ? 'title="Bấm để mở lớp ôn lại chương này"' : ''}>
+        <${rowTag} ${buttonAttrs} class="weak-topic-row" ${t.classId ? `data-class-id="${t.classId}"` : ''} style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:#ffffff; border:1px solid #fee2e2; border-radius:10px; margin-bottom:8px; ${t.classId ? 'cursor:pointer;' : ''}" ${t.classId ? 'title="Bấm để mở lớp ôn lại chương này"' : ''}>
           <span style="font-size:18px;">${medal}</span>
           <div style="flex:1; min-width:0;">
             <div style="font-size:13px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.chapterTitle)} ${t.classId ? '<i class="fa-solid fa-arrow-right" style="font-size:11px; color:#94a3b8;"></i>' : ''}</div>
@@ -1336,7 +1484,7 @@ async function loadWeakTopics() {
             <div style="font-size:14px; font-weight:800; color:${color};">${rate}% sai</div>
             <div style="font-size:11px; color:#64748b;">${t.wrong}/${t.answered} câu</div>
           </div>
-        </div>
+        </${rowTag}>
       `
     }).join('')
 

@@ -1,7 +1,11 @@
 import { state } from './state.js'
 import { api } from './api.js'
 // Applies the saved global and student preferences before the first render.
-import { isDarkTheme, getTheme, getStudentTheme } from './theme.js'
+import { isDarkTheme, getTheme, getStudentTheme, getClassicStudentTheme, applyStudentThemeToDocument } from './theme.js'
+import { syncMochiUI, isMochiUI } from './ui-flag.js'
+
+// Skin học sinh đang hiển thị: Mochi dùng đủ 4 bảng màu; giao diện cũ chỉ dark/sakura.
+const studentSkin = () => (isMochiUI() ? getStudentTheme() : getClassicStudentTheme())
 import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
 import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
@@ -74,17 +78,17 @@ function applyThemeClasses(layout, hash) {
   if (!layout) return
   const dark = isDarkTheme()
   const studentRoute = state.user?.role === 'STUDENT' && studentDarkRoutes.has(hash)
-  const isStudentDark = studentRoute && getStudentTheme() === 'dark'
+  const isStudentDark = studentRoute && studentSkin() === 'dark'
   // Student preference is independent of the global theme used by admin/public.
   layout.classList.toggle('admin-dark', (dark && state.user?.role === 'ADMIN' && adminDarkRoutes.has(hash)) || isStudentDark)
   layout.classList.toggle('navy-student', isStudentDark)
-  layout.classList.toggle('pastel-student', studentRoute && getStudentTheme() === 'pastel')
+  layout.classList.toggle('pastel-student', studentRoute && studentSkin() === 'sakura')
 }
 
 function applyExamThemeClasses(layout, hash) {
   const studentRoute = state.user?.role === 'STUDENT' && hash === 'exam-room'
-  layout.classList.toggle('navy-student', studentRoute && getStudentTheme() === 'dark')
-  layout.classList.toggle('pastel-student', studentRoute && getStudentTheme() === 'pastel')
+  layout.classList.toggle('navy-student', studentRoute && studentSkin() === 'dark')
+  layout.classList.toggle('pastel-student', studentRoute && studentSkin() === 'sakura')
 }
 
 // Route đang được hiển thị thật sự: router render trang mặc định khi URL không
@@ -106,8 +110,10 @@ function syncDocumentTheme(hash) {
   const studentRoute = state.user?.role === 'STUDENT' &&
     (studentDarkRoutes.has(hash) || hash === 'exam-room')
   const effective = studentRoute
-    ? (getStudentTheme() === 'dark' ? 'dark' : 'light')
+    ? (studentSkin() === 'dark' ? 'dark' : 'light')
     : getTheme()
+  applyStudentThemeToDocument(studentRoute)
+  syncMochiUI(studentRoute)
   document.documentElement.dataset.theme = effective
   document.documentElement.style.colorScheme = effective
 }

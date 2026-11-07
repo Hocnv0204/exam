@@ -1,15 +1,21 @@
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/mochi/exam-room.css')
+}
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
-import { getStudentTheme, renderStudentThemeToggle } from '../theme.js'
+import { getStudentTheme, getClassicStudentTheme, renderStudentThemeToggle } from '../theme.js'
+import { isMochiUI } from '../ui-flag.js'
+import { renderMascot } from '../components/mascot.js'
 
 // The exam room has no .app-layout root; app.js updates this shell on theme changes.
 const examShell = () => {
-  const theme = getStudentTheme()
-  return `exam-room-layout${theme === 'dark' ? ' navy-student' : theme === 'pastel' ? ' pastel-student' : ''}`
+  // Giao diện cũ chỉ có navy/hồng; Mochi dùng đủ 4 bảng màu.
+  const theme = isMochiUI() ? getStudentTheme() : getClassicStudentTheme()
+  return `exam-room-layout${theme === 'dark' ? ' navy-student' : theme === 'sakura' ? ' pastel-student' : ''}`
 }
 
 // Student's current answers state for exam
@@ -203,10 +209,14 @@ function cloneJSON(value) {
   try { return JSON.parse(JSON.stringify(value)) } catch (_) { return value }
 }
 
+function isMochiMode() {
+  return Boolean(state.token) && state.user?.role === 'STUDENT' && isMochiUI()
+}
+
 // =========================================================
 // MAIN RENDER: EXAM ROOM VIEW (NO SIDEBAR)
 // =========================================================
-export function renderExamRoomView() {
+export function renderClassicExamRoomView() {
   const hwData = state.currentHomework
   const hw = hwData?.homework || hwData
   const questions = hwData?.questions || []
@@ -622,6 +632,430 @@ function renderExamQuestionCards(parsedQuestions) {
       </article>
     `
   }).join('')
+}
+
+function renderMochiExamQuestionCards(parsedQuestions) {
+  let currentSection = ''
+
+  return parsedQuestions.map(q => {
+    const qNum = q.questionNumber
+    let sectionHeader = ''
+
+    let newSection = ''
+    if (q.questionType === 'MULTIPLE_CHOICE') newSection = 'PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D)'
+    else if (q.questionType === 'TRUE_FALSE') newSection = 'PHẦN II: TRẮC NGHIỆM ĐÚNG / SAI (4 Ý a, b, c, d)'
+    else if (q.questionType === 'SHORT_ANSWER') newSection = 'PHẦN III: TRẢ LỜI NGẮN (ĐIỀN KẾT QUẢ SỐ)'
+    else if (q.questionType === 'ESSAY') newSection = 'PHẦN IV: TỰ LUẬN (NHẬP VĂN BẢN)'
+
+    if (newSection !== currentSection) {
+      currentSection = newSection
+      sectionHeader = `
+        <div class="m-exam-section-header" style="background:var(--m-surface2); border:2px solid var(--m-line); border-radius:var(--m-radius-md); padding:12px 18px; margin:${qNum === 1 ? '0' : '28px'} 0 16px 0; font-weight:800; font-family:var(--m-font-heading); font-size:15px; color:var(--m-ink); display:flex; align-items:center; gap:10px;">
+          <i class="fa-solid fa-bookmark" style="color:var(--m-accent);" aria-hidden="true"></i> ${currentSection}
+        </div>
+      `
+    }
+
+    const isFlagged = flaggedQuestions.has(qNum)
+
+    const tfStatements = (q.options && q.options.length > 0) ? q.options : [
+      { id: 'a', text: '' },
+      { id: 'b', text: '' },
+      { id: 'c', text: '' },
+      { id: 'd', text: '' }
+    ]
+
+    return `
+      ${sectionHeader}
+      <article class="interactive-q-card m-card ${isFlagged ? 'flagged' : ''}" id="exam-q-card-${qNum}" data-qnum="${qNum}">
+        <div class="m-q-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:12px; border-bottom:2px solid var(--m-line);">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-family:var(--m-font-heading); font-weight:800; font-size:18px; color:var(--m-ink);">Câu ${qNum}</span>
+            <span class="m-chip" style="font-size:12px; font-weight:700;">
+              (${q.points || (q.questionType === 'TRUE_FALSE' ? 1.0 : (q.questionType === 'SHORT_ANSWER' ? 0.5 : 1.0))} điểm)
+            </span>
+          </div>
+          <button type="button" class="btn-flag-question ${isFlagged ? 'active' : ''}" data-qnum="${qNum}" title="Đánh dấu để xem lại">
+            <i class="fa-solid fa-bookmark" aria-hidden="true"></i> <span>${isFlagged ? 'Đã đánh dấu' : 'Đánh dấu'}</span>
+          </button>
+        </div>
+
+        <!-- Prompt with Math -->
+        <div class="interactive-q-prompt">${formatExamContent(q.promptText || '')}</div>
+
+        <!-- Attached Image (if any) -->
+        ${q.imageUrl ? `
+          <div style="margin:12px 0 16px 0; text-align:center;">
+            <img src="${q.imageUrl}" alt="Hình câu ${qNum}" style="max-width:100%; max-height:360px; object-fit:contain; border-radius:14px; border:2px solid var(--m-line);" />
+          </div>
+        ` : ''}
+
+        <!-- Answering Options -->
+        ${q.questionType === 'MULTIPLE_CHOICE' ? `
+          <div class="exam-options-grid grid-2col">
+            ${(q.options || []).map(opt => {
+              const isSelected = studentAnswers.mc[qNum] === opt.id
+              return `
+                <div class="exam-option-card m-option ${isSelected ? 'selected' : ''}" data-qnum="${qNum}" data-optid="${opt.id}" role="button" tabindex="0" aria-pressed="${isSelected}">
+                  <div class="exam-opt-badge m-option-key">${opt.id}</div>
+                  <div style="flex:1 1 auto; line-height:1.5;">${formatExamContent(opt.text || '')}</div>
+                </div>
+              `
+            }).join('')}
+          </div>
+        ` : (q.questionType === 'TRUE_FALSE' ? `
+          <div class="tf-statements-container" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+            ${tfStatements.map(sub => {
+              const subKey = String(sub.id || '').toLowerCase()
+              const val = studentAnswers.tf[qNum]?.[subKey] !== undefined 
+                ? studentAnswers.tf[qNum][subKey] 
+                : studentAnswers.tf[qNum]?.[sub.id]
+              const displayText = sub.text ? formatExamContent(sub.text) : `<span style="color:var(--m-muted); font-style:italic;">Ý ${subKey.toUpperCase()}</span>`
+              const isTrue = val === true || val === 'true'
+              const isFalse = val === false || val === 'false'
+
+              return `
+                <div class="tf-statement-row" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border:2px solid var(--m-line); border-radius:var(--m-radius-md); background:var(--m-surface2); gap:12px;">
+                  <div style="font-size:14.5px; color:var(--m-ink); line-height:1.5; flex:1;">
+                    <strong style="color:var(--m-accent); margin-right:6px;">${subKey})</strong> ${displayText}
+                  </div>
+                  <div style="display:flex; gap:8px; flex-shrink:0;">
+                    <button type="button" class="tf-toggle-btn ${isTrue ? 'active' : ''}" data-qnum="${qNum}" data-sub="${subKey}" data-val="true">
+                      <i class="fa-solid fa-check" aria-hidden="true"></i> Đúng
+                    </button>
+                    <button type="button" class="tf-toggle-btn ${isFalse ? 'active' : ''}" data-qnum="${qNum}" data-sub="${subKey}" data-val="false">
+                      <i class="fa-solid fa-xmark" aria-hidden="true"></i> Sai
+                    </button>
+                  </div>
+                </div>
+              `
+            }).join('')}
+          </div>
+        ` : (q.questionType === 'ESSAY' ? `
+          <div style="background:var(--m-surface2); border:2px solid var(--m-line); border-radius:var(--m-radius-md); padding:16px;">
+            <label style="display:block; font-size:13px; font-weight:800; color:var(--m-ink); margin-bottom:8px;">Nhập câu trả lời tự luận:</label>
+            <textarea class="student-interactive-essay-input" data-qnum="${qNum}" rows="7" placeholder="Nhập câu trả lời của em..." style="width:100%; resize:vertical; line-height:1.5;">${escapeHtml(studentAnswers.essay[qNum] || '')}</textarea>
+          </div>
+        ` : `
+          <div style="background:var(--m-surface2); border:2px solid var(--m-line); border-radius:var(--m-radius-md); padding:16px;">
+            <label style="display:block; font-size:13px; font-weight:800; color:var(--m-ink); margin-bottom:8px;">
+              <i class="fa-solid fa-pen" aria-hidden="true"></i> Nhập kết quả của bạn:
+            </label>
+            <input type="text" class="student-interactive-sa-input" data-qnum="${qNum}" value="${escapeHtml(studentAnswers.sa[qNum] || '')}" placeholder="Điền đáp án số (ví dụ: 2.67 hoặc -5)...">
+          </div>
+        `))}
+      </article>
+    `
+  }).join('')
+}
+
+function renderMochiExamRoomView() {
+  const hwData = state.currentHomework
+  const hw = hwData?.homework || hwData
+  const questions = hwData?.questions || []
+
+  if (!hw || !hw.id) {
+    return `
+      <div class="${examShell()} m-exam-room">
+        <div class="m-card m-empty-state" style="padding:60px 20px; text-align:center; max-width:540px; margin:80px auto;">
+          ${renderMascot({ mood: 'happy', size: 100 })}
+          <p style="font-size:16px; font-weight:800; font-family:var(--m-font-heading); margin-top:14px; color:var(--m-ink);">Đang chuẩn bị đề thi...</p>
+        </div>
+      </div>
+    `
+  }
+
+  const attemptsCount = hwData?.attemptsCount || 0
+  const maxAttempts = hw.maxAttempts || hw.max_attempts || 1
+  const grantedExtra = Math.max(0, (hwData?.activeAttemptNo || 0) - 1)
+  const attemptAllowance = maxAttempts + grantedExtra
+  const isExceeded = maxAttempts > 0 && attemptsCount >= attemptAllowance
+
+  if (isExceeded) {
+    return `
+      <div class="${examShell()} m-exam-room">
+        <div class="m-card m-empty-state" style="max-width:540px; margin: 80px auto; padding: 40px; text-align:center;">
+          ${renderMascot({ mood: 'wink', size: 120 })}
+          <h2 style="font-weight:800; color:var(--m-ink); margin:16px 0 12px; font-family:var(--m-font-heading);">Đạt Giới Hạn Lượt Thi</h2>
+          <p style="font-size:14.5px; color:var(--m-muted); line-height:1.6; margin-bottom:24px;">
+            Bài thi chính thức <strong>${escapeHtml(hw.title)}</strong> chỉ cho phép thực hiện tối đa <strong>${maxAttempts}</strong> lần.<br>
+            Bạn đã nộp bài thi này và không thể làm lại trừ khi được giáo viên cấp quyền.
+          </p>
+          <button class="m-btn m-btn--primary" onclick="window.location.hash='#my-classes'" style="min-height:44px; padding:0 24px; font-size:14px; cursor:pointer;">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Quay lại danh sách lớp học
+          </button>
+        </div>
+      </div>
+    `
+  }
+
+  const savedDraft = loadDraftFromStorage(hw.id)
+  isDraftRestored = !!(savedDraft && savedDraft.answers && (
+    Object.keys(savedDraft.answers.mc || {}).length > 0 ||
+    Object.keys(savedDraft.answers.tf || {}).length > 0 ||
+    Object.keys(savedDraft.answers.sa || {}).length > 0
+    || Object.keys(savedDraft.answers.essay || {}).length > 0
+  ))
+
+  studentAnswers = {
+    mc: savedDraft?.answers?.mc || {},
+    tf: savedDraft?.answers?.tf || {},
+    sa: savedDraft?.answers?.sa || {},
+    essay: savedDraft?.answers?.essay || {}
+  }
+
+  const parsedQuestionList = questions.map(q => {
+    const pObj = parsePromptPayload(q.prompt, q.content)
+    const qNum = q.question_number || q.questionNumber
+    const rawType = (q.question_type || q.questionType || '').toUpperCase()
+    const isTf = rawType === 'TRUE_FALSE' || rawType === 'TF' || (pObj.statements && pObj.statements.length > 0)
+    const isSa = rawType === 'SHORT_ANSWER' || rawType === 'SA'
+    const isEssay = rawType === 'ESSAY' || rawType === 'TL'
+    const questionType = isTf ? 'TRUE_FALSE' : (isEssay ? 'ESSAY' : (isSa ? 'SHORT_ANSWER' : 'MULTIPLE_CHOICE'))
+
+    let promptText = pObj.text || q.content || (typeof q.prompt === 'string' && !q.prompt.trim().startsWith('{') ? q.prompt : '') || `Câu hỏi số ${qNum}`
+    let options = []
+
+    if (isTf) {
+      let rawStatements = []
+      if (Array.isArray(q.statements) && q.statements.length > 0) rawStatements = q.statements
+      else if (Array.isArray(pObj.statements) && pObj.statements.length > 0) rawStatements = pObj.statements
+      else if (Array.isArray(q.options) && q.options.length > 0) rawStatements = q.options
+      else if (Array.isArray(pObj.options) && pObj.options.length > 0) rawStatements = pObj.options
+      else if (typeof q.statements === 'object' && q.statements !== null) {
+        rawStatements = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: q.statements[k] || '' }))
+      } else if (typeof pObj.statements === 'object' && pObj.statements !== null) {
+        rawStatements = ['a', 'b', 'c', 'd'].map(k => ({ key: k, text: pObj.statements[k] || '' }))
+      }
+
+      const tfKeys = ['a', 'b', 'c', 'd']
+      options = tfKeys.map((k, idx) => {
+        const found = rawStatements.find(s => {
+          if (!s) return false
+          const sKey = String(s.key || s.id || '').trim().toLowerCase()
+          return sKey === k
+        }) || rawStatements[idx]
+
+        let stmtText = ''
+        if (found) {
+          if (typeof found === 'string') stmtText = found
+          else if (typeof found === 'object') stmtText = found.text || found.content || found.prompt || ''
+        }
+        stmtText = stmtText.replace(/^[a-d]\s*[\)\.:]\s*/i, '').trim()
+        return { id: k, text: stmtText }
+      })
+    } else if (!isSa && !isEssay) {
+      let rawOptions = pObj.options.length > 0 ? pObj.options : (q.options || [])
+      if (Array.isArray(rawOptions) && rawOptions.length > 0) {
+        options = rawOptions.map((opt, idx) => {
+          if (typeof opt === 'string') return { id: ['A', 'B', 'C', 'D'][idx] || String(idx + 1), text: opt }
+          return { id: (opt.id || opt.key || ['A', 'B', 'C', 'D'][idx] || '').toUpperCase(), text: opt.text || opt.content || '' }
+        })
+      } else if (typeof rawOptions === 'object' && rawOptions !== null) {
+        options = ['A', 'B', 'C', 'D'].map(k => ({ id: k, text: rawOptions[k] || '' }))
+      }
+      if (!options || options.length === 0) {
+        options = ['A', 'B', 'C', 'D'].map(k => ({ id: k, text: '' }))
+      }
+    }
+
+    return {
+      id: q.id,
+      questionNumber: qNum,
+      questionType,
+      points: q.points || (questionType === 'TRUE_FALSE' ? 1.0 : (questionType === 'SHORT_ANSWER' ? 0.5 : 1.0)),
+      promptText,
+      imageUrl: pObj.imageUrl || '',
+      options,
+      explanation: pObj.explanation || q.explanation || ''
+    }
+  })
+
+  const totalQuestions = parsedQuestionList.length
+  let answeredCount = 0
+  parsedQuestionList.forEach(q => {
+    const qNum = q.questionNumber
+    if (q.questionType === 'MULTIPLE_CHOICE' && studentAnswers.mc[qNum]) answeredCount++
+    else if (q.questionType === 'TRUE_FALSE') {
+      const tf = studentAnswers.tf[qNum] || {}
+      if (['a', 'b', 'c', 'd'].every(k => tf[k] !== undefined)) answeredCount++
+    } else if (q.questionType === 'SHORT_ANSWER' && studentAnswers.sa[qNum] && String(studentAnswers.sa[qNum]).trim() !== '') {
+      answeredCount++
+    } else if (q.questionType === 'ESSAY' && studentAnswers.essay[qNum] && String(studentAnswers.essay[qNum]).trim() !== '') {
+      answeredCount++
+    }
+  })
+  const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
+
+  const maxViolationsAllowed = hw.maxViolations || hw.max_violations || 3
+  const hasAttachedPdf = !!(hw && (hw.pdfUrl || (hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))))
+  const studentFullName = state.user?.fullName || state.user?.username || 'Thí sinh'
+
+  return `
+    <div class="${examShell()} m-exam-room">
+      <!-- TOP EXAM TOOLBAR -->
+      <header class="exam-top-toolbar m-exam-top">
+        <div class="exam-toolbar-identity" style="display:flex; align-items:center; gap:14px; min-width:0; flex:1 1 auto;">
+          <button type="button" class="exam-toolbar-back m-exam-back-btn" aria-label="Rời phòng thi" title="Rời phòng thi">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Quay lại</span>
+          </button>
+          <div class="brand-logo" style="margin:0; padding:0; cursor:default; font-size:18px;">
+            <i class="fa-solid fa-graduation-cap"></i>
+            <span>EduPortal</span>
+          </div>
+          <div class="m-toolbar-sep" style="height:24px; width:1px; background:#cbd5e1;"></div>
+          <div class="exam-toolbar-heading" style="min-width:0; overflow:hidden;">
+            <div class="exam-toolbar-badges" style="display:flex; align-items:center; gap:8px; margin-bottom:2px; flex-wrap:wrap;">
+              <span class="m-chip m-chip--accent2" style="font-weight:800; font-size:11px; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> PHÒNG THI CHÍNH THỨC
+              </span>
+              <span id="exam-autosave-status" class="m-chip m-chip--ok" style="font-size:11.5px; padding:2px 10px; border-radius:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Tự động lưu nháp
+              </span>
+            </div>
+            <h1 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              ${escapeHtml(hw.title)}
+            </h1>
+          </div>
+        </div>
+
+        <div class="exam-toolbar-actions" style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+          ${renderStudentThemeToggle('exam-student-theme-toggle')}
+          <div class="m-user-chip" style="display:flex; align-items:center; gap:8px; font-size:13px; color:#475569; background:#f8fafc; padding:6px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+            <i class="fa-solid fa-user-graduate" style="color:#0284c7;" aria-hidden="true"></i>
+            <strong style="color:#0f172a;">${escapeHtml(studentFullName)}</strong>
+          </div>
+
+          <!-- Violation counter in toolbar -->
+          <div id="exam-violations-pill" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; padding:6px 12px; border-radius:8px;" title="Số lần vi phạm quy chế thi (chuyển tab/mở app ngoài)">
+            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;" aria-hidden="true"></i>
+            <span>Vi phạm: <strong id="exam-violations-count">0</strong>/${maxViolationsAllowed}</span>
+          </div>
+
+          ${hasAttachedPdf ? `
+            <button type="button" id="btn-toggle-exam-pdf" class="btn-secondary" style="padding:7px 14px; font-size:12.5px; font-weight:600; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" title="Mở đối chiếu đề bài PDF đính kèm">
+              <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Xem Đề PDF
+            </button>
+          ` : ''}
+
+          <!-- Countdown Timer Box -->
+          <div class="timer-box" style="padding:7px 18px; font-size:16px; font-weight:800; border-radius:8px; background:#eff6ff; color:#0066cc; border:1.5px solid #bfdbfe; display:inline-flex; align-items:center; gap:7px; letter-spacing:0.5px;">
+            <i class="fa-regular fa-clock" style="color:#0284c7;" aria-hidden="true"></i> 
+            <span id="exam-timer-display">${String(hw.durationMinutes || 45).padStart(2, '0')}:00</span>
+          </div>
+
+          <button type="button" id="btn-top-submit-exam" class="btn-primary" style="padding:8px 20px; font-size:13px; font-weight:700; background:#059669; border-color:#059669; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Nộp bài
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN BODY CONTAINER -->
+      <main class="exam-room-body">
+        <div class="exam-split-grid">
+          
+          <!-- LEFT COLUMN: QUESTION CARDS WITH RICH MARKDOWN -->
+          <div id="exam-questions-container" style="min-width:0;">
+            ${renderMochiExamQuestionCards(parsedQuestionList)}
+          </div>
+
+          <!-- RIGHT COLUMN: STICKY NAVIGATION PALETTE -->
+          <aside class="exam-sidebar-palette m-exam-side" style="position:sticky; top:80px; background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; box-shadow:0 4px 16px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:18px; max-height:calc(100vh - 110px); overflow-y:auto;">
+            
+            <!-- Progress Section -->
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; color:#475569; margin-bottom:6px;">
+                <span>Tiến độ làm bài:</span>
+                <span id="exam-progress-text" style="color:#0066cc; font-weight:700;">${answeredCount}/${totalQuestions} câu (${progressPercent}%)</span>
+              </div>
+              <div style="height:8px; background:#f1f5f9; border-radius:6px; overflow:hidden;">
+                <div id="exam-progress-bar" style="height:100%; width:${progressPercent}%; background:linear-gradient(90deg, #0284c7, #10b981); border-radius:6px; transition:width 0.25s ease;"></div>
+              </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="m-palette-legend" style="display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:#64748b; padding-bottom:10px; border-bottom:1px solid #f1f5f9;">
+              <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:#0066cc; display:inline-block;"></span> Đã làm</div>
+              <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:#e0f2fe; border:1px solid #0284c7; display:inline-block;"></span> Làm 1 phần</div>
+              <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:#ffffff; border:1px solid #cbd5e1; display:inline-block;"></span> Chưa làm</div>
+              <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:#f59e0b; display:inline-block;"></span> Đã cắm cờ</div>
+            </div>
+
+            <!-- Question Grid Palette -->
+            <div>
+              <div style="font-weight:700; font-size:13px; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;">
+                <span>BẢNG ĐIỀU HƯỚNG</span>
+                <span style="font-size:11px; color:#64748b; font-weight:normal;">Bấm số để cuộn tới câu</span>
+              </div>
+
+              <div class="exam-nav-grid" id="exam-nav-palette" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px;">
+                ${parsedQuestionList.map(q => {
+                  const qNum = q.questionNumber
+                  const isFlagged = flaggedQuestions.has(qNum)
+                  let isAnswered = false
+                  let isPartial = false
+                  if (q.questionType === 'MULTIPLE_CHOICE') {
+                    isAnswered = !!studentAnswers.mc[qNum]
+                  } else if (q.questionType === 'TRUE_FALSE') {
+                    const tf = studentAnswers.tf[qNum] || {}
+                    const ansCount = ['a', 'b', 'c', 'd'].filter(k => tf[k] !== undefined).length
+                    isAnswered = ansCount === 4
+                    isPartial = ansCount > 0 && ansCount < 4
+                  } else if (q.questionType === 'SHORT_ANSWER') {
+                    isAnswered = studentAnswers.sa[qNum] !== undefined && String(studentAnswers.sa[qNum]).trim() !== ''
+                  } else if (q.questionType === 'ESSAY') {
+                    isAnswered = studentAnswers.essay[qNum] !== undefined && String(studentAnswers.essay[qNum]).trim() !== ''
+                  }
+
+                  return `
+                    <button type="button" class="exam-nav-btn ${isAnswered ? 'answered' : (isPartial ? 'partial' : '')} ${isFlagged ? 'flagged' : ''}" data-qnum="${qNum}">
+                      ${qNum}
+                    </button>
+                  `
+                }).join('')}
+              </div>
+            </div>
+
+            <!-- Anti-Cheat Status Summary in Sidebar -->
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; color:#475569; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; gap:6px; font-weight:700; color:#0f172a;">
+                <i class="fa-solid fa-shield-cat" style="color:#0284c7;" aria-hidden="true"></i> Giám sát thi tự động
+              </div>
+              <div style="display:flex; justify-content:space-between;">
+                <span>Giới hạn vi phạm:</span>
+                <strong style="color:#b91c1c;"><span id="exam-side-violations">0</span>/${maxViolationsAllowed} lần</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b;">Không chuyển thẻ hoặc mở ứng dụng khác khi đang làm bài.</div>
+            </div>
+
+            <!-- Mascot Encouragement Box -->
+            <div class="m-mascot-box" style="display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--m-surface2); border:1px solid var(--m-line); border-radius:var(--m-radius-md);">
+              ${renderMascot({ mood: 'cheer', size: 60 })}
+              <div style="font-size:13px; font-weight:700; line-height:1.4; color:var(--m-ink);">
+                Bình tĩnh nhé, hãy rà soát kỹ bài trước khi nộp!
+              </div>
+            </div>
+
+            <!-- Submit Button in Sticky Sidebar -->
+            <div style="padding-top:12px; border-top:1px solid #f1f5f9; display:flex; flex-direction:column; gap:8px;">
+              <button type="button" id="btn-submit-exam-sidebar" class="btn-primary" style="width:100%; padding:12px; font-size:14px; font-weight:700; background:#059669; border-color:#059669; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; border-radius:10px; box-shadow:0 2px 8px rgba(5,150,105,0.2);">
+                <i class="fa-solid fa-check-double" aria-hidden="true"></i> NỘP BÀI THI
+              </button>
+              
+              <button type="button" id="btn-exit-exam-room" style="background:transparent; border:none; color:#94a3b8; font-size:12px; font-weight:600; cursor:pointer; padding:6px; display:flex; align-items:center; justify-content:center; gap:6px;">
+                <i class="fa-solid fa-door-open" aria-hidden="true"></i> Rời khỏi phòng thi
+              </button>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  `
+}
+
+export function renderExamRoomView() {
+  if (!isMochiMode()) return renderClassicExamRoomView()
+  return renderMochiExamRoomView()
 }
 
 // =========================================================

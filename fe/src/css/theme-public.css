@@ -876,26 +876,26 @@ html[data-theme="dark"] .theme-public-page .content-body .card {
    default and swaps icon/label to describe the NEXT mode. Toggling only
    repaints theme classes (no popup, no rerender), and the compact states keep
    a 44px touch target in the navbar, the collapsed rail and the exam bar. */
-html[data-student-theme="pastel"] .app-layout.pastel-student .student-theme-toggle,
-html[data-student-theme="pastel"] .exam-room-layout.pastel-student .student-theme-toggle {
+html[data-student-theme="sakura"] .app-layout.pastel-student .student-theme-toggle,
+html[data-student-theme="sakura"] .exam-room-layout.pastel-student .student-theme-toggle {
   background: #fff8fc;
   border-color: #d9a8cb;
   color: #523356;
 }
 
-html[data-student-theme="pastel"] .app-layout.pastel-student .student-theme-toggle:hover,
-html[data-student-theme="pastel"] .exam-room-layout.pastel-student .student-theme-toggle:hover {
+html[data-student-theme="sakura"] .app-layout.pastel-student .student-theme-toggle:hover,
+html[data-student-theme="sakura"] .exam-room-layout.pastel-student .student-theme-toggle:hover {
   border-color: #924e91;
   color: #924e91;
 }
 
-html[data-student-theme="pastel"] .app-layout.pastel-student .student-theme-toggle i,
-html[data-student-theme="pastel"] .exam-room-layout.pastel-student .student-theme-toggle i {
+html[data-student-theme="sakura"] .app-layout.pastel-student .student-theme-toggle i,
+html[data-student-theme="sakura"] .exam-room-layout.pastel-student .student-theme-toggle i {
   color: #be4f86;
 }
 
-html[data-student-theme="pastel"] .app-layout.pastel-student .student-theme-toggle:focus-visible,
-html[data-student-theme="pastel"] .exam-room-layout.pastel-student .student-theme-toggle:focus-visible {
+html[data-student-theme="sakura"] .app-layout.pastel-student .student-theme-toggle:focus-visible,
+html[data-student-theme="sakura"] .exam-room-layout.pastel-student .student-theme-toggle:focus-visible {
   outline-color: #924e91;
 }
 

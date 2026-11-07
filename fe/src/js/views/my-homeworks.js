@@ -1,3 +1,6 @@
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/mochi/homework-history.css')
+}
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import mascotUrl from '../../assets/mascot-study.svg'
 import { renderNavbar } from '../components/navbar.js'
@@ -7,6 +10,8 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { escapeHtml, downloadHomeworkPdf } from '../utils/download-helper.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
+import { isMochiUI } from '../ui-flag.js'
+import { renderMascot } from '../components/mascot.js'
 
 // Đảm bảo nút làm/làm lại bài luôn hoạt động kể cả khi vào thẳng trang này
 if (!window.confirmStartHomework) {
@@ -43,7 +48,11 @@ let listRequestId = 0
 let chapterRequestId = 0
 let lessonRequestId = 0
 
-export function renderMyHomeworksView() {
+function isMochiMode() {
+  return Boolean(state.token) && state.user?.role === 'STUDENT' && isMochiUI()
+}
+
+export function renderClassicMyHomeworksView() {
   return `
     <div class="app-layout navy-student">
       ${renderSidebar('my-homeworks')}
@@ -106,15 +115,94 @@ export function renderMyHomeworksView() {
   `
 }
 
+function renderMochiMyHomeworksView() {
+  return `
+    <div class="app-layout navy-student m-student-page m-homework-page">
+      ${renderSidebar('my-homeworks')}
+      <div class="main-content">
+        ${renderNavbar('Học tập / Bài tập của tôi')}
+        <main class="content-body">
+          <div class="m-page-wrap">
+            <header class="m-hw-hero">
+              <div class="m-hw-hero-copy">
+                <span class="m-chip m-chip--accent2">Học tập</span>
+                <h1 class="m-hw-hero-title">Bài tập của tôi</h1>
+                <p class="m-hw-hero-desc">Theo dõi bài chưa làm, đã làm và các bài cần xem lại.</p>
+              </div>
+              <div class="m-hw-hero-mascot">
+                ${renderMascot({ mood: 'happy', size: 120 })}
+              </div>
+            </header>
+
+            <div class="m-hw-top-bar">
+              <div class="m-hw-title-group">
+                <h2 class="m-hw-section-title">Danh sách bài tập</h2>
+                <p class="m-hw-section-sub">Tất cả bài tập và bài thi được giao theo lớp của bạn — gồm cả bài đã làm và bài chưa làm.</p>
+              </div>
+              <button type="button" class="m-btn m-btn--secondary" id="btn-replay-myhw-tour" aria-label="Xem hướng dẫn bài tập">
+                <i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn
+              </button>
+            </div>
+
+            <section id="myhw-stats" class="m-hw-stats" aria-label="Thống kê bài tập"></section>
+
+            <section class="m-card m-hw-filters" id="tour-myhw-filter" aria-label="Bộ lọc bài tập">
+              <div class="m-hw-filter-bar">
+                <div class="m-hw-status-tabs" role="tablist" aria-label="Trạng thái bài tập">
+                  <button type="button" role="tab" class="m-tab myhw-status-btn ${filterStatus === 'all' ? 'active' : ''}" data-status="all" aria-pressed="${filterStatus === 'all'}" aria-selected="${filterStatus === 'all'}">Tất cả</button>
+                  <button type="button" role="tab" class="m-tab myhw-status-btn ${filterStatus === 'todo' ? 'active' : ''}" data-status="todo" aria-pressed="${filterStatus === 'todo'}" aria-selected="${filterStatus === 'todo'}">Chưa làm</button>
+                  <button type="button" role="tab" class="m-tab myhw-status-btn ${filterStatus === 'done' ? 'active' : ''}" data-status="done" aria-pressed="${filterStatus === 'done'}" aria-selected="${filterStatus === 'done'}">Đã làm</button>
+                </div>
+                <div class="m-hw-select-group">
+                  <select id="myhw-class-filter" class="m-select" aria-label="Lọc theo lớp học">
+                    <option value="">Tất cả lớp</option>
+                  </select>
+                  <select id="myhw-chapter-filter" class="m-select" aria-label="Lọc theo chương" disabled>
+                    <option value="">Tất cả chương</option>
+                  </select>
+                  <select id="myhw-lesson-filter" class="m-select" aria-label="Lọc theo bài học" disabled>
+                    <option value="">Tất cả bài học</option>
+                  </select>
+                </div>
+                <div class="m-hw-search-box">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <input id="myhw-search" type="search" value="${escapeHtml(filterSearch)}" placeholder="Tìm theo tên bài..." aria-label="Tìm theo tên bài tập">
+                </div>
+              </div>
+            </section>
+
+            <div id="myhw-list" class="m-hw-list" aria-live="polite">
+              <div class="m-loading-box">
+                <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
+                <div>Đang tải bài tập...</div>
+              </div>
+            </div>
+
+            <nav id="myhw-pagination" class="m-hw-pagination" aria-label="Phân trang bài tập"></nav>
+          </div>
+        </main>
+      </div>
+    </div>
+  `
+}
+
+export function renderMyHomeworksView() {
+  if (isMochiMode()) {
+    return renderMochiMyHomeworksView()
+  }
+  return renderClassicMyHomeworksView()
+}
+
 function paintStatusButtons() {
   document.querySelectorAll('.myhw-status-btn').forEach(b => {
     const active = b.getAttribute('data-status') === filterStatus
     b.classList.toggle('active', active)
     b.setAttribute('aria-pressed', String(active))
+    b.setAttribute('aria-selected', String(active))
   })
 }
 
-function renderStats(stats) {
+function renderClassicStats(stats) {
   const el = document.getElementById('myhw-stats')
   if (!el) return
   const card = (label, value, sub, color, bg) => `
@@ -124,6 +212,8 @@ function renderStats(stats) {
       <div style="font-size:12px; color:#64748b;">${sub}</div>
     </div>
   `
+  el.className = ''
+  el.style.cssText = 'display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:16px;'
   el.innerHTML =
     card('Tổng bài được giao', stats.total ?? 0, 'Mọi lớp của bạn', '#0066cc', '#eff6ff') +
     card('Chưa làm', stats.todo ?? 0, 'Cần hoàn thành', '#b45309', '#fffbeb') +
@@ -131,7 +221,178 @@ function renderStats(stats) {
     card('Điểm trung bình', stats.avgScore ?? '—', 'Các bài đã làm', '#7c3aed', '#faf5ff')
 }
 
-function hwCard(hw) {
+export function renderMochiStats(stats) {
+  const el = document.getElementById('myhw-stats')
+  if (!el) return
+  el.removeAttribute('style')
+  el.className = 'm-hw-stats'
+
+  const rawAvg = stats?.avgScore
+  const avgNum = (rawAvg !== null && rawAvg !== undefined && rawAvg !== '') ? Number(rawAvg) : NaN
+  const avgVal = Number.isFinite(avgNum)
+    ? (Number.isInteger(avgNum) ? avgNum.toString() : Number(avgNum.toFixed(2)).toString())
+    : '—'
+
+  el.innerHTML = `
+    <div class="m-stat-card m-stat-card--total">
+      <div class="m-stat-label">Tổng bài được giao</div>
+      <div class="m-stat-val">${stats?.total ?? 0}</div>
+      <div class="m-chip m-chip--secondary">Mọi lớp của bạn</div>
+    </div>
+    <div class="m-stat-card m-stat-card--todo">
+      <div class="m-stat-label">Chưa làm</div>
+      <div class="m-stat-val">${stats?.todo ?? 0}</div>
+      <div class="m-chip m-chip--warn">Cần hoàn thành</div>
+    </div>
+    <div class="m-stat-card m-stat-card--done">
+      <div class="m-stat-label">Đã làm</div>
+      <div class="m-stat-val">${stats?.done ?? 0}</div>
+      <div class="m-chip m-chip--ok">Có điểm số</div>
+    </div>
+    <div class="m-stat-card m-stat-card--avg">
+      <div class="m-stat-label">Điểm trung bình</div>
+      <div class="m-stat-val">${avgVal}</div>
+      <div class="m-chip m-chip--accent2">Các bài đã làm</div>
+    </div>
+  `
+}
+
+function renderStats(stats) {
+  if (isMochiMode()) {
+    renderMochiStats(stats)
+  } else {
+    renderClassicStats(stats)
+  }
+}
+
+function getDeadlineInfo(deadline) {
+  if (!deadline) return null
+  const d = new Date(deadline)
+  if (isNaN(d.getTime())) return null
+  const now = new Date()
+  const diffMs = d.getTime() - now.getTime()
+  const isOverdue = diffMs < 0
+
+  if (isOverdue) {
+    return {
+      urgency: 'overdue',
+      chipClass: 'm-chip--warn',
+      icon: 'fa-triangle-exclamation',
+      label: `Quá hạn · ${d.toLocaleString('vi-VN')} (vẫn nộp được)`
+    }
+  }
+
+  const hoursLeft = diffMs / (1000 * 60 * 60)
+  const isToday = d.toDateString() === now.toDateString()
+  if (isToday || hoursLeft <= 24) {
+    const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    return {
+      urgency: 'today',
+      chipClass: 'm-chip--urgent',
+      icon: 'fa-fire',
+      label: `Hôm nay · ${timeStr}`
+    }
+  }
+
+  return {
+    urgency: 'upcoming',
+    chipClass: 'm-chip--secondary',
+    icon: 'fa-calendar-days',
+    label: `Hạn chót: ${d.toLocaleString('vi-VN')}`
+  }
+}
+
+function mochiHwCard(hw) {
+  const isExam = (hw.type || 'PRACTICE') === 'EXAM'
+  const canShowPdf = canViewHomeworkPdf(state.user?.role, hw)
+  const deadlineInfo = getDeadlineInfo(hw.deadline)
+
+  const typeBadge = isExam
+    ? `<span class="m-chip m-chip--warn"><i class="fa-solid fa-award" aria-hidden="true"></i> BÀI THI</span>`
+    : `<span class="m-chip"><i class="fa-solid fa-book-open" aria-hidden="true"></i> LUYỆN TẬP</span>`
+
+  let statusBlock = ''
+  let actions = ''
+
+  if (hw.done) {
+    const rawScore = (hw.score !== null && hw.score !== undefined && hw.score !== '') ? Number(hw.score) : NaN
+    const hasScore = Number.isFinite(rawScore)
+    const rawMax = (hw.maxScore !== null && hw.maxScore !== undefined && hw.maxScore !== '') ? Number(hw.maxScore) : NaN
+    const hasValidMax = Number.isFinite(rawMax) && rawMax > 0
+    const max = hasValidMax ? rawMax : 10
+    const passed = hasScore ? hw.isPassed !== false : false
+
+    const scoreDisplay = hasScore
+      ? (Number.isInteger(rawScore) ? rawScore.toString() : Number(rawScore.toFixed(2)).toString())
+      : '—'
+    const scoreBoxClass = hasScore ? (passed ? 'is-passed' : 'is-failed') : 'is-unscored'
+    const chipClass = hasScore ? (passed ? 'm-chip--ok' : 'm-chip--warn') : 'm-chip--secondary'
+    const chipLabel = hasScore ? (passed ? 'ĐẠT' : 'CHƯA ĐẠT') : 'Chưa có điểm'
+
+    statusBlock = `
+      <div class="m-hw-score-row">
+        <span class="m-hw-score ${scoreBoxClass}">
+          ${scoreDisplay}/${max} điểm
+        </span>
+        <span class="m-chip ${chipClass}">
+          ${chipLabel}
+        </span>
+        ${hw.isLate ? `<span class="m-chip m-chip--warn"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Nộp muộn</span>` : ''}
+        <span class="m-hw-submitted-time">
+          <i class="fa-regular fa-calendar-check" aria-hidden="true"></i> Nộp lúc: ${hw.submittedAt ? new Date(hw.submittedAt).toLocaleString('vi-VN') : '—'}
+        </span>
+      </div>
+    `
+    actions = `
+      ${canShowPdf ? `<button type="button" class="m-btn m-btn--secondary btn-myhw-pdf" data-hwid="${hw.id}" title="Tải file PDF đề bài">
+        <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> Tải PDF
+      </button>` : ''}
+      <a href="#assignment-review?submissionId=${hw.submissionId}" class="m-btn m-btn--secondary">
+        <i class="fa-solid fa-eye" aria-hidden="true"></i> Xem kết quả
+      </a>
+      <button type="button" class="m-btn m-btn--primary" onclick="window.confirmStartHomework('${hw.id}','${hw.type || 'PRACTICE'}')">
+        <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Làm lại
+      </button>
+    `
+  } else {
+    statusBlock = deadlineInfo
+      ? `<div class="m-hw-card-status"><span class="m-chip ${deadlineInfo.chipClass}"><i class="fa-solid ${deadlineInfo.icon}" aria-hidden="true"></i> ${deadlineInfo.label}</span></div>`
+      : `<div class="m-hw-card-status"><span class="m-chip m-chip--ghost"><i class="fa-regular fa-clock" aria-hidden="true"></i> Không giới hạn thời gian nộp</span></div>`
+    actions = `
+      ${canShowPdf ? `<button type="button" class="m-btn m-btn--secondary btn-myhw-pdf" data-hwid="${hw.id}" title="Tải file PDF đề bài">
+        <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> Tải PDF
+      </button>` : ''}
+      <button type="button" class="m-btn m-btn--primary" onclick="window.confirmStartHomework('${hw.id}','${hw.type || 'PRACTICE'}')">
+        <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> ${isExam ? 'Vào phòng thi' : 'Làm bài'}
+      </button>
+    `
+  }
+
+  return `
+    <article class="m-hw-card myhw-card" data-status="${hw.done ? 'done' : 'todo'}" data-class="${hw.classId || ''}" data-title="${escapeHtml((hw.title || '').toLowerCase())}">
+      <div class="m-hw-card-main">
+        <div class="m-hw-card-tags">
+          ${typeBadge}
+          <span class="m-chip m-chip--secondary"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> ${escapeHtml(hw.className || 'Lớp học')}</span>
+        </div>
+        <h3 class="m-hw-card-title">${escapeHtml(hw.title || 'Bài tập')}</h3>
+        <div class="m-hw-card-meta">
+          <span class="m-hw-meta-item"><i class="fa-regular fa-hourglass" aria-hidden="true"></i> ${hw.durationMinutes || 45} phút</span>
+          ${hw.totalQuestions ? `<span class="m-hw-meta-item"><i class="fa-solid fa-list-ol" aria-hidden="true"></i> ${hw.totalQuestions} câu</span>` : ''}
+        </div>
+        ${statusBlock}
+      </div>
+      <div class="m-hw-card-actions">
+        ${actions}
+      </div>
+    </article>
+  `
+}
+
+export function hwCard(hw) {
+  if (isMochiMode()) {
+    return mochiHwCard(hw)
+  }
   const isExam = (hw.type || 'PRACTICE') === 'EXAM'
   // Học sinh tuyệt đối không thấy nút tải PDF của BÀI THI (kể cả bài đã gắn PDF).
   const canShowPdf = canViewHomeworkPdf(state.user?.role, hw)
@@ -219,18 +480,39 @@ function renderPager() {
   let nums = ''
   const startP = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
   const endP = Math.min(totalPages, startP + 4)
-  for (let p = startP; p <= endP; p++) {
-    nums += `<button data-myhw-page="${p}" style="min-width:32px; height:32px; border-radius:8px; border:1px solid ${p === currentPage ? '#0066cc' : '#cbd5e1'}; background:${p === currentPage ? '#0066cc' : '#ffffff'}; color:${p === currentPage ? '#ffffff' : '#334155'}; font-weight:700; font-size:13px; cursor:pointer;">${p}</button>`
+
+  if (isMochiMode()) {
+    for (let p = startP; p <= endP; p++) {
+      nums += `<button type="button" class="${p === currentPage ? 'is-active' : ''}" data-myhw-page="${p}" aria-label="Trang ${p}" aria-current="${p === currentPage ? 'page' : 'false'}">${p}</button>`
+    }
+    pager.className = 'm-hw-pagination'
+    pager.removeAttribute('style')
+    pager.innerHTML = `
+      <div class="m-hw-pagination-info">Hiển thị ${from}–${to} / ${totalItems} bài</div>
+      ${totalPages <= 1 ? '' : `
+      <div class="m-hw-pagination-btns">
+        <button type="button" data-myhw-page="prev" ${currentPage <= 1 ? 'disabled' : ''} aria-label="Trang trước">‹ Trước</button>
+        ${nums}
+        <button type="button" data-myhw-page="next" ${currentPage >= totalPages ? 'disabled' : ''} aria-label="Trang sau">Sau ›</button>
+      </div>`}
+    `
+  } else {
+    for (let p = startP; p <= endP; p++) {
+      nums += `<button data-myhw-page="${p}" style="min-width:32px; height:32px; border-radius:8px; border:1px solid ${p === currentPage ? '#0066cc' : '#cbd5e1'}; background:${p === currentPage ? '#0066cc' : '#ffffff'}; color:${p === currentPage ? '#ffffff' : '#334155'}; font-weight:700; font-size:13px; cursor:pointer;">${p}</button>`
+    }
+    pager.className = ''
+    pager.style.cssText = 'display:flex; align-items:center; justify-content:space-between; margin-top:14px; flex-wrap:wrap; gap:10px;'
+    pager.innerHTML = `
+      <div style="font-size:13px; color:#64748b;">Hiển thị ${from}–${to} / ${totalItems} bài</div>
+      ${totalPages <= 1 ? '' : `
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button data-myhw-page="prev" ${currentPage <= 1 ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${currentPage <= 1 ? '0.4' : '1'};">‹ Trước</button>
+        ${nums}
+        <button data-myhw-page="next" ${currentPage >= totalPages ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${currentPage >= totalPages ? '0.4' : '1'};">Sau ›</button>
+      </div>`}
+    `
   }
-  pager.innerHTML = `
-    <div style="font-size:13px; color:#64748b;">Hiển thị ${from}–${to} / ${totalItems} bài</div>
-    ${totalPages <= 1 ? '' : `
-    <div style="display:flex; align-items:center; gap:6px;">
-      <button data-myhw-page="prev" ${currentPage <= 1 ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${currentPage <= 1 ? '0.4' : '1'};">‹ Trước</button>
-      ${nums}
-      <button data-myhw-page="next" ${currentPage >= totalPages ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${currentPage >= totalPages ? '0.4' : '1'};">Sau ›</button>
-    </div>`}
-  `
+
   pager.querySelectorAll('[data-myhw-page]').forEach(btn => {
     btn.onclick = () => {
       const v = btn.getAttribute('data-myhw-page')
@@ -247,7 +529,7 @@ function myhwTourSteps() {
     { selector: '#tour-myhw-filter', title: 'Lọc bài tập', text: 'Lọc theo trạng thái, lớp, chương, bài học và tìm theo tên bài.' },
     { selector: '#myhw-stats', title: 'Tổng quan', text: 'Xem nhanh tổng số bài được giao, số bài chưa làm, đã làm và điểm trung bình của bạn.' },
     { selector: '#myhw-list', title: 'Danh sách bài', text: 'Bài chưa làm hiện hạn nộp \u2014 bấm "Làm bài" để bắt đầu ngay.' },
-    { selector: '#myhw-list .myhw-card', title: 'Bài đã làm', text: 'Bài đã làm hiện điểm số và kết quả ĐẠT/CHƯA ĐẠT: bấm "Xem kết quả" để coi chi tiết từng câu, "Làm lại" để cải thiện điểm.' },
+    { selector: '#myhw-list .myhw-card', title: 'Bài đã làm', text: 'Bài đã làm hiện điểm số và kết quả ĐẠT/CHƯA ĐẠT: bấm "Xem kết quả" để coi chi tiết từng câu, "Làm lại" để cải thiện điểm.' }
   ]
 }
 
@@ -262,12 +544,21 @@ async function fetchMyHomeworks() {
   const requestId = ++listRequestId
   const userId = state.user?.id
   if (listEl) {
-    listEl.innerHTML = `
-      <div style="text-align:center; padding:48px; color:#94a3b8;">
-        <i class="fa-solid fa-spinner fa-spin" style="font-size:26px; color:#0066cc;"></i>
-        <div style="margin-top:8px; font-size:13px;">Đang tải bài tập...</div>
-      </div>
-    `
+    if (isMochiMode()) {
+      listEl.innerHTML = `
+        <div class="m-loading-box">
+          <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
+          <div>Đang tải bài tập...</div>
+        </div>
+      `
+    } else {
+      listEl.innerHTML = `
+        <div style="text-align:center; padding:48px; color:#94a3b8;">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size:26px; color:#0066cc;"></i>
+          <div style="margin-top:8px; font-size:13px;">Đang tải bài tập...</div>
+        </div>
+      `
+    }
   }
   try {
     const sp = new URLSearchParams({ status: filterStatus, page: String(currentPage), pageSize: String(PAGE_SIZE) })
@@ -283,18 +574,36 @@ async function fetchMyHomeworks() {
     currentPage = res?.page ?? currentPage
     renderStats(res?.stats || { total: 0, done: 0, todo: 0, avgScore: null })
     if (listEl) {
-      listEl.innerHTML = items.length === 0
-        ? `<div class="card" style="margin:0; padding:40px; text-align:center; color:#64748b;">Không có bài nào khớp bộ lọc.</div>`
-        : items.map(hwCard).join('')
-      listEl.querySelectorAll('.btn-myhw-pdf').forEach(btn => {
-        btn.onclick = () => downloadHomeworkPdf(btn.getAttribute('data-hwid'))
-      })
+      if (items.length === 0) {
+        listEl.innerHTML = isMochiMode()
+          ? `<div class="m-empty-state">
+              ${renderMascot({ mood: 'cheer', size: 140 })}
+              <h3 class="m-empty-title">Không có bài nào khớp bộ lọc</h3>
+              <p class="m-empty-desc">Thử đổi trạng thái hoặc chọn lớp học khác để xem thêm bài nhé!</p>
+            </div>`
+          : `<div class="card" style="margin:0; padding:40px; text-align:center; color:#64748b;">Không có bài nào khớp bộ lọc.</div>`
+      } else {
+        listEl.innerHTML = items.map(hwCard).join('')
+        listEl.querySelectorAll('.btn-myhw-pdf').forEach(btn => {
+          btn.onclick = () => downloadHomeworkPdf(btn.getAttribute('data-hwid'))
+        })
+      }
     }
     renderPager()
   } catch (err) {
     if (requestId !== listRequestId || !listEl.isConnected || state.user?.id !== userId) return
     if (listEl) {
-      listEl.innerHTML = `<div class="card" style="margin:0; padding:32px; text-align:center; color:#b91c1c;">Lỗi tải bài tập: ${escapeHtml(err.message)}</div>`
+      if (isMochiMode()) {
+        listEl.innerHTML = `
+          <div class="m-empty-state" style="border-color:var(--m-warn);">
+            ${renderMascot({ mood: 'wink', size: 120 })}
+            <h3 class="m-empty-title" style="color:var(--m-warn);">Không thể tải bài tập</h3>
+            <p class="m-empty-desc">${escapeHtml(err.message)}</p>
+          </div>
+        `
+      } else {
+        listEl.innerHTML = `<div class="card" style="margin:0; padding:32px; text-align:center; color:#b91c1c;">Lỗi tải bài tập: ${escapeHtml(err.message)}</div>`
+      }
     }
     showToast(`Lỗi tải bài tập: ${err.message}`, 'error')
   }

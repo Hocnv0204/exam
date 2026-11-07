@@ -1,7 +1,59 @@
 import { state, logout } from '../state.js'
 import { renderThemeToggle, renderStudentThemeToggle } from '../theme.js'
+import { isMochiUI, MOCHI_FEATURES } from '../ui-flag.js'
+
+const MOCHI_STUDENT_ROUTES = new Set([
+  'student-dashboard', 'my-classes', 'my-homeworks', 'weekly-calendar',
+  'homework-attempt', 'assignment-review', 'history', 'student-report'
+])
+
+const MOCHI_NAV_ITEMS = [
+  { route: 'student-dashboard', label: 'Trang chủ', icon: 'fa-house', routes: ['student-dashboard'] },
+  { route: 'my-classes', label: 'Lớp của tôi', shortLabel: 'Lớp học', icon: 'fa-graduation-cap', routes: ['my-classes'] },
+  { route: 'my-homeworks', label: 'Bài tập', icon: 'fa-list-check', routes: ['my-homeworks', 'homework-attempt'] },
+  { route: 'weekly-calendar', label: 'Lịch học', shortLabel: 'Lịch', icon: 'fa-calendar-days', routes: ['weekly-calendar'] },
+  { route: 'history', label: 'Lịch sử làm bài', shortLabel: 'Lịch sử', icon: 'fa-clock-rotate-left', routes: ['history', 'assignment-review', 'student-report'] }
+]
+
+function isMochiStudentShell(currentRoute) {
+  return state.user?.role === 'STUDENT' && Boolean(state.token) &&
+    MOCHI_STUDENT_ROUTES.has(currentRoute) && isMochiUI()
+}
+
+function renderMochiNavLink(item, currentRoute, { compact = false } = {}) {
+  const active = item.routes.includes(currentRoute)
+  return `<a class="m-shell-nav-link${active ? ' is-active' : ''}" href="#${item.route}"${active ? ' aria-current="page"' : ''}>
+    <i class="fa-solid ${item.icon}" aria-hidden="true"></i>
+    <span>${compact ? (item.shortLabel || item.label) : item.label}</span>
+  </a>`
+}
+
+export function renderMochiSidebar(currentRoute) {
+  const achievementsEnabled = MOCHI_FEATURES.xp || MOCHI_FEATURES.badges || MOCHI_FEATURES.leaderboard
+  return `
+    <aside class="m-shell-sidebar" id="app-sidebar">
+      <nav class="m-shell-nav" aria-label="Điều hướng chính">
+        ${MOCHI_NAV_ITEMS.map(item => renderMochiNavLink(item, currentRoute)).join('')}
+        ${achievementsEnabled ? '<!-- Thành tích sẽ được bổ sung khi feature có dữ liệu thật. -->' : ''}
+      </nav>
+      <button type="button" class="m-shell-logout" data-mochi-logout>
+        <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+        <span>Đăng xuất</span>
+      </button>
+    </aside>
+    <nav class="m-tabbar" aria-label="Điều hướng nhanh">
+      ${MOCHI_NAV_ITEMS.map(item => renderMochiNavLink(item, currentRoute, { compact: true })).join('')}
+    </nav>
+  `
+}
 
 export function renderSidebar(currentRoute) {
+  if (isMochiStudentShell(currentRoute)) return renderMochiSidebar(currentRoute)
+  return renderClassicSidebar(currentRoute)
+}
+
+// Markup classic được giữ nguyên để cờ Mochi tắt không làm thay đổi output.
+export function renderClassicSidebar(currentRoute) {
   const isGuest = !state.token
   const role = state.user?.role || 'STUDENT'
 
@@ -96,11 +148,15 @@ export function bindSidebarEvents() {
       }
     })
   })
-  document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
+  const handleLogout = () => {
     if (!state.token) {
       window.location.hash = '#login'
     } else {
       logout()
     }
+  }
+  document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleLogout)
+  document.querySelectorAll?.('[data-mochi-logout]').forEach(button => {
+    button.addEventListener('click', handleLogout)
   })
 }
