@@ -1,0 +1,401 @@
+/* Dashboard và sổ học phí Mochi Pro. Classic không nhận bất kỳ rule nào. */
+html[data-admin-ui="pro"] .app-layout:is(#admin-dashboard, #tuition-ledger) {
+  overflow-x: clip;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .content-body,
+html[data-admin-ui="pro"] #tuition-ledger .content-body {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .page-header {
+  align-items: flex-end;
+  gap: 18px;
+  padding: 2px 2px 0;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .page-title {
+  font-size: clamp(28px, 3vw, 36px);
+  line-height: 1.1;
+  letter-spacing: -.4px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .page-description {
+  max-width: 760px;
+  margin-top: 7px;
+  color: var(--ap-muted) !important;
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .page-header .badge,
+html[data-admin-ui="pro"] #admin-dashboard .dash-section-badge {
+  padding: 5px 11px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  letter-spacing: .45px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-section {
+  margin-bottom: 28px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-section-header {
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-section-title {
+  font-size: 18px;
+  letter-spacing: -.15px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-section-title > i {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ap-line);
+  border-radius: 12px;
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)) !important;
+  gap: 16px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-card {
+  min-width: 0;
+  min-height: 176px;
+  padding: 18px;
+  overflow: visible;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-card:hover {
+  border-color: var(--ap-accent) !important;
+  box-shadow: var(--ap-shadow-raised) !important;
+  transform: translateY(-2px);
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border: 2px solid currentColor;
+  border-radius: 13px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-icon:is(.icon-blue, .icon-cyan, .icon-indigo) {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-icon:is(.icon-emerald) {
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-icon:is(.icon-amber) {
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-icon:is(.icon-rose) {
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-icon:is(.icon-purple) {
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-label {
+  color: var(--ap-muted) !important;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-value {
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading);
+  font-size: clamp(26px, 2.2vw, 32px);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-value > span,
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-subtext {
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-pill {
+  min-height: 25px;
+  box-sizing: border-box;
+  padding: 3px 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard :is(.pill-info, .score-pass) {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard :is(.pill-success, .score-high) {
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard :is(.pill-warning) {
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard :is(.pill-danger, .score-fail) {
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard :is(.dash-charts-grid-2, .dash-charts-grid-equal) {
+  gap: 18px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-chart-card {
+  min-width: 0;
+  padding: clamp(16px, 2vw, 22px);
+  overflow: hidden;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-chart-title {
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font-heading);
+  font-size: 19px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-chart-desc,
+html[data-admin-ui="pro"] #admin-dashboard .dash-chart-header [style*="font-size:12px"] {
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .dash-chart-card canvas {
+  max-width: 100%;
+  background: var(--ap-surface) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .content-body > .card {
+  min-width: 0;
+  padding: clamp(16px, 2vw, 24px) !important;
+  overflow: hidden;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .content-body > .card [style*="background:#f8fafc"] {
+  background: var(--ap-surface2) !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 16px !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard #dash-stu-kpi-summary > div {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 15px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard #dash-stu-kpi-summary > div :is(div, span) {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .table-responsive,
+html[data-admin-ui="pro"] #tuition-ledger .table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 2px solid var(--ap-line);
+  border-radius: 16px;
+  scrollbar-color: var(--ap-muted) var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .data-table,
+html[data-admin-ui="pro"] #tuition-ledger .data-table {
+  min-width: 760px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .data-table th,
+html[data-admin-ui="pro"] #tuition-ledger .data-table th {
+  font-size: 11px;
+  letter-spacing: .45px;
+  text-transform: uppercase;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard #dash-stu-pagination {
+  border-top: 2px solid var(--ap-line) !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .content-body {
+  gap: 20px !important;
+  padding: clamp(16px, 2.2vw, 30px) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger #ledger-summary {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)) !important;
+  gap: 16px !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger #ledger-summary > .card {
+  min-height: 120px;
+  padding: 18px !important;
+  border-color: var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger #ledger-summary > .card > div:first-child {
+  color: var(--ap-muted) !important;
+  font-size: 11px !important;
+  letter-spacing: .45px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger #ledger-summary > .card > div:nth-child(2) {
+  color: var(--ap-ink) !important;
+  font: 800 28px/1.15 var(--ap-font-heading) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger #ledger-summary > .card > div:last-child {
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .content-body > .card {
+  min-width: 0;
+  padding: clamp(16px, 2vw, 24px) !important;
+  border-radius: var(--ap-radius-lg) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .card > div:has(> #ledger-filter-class) {
+  display: grid !important;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, .7fr) minmax(220px, 1.4fr) auto;
+  gap: 12px !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger :is(#ledger-filter-class, #ledger-filter-type, #ledger-search) {
+  width: 100%;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger #ledger-export-btn {
+  width: auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .content-body > .card h2 {
+  font: 800 21px var(--ap-font-heading) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .content-body > .card h2 + div {
+  color: var(--ap-muted) !important;
+  font-size: 13px !important;
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger tr[data-tx-type="topup"] .badge,
+html[data-admin-ui="pro"] #tuition-ledger tr[data-tx-type="manual_collect"] .badge {
+  border: 1px solid var(--ap-ok);
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger tr[data-tx-type="auto_deduct"] .badge,
+html[data-admin-ui="pro"] #tuition-ledger tr[data-tx-type="waive"] .badge {
+  border: 1px solid var(--ap-warn);
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger tr[data-tx-type="refund"] .badge {
+  border: 1px solid var(--ap-blue);
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .btn-ledger-print {
+  min-width: 58px;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .card > div:has(> #ledger-filter-class) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] #admin-dashboard .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard :is(.dash-charts-grid-2, .dash-charts-grid-equal) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard .dash-chart-card {
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] #admin-dashboard .page-header > div,
+  html[data-admin-ui="pro"] #admin-dashboard .page-header > div:last-child {
+    width: 100%;
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard .page-header > div:last-child > button {
+    flex: 1 1 150px;
+    justify-content: center;
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-grid,
+  html[data-admin-ui="pro"] #tuition-ledger #ledger-summary {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard .dash-kpi-card {
+    min-height: 158px;
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard .dash-chart-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard #dash-stu-pagination {
+    align-items: stretch !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  html[data-admin-ui="pro"] #admin-dashboard #dash-stu-pagination > div:last-child {
+    justify-content: space-between;
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .card > div:has(> #ledger-filter-class) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger #ledger-export-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

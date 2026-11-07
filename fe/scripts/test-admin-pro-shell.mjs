@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
 const saved = new Map()
 const storage = {
@@ -190,4 +191,15 @@ test('ADMIN không có hash vẫn nhận navbar Pro của route dashboard mặc 
   setUI('mochi')
   window.location.hash = ''
   assert.match(renderNavbar(), /class="top-navbar ap-header"/)
+})
+
+test('shell Pro thu gọn đúng ở tablet và sidebar không lặp tài khoản/đăng xuất', () => {
+  const css = readFileSync(new URL('../src/css/admin-pro/components.css', import.meta.url), 'utf8')
+  const tablet = css.match(/@media\s*\(max-width:\s*1100px\)\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const mobile = css.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+
+  assert.match(tablet, /\.theme-toggle-label[\s\S]*\.ap-icon-action span[\s\S]*\.ap-account > span[\s\S]*display:\s*none/)
+  assert.match(tablet, /flex-wrap:\s*nowrap/)
+  assert.match(mobile, /\.navbar-breadcrumb[\s\S]*display:\s*none/)
+  assert.match(css, /\.ap-sidebar-footer :is\(\.ap-sidebar-user, \.ap-logout\)\s*\{\s*display:\s*none\s*!important;/)
 })

@@ -3,6 +3,9 @@ import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
+import { isAdminProUI } from '../ui-flag.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/dashboard.css') }
 
 const TX_LABELS = {
   topup: 'Nạp ví',
@@ -37,9 +40,10 @@ export function renderTuitionLedgerView() {
   const params = new URLSearchParams(queryString || '')
   const presetClass = params.get('classId') || ''
   if (presetClass && !filterClassId) filterClassId = presetClass
+  const proUI = isAdminProUI()
 
   return `
-    <div class="app-layout">
+    <div class="app-layout${proUI ? ' admin-dark' : ''}"${proUI ? ' id="tuition-ledger" data-route="tuition-ledger" data-role="ADMIN"' : ''}>
       ${renderSidebar('tuition-ledger')}
       <div class="main-content">
         ${renderNavbar('Quản trị / Sổ giao dịch học phí')}

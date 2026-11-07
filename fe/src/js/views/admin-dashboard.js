@@ -6,6 +6,7 @@ import { showToast } from '../components/toast.js'
 import { api } from '../api.js'
 import { state } from '../state.js'
 import { isDarkTheme } from '../theme.js'
+import { isAdminProUI } from '../ui-flag.js'
 import {
   ZERO_BALANCE_PAGE_SIZE,
   parseZeroBalanceCount,
@@ -17,6 +18,8 @@ import {
   renderZeroBalanceError,
   renderZeroBalancePaginationBar
 } from '../utils/zero-balance.js'
+
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/dashboard.css') }
 
 function getAvatarColor(name) {
   const colors = ['#0284c7', '#4338ca', '#7e22ce', '#059669', '#d97706', '#0891b2', '#2563eb']
@@ -49,6 +52,30 @@ let studentFilterState = {
  * nền trắng khi sáng để nhãn, lưới và viền biểu đồ luôn đủ tương phản.
  */
 export function getAdminChartPalette() {
+  const proUI = isAdminProUI()
+  const dark = isDarkTheme()
+  const proToken = (name, fallback) => {
+    if (!proUI || typeof getComputedStyle !== 'function') return fallback
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+  }
+
+  if (proUI) {
+    const surfaceColor = proToken('--ap-surface', dark ? '#1e1a38' : '#ffffff')
+    const lineColor = proToken('--ap-line', dark ? '#3a3166' : '#e6dff5')
+    const mutedColor = proToken('--ap-muted', dark ? '#b9b0da' : '#5e5674')
+    const inkColor = proToken('--ap-ink', dark ? '#f4f0ff' : '#2b2340')
+    return {
+      surfaceColor,
+      gridColor: lineColor,
+      tickColor: mutedColor,
+      legendTextColor: inkColor,
+      emptyBg: proToken('--ap-surface2', dark ? '#28224a' : '#f6f2ff'),
+      emptyBorder: lineColor,
+      accentCyan: proToken('--ap-blue', dark ? '#8db8ff' : '#1d5fbf'),
+      accentGold: proToken('--ap-warn', dark ? '#ffad7a' : '#a93a0c')
+    }
+  }
+
   if (!isDarkTheme()) {
     return {
       surfaceColor: '#ffffff',
@@ -511,10 +538,12 @@ export function renderAdminDashboardView() {
   // thuần; app.js vẫn sync lại qua eduportal:themechange mà không render lại.
   const rawRole = String(state.user?.role || 'GUEST')
   const rootRole = /^[A-Za-z_-]{1,32}$/.test(rawRole) ? rawRole : 'GUEST'
-  const rootClass = rootRole === 'ADMIN' && isDarkTheme() ? 'app-layout admin-dark' : 'app-layout'
+  const proUI = rootRole === 'ADMIN' && isAdminProUI()
+  const rootClass = rootRole === 'ADMIN' && (proUI || isDarkTheme()) ? 'app-layout admin-dark' : 'app-layout'
+  const proRootHook = proUI ? ' id="admin-dashboard"' : ''
 
   return `
-    <div class="${rootClass}" data-route="admin-dashboard" data-role="${rootRole}">
+    <div class="${rootClass}"${proRootHook} data-route="admin-dashboard" data-role="${rootRole}">
       ${renderSidebar('admin-dashboard')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Trung tâm Thống kê')}

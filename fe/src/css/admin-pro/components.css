@@ -270,7 +270,15 @@ html[data-admin-ui="pro"] .app-layout.admin-dark .ap-header {
 }
 
 html[data-admin-ui="pro"] .ap-header-start,
-html[data-admin-ui="pro"] .ap-header-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+html[data-admin-ui="pro"] .ap-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+html[data-admin-ui="pro"] .ap-header-start { flex: 1 1 auto; overflow: hidden; }
+html[data-admin-ui="pro"] .ap-header-actions { flex: 0 0 auto; }
 
 html[data-admin-ui="pro"] .ap-header-brand {
   --m-ink: var(--ap-ink);
@@ -535,6 +543,9 @@ html[data-admin-ui="pro"] .app-layout[data-route="admin-dashboard"] .dash-kpi-va
   color: var(--ap-danger) !important;
 }
 
+/* Tài khoản và đăng xuất chỉ xuất hiện ở header; sidebar giữ duy nhất theme. */
+html[data-admin-ui="pro"] .ap-sidebar-footer :is(.ap-sidebar-user, .ap-logout) { display: none !important; }
+
 /* Bộ ánh xạ inline cũ trả về chữ sáng cố định; Light Pro cần giá trị sáng. */
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .content-body :is(
   [style*="color:#0f172a"], [style*="color: #0f172a"],
@@ -553,6 +564,29 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .conte
 @media (min-width: 901px) {
   html[data-admin-ui="pro"] .app-layout.sidebar-collapsed .ap-sidebar { transform: none !important; }
   html[data-admin-ui="pro"] .app-layout.sidebar-collapsed > .main-content { margin-left: 0 !important; }
+}
+
+@media (max-width: 1100px) {
+  html[data-admin-ui="pro"] .app-layout.admin-dark .ap-header {
+    height: 70px;
+    min-height: 70px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  html[data-admin-ui="pro"] .ap-header :is(.theme-toggle-label, .ap-icon-action span, .ap-account > span) { display: none; }
+  html[data-admin-ui="pro"] .ap-header :is(.theme-toggle, .ap-icon-action) {
+    width: 44px;
+    flex: 0 0 44px;
+    padding: 0;
+    justify-content: center;
+  }
+  html[data-admin-ui="pro"] .ap-account { flex: 0 0 auto; padding: 2px; background: transparent !important; }
+  html[data-admin-ui="pro"] .ap-breadcrumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 900px) {
@@ -575,7 +609,7 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .conte
   }
   html[data-admin-ui="pro"] .app-layout:not(.sidebar-collapsed) .ap-sidebar { transform: translateX(0) !important; }
   html[data-admin-ui="pro"] .ap-menu-button { display: inline-flex; align-items: center; justify-content: center; }
-  html[data-admin-ui="pro"] .ap-header .navbar-breadcrumb { max-width: 42vw; }
+  html[data-admin-ui="pro"] .ap-header .navbar-breadcrumb { display: none; }
 }
 
 @media (max-width: 640px) {
