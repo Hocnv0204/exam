@@ -931,6 +931,16 @@ html[data-ui="mochi"] .m-review-empty-desc {
 /* --------------------------------------------------------------------------
    KaTeX, Math, SVG, Images, Tables & Markdown Content
    -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .review-question-card .katex {
+  font-size: 1.05em;
+  line-height: 1.2;
+}
+
+html[data-ui="mochi"] .review-question-card .katex [style*="color:transparent"],
+html[data-ui="mochi"] .review-question-card .katex [style*="color: transparent"] {
+  color: transparent !important;
+}
+
 html[data-ui="mochi"] .review-question-card .katex-display {
   overflow-x: auto;
   overflow-y: hidden;
@@ -957,9 +967,14 @@ html[data-ui="mochi"] .review-question-card table td {
   border: 1px solid var(--m-line);
 }
 
-html[data-ui="mochi"] .review-question-card svg {
+html[data-ui="mochi"] .review-question-card svg:not(.katex *) {
   max-width: 100%;
   height: auto;
+}
+
+html[data-ui="mochi"] .review-question-card .katex svg {
+  max-width: none !important;
+  height: inherit !important;
 }
 
 /* --------------------------------------------------------------------------

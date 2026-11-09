@@ -8,7 +8,7 @@ html[data-admin-ui="pro"] body {
 /* Shell Pro dùng grid riêng, không kế thừa rail nổi/margin-left của classic. */
 html[data-admin-ui="pro"] .app-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 100vh;
   background: var(--ap-bg) !important;
@@ -109,19 +109,19 @@ html[data-admin-ui="pro"] .ap-sidebar {
   bottom: auto !important;
   align-self: start;
   flex-direction: column;
-  width: auto !important;
+  width: 88px !important;
   height: calc(100vh - 70px);
-  padding: 16px 14px max(16px, env(safe-area-inset-bottom));
+  padding: 16px 10px max(16px, env(safe-area-inset-bottom)) !important;
   background: var(--ap-bg) !important;
   border-right: 2px solid var(--ap-line);
   color: var(--ap-ink) !important;
   font-family: var(--ap-font);
   overflow-x: hidden;
   overflow-y: auto;
-  transform: none !important;
   box-shadow: none !important;
   box-sizing: border-box;
   z-index: 20;
+  transition: width 0.2s ease, box-shadow 0.2s ease;
 }
 
 html[data-admin-ui="pro"] .ap-brand {
@@ -195,13 +195,13 @@ html[data-admin-ui="pro"] .ap-sidebar .ap-logout:hover {
 }
 
 html[data-admin-ui="pro"] .ap-nav-icon {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--ap-surface2);
   color: var(--ap-accent);
 }
@@ -244,11 +244,27 @@ html[data-admin-ui="pro"] .ap-sidebar-user {
 html[data-admin-ui="pro"] .ap-sidebar .theme-toggle {
   width: 100%;
   min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
   justify-content: flex-start;
   border: 2px solid var(--ap-line) !important;
   border-radius: 14px;
   background: var(--ap-surface) !important;
   color: var(--ap-ink) !important;
+  cursor: pointer;
+}
+html[data-admin-ui="pro"] .ap-sidebar .theme-toggle i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--ap-surface2);
+  color: var(--ap-accent);
 }
 
 html[data-admin-ui="pro"] .ap-sidebar .ap-logout { width: 100%; cursor: pointer; }
@@ -561,6 +577,76 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .conte
   [style*="color:#94a3b8"], [style*="color: #94a3b8"]
 ) { color: var(--ap-muted) !important; }
 
+/* Sidebar thu gọn chỉ còn icon; rê chuột hoặc focus bàn phím thì mở rộng đè lên nội dung (giống học sinh). */
+@media (min-width: 901px) and (hover: hover) and (pointer: fine) {
+  html[data-admin-ui="pro"] .app-layout {
+    grid-template-columns: 88px minmax(0, 1fr) !important;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar {
+    width: 88px !important;
+    padding: 16px 10px max(16px, env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden;
+    overflow-y: auto;
+    transition: width 0.2s ease, box-shadow 0.2s ease;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar:is(:hover, :focus-within) {
+    width: 248px !important;
+    border-right: 2px solid var(--ap-line);
+    box-shadow: var(--ap-shadow), 8px 0 24px color-mix(in srgb, var(--ap-ink) 12%, transparent) !important;
+    z-index: 95;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item {
+    padding: 4px 8px;
+    gap: 12px;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item > span:not(.ap-nav-icon) {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    white-space: nowrap;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar:is(:hover, :focus-within) .ap-nav-item > span:not(.ap-nav-icon) {
+    opacity: 1;
+    transition-delay: 0.06s;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar .nav-section-title {
+    opacity: 0;
+    height: 0;
+    margin: 2px 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: opacity 0.15s ease, height 0.15s ease, margin 0.15s ease;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar:is(:hover, :focus-within) .nav-section-title {
+    opacity: 1;
+    height: auto;
+    margin: 10px 10px 4px;
+    transition-delay: 0.06s;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar .theme-toggle {
+    padding: 4px 8px;
+    gap: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar .theme-toggle :is(.theme-toggle-label, span) {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  html[data-admin-ui="pro"] .ap-sidebar:is(:hover, :focus-within) .theme-toggle :is(.theme-toggle-label, span) {
+    opacity: 1;
+    transition-delay: 0.06s;
+  }
+}
+
+@media (min-width: 901px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) {
+  html[data-admin-ui="pro"] .ap-sidebar,
+  html[data-admin-ui="pro"] .ap-sidebar .ap-nav-item > span:not(.ap-nav-icon),
+  html[data-admin-ui="pro"] .ap-sidebar .nav-section-title,
+  html[data-admin-ui="pro"] .ap-sidebar .theme-toggle :is(.theme-toggle-label, span) {
+    transition: none !important;
+  }
+}
+
 @media (min-width: 901px) {
   html[data-admin-ui="pro"] .app-layout.sidebar-collapsed .ap-sidebar { transform: none !important; }
   html[data-admin-ui="pro"] .app-layout.sidebar-collapsed > .main-content { margin-left: 0 !important; }
@@ -634,5 +720,7 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .conte
   }
 }
 
-/* Sidebar Pro là cột cố định: tắt hiệu ứng trượt vào kế thừa từ sidebar cũ. */
-html[data-admin-ui="pro"] .ap-sidebar {transform: none !important; transition: none !important}
+/* Sidebar Pro là cột cố định trên desktop: tắt trượt ngang classic, cho phép width transition mượt mà. */
+@media (min-width: 901px) {
+  html[data-admin-ui="pro"] .ap-sidebar { transform: none !important; }
+}

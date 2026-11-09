@@ -2767,6 +2767,9 @@ body.review-split-mode .page-header {
 .katex [style*="color: transparent"] {
   color: transparent !important;
 }
+.katex svg {
+  max-width: none !important;
+}
 .katex-display {
   margin: 0.75em 0 !important;
   overflow-x: auto;

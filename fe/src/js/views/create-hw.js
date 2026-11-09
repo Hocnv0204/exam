@@ -1150,7 +1150,18 @@ export function bindCreateHwEvents() {
         mapEl.querySelectorAll('.hw-map-cell').forEach(c => c.classList.remove('hw-map-active'))
         cell.classList.add('hw-map-active')
         if (target) {
-          target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+          const wrapper = target.closest('.interactive-creator-wrapper')
+          if (wrapper) {
+            const wrapperRect = wrapper.getBoundingClientRect()
+            const targetRect = target.getBoundingClientRect()
+            const topOffset = targetRect.top - wrapperRect.top + wrapper.scrollTop
+            wrapper.scrollTo({
+              top: Math.max(0, topOffset - 16),
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+            })
+          } else {
+            target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' })
+          }
           const prevOutline = target.style.outline
           const prevBg = target.style.background
           target.style.outline = '2px solid #0066cc'

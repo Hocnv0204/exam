@@ -280,7 +280,11 @@ html[data-admin-ui="pro"] .ap-create-homework .split-homework-layout {
   margin: 0 auto;
 }
 
-html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane,
+html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane {
+  min-width: 0;
+  overflow: visible !important;
+}
+
 html[data-admin-ui="pro"] .ap-create-homework .question-column {
   min-width: 0;
 }

@@ -2169,7 +2169,24 @@ export function bindAssignmentReviewEvents() {
         (qNum && document.getElementById(`review-question-${qNum}`)) ||
         (qNum && document.querySelector(`[data-legacy-id="review-question-${qNum}"]`))
       if (target) {
-        target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+        const contentPane = target.closest('#content-pane')
+        if (contentPane && wrapper?.classList.contains('split-review-active')) {
+          const cRect = contentPane.getBoundingClientRect()
+          const tRect = target.getBoundingClientRect()
+          const topOffset = tRect.top - cRect.top + contentPane.scrollTop
+          contentPane.scrollTo({
+            top: Math.max(0, topOffset - 16),
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+          })
+        } else {
+          const navBarHeight = 84
+          const tRect = target.getBoundingClientRect()
+          const topOffset = tRect.top + window.pageYOffset - navBarHeight
+          window.scrollTo({
+            top: Math.max(0, topOffset),
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+          })
+        }
         
         // Brief flash highlight on target question card
         questionCards.forEach(c => c.classList.remove('highlight-target'))
