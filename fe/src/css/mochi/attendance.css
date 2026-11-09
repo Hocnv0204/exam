@@ -68,9 +68,9 @@ html[data-ui="mochi"] .m-att-class-stat{grid-column:1/-1}
 @media (max-width:640px){
 html[data-ui="mochi"] .m-att-wrap{gap:16px}
 html[data-ui="mochi"] .m-att-data-stack{gap:16px}
-html[data-ui="mochi"] .m-att-hero{padding:18px}
+html[data-ui="mochi"] .m-att-hero{padding:18px;min-height:auto!important;height:auto!important;flex-direction:column;align-items:flex-start;gap:8px}
 html[data-ui="mochi"] .m-att-hero h1{font-size:27px}
-html[data-ui="mochi"] .m-att-hero-mascot{display:none}
+html[data-ui="mochi"] .m-att-hero-mascot{display:none!important;height:0!important;margin:0!important;padding:0!important}
 html[data-ui="mochi"] .m-att-filter-grid,html[data-ui="mochi"] .m-att-skeleton,html[data-ui="mochi"] .m-att-compare{grid-template-columns:minmax(0,1fr)}
 html[data-ui="mochi"] .m-att-overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 html[data-ui="mochi"] .m-att-stat{padding:13px 14px}

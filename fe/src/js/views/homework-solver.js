@@ -1121,37 +1121,38 @@ function renderMochiInteractiveSolverView(hw, parsedQuestions, isTrial, isExpire
           ` : ''}
 
           <!-- Header Toolbar -->
-          <div style="display:flex; justify-content:space-between; align-items:center; background:var(--m-surface); padding:14px 20px; border-radius:var(--m-radius-xl); border:2px solid var(--m-line); margin-bottom:16px; box-shadow:var(--m-shadow-sm); flex-wrap:wrap; gap:12px;">
-            <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 auto;">
+          <div class="m-solver-header" style="display:flex; flex-direction:column; gap:10px; background:var(--m-surface); padding:14px 20px; border-radius:var(--m-radius-xl); border:2px solid var(--m-line); margin-bottom:16px; box-shadow:var(--m-shadow-sm);">
+            <div class="m-solver-row-primary" style="display:flex; align-items:center; gap:12px; min-width:0; width:100%;">
               <button type="button" class="btn-secondary btn-exit-solver m-btn m-btn--secondary" data-fallback="${isTrial ? '#trial' : '#my-classes'}" style="min-height:44px; padding:0 14px; font-size:13.5px; font-weight:800; cursor:pointer; flex-shrink:0;">
                 <i class="fa-solid fa-arrow-left"></i> ${isTrial ? 'Học thử' : 'Quay lại'}
               </button>
-              <div style="min-width:0; overflow:hidden;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
-                  <span class="m-chip m-chip--accent2" style="font-weight:800; font-size:11px;">ĐỀ THI TƯƠNG TÁC TRỰC TUYẾN</span>
-                  ${isTrial ? '<span class="m-chip m-chip--warn" style="font-weight:800; font-size:11px;"><i class="fa-solid fa-sparkles"></i> HỌC THỬ</span>' : ''}
-                  <span id="autosave-status" class="m-chip m-chip--ok" style="font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
-                    <i class="fa-solid fa-cloud-arrow-up" style="color:var(--m-ok);"></i> Tự động lưu nháp
-                  </span>
-                </div>
-                <h2 style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                  ${escapeHtml(hw.title)}
-                </h2>
-              </div>
+              <h2 class="m-solver-title" style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); margin:0; min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(hw.title)}">
+                ${escapeHtml(hw.title)}
+              </h2>
             </div>
 
-            <!-- Timer & Actions -->
-            <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
-              ${hasAttachedPdf && pdfDownloadUrl && canViewHomeworkPdf(state.user?.role, hw) ? `
-                <button type="button" id="btn-download-solver-pdf" class="btn-secondary m-btn m-btn--secondary" style="min-height:44px; padding:0 14px; font-size:13px; font-weight:800; cursor:pointer;" title="Tải file PDF đề bài (${escapeHtml(pdfDownloadName)}) về máy">
-                  <i class="fa-solid fa-file-arrow-down" style="color:var(--m-accent);"></i> Tải file PDF
+            <div class="m-solver-row-secondary" style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; flex-wrap:wrap;">
+              <div class="m-solver-chips" style="display:flex; align-items:center; gap:8px;">
+                <span class="m-chip m-chip--accent2" style="font-weight:800; font-size:11px;" title="ĐỀ THI TƯƠNG TÁC TRỰC TUYẾN" aria-label="Đề thi tương tác trực tuyến"><span class="m-chip-full">ĐỀ THI TƯƠNG TÁC TRỰC TUYẾN</span><span class="m-chip-short">TƯƠNG TÁC</span></span>
+                ${isTrial ? '<span class="m-chip m-chip--warn" style="font-weight:800; font-size:11px;" title="HỌC THỬ" aria-label="Học thử"><i class="fa-solid fa-sparkles"></i> <span class="m-chip-full">HỌC THỬ</span><span class="m-chip-short">THỬ</span></span>' : ''}
+                <span id="autosave-status" class="m-chip m-chip--ok" style="font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;" title="Tự động lưu nháp" aria-label="Tự động lưu nháp">
+                  <i class="fa-solid fa-cloud-arrow-up" style="color:var(--m-ok);"></i> <span class="m-chip-full">Tự động lưu nháp</span><span class="m-chip-short">Tự lưu</span>
+                </span>
+              </div>
+
+              <!-- Timer & Actions -->
+              <div class="m-solver-actions" style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+                ${hasAttachedPdf && pdfDownloadUrl && canViewHomeworkPdf(state.user?.role, hw) ? `
+                  <button type="button" id="btn-download-solver-pdf" class="btn-secondary m-btn m-btn--secondary" style="min-height:44px; padding:0 14px; font-size:13px; font-weight:800; cursor:pointer;" title="Tải file PDF đề bài (${escapeHtml(pdfDownloadName)}) về máy">
+                    <i class="fa-solid fa-file-arrow-down" style="color:var(--m-accent);"></i> <span class="m-btn-text">Tải file PDF</span>
+                  </button>
+                ` : ''}
+                <button type="button" class="btn-secondary btn-manual-save-draft m-btn m-btn--secondary" style="min-height:44px; padding:0 14px; font-size:13px; font-weight:800; cursor:pointer; flex-shrink:0;" title="Lưu nháp bài làm ngay">
+                  <i class="fa-solid fa-floppy-disk" style="color:var(--m-ok);"></i> <span class="m-btn-text">Lưu nháp</span>
                 </button>
-              ` : ''}
-              <button type="button" class="btn-secondary btn-manual-save-draft m-btn m-btn--secondary" style="min-height:44px; padding:0 14px; font-size:13px; font-weight:800; cursor:pointer; flex-shrink:0;" title="Lưu nháp bài làm ngay">
-                <i class="fa-solid fa-floppy-disk" style="color:var(--m-ok);"></i> Lưu nháp
-              </button>
-              <div class="timer-box" role="timer" aria-label="Thời gian còn lại" style="display:inline-flex; align-items:center; gap:8px; height:44px; padding:0 16px; border-radius:var(--m-radius-pill); background:var(--m-warn-soft); color:var(--m-warn); border:2px solid var(--m-warn); font-family:var(--m-font-heading); font-weight:800; font-size:18px;">
-                <i class="fa-regular fa-clock" style="color:var(--m-warn);"></i> <span id="exam-timer-display">${hw.durationMinutes || 45}:00</span>
+                <div class="timer-box" role="timer" aria-label="Thời gian còn lại" style="display:inline-flex; align-items:center; gap:8px; height:44px; padding:0 16px; border-radius:var(--m-radius-pill); background:var(--m-warn-soft); color:var(--m-warn); border:2px solid var(--m-warn); font-family:var(--m-font-heading); font-weight:800; font-size:18px;">
+                  <i class="fa-regular fa-clock" style="color:var(--m-warn);"></i> <span id="exam-timer-display">${hw.durationMinutes || 45}:00</span>
+                </div>
               </div>
             </div>
           </div>

@@ -338,7 +338,7 @@ html[data-theme="dark"] .app-layout.student-class-list .class-card:focus-visible
 }
 
 .exam-room-layout.navy-student .interactive-q-prompt,
-.exam-room-layout.navy-student .interactive-q-prompt :is(p, li, span, strong, em, h1, h2, h3, h4) {
+.exam-room-layout.navy-student .interactive-q-prompt :is(p, li, span, strong, em, h1, h2, h3, h4):not(.katex, .katex *) {
   color: #e2e8f0;
 }
 

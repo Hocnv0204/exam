@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/opt/OpenCode/resources/opencode-cli run:*)",
+      "Bash(/opt/OpenCode/resources/opencode-cli models:*)"
+    ]
+  }
+}

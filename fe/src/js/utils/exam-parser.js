@@ -384,7 +384,7 @@ export function renderMarkdown(text) {
   str = str.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
   str = str.replace(/__([\s\S]*?)__/g, '<strong>$1</strong>')
   str = str.replace(/\*(.*?)\*/g, '<em>$1</em>')
-  str = str.replace(/_([^_]+)_/g, '<em>$1</em>')
+  str = str.replace(/(?<!\w)_([^_\n]+)_(?!\w)/g, '<em>$1</em>')
 
   // 8. Inline code: `code`
   str = str.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')

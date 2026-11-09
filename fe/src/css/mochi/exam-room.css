@@ -330,7 +330,7 @@ html[data-ui="mochi"] .interactive-q-prompt {
   word-break: break-word;
 }
 
-html[data-ui="mochi"] .interactive-q-prompt :is(p, span, div, strong, em, h1, h2, h3, h4, li) {
+html[data-ui="mochi"] .interactive-q-prompt :is(p, span, div, strong, em, h1, h2, h3, h4, li):not(.katex, .katex *) {
   color: inherit !important;
 }
 
@@ -653,12 +653,83 @@ html[data-ui="mochi"] .question-column {
 }
 
 /* --------------------------------------------------------------------------
+   Solver Header & Chips Toolbar
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] .m-chip-short {
+  display: none;
+}
+html[data-ui="mochi"] .m-chip-full {
+  display: inline;
+}
+
+html[data-ui="mochi"] .m-solver-header {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  background: var(--m-surface) !important;
+  padding: 14px 20px !important;
+  border-radius: var(--m-radius-xl) !important;
+  border: 2px solid var(--m-line) !important;
+  margin-bottom: 16px !important;
+  box-shadow: var(--m-shadow-sm) !important;
+}
+
+html[data-ui="mochi"] .m-solver-row-primary {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+html[data-ui="mochi"] .m-solver-title {
+  font-family: var(--m-font-heading) !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: var(--m-ink) !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+html[data-ui="mochi"] .m-solver-row-secondary {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  width: 100% !important;
+  flex-wrap: wrap !important;
+}
+
+html[data-ui="mochi"] .m-solver-chips {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  min-width: 0 !important;
+}
+
+html[data-ui="mochi"] .m-solver-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+}
+
+/* --------------------------------------------------------------------------
    KaTeX, Math, Table & SVG Integrity
    -------------------------------------------------------------------------- */
 html[data-ui="mochi"] .katex {
   font-size: 1.05em !important;
   line-height: 1.2 !important;
   max-width: 100%;
+}
+html[data-ui="mochi"] .katex [style*="color:transparent"],
+html[data-ui="mochi"] .katex [style*="color: transparent"] {
+  color: transparent !important;
 }
 
 html[data-ui="mochi"] .katex-display {
@@ -728,23 +799,190 @@ html[data-ui="mochi"] :is(.exam-room-layout, .app-layout) :focus-visible {
    Responsive: Mobile (<= 640px)
    -------------------------------------------------------------------------- */
 @media (max-width: 640px) {
+  html[data-ui="mochi"] .m-chip-full {
+    display: none !important;
+  }
+  html[data-ui="mochi"] .m-chip-short {
+    display: inline !important;
+  }
+
+  /* --- Top toolbar for Exam Room (#exam-room) --- */
   html[data-ui="mochi"] .exam-top-toolbar {
-    padding: 10px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 10px 12px !important;
     gap: 8px !important;
-    flex-wrap: wrap !important;
+  }
+
+  html[data-ui="mochi"] .brand-logo,
+  html[data-ui="mochi"] .m-toolbar-sep,
+  html[data-ui="mochi"] .m-user-chip,
+  html[data-ui="mochi"] .exam-theme-toggle,
+  html[data-ui="mochi"] [data-theme-dropdown] {
+    display: none !important;
+  }
+
+  /* Hàng 1 = nút Quay lại + tên bài (tối đa 2 dòng) */
+  html[data-ui="mochi"] .exam-toolbar-identity {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  html[data-ui="mochi"] .exam-toolbar-heading {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
   }
 
   html[data-ui="mochi"] .exam-toolbar-heading h1 {
     font-size: 15px !important;
-    max-width: 160px !important;
+    line-height: 1.25 !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    margin: 0 !important;
   }
 
+  /* Hàng 2 = các chip (1 dòng) + vi phạm/đồng hồ + nộp bài */
   html[data-ui="mochi"] .exam-toolbar-badges {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  html[data-ui="mochi"] .exam-toolbar-badges .m-chip {
+    padding: 2px 7px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-ui="mochi"] #exam-autosave-status {
+    white-space: nowrap !important;
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+    max-width: 110px !important;
+    text-overflow: ellipsis !important;
+    overflow: hidden !important;
+  }
+
+  html[data-ui="mochi"] .exam-toolbar-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  html[data-ui="mochi"] .exam-toolbar-actions::-webkit-scrollbar {
     display: none !important;
   }
 
-  html[data-ui="mochi"] .m-toolbar-sep {
+  /* --- Top toolbar for Homework Solver (#homework-attempt) --- */
+  html[data-ui="mochi"] .m-solver-header {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    border-radius: var(--m-radius-lg) !important;
+  }
+
+  /* Hàng 1 = nút Quay lại + tên bài (tối đa 2 dòng) */
+  html[data-ui="mochi"] .m-solver-row-primary {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  html[data-ui="mochi"] .m-solver-title {
+    font-size: 15px !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    max-height: 2.5em !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+
+  html[data-ui="mochi"] .m-solver-header .btn-exit-solver {
+    min-height: 40px !important;
+    padding: 0 10px !important;
+    font-size: 13px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Hàng 2 = các chip (1 dòng, rút gọn chữ) + Lưu nháp + đồng hồ */
+  html[data-ui="mochi"] .m-solver-row-secondary {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  html[data-ui="mochi"] .m-solver-row-secondary::-webkit-scrollbar {
     display: none !important;
+  }
+
+  html[data-ui="mochi"] .m-solver-chips {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-ui="mochi"] .m-solver-chips .m-chip {
+    padding: 2px 7px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+  }
+
+  html[data-ui="mochi"] #autosave-status {
+    white-space: nowrap !important;
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+    max-width: 110px !important;
+    text-overflow: ellipsis !important;
+    overflow: hidden !important;
+  }
+
+  html[data-ui="mochi"] .m-solver-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex: 0 0 auto !important;
+  }
+
+  html[data-ui="mochi"] .m-solver-actions .btn-manual-save-draft {
+    min-height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-ui="mochi"] .m-solver-actions .timer-box {
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 14px !important;
+    white-space: nowrap !important;
   }
 
   html[data-ui="mochi"] .exam-room-body {

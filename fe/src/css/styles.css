@@ -2763,6 +2763,10 @@ body.review-split-mode .page-header {
   font-size: 1.08em;
   line-height: 1.25;
 }
+.katex [style*="color:transparent"],
+.katex [style*="color: transparent"] {
+  color: transparent !important;
+}
 .katex-display {
   margin: 0.75em 0 !important;
   overflow-x: auto;

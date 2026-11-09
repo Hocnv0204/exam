@@ -119,6 +119,13 @@ html[data-ui="mochi"] .m-home-achieve-sub {
   margin: 0;
 }
 
+html[data-ui="mochi"] .m-home-achieve-sub a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
 html[data-ui="mochi"] .m-home-achieve-badge-list {
   display: flex;
   flex-wrap: wrap;
@@ -747,5 +754,17 @@ html[data-ui="mochi"] .m-leaderboard-privacy-note {
   }
   html[data-ui="mochi"] .m-stat-card {
     padding: 18px;
+  }
+  html[data-ui="mochi"] .m-stat-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  html[data-ui="mochi"] .m-stat-card-header .m-chip {
+    white-space: nowrap !important;
+  }
+  html[data-ui="mochi"] .m-stat-card-footer {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
   }
 }

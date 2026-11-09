@@ -906,11 +906,11 @@ function renderMochiExamRoomView() {
           <div class="m-toolbar-sep" style="height:24px; width:1px; background:#cbd5e1;"></div>
           <div class="exam-toolbar-heading" style="min-width:0; overflow:hidden;">
             <div class="exam-toolbar-badges" style="display:flex; align-items:center; gap:8px; margin-bottom:2px; flex-wrap:wrap;">
-              <span class="m-chip m-chip--accent2" style="font-weight:800; font-size:11px; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
-                <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> PHÒNG THI CHÍNH THỨC
+              <span class="m-chip m-chip--accent2" style="font-weight:800; font-size:11px; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;" title="PHÒNG THI CHÍNH THỨC" aria-label="Phòng thi chính thức">
+                <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span class="m-chip-full">PHÒNG THI CHÍNH THỨC</span><span class="m-chip-short">THI</span>
               </span>
-              <span id="exam-autosave-status" class="m-chip m-chip--ok" style="font-size:11.5px; padding:2px 10px; border-radius:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
-                <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Tự động lưu nháp
+              <span id="exam-autosave-status" class="m-chip m-chip--ok" style="font-size:11.5px; padding:2px 10px; border-radius:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" title="Tự động lưu nháp" aria-label="Tự động lưu nháp">
+                <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> <span class="m-chip-full">Tự động lưu nháp</span><span class="m-chip-short">Tự lưu</span>
               </span>
             </div>
             <h1 style="font-family:var(--font-heading); font-size:16px; font-weight:700; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">

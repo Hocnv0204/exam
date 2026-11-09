@@ -668,6 +668,27 @@ html[data-ui="mochi"] .m-hw-pagination button:disabled {
   cursor: not-allowed;
 }
 
+/* Pagination bar for learning history (#history) */
+html[data-ui="mochi"] .pagination-page-size.form-input,
+html[data-ui="mochi"] .pagination-btn {
+  min-height: 44px !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="mochi"] .pagination-btn {
+  min-width: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px 12px !important;
+}
+
+html[data-ui="mochi"] .pagination-page-size.form-input {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 6px 12px !important;
+}
+
 /* --------------------------------------------------------------------------
    Responsive: Tablet (<= 900px)
    -------------------------------------------------------------------------- */
@@ -676,6 +697,15 @@ html[data-ui="mochi"] .m-hw-pagination button:disabled {
     flex-direction: column;
     align-items: flex-start;
     padding: 22px 24px;
+    min-height: auto;
+    height: auto;
+  }
+
+  html[data-ui="mochi"] .m-hw-hero-copy {
+    flex: 0 1 auto;
+    width: 100%;
+    min-height: auto;
+    height: auto;
   }
 
   html[data-ui="mochi"] .m-hw-hero-mascot {
@@ -719,6 +749,19 @@ html[data-ui="mochi"] .m-hw-pagination button:disabled {
   html[data-ui="mochi"] .m-hw-hero {
     padding: 18px 20px;
     border-radius: var(--m-radius-lg);
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  html[data-ui="mochi"] .m-hw-hero-copy {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: auto !important;
+    height: auto !important;
+    gap: 6px;
   }
 
   html[data-ui="mochi"] .m-hw-hero-title {
@@ -730,7 +773,11 @@ html[data-ui="mochi"] .m-hw-pagination button:disabled {
   }
 
   html[data-ui="mochi"] .m-hw-hero-mascot {
-    display: none;
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   html[data-ui="mochi"] .m-hw-stats {
@@ -810,5 +857,16 @@ html[data-ui="mochi"] .m-hw-pagination button:disabled {
   html[data-ui="mochi"] .m-hw-pagination {
     flex-direction: column;
     align-items: center;
+  }
+
+  html[data-ui="mochi"] .flex-wrap-mobile {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  html[data-ui="mochi"] .flex-wrap-mobile > div {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
   }
 }

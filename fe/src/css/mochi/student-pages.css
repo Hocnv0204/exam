@@ -11,7 +11,9 @@ html[data-ui="mochi"] .m-student-page .m-muted,
 html[data-ui="mochi"] .m-student-page .m-section-description {color:var(--m-muted)}
 html[data-ui="mochi"] .m-student-page .m-section-description {margin:2px 0 14px;font-weight:700}
 html[data-ui="mochi"] .m-student-page .m-section-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-html[data-ui="mochi"] .m-student-page .m-section-heading>a {min-height:44px;display:inline-flex;align-items:center;font-weight:800}
+html[data-ui="mochi"] .m-student-page .m-section-heading>a,
+html[data-ui="mochi"] .m-student-page .m-card .m-section-heading a,
+html[data-ui="mochi"] .m-student-page .m-home-achieve-sub a {min-height:44px;display:inline-flex;align-items:center;box-sizing:border-box;font-weight:800}
 html[data-ui="mochi"] .m-student-page .m-loading,
 html[data-ui="mochi"] .m-student-page .m-empty-copy {margin:0;color:var(--m-muted);font-weight:700}
 html[data-ui="mochi"] .m-student-page .m-btn--compact {min-height:44px;padding:0 12px;font-size:14px;box-shadow:none}
@@ -31,10 +33,12 @@ html[data-ui="mochi"] .m-student-page .student-assignment-ring strong,
 html[data-ui="mochi"] .m-student-page .student-assignment-ring span,
 html[data-ui="mochi"] .m-student-page .student-assignment-summary,
 html[data-ui="mochi"] .m-student-page .student-assignment-details {color:var(--m-ink)}
-html[data-ui="mochi"] .m-student-page .mc-latest-grid {gap:10px!important}
+html[data-ui="mochi"] .m-student-page .m-card {box-sizing:border-box!important;max-width:100%!important;min-width:0!important}
+html[data-ui="mochi"] .m-student-page .mc-latest-grid {display:flex!important;flex-direction:column!important;grid-template-columns:none!important;gap:10px!important;width:100%!important;max-width:100%!important;min-width:0!important}
+html[data-ui="mochi"] .m-student-page .mc-drafts-grid {display:flex!important;flex-direction:column!important;grid-template-columns:none!important;gap:10px!important;width:100%!important;max-width:100%!important;min-width:0!important}
 html[data-ui="mochi"] .m-student-page .mc-latest-row,
 html[data-ui="mochi"] .m-student-page .mc-draft-row,
-html[data-ui="mochi"] .m-student-page .weak-topic-row {min-height:64px;padding:12px!important;border:2px solid var(--m-line)!important;border-radius:18px!important;background:var(--m-surface2)!important;color:var(--m-ink)!important;box-sizing:border-box}
+html[data-ui="mochi"] .m-student-page .weak-topic-row {min-height:64px;padding:12px!important;border:2px solid var(--m-line)!important;border-radius:18px!important;background:var(--m-surface2)!important;color:var(--m-ink)!important;box-sizing:border-box!important;width:100%!important;max-width:100%!important;min-width:0!important}
 html[data-ui="mochi"] .m-student-page button.weak-topic-row {width:100%;font:inherit;text-align:left}
 html[data-ui="mochi"] .m-student-page :where(.btn-latest-hw,.btn-discard-draft,#student-dashboard-retry,#student-scores-retry) {min-height:44px!important}
 html[data-ui="mochi"] .m-student-page .mc-homework-title,
@@ -111,6 +115,7 @@ html[data-ui="mochi"] .m-lesson-bottom-action {display:none}
 
 @media (max-width:900px) {
   html[data-ui="mochi"] .m-home-grid {grid-template-columns:1fr}
+  html[data-ui="mochi"] .m-home-grid > * {min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
   html[data-ui="mochi"] .m-path-row:nth-child(even),
   html[data-ui="mochi"] .m-path-row:nth-child(4n+3) {padding-left:40px}
   html[data-ui="mochi"] .m-detail-grid {grid-template-columns:1fr}
@@ -120,6 +125,9 @@ html[data-ui="mochi"] .m-lesson-bottom-action {display:none}
 
 @media (max-width:640px) {
   html[data-ui="mochi"] .m-student-page .m-page-wrap {gap:16px;max-width:100%}
+  html[data-ui="mochi"] .m-student-page .m-card {padding:18px 16px!important}
+  html[data-ui="mochi"] .m-student-page .m-home-grid {display:flex;flex-direction:column;gap:16px;width:100%;min-width:0}
+  html[data-ui="mochi"] .m-student-page .m-home-grid>* {width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}
   html[data-ui="mochi"] .m-student-page h1 {font-size:25px;white-space:normal!important;overflow-wrap:anywhere;word-break:break-word}
   html[data-ui="mochi"] .m-student-page h2 {font-size:21px;white-space:normal!important;overflow-wrap:anywhere;word-break:break-word}
   html[data-ui="mochi"] .m-student-page .m-home-hero,
@@ -178,6 +186,7 @@ html[data-ui="mochi"] .app-layout.student-class-list .class-card:focus-visible {
 html[data-ui="mochi"] .app-layout.student-class-list .class-title {font:800 20px/1.25 var(--m-font-heading) !important;color:var(--m-ink) !important}
 html[data-ui="mochi"] .app-layout.student-class-list .class-footer {color:var(--m-muted) !important;font-weight:700}
 /* Đủ cụ thể để thắng rule navy cũ bắt theo style inline (color:#0066cc !important). */
+html[data-ui="mochi"] .app-layout.student-class-list .class-card .enter-class-btn {min-height:44px;display:inline-flex;align-items:center;box-sizing:border-box}
 html[data-ui="mochi"] .app-layout.student-class-list .class-card .enter-class-btn[style] {color:var(--m-accent) !important;font-weight:800}
 @media (max-width: 640px) {
   html[data-ui="mochi"] .app-layout.student-class-list .navy-hero {flex-direction:column;text-align:center;padding:18px}
