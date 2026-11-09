@@ -82,6 +82,61 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
+/* ==========================================================================
+ * CUỘN VÙNG NỘI DUNG MÀN TẠO BÀI TẬP (interactive creator / sơ đồ câu hỏi)
+ * - Xác định đúng vùng cuộn (scroll container) có overflow-y auto/scroll thật sự
+ *   gần nhất chứa câu hỏi (thường là .interactive-creator-wrapper).
+ * - Fallback null -> caller cuộn window (layout full trang).
+ * - Cuộn tới câu tương ứng với offset hợp lý (tránh kẹt vào mép trên của container).
+ * ========================================================================== */
+const HW_QUESTION_SCROLL_OFFSET = 16
+
+function prefersReducedMotion() {
+  try {
+    return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  } catch (e) {
+    return false
+  }
+}
+
+function getInteractiveScrollContainer(target) {
+  let scrollHost = target?.parentElement || null
+  while (scrollHost) {
+    const style = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(scrollHost) : null
+    const overflowY = (style && style.overflowY) || (scrollHost.style && scrollHost.style.overflowY) || ''
+    const isScrollHost = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay'
+    const measurable = typeof scrollHost.scrollHeight === 'number' && typeof scrollHost.clientHeight === 'number'
+    const canScroll = !measurable || scrollHost.scrollHeight > scrollHost.clientHeight + 1
+    if (isScrollHost && canScroll) return scrollHost
+    if (scrollHost === document.body || scrollHost === document.documentElement) break
+    scrollHost = scrollHost.parentElement || null
+  }
+  return null
+}
+
+/**
+ * Cuộn câu hỏi tương ứng vào đúng vùng cuộn nội dung của màn tạo bài.
+ * Trả về scroll container đã dùng (hoặc null khi fallback window).
+ */
+function scrollToInteractiveQuestion(target) {
+  const behavior = prefersReducedMotion() ? 'auto' : 'smooth'
+  const scrollContainer = getInteractiveScrollContainer(target)
+
+  if (scrollContainer) {
+    const cRect = typeof scrollContainer.getBoundingClientRect === 'function' ? scrollContainer.getBoundingClientRect() : { top: 0 }
+    const tRect = typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect() : { top: 0 }
+    const topOffset = (tRect.top || 0) - (cRect.top || 0) + (scrollContainer.scrollTop || 0) - HW_QUESTION_SCROLL_OFFSET
+    const top = Math.max(0, topOffset)
+    if (typeof scrollContainer.scrollTo === 'function') scrollContainer.scrollTo({ top, behavior })
+    else scrollContainer.scrollTop = top
+    return scrollContainer
+  }
+
+  const tRect = typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect() : { top: 0 }
+  const topOffset = (tRect.top || 0) + (window.pageYOffset || window.scrollY || 0) - HW_QUESTION_SCROLL_OFFSET
+  if (typeof window.scrollTo === 'function') window.scrollTo({ top: Math.max(0, topOffset), behavior })
+}
+
 /**
  * Báo kết quả auto-sync Ngân hàng câu hỏi Constant sau khi lưu bài tập thành công.
  * Tuyệt đối không báo "thành công" cho phần chưa đồng bộ; chỉ hiển thị cho Admin.
@@ -1150,18 +1205,7 @@ export function bindCreateHwEvents() {
         mapEl.querySelectorAll('.hw-map-cell').forEach(c => c.classList.remove('hw-map-active'))
         cell.classList.add('hw-map-active')
         if (target) {
-          const wrapper = target.closest('.interactive-creator-wrapper')
-          if (wrapper) {
-            const wrapperRect = wrapper.getBoundingClientRect()
-            const targetRect = target.getBoundingClientRect()
-            const topOffset = targetRect.top - wrapperRect.top + wrapper.scrollTop
-            wrapper.scrollTo({
-              top: Math.max(0, topOffset - 16),
-              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-            })
-          } else {
-            target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' })
-          }
+          scrollToInteractiveQuestion(target)
           const prevOutline = target.style.outline
           const prevBg = target.style.background
           target.style.outline = '2px solid #0066cc'

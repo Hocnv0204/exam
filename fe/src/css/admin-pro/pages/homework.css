@@ -228,20 +228,44 @@ html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:nth-child(4) > div
   font-weight: 800;
 }
 
+html[data-admin-ui="pro"] .ap-homework-mgmt table :is(th:last-child, td:last-child) {
+  min-width: 240px;
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
 html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child > div {
-  flex-wrap: wrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button {
-  width: 40px !important;
-  min-width: 40px;
-  min-height: 40px !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px;
+  min-height: 34px !important;
   padding: 0 !important;
   border: 1.5px solid var(--ap-line) !important;
   border-radius: 10px !important;
   background: var(--ap-surface2) !important;
   color: var(--ap-muted) !important;
   box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button:hover {
+  border-color: currentColor !important;
+  background: var(--ap-surface) !important;
+  transform: translateY(-1px);
 }
 
 html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body :is(.btn-copy-link-hw, .btn-edit-hw) {
@@ -363,6 +387,27 @@ html[data-admin-ui="pro"] .ap-create-homework #btn-parse-markdown {
 html[data-admin-ui="pro"] .ap-create-homework .interactive-creator-wrapper {
   gap: 18px !important;
   padding: 0 6px 8px 0 !important;
+}
+
+/* Desktop: the page frame clips overflow, so the left grid item must have a
+   bounded height and its question list must own the scrolling. The generic
+   Pro left-pane overflow:visible rule above otherwise expands past the frame. */
+@media (min-width: 1201px) {
+  html[data-admin-ui="pro"] .ap-create-homework .split-homework-layout {
+    align-items: stretch !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane {
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane .interactive-creator-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto !important;
+    overflow-y: auto !important;
+  }
 }
 
 html[data-admin-ui="pro"] .ap-create-homework .interactive-pdf-attachment-bar,
@@ -598,6 +643,20 @@ html[data-admin-ui="pro"][data-theme="dark"] .ap-create-homework :is(code, .kate
   }
 }
 
+/* At 1025–1200px the two columns stack, but the desktop shell still clips
+   content-body and constrains the grid height. Let the stacked page scroll. */
+@media (min-width: 1025px) and (max-width: 1200px) {
+  html[data-admin-ui="pro"] .ap-create-homework .content-body {
+    overflow: visible !important;
+  }
+  html[data-admin-ui="pro"] .ap-create-homework .split-homework-layout {
+    height: auto !important;
+  }
+  html[data-admin-ui="pro"] .ap-create-homework #create-hw-left-pane {
+    overflow: visible !important;
+  }
+}
+
 @media (max-width: 900px) {
   html[data-admin-ui="pro"] .ap-homework-mgmt .page-header {
     align-items: stretch !important;
@@ -646,9 +705,10 @@ html[data-admin-ui="pro"][data-theme="dark"] .ap-create-homework :is(code, .kate
   }
 
   html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button {
-    width: 44px !important;
-    min-width: 44px;
-    min-height: 44px !important;
+    width: 36px !important;
+    min-width: 36px;
+    height: 36px !important;
+    min-height: 36px !important;
   }
 
   html[data-admin-ui="pro"] .ap-create-homework .exam-mode-switch {

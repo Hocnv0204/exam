@@ -254,7 +254,7 @@ export function renderHomeworkMgmtView() {
                     <th style="padding:14px 16px; min-width:150px;">Cấu hình phòng thi</th>
                     <th style="padding:14px 16px; min-width:140px;">Hạn chót (Deadline)</th>
                     <th style="padding:14px 16px; min-width:130px;">Ngày tạo</th>
-                    <th style="padding:14px 16px; width:130px; text-align:center;">Thao tác</th>
+                    <th style="padding:14px 16px; min-width:240px; text-align:center;">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody id="hw-table-body">
@@ -660,7 +660,7 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
           ${createdAtText}
         </td>
         <td style="padding:12px 16px; text-align:center;">
-          <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+          <div style="display:inline-flex; align-items:center; justify-content:center; gap:6px; flex-wrap:nowrap;">
             <button type="button" class="btn-secondary btn-copy-link-hw" data-id="${escapeAttr(hw.id)}" data-type="${escapeAttr(hw.type || 'PRACTICE')}" title="Sao chép link bài tập để gửi học sinh" aria-label="Sao chép link làm bài: ${escapeAttr(hw.title || 'Bài tập')}" style="padding:6px 10px; font-size:12px; cursor:pointer; border-radius:6px; background:#f5f3ff; border:1px solid #ddd6fe; color:#7c3aed;">
               <i class="fa-solid fa-link"></i>
             </button>
