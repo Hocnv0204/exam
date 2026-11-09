@@ -275,6 +275,24 @@ test('chi tiết bài học Mochi: "Bài trước" / "Bài sau" theo thứ tự 
   assert.doesNotMatch(detailL3, /→<\/a>/)
 })
 
+test('sắp xếp bài học Mochi: ưu tiên theo ngày tạo cũ nhất đến gần nhất (createdAt tăng dần)', () => {
+  const lessons = [
+    { id: 'l-new', title: 'Bài tạo mới nhưng order nhỏ', orderIndex: 1, createdAt: '2026-05-01T00:00:00Z' },
+    { id: 'l-old', title: 'Bài tạo cũ nhưng order lớn', orderIndex: 10, createdAt: '2026-02-01T00:00:00Z' },
+    { id: 'l-mid', title: 'Bài tạo giữa', orderIndex: 2, createdAt: '2026-03-01T00:00:00Z' },
+    { id: 'l-same-1', title: 'Bài cùng ngày order 1', orderIndex: 1, createdAt: '2026-06-01T00:00:00Z' },
+    { id: 'l-same-2', title: 'Bài cùng ngày order 2', orderIndex: 2, createdAt: '2026-06-01T00:00:00Z' },
+    { id: 'l-no-date', title: 'Bài không có ngày', orderIndex: 0 }
+  ]
+  const sorted = sortMochiLessons(lessons)
+  assert.equal(sorted[0].id, 'l-old', 'Bài cũ nhất (2026-02-01) phải đứng đầu tiên dù orderIndex lớn hơn')
+  assert.equal(sorted[1].id, 'l-mid', 'Bài giữa (2026-03-01) đứng thứ hai')
+  assert.equal(sorted[2].id, 'l-new', 'Bài mới (2026-05-01) đứng thứ ba')
+  assert.equal(sorted[3].id, 'l-same-1', 'Cùng ngày (2026-06-01): order 1 xếp trước order 2')
+  assert.equal(sorted[4].id, 'l-same-2', 'Cùng ngày (2026-06-01): order 2 xếp sau order 1')
+  assert.equal(sorted[5].id, 'l-no-date', 'Bài thiếu ngày tạo xếp cuối cùng')
+})
+
 test('thiếu orderIndex: tự động xếp theo createdAt tăng dần (ngày tạo cũ học trước)', () => {
   const lessonsWithoutOrder = [
     { id: 'lx', title: 'Bài X mới hơn', createdAt: '2026-05-01T00:00:00Z' },

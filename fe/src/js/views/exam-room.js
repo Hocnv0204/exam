@@ -1577,6 +1577,40 @@ export function bindExamRoomEvents() {
       }
     })
 
+    if (isMochiUI()) {
+      const mochiModalBody = `
+        <div class="m-modal-submit-body" style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px; padding:4px 0;">
+          <div class="m-mascot-box" style="margin-bottom:2px;">
+            ${renderMascot({ mood: unansweredCount > 0 ? 'thinking' : 'cheer', size: 96 })}
+          </div>
+          <div style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); line-height:1.3;">
+            Bạn có chắc chắn muốn nộp bài thi?
+          </div>
+          <p style="font-size:14.5px; color:var(--m-muted); line-height:1.6; margin:0; max-width:390px;">
+            Bài thi chính thức chỉ được nộp <strong>01 lần duy nhất</strong>. Sau khi nộp bài, hệ thống sẽ kết thúc phiên thi và lưu kết quả.
+          </p>
+          ${unansweredCount > 0 ? `
+            <div class="m-chip m-chip--warn" style="font-size:13px; font-weight:800; padding:6px 14px; border-radius:var(--m-radius-pill); display:inline-flex; align-items:center; gap:6px; margin-top:4px;">
+              <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+              <span>Bạn còn <strong>${unansweredCount}</strong> câu chưa hoàn thành!</span>
+            </div>
+          ` : `
+            <div class="m-chip m-chip--ok" style="font-size:13px; font-weight:800; padding:6px 14px; border-radius:var(--m-radius-pill); display:inline-flex; align-items:center; gap:6px; margin-top:4px;">
+              <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+              <span>Bạn đã trả lời đầy đủ tất cả câu hỏi!</span>
+            </div>
+          `}
+        </div>
+      `
+      openModal(
+        'XÁC NHẬN NỘP BÀI THI',
+        mochiModalBody,
+        async () => !!(await performSubmit()),
+        { confirmLabel: 'Nộp bài ngay', cancelLabel: 'Ở lại làm tiếp' }
+      )
+      return
+    }
+
     const warningText = unansweredCount > 0 
       ? `<p style="color:#d97706; font-weight:600; margin-top:8px;">⚠️ Bạn còn <strong>${unansweredCount}</strong> câu chưa hoàn thành!</p>`
       : ''
@@ -1598,26 +1632,14 @@ export function bindExamRoomEvents() {
   document.getElementById('btn-top-submit-exam')?.addEventListener('click', handleConfirmSubmit)
   document.getElementById('btn-submit-exam-sidebar')?.addEventListener('click', handleConfirmSubmit)
 
-  // Exit Exam Room warning
+  // Exit Exam Room: nộp bài theo prototype chuẩn nếu đang trong bài thi
   const confirmExitExamRoom = () => {
-    openModal(
-      'CẢNH BÁO RỜI PHÒNG THI',
-      `
-        <div style="font-size:14.5px; color:#ef4444; line-height:1.6; text-align:center;">
-          <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
-          Rời khỏi phòng thi lúc này sẽ <strong>ghi nhận 01 lần vi phạm (Rời phòng thi)</strong>.<br>
-          Bạn có chắc chắn muốn thoát về danh sách lớp học không?
-        </div>
-      `,
-       async () => {
-         const result = await recordViolation('LEAVE_EXAM')
-         if (!result || examLocked) return false
-         clearSessionStorageData(hw.id)
-        cleanupExamEngine()
-        window.location.hash = '#my-classes'
-        return true
-      }
-    )
+    if (!examStarted || isSubmitting || submittedOrUncertain) {
+      cleanupExamEngine()
+      window.location.hash = '#my-classes'
+      return
+    }
+    handleConfirmSubmit()
   }
   document.getElementById('btn-exit-exam-room')?.addEventListener('click', confirmExitExamRoom)
   document.querySelector('.exam-toolbar-back')?.addEventListener('click', confirmExitExamRoom)
@@ -1919,10 +1941,52 @@ export function bindExamRoomEvents() {
   }
 
   const handleBeforeUnload = (e) => {
-    if (examStarted) {
+    if (examStarted && !submittedOrUncertain && !isSubmitting && remainingSeconds() > 0) {
       e.preventDefault()
-      e.returnValue = 'Bạn đang trong bài thi chính thức. Rời khỏi phòng thi lúc này bài thi sẽ bị tính vi phạm.'
+      e.returnValue = 'Bạn đang trong bài thi chính thức. Nếu rời khỏi trang, hệ thống sẽ tự động nộp bài làm hiện tại của bạn.'
       return e.returnValue
+    }
+  }
+
+  const handlePageHide = () => {
+    if (!examStarted || isSubmitting || submittedOrUncertain || remainingSeconds() <= 0) return
+    isSubmitting = true
+    submittedOrUncertain = true
+
+    const submissionAnswers = buildSubmissionAnswers()
+    const totalDurationSeconds = (hw.durationMinutes || 45) * 60
+    const durationSecondsTaken = Math.max(0, totalDurationSeconds - remainingSeconds())
+    const payload = {
+      homeworkId: hw.id,
+      answers: submissionAnswers,
+      durationSecondsTaken,
+      sessionToken: examSessionToken
+    }
+
+    saveDraftToStorage(hw.id, studentAnswers, remainingSeconds())
+    localStorage.setItem(submitAttemptKey, examSessionToken || '')
+
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-region': 'ap-southeast-2'
+      }
+      if (state.token) headers['Authorization'] = `Bearer ${state.token}`
+      if (import.meta.env?.VITE_SUPABASE_ANON_KEY) {
+        headers['apikey'] = import.meta.env.VITE_SUPABASE_ANON_KEY
+      }
+      const baseUrl = import.meta.env?.VITE_SUPABASE_URL
+        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
+        : 'http://localhost:54321/functions/v1'
+
+      fetch(`${baseUrl}/submit-homework`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        keepalive: true
+      })
+    } catch (err) {
+      console.warn('[ExamRoom] PageHide auto-submit failed:', err)
     }
   }
 
@@ -1960,6 +2024,7 @@ export function bindExamRoomEvents() {
     window.removeEventListener('focus', handleFocus)
     window.removeEventListener('keydown', handleKeyDown, true)
     window.removeEventListener('beforeunload', handleBeforeUnload)
+    window.removeEventListener('pagehide', handlePageHide)
     document.removeEventListener('copy', handleCopy)
     document.removeEventListener('paste', handlePaste)
     document.removeEventListener('contextmenu', handleContextMenu)
@@ -1977,6 +2042,7 @@ export function bindExamRoomEvents() {
   window.addEventListener('focus', handleFocus)
   window.addEventListener('keydown', handleKeyDown, true)
   window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('pagehide', handlePageHide)
   document.addEventListener('copy', handleCopy)
   document.addEventListener('paste', handlePaste)
   document.addEventListener('contextmenu', handleContextMenu)

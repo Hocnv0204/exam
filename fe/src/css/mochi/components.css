@@ -171,3 +171,170 @@ html[data-ui="mochi"] .m-tab-more-logout {display:none}
 @media (max-width:374px) {
   html[data-ui="mochi"] .m-theme-choice {width:30px}
 }
+
+/* --------------------------------------------------------------------------
+   Mochi Modal Template (#modal-container)
+   Áp dụng cho mọi popup/modal khi giao diện Mochi đang hoạt động
+   -------------------------------------------------------------------------- */
+html[data-ui="mochi"] #modal-container .modal-backdrop {
+  background: rgba(20, 17, 39, 0.5) !important;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content {
+  background: var(--m-surface) !important;
+  color: var(--m-ink) !important;
+  border: 2.5px solid var(--m-ink) !important;
+  border-radius: var(--m-radius-xl) !important;
+  box-shadow: 0 8px 0 var(--m-block), 0 20px 40px rgba(0, 0, 0, 0.18) !important;
+  font-family: var(--m-font-body) !important;
+  padding: 24px 28px !important;
+  max-width: 520px;
+  animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content > div:first-child {
+  border-bottom: 2px solid var(--m-line) !important;
+  margin-bottom: 18px !important;
+  padding-bottom: 12px !important;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content :is(h1, h2, h3, h4) {
+  font-family: var(--m-font-heading) !important;
+  font-weight: 800 !important;
+  color: var(--m-ink) !important;
+  letter-spacing: -0.3px;
+}
+
+html[data-ui="mochi"] #modal-container #modal-close-btn {
+  color: var(--m-muted) !important;
+  border-radius: var(--m-radius-sm) !important;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+html[data-ui="mochi"] #modal-container #modal-close-btn:hover {
+  color: var(--m-ink) !important;
+  background: var(--m-surface2) !important;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content > div:last-child {
+  border-top: 2px solid var(--m-line) !important;
+  padding-top: 16px !important;
+  gap: 12px !important;
+}
+
+html[data-ui="mochi"] #modal-container .btn-secondary,
+html[data-ui="mochi"] #modal-container #modal-cancel-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-height: 44px !important;
+  padding: 0 20px !important;
+  border: 2px solid var(--m-ink) !important;
+  border-radius: var(--m-radius-md) !important;
+  background: var(--m-surface) !important;
+  color: var(--m-ink) !important;
+  font-family: var(--m-font-heading) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  box-shadow: var(--m-shadow-sm) !important;
+  cursor: pointer !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease !important;
+}
+
+html[data-ui="mochi"] #modal-container .btn-secondary:hover,
+html[data-ui="mochi"] #modal-container #modal-cancel-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--m-shadow-md) !important;
+  background: var(--m-surface2) !important;
+}
+
+html[data-ui="mochi"] #modal-container .btn-primary,
+html[data-ui="mochi"] #modal-container #modal-confirm-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-height: 44px !important;
+  padding: 0 24px !important;
+  border: 2px solid var(--m-ink) !important;
+  border-radius: var(--m-radius-md) !important;
+  background: var(--m-accent) !important;
+  color: var(--m-accent-ink) !important;
+  font-family: var(--m-font-heading) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 0 var(--m-ink) !important;
+  cursor: pointer !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease !important;
+}
+
+html[data-ui="mochi"] #modal-container .btn-primary:hover,
+html[data-ui="mochi"] #modal-container #modal-confirm-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] #modal-container :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid var(--m-accent) !important;
+  outline-offset: 2px !important;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border: 2px solid var(--m-line) !important;
+  border-radius: var(--m-radius-sm) !important;
+  background: var(--m-surface2) !important;
+  color: var(--m-ink) !important;
+  font-family: var(--m-font-body) !important;
+  padding: 8px 12px !important;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content :is(input, select, textarea):focus {
+  border-color: var(--m-accent) !important;
+  outline: none !important;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content [style*="background:#f8fafc"],
+html[data-ui="mochi"] #modal-container .modal-content [style*="background: #f8fafc"] {
+  background: var(--m-surface2) !important;
+  border-color: var(--m-line) !important;
+  color: var(--m-ink) !important;
+  border-radius: var(--m-radius-md) !important;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content [style*="color:#334155"],
+html[data-ui="mochi"] #modal-container .modal-content [style*="color: #334155"] {
+  color: var(--m-ink) !important;
+}
+
+html[data-ui="mochi"] #modal-container .modal-content [style*="color:#475569"],
+html[data-ui="mochi"] #modal-container .modal-content [style*="color: #475569"],
+html[data-ui="mochi"] #modal-container .modal-content [style*="color:#64748b"],
+html[data-ui="mochi"] #modal-container .modal-content [style*="color: #64748b"] {
+  color: var(--m-muted) !important;
+}
+
+@media (max-width: 640px) {
+  html[data-ui="mochi"] #modal-container .modal-content {
+    width: calc(100% - 24px) !important;
+    max-width: none !important;
+    padding: 20px 18px !important;
+    margin: 12px auto !important;
+    border-radius: var(--m-radius-lg) !important;
+  }
+}
+
+

@@ -485,8 +485,8 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
           <span class="chapter-weak-badge" data-weak-chapter="${activeFilteredChapter.id}" style="display:none; font-size:11px; font-weight:700; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; padding:2px 8px; border-radius:6px;"></span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-          <button class="btn-secondary btn-edit-chapter" data-id="${activeFilteredChapter.id}" data-title="${escapeHtml(activeFilteredChapter.title)}" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Sửa tên chương">
-            <i class="fa-solid fa-pen"></i> Sửa tên
+          <button class="btn-secondary btn-edit-chapter" data-id="${activeFilteredChapter.id}" data-title="${escapeHtml(activeFilteredChapter.title)}" data-order="${activeFilteredChapter.orderIndex ?? activeFilteredChapter.order_index ?? ''}" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer;" title="Sửa chương">
+            <i class="fa-solid fa-pen"></i> Sửa chương
           </button>
           <button class="btn-secondary btn-delete-chapter" data-id="${activeFilteredChapter.id}" style="padding:5px 10px; font-size:12px; border-radius:6px; cursor:pointer; color:#ef4444; border-color:#fecaca; background:#fff5f5;" title="Xóa chương">
             <i class="fa-solid fa-trash"></i> Xóa chương
@@ -884,11 +884,23 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
   // Create Chapter Handler
   const openAddChapterModal = () => {
+    let currObj = state.curriculums.find(c => c.classId === activeClassId)
+    if (!currObj) {
+      currObj = { classId: activeClassId, chapters: [] }
+      state.curriculums.push(currObj)
+    }
+    const defaultOrder = (currObj.chapters?.length || currentChapters.length || 0) + 1
+
     const modalHTML = `
       <div style="display:flex; flex-direction:column; gap:14px;">
         <div>
           <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Tên chương <span style="color:#ef4444;">*</span></label>
           <input type="text" id="modal-chapter-title" class="form-input" placeholder="Ví dụ: Phương trình & Hệ phương trình" required>
+        </div>
+        <div>
+          <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Số thứ tự (order index)</label>
+          <input type="number" id="modal-chapter-order" class="form-input" value="${defaultOrder}" min="1" step="1">
+          <small style="font-size:11px; color:#64748b;">Số thứ tự hiển thị của chương trong lớp (Chương 1, Chương 2...).</small>
         </div>
       </div>
     `
@@ -898,16 +910,12 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         showToast('Vui lòng nhập tên chương học!', 'error')
         return false
       }
-
-      let currObj = state.curriculums.find(c => c.classId === activeClassId)
-      if (!currObj) {
-        currObj = { classId: activeClassId, chapters: [] }
-        state.curriculums.push(currObj)
-      }
+      const rawOrder = document.getElementById('modal-chapter-order')?.value.trim()
+      const parsedOrder = rawOrder ? parseInt(rawOrder, 10) : defaultOrder
+      const orderIndex = Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : defaultOrder
 
       try {
         showToast('Đang tạo chương học...', 'info')
-        const orderIndex = (currObj.chapters?.length || currentChapters.length || 0) + 1
         const createdChapter = await api.createChapter({
           classId: activeClassId,
           title,
@@ -1479,39 +1487,60 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
   document.querySelectorAll('.btn-edit-chapter').forEach(btn => {
     btn.addEventListener('click', () => {
       const chId = btn.getAttribute('data-id')
-      const currentTitle = btn.getAttribute('data-title')
+      const currentTitle = btn.getAttribute('data-title') || ''
+      const currentOrder = btn.getAttribute('data-order') || ''
       
       const modalHTML = `
         <div style="display:flex; flex-direction:column; gap:16px;">
           <div>
-            <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Tên chương học mới</label>
+            <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Tên chương học mới <span style="color:#ef4444;">*</span></label>
             <input type="text" id="modal-edit-chapter-title" class="form-input" value="${escapeHtml(currentTitle)}" required>
+          </div>
+          <div>
+            <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Số thứ tự (order index)</label>
+            <input type="number" id="modal-edit-chapter-order" class="form-input" value="${escapeHtml(String(currentOrder || 1))}" min="1" step="1">
+            <small style="font-size:11px; color:#64748b;">Số thứ tự hiển thị của chương trong lớp (ví dụ: 1, 2, 3...).</small>
           </div>
         </div>
       `
-      openModal('Sửa Tên Chương', modalHTML, async () => {
+      openModal('Sửa Chương', modalHTML, async () => {
         const newTitle = document.getElementById('modal-edit-chapter-title')?.value.trim()
         if (!newTitle) {
           showToast('Vui lòng nhập tên chương', 'error')
           return false
         }
+        const rawOrder = document.getElementById('modal-edit-chapter-order')?.value.trim()
+        const parsedOrder = rawOrder ? parseInt(rawOrder, 10) : undefined
+
         try {
-          showToast('Đang cập nhật tên chương...', 'info')
-          const updatedChapter = await api.updateChapter({
+          showToast('Đang cập nhật chương...', 'info')
+          const payload = {
             chapterId: chId,
             title: newTitle
-          })
+          }
+          if (Number.isFinite(parsedOrder) && parsedOrder > 0) {
+            payload.orderIndex = parsedOrder
+          }
+          const updatedChapter = await api.updateChapter(payload)
           const currObj = state.curriculums.find(c => c.classId === activeClassId)
           if (currObj) {
             const ch = currObj.chapters.find(c => c.id === chId)
             if (ch) {
               ch.title = updatedChapter.title
+              if (updatedChapter.order_index !== undefined) {
+                ch.orderIndex = updatedChapter.order_index
+                ch.order_index = updatedChapter.order_index
+              }
             }
             const ch2 = currentChapters.find(c => c.id === chId)
             if (ch2) {
               ch2.title = updatedChapter.title
+              if (updatedChapter.order_index !== undefined) {
+                ch2.orderIndex = updatedChapter.order_index
+                ch2.order_index = updatedChapter.order_index
+              }
             }
-            showToast('Cập nhật tên chương thành công', 'success')
+            showToast('Cập nhật chương thành công', 'success')
             await fetchLessonsAndRefresh()
           }
           return true

@@ -30,6 +30,35 @@ window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
     return
   }
 
+  if (isMochiUI()) {
+    openModal(
+      'Bắt đầu làm bài tập',
+      `
+        <div class="m-modal-start-body" style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px; padding:4px 0;">
+          <div class="m-mascot-box" style="margin-bottom:2px;">
+            ${renderMascot({ mood: 'cheer', size: 96 })}
+          </div>
+          <div style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); line-height:1.3;">
+            Sẵn sàng làm bài tập chưa bạn ơi?
+          </div>
+          <p style="font-size:14.5px; color:var(--m-muted); line-height:1.6; margin:0; max-width:380px;">
+            Thời gian làm bài sẽ <strong>bắt đầu đếm ngược ngay lập tức</strong> khi bạn nhấn nút bắt đầu!
+          </p>
+          <div class="m-chip m-chip--ok" style="font-size:13px; font-weight:800; padding:6px 14px; border-radius:var(--m-radius-pill); display:inline-flex; align-items:center; gap:6px; margin-top:4px;">
+            <i class="fa-solid fa-stopwatch" aria-hidden="true"></i>
+            <span>Đồng hồ sẽ tính giờ tự động</span>
+          </div>
+        </div>
+      `,
+      () => {
+        window.location.hash = `#homework-attempt?homeworkId=${homeworkId}`
+        return true
+      },
+      { confirmLabel: 'Bắt đầu ngay', cancelLabel: 'Để sau' }
+    )
+    return
+  }
+
   openModal(
     'Xác nhận làm bài tập',
     `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">

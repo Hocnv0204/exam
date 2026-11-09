@@ -142,15 +142,31 @@ serve(async (req: Request) => {
         })
 
         const scoped = statusFilter === 'all' ? merged : merged.filter((m: any) => statusFilter === 'done' ? m.done : !m.done)
-        // Chưa làm xếp hạn gần trước; đã làm xếp mới nộp trước
-        const todos = scoped.filter((m: any) => !m.done).sort((a: any, b: any) => {
-          const da = a.deadline ? new Date(a.deadline).getTime() : Infinity
-          const db = b.deadline ? new Date(b.deadline).getTime() : Infinity
-          return da - db
-        })
-        const dones = scoped.filter((m: any) => m.done).sort((a: any, b: any) =>
-          new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-        const ordered = statusFilter === 'done' ? dones : (statusFilter === 'todo' ? todos : [...todos, ...dones])
+        const sort = url.searchParams.get('sort') || 'newest'
+
+        let ordered: any[]
+        if (sort === 'oldest') {
+          // Lâu nhất đến gần nhất (ngày tạo cũ nhất trước)
+          ordered = scoped.slice().sort((a: any, b: any) => {
+            const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+            const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+            return ta - tb
+          })
+        } else if (sort === 'deadline') {
+          // Hạn nộp gần nhất
+          ordered = scoped.slice().sort((a: any, b: any) => {
+            const da = a.deadline ? new Date(a.deadline).getTime() : Infinity
+            const db = b.deadline ? new Date(b.deadline).getTime() : Infinity
+            return da - db
+          })
+        } else {
+          // Mặc định: Gần nhất đến lâu nhất (ngày tạo/giao mới nhất lên đầu)
+          ordered = scoped.slice().sort((a: any, b: any) => {
+            const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+            const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+            return tb - ta
+          })
+        }
 
         const doneScores = merged.filter((m: any) => m.done && m.score !== null).map((m: any) => m.score)
         const total = ordered.length

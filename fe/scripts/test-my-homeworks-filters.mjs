@@ -30,3 +30,12 @@ test('giao diện chọn lớp rồi chương rồi bài học; gửi đầy đ�
   assert.match(view, /requestId !== lessonRequestId \|\| !select\.isConnected/)
   assert.match(view, /requestId !== listRequestId \|\| !listEl\.isConnected/)
 })
+
+test('giao diện lọc loại bài tập (bài thi và luyện tập); gửi type lên server và reset phân trang', () => {
+  assert.match(view, /id="myhw-type-filter"/)
+  assert.match(view, /value="EXAM"[^>]*>Bài thi/)
+  assert.match(view, /value="PRACTICE"[^>]*>Luyện tập/)
+  assert.match(view, /if \(filterType\) sp\.set\('type', filterType\)/)
+  assert.match(view, /filterType = e\.target\.value\s+currentPage = 1/)
+  assert.match(ownHistory, /if \(typeFilter\) hwQuery = hwQuery\.eq\('type', typeFilter\)/)
+})

@@ -2,28 +2,13 @@ import { parseLessonTimestamp, parseOrderIndex } from '../../utils/student-lesso
 
 /**
  * So sánh 2 bài học theo thứ tự học TĂNG DẦN (Mochi):
- * 1. orderIndex / order_index tăng dần (số nhỏ trước, số lớn sau).
- * 2. Thiếu orderIndex -> theo createdAt / created_at tăng dần (ngày cũ trước, ngày mới sau).
- * 3. Bài có orderIndex đứng trước bài thiếu orderIndex.
+ * 1. createdAt / created_at tăng dần (ngày tạo cũ nhất đến gần nhất).
+ * 2. Bài có createdAt hợp lệ đứng trước bài thiếu createdAt.
+ * 3. Tie-break: orderIndex / order_index tăng dần (số nhỏ trước, số lớn sau).
  * 4. Tie-break: id tăng dần (deterministic theo chuỗi).
  */
 export function compareMochiLessons(a, b) {
-  const rawOrderA = parseOrderIndex(a?.orderIndex ?? a?.order_index)
-  const rawOrderB = parseOrderIndex(b?.orderIndex ?? b?.order_index)
-  const hasOrderA = rawOrderA !== -Infinity
-  const hasOrderB = rawOrderB !== -Infinity
-
-  if (hasOrderA && hasOrderB) {
-    if (rawOrderA !== rawOrderB) {
-      return rawOrderA - rawOrderB
-    }
-  } else if (hasOrderA && !hasOrderB) {
-    return -1
-  } else if (!hasOrderA && hasOrderB) {
-    return 1
-  }
-
-  // Khi thiếu orderIndex hoặc orderIndex bằng nhau: so theo createdAt / created_at tăng dần
+  // 1. Ưu tiên ngày tạo cũ nhất đến gần nhất (createdAt / created_at tăng dần)
   const timeA = parseLessonTimestamp(a?.createdAt ?? a?.created_at)
   const timeB = parseLessonTimestamp(b?.createdAt ?? b?.created_at)
   const hasTimeA = timeA !== null
@@ -36,6 +21,22 @@ export function compareMochiLessons(a, b) {
   } else if (hasTimeA && !hasTimeB) {
     return -1
   } else if (!hasTimeA && hasTimeB) {
+    return 1
+  }
+
+  // 2. Tie-break: khi thiếu ngày tạo hoặc ngày tạo bằng nhau -> so theo orderIndex tăng dần
+  const rawOrderA = parseOrderIndex(a?.orderIndex ?? a?.order_index)
+  const rawOrderB = parseOrderIndex(b?.orderIndex ?? b?.order_index)
+  const hasOrderA = rawOrderA !== -Infinity
+  const hasOrderB = rawOrderB !== -Infinity
+
+  if (hasOrderA && hasOrderB) {
+    if (rawOrderA !== rawOrderB) {
+      return rawOrderA - rawOrderB
+    }
+  } else if (hasOrderA && !hasOrderB) {
+    return -1
+  } else if (!hasOrderA && hasOrderB) {
     return 1
   }
 
@@ -90,19 +91,19 @@ export function compareMochiChapters(a, b) {
     return 1
   }
 
-  // Fallback: so theo bài học sớm nhất của từng chương
+  // Fallback: so theo bài học sớm nhất của từng chương (theo ngày tạo cũ nhất)
   const earliestA = Array.isArray(a?.lessons) && a.lessons.length ? a.lessons[0] : null
   const earliestB = Array.isArray(b?.lessons) && b.lessons.length ? b.lessons[0] : null
   if (earliestA && earliestB) {
-    const lessonOrderA = parseOrderIndex(earliestA.orderIndex ?? earliestA.order_index)
-    const lessonOrderB = parseOrderIndex(earliestB.orderIndex ?? earliestB.order_index)
-    if (lessonOrderA !== -Infinity && lessonOrderB !== -Infinity && lessonOrderA !== lessonOrderB) {
-      return lessonOrderA - lessonOrderB
-    }
     const lessonTimeA = parseLessonTimestamp(earliestA.createdAt ?? earliestA.created_at)
     const lessonTimeB = parseLessonTimestamp(earliestB.createdAt ?? earliestB.created_at)
     if (lessonTimeA !== null && lessonTimeB !== null && lessonTimeA !== lessonTimeB) {
       return lessonTimeA - lessonTimeB
+    }
+    const lessonOrderA = parseOrderIndex(earliestA.orderIndex ?? earliestA.order_index)
+    const lessonOrderB = parseOrderIndex(earliestB.orderIndex ?? earliestB.order_index)
+    if (lessonOrderA !== -Infinity && lessonOrderB !== -Infinity && lessonOrderA !== lessonOrderB) {
+      return lessonOrderA - lessonOrderB
     }
   }
 

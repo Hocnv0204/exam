@@ -50,7 +50,7 @@ export function renderMochiLessonMap({ classes = [], classChapters = [], classId
                   <div class="m-map-progress"><div class="m-progress" aria-label="Đã hoàn thành ${doneCount} trên ${lessons.length} bài"><span style="--m-progress:${progress}%"></span></div><strong>${doneCount}/${lessons.length} bài</strong></div>`}
               </div>
               <div class="m-tabs m-map-chapters" role="tablist" aria-label="Chọn chương">
-                ${sortedChapters.map((chapter, index) => `<button type="button" class="m-tab m-chapter-tab" role="tab" aria-selected="${chapter.id === activeChapter?.id}" data-chapter-id="${escapeHtml(chapter.id)}">Chương ${chapter.orderIndex ?? chapter.order_index ?? (index + 1)}</button>`).join('')}
+                ${sortedChapters.map((chapter, index) => `<button type="button" class="m-tab m-chapter-tab" role="tab" aria-selected="${chapter.id === activeChapter?.id}" data-chapter-id="${escapeHtml(chapter.id)}">Chương ${index + 1}</button>`).join('')}
               </div>
             </header>
 

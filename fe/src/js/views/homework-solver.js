@@ -1655,9 +1655,30 @@ export function bindHomeworkSolverEvents() {
       return
     }
     const answered = countAnswered()
-    openModal(
-      'Bài đang làm dở',
-      `<div style="display:flex; flex-direction:column; gap:10px;">
+    const modalBody = isMochiUI() ? `
+      <div class="m-modal-exit-body" style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:12px; padding:4px 0;">
+        <div class="m-mascot-box">
+          ${renderMascot({ mood: 'thinking', size: 90 })}
+        </div>
+        <div style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink);">
+          Bạn muốn tạm dừng bài làm?
+        </div>
+        <div class="m-chip m-chip--accent2" style="font-size:13px; font-weight:800; padding:4px 12px; border-radius:var(--m-radius-pill);">
+          Đã hoàn thành ${answered} câu hỏi
+        </div>
+        <p style="font-size:14px; color:var(--m-muted); line-height:1.5; margin:0; max-width:360px;">
+          Lưu bản nháp để quay lại làm tiếp bất cứ lúc nào, hoặc thoát mà không lưu thay đổi.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-top:6px;">
+          <button id="exit-save-draft-btn" class="m-btn m-btn--primary" style="width:100%; min-height:44px; font-size:15px; cursor:pointer;">
+            <i class="fa-solid fa-floppy-disk"></i> Lưu nháp & thoát
+          </button>
+          <button id="exit-discard-btn" class="m-btn m-btn--secondary" style="width:100%; min-height:44px; font-size:15px; cursor:pointer; color:var(--m-warn); border-color:var(--m-warn);">
+            Thoát không lưu
+          </button>
+        </div>
+      </div>
+    ` : `<div style="display:flex; flex-direction:column; gap:10px;">
         <p style="font-size:14px; color:#475569; line-height:1.6; margin:0;">
           Bạn đã làm được <strong>${answered} câu</strong>. Thoát bây giờ bài làm sẽ ra sao?
         </p>
@@ -1669,6 +1690,10 @@ export function bindHomeworkSolverEvents() {
         </button>
         <p style="font-size:12px; color:#94a3b8; margin:2px 0 0 0; text-align:center;">Bấm Hủy hoặc <i class="fa-solid fa-xmark"></i> để ở lại làm tiếp</p>
       </div>`
+
+    openModal(
+      'Bài đang làm dở',
+      modalBody
     )
     setTimeout(() => {
       document.getElementById('exit-save-draft-btn')?.addEventListener('click', async () => {
@@ -2715,18 +2740,47 @@ export function bindHomeworkSolverEvents() {
         }
       )
     } else {
-      openModal(
-        'Nộp bài làm',
-        `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">
-          Bạn có chắc chắn muốn nộp bài làm này?<br>
-          Kết quả sẽ được tự động chấm điểm và lưu trữ ngay lập tức.
-         </p>`,
-        async () => {
-          if (timerInterval) clearInterval(timerInterval)
-          await performSubmit()
-          return true
-        }
-      )
+      if (isMochiUI()) {
+        openModal(
+          'XÁC NHẬN NỘP BÀI LÀM',
+          `
+            <div class="m-modal-submit-body" style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px; padding:4px 0;">
+              <div class="m-mascot-box" style="margin-bottom:2px;">
+                ${renderMascot({ mood: 'cheer', size: 96 })}
+              </div>
+              <div style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); line-height:1.3;">
+                Hoàn thành và nộp bài làm
+              </div>
+              <p style="font-size:14.5px; color:var(--m-muted); line-height:1.6; margin:0; max-width:380px;">
+                Bài làm của bạn sẽ được tự động chấm điểm và lưu kết quả ngay lập tức!
+              </p>
+              <div class="m-chip m-chip--ok" style="font-size:13px; font-weight:800; padding:6px 14px; border-radius:var(--m-radius-pill); display:inline-flex; align-items:center; gap:6px; margin-top:4px;">
+                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                <span>Xem kết quả & lời giải ngay sau khi nộp</span>
+              </div>
+            </div>
+          `,
+          async () => {
+            if (timerInterval) clearInterval(timerInterval)
+            await performSubmit()
+            return true
+          },
+          { confirmLabel: 'Nộp bài ngay', cancelLabel: 'Xem lại bài' }
+        )
+      } else {
+        openModal(
+          'Nộp bài làm',
+          `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">
+            Bạn có chắc chắn muốn nộp bài làm này?<br>
+            Kết quả sẽ được tự động chấm điểm và lưu trữ ngay lập tức.
+           </p>`,
+          async () => {
+            if (timerInterval) clearInterval(timerInterval)
+            await performSubmit()
+            return true
+          }
+        )
+      }
     }
   })
 }

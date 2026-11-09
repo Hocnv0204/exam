@@ -21,6 +21,36 @@ if (!window.confirmStartHomework) {
       window.location.hash = `#exam-room?homeworkId=${homeworkId}`
       return
     }
+
+    if (isMochiUI()) {
+      openModal(
+        'Bắt đầu làm bài tập',
+        `
+          <div class="m-modal-start-body" style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px; padding:4px 0;">
+            <div class="m-mascot-box" style="margin-bottom:2px;">
+              ${renderMascot({ mood: 'cheer', size: 96 })}
+            </div>
+            <div style="font-family:var(--m-font-heading); font-size:18px; font-weight:800; color:var(--m-ink); line-height:1.3;">
+              Sẵn sàng làm bài tập chưa bạn ơi?
+            </div>
+            <p style="font-size:14.5px; color:var(--m-muted); line-height:1.6; margin:0; max-width:380px;">
+              Thời gian làm bài sẽ <strong>bắt đầu đếm ngược ngay lập tức</strong> khi bạn nhấn nút bắt đầu!
+            </p>
+            <div class="m-chip m-chip--ok" style="font-size:13px; font-weight:800; padding:6px 14px; border-radius:var(--m-radius-pill); display:inline-flex; align-items:center; gap:6px; margin-top:4px;">
+              <i class="fa-solid fa-stopwatch" aria-hidden="true"></i>
+              <span>Đồng hồ sẽ tính giờ tự động</span>
+            </div>
+          </div>
+        `,
+        () => {
+          window.location.hash = `#homework-attempt?homeworkId=${homeworkId}`
+          return true
+        },
+        { confirmLabel: 'Bắt đầu ngay', cancelLabel: 'Để sau' }
+      )
+      return
+    }
+
     openModal(
       'Xác nhận làm bài tập',
       `<p style="font-size:15px; color:#475569; line-height:1.6; margin:0;">
@@ -36,6 +66,8 @@ if (!window.confirmStartHomework) {
 }
 
 let filterStatus = 'all' // all | done | todo
+let filterType = '' // '' (tất cả) | EXAM | PRACTICE
+let filterSort = 'newest' // newest (gần nhất đến lâu nhất) | oldest (lâu nhất đến gần nhất) | deadline (hạn nộp gần nhất)
 let filterClassId = ''
 let filterChapterId = ''
 let filterLessonId = ''
@@ -85,6 +117,11 @@ export function renderClassicMyHomeworksView() {
                 <button type="button" class="myhw-status-btn" data-status="todo" style="border:none; padding:6px 14px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">Chưa làm</button>
                 <button type="button" class="myhw-status-btn" data-status="done" style="border:none; padding:6px 14px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">Đã làm</button>
               </div>
+              <select id="myhw-type-filter" aria-label="Lọc theo loại bài" style="height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; min-width:140px; background:#ffffff; cursor:pointer;">
+                <option value="" ${filterType === '' ? 'selected' : ''}>Tất cả loại bài</option>
+                <option value="EXAM" ${filterType === 'EXAM' ? 'selected' : ''}>Bài thi</option>
+                <option value="PRACTICE" ${filterType === 'PRACTICE' ? 'selected' : ''}>Luyện tập</option>
+              </select>
               <select id="myhw-class-filter" style="height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; min-width:180px;">
                 <option value="">Tất cả lớp</option>
               </select>
@@ -93,6 +130,11 @@ export function renderClassicMyHomeworksView() {
               </select>
               <select id="myhw-lesson-filter" aria-label="Lọc theo bài học" disabled style="height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; min-width:160px;">
                 <option value="">Tất cả bài học</option>
+              </select>
+              <select id="myhw-sort-filter" aria-label="Sắp xếp bài tập" style="height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:13px; min-width:170px; background:#ffffff; cursor:pointer;">
+                <option value="newest" ${filterSort === 'newest' ? 'selected' : ''}>Gần nhất đến lâu nhất</option>
+                <option value="oldest" ${filterSort === 'oldest' ? 'selected' : ''}>Lâu nhất đến gần nhất</option>
+                <option value="deadline" ${filterSort === 'deadline' ? 'selected' : ''}>Hạn nộp gần nhất</option>
               </select>
               <div style="position:relative; flex:1; min-width:200px;">
                 <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:12px; color:#94a3b8; font-size:13px;"></i>
@@ -154,6 +196,11 @@ function renderMochiMyHomeworksView() {
                   <button type="button" role="tab" class="m-tab myhw-status-btn ${filterStatus === 'done' ? 'active' : ''}" data-status="done" aria-pressed="${filterStatus === 'done'}" aria-selected="${filterStatus === 'done'}">Đã làm</button>
                 </div>
                 <div class="m-hw-select-group">
+                  <select id="myhw-type-filter" class="m-select" aria-label="Lọc theo loại bài">
+                    <option value="" ${filterType === '' ? 'selected' : ''}>Tất cả loại bài</option>
+                    <option value="EXAM" ${filterType === 'EXAM' ? 'selected' : ''}>Bài thi</option>
+                    <option value="PRACTICE" ${filterType === 'PRACTICE' ? 'selected' : ''}>Luyện tập</option>
+                  </select>
                   <select id="myhw-class-filter" class="m-select" aria-label="Lọc theo lớp học">
                     <option value="">Tất cả lớp</option>
                   </select>
@@ -162,6 +209,11 @@ function renderMochiMyHomeworksView() {
                   </select>
                   <select id="myhw-lesson-filter" class="m-select" aria-label="Lọc theo bài học" disabled>
                     <option value="">Tất cả bài học</option>
+                  </select>
+                  <select id="myhw-sort-filter" class="m-select" aria-label="Sắp xếp bài tập">
+                    <option value="newest" ${filterSort === 'newest' ? 'selected' : ''}>Gần nhất đến lâu nhất</option>
+                    <option value="oldest" ${filterSort === 'oldest' ? 'selected' : ''}>Lâu nhất đến gần nhất</option>
+                    <option value="deadline" ${filterSort === 'deadline' ? 'selected' : ''}>Hạn nộp gần nhất</option>
                   </select>
                 </div>
                 <div class="m-hw-search-box">
@@ -562,6 +614,8 @@ async function fetchMyHomeworks() {
   }
   try {
     const sp = new URLSearchParams({ status: filterStatus, page: String(currentPage), pageSize: String(PAGE_SIZE) })
+    if (filterType) sp.set('type', filterType)
+    if (filterSort) sp.set('sort', filterSort)
     if (filterClassId) sp.set('classId', filterClassId)
     if (filterChapterId) sp.set('chapterId', filterChapterId)
     if (filterLessonId) sp.set('lessonId', filterLessonId)
@@ -693,6 +747,14 @@ export async function bindMyHomeworksEvents() {
     }
     classSel.value = filterClassId
   }
+  const typeSel = document.getElementById('myhw-type-filter')
+  if (typeSel) {
+    typeSel.value = filterType
+  }
+  const sortSel = document.getElementById('myhw-sort-filter')
+  if (sortSel) {
+    sortSel.value = filterSort
+  }
 
   const chapterOptionsPromise = loadChapterOptions()
   const homeworksPromise = fetchMyHomeworks()
@@ -706,6 +768,11 @@ export async function bindMyHomeworksEvents() {
       paintStatusButtons()
       fetchMyHomeworks()
     })
+  })
+  document.getElementById('myhw-type-filter')?.addEventListener('change', (e) => {
+    filterType = e.target.value
+    currentPage = 1
+    fetchMyHomeworks()
   })
   document.getElementById('myhw-class-filter')?.addEventListener('change', (e) => {
     filterClassId = e.target.value
@@ -724,6 +791,11 @@ export async function bindMyHomeworksEvents() {
   })
   document.getElementById('myhw-lesson-filter')?.addEventListener('change', (e) => {
     filterLessonId = e.target.value
+    currentPage = 1
+    fetchMyHomeworks()
+  })
+  document.getElementById('myhw-sort-filter')?.addEventListener('change', (e) => {
+    filterSort = e.target.value
     currentPage = 1
     fetchMyHomeworks()
   })
