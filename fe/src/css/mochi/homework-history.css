@@ -908,3 +908,12 @@ html[data-ui="mochi"] .pagination-page-size.form-input {
     justify-content: center !important;
   }
 }
+
+/* Thẻ chuyển sang cột dọc trên điện thoại: flex-basis 320–340px của phần thân
+   trở thành chiều cao → khoảng trống lớn giữa thông tin và nút. */
+@media (max-width: 640px) {
+  html[data-ui="mochi"] .m-hw-card-main,
+  html[data-ui="mochi"] .m-sub-card-body {
+    flex: 0 0 auto;
+  }
+}

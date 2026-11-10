@@ -1238,3 +1238,35 @@ html[data-ui="mochi"] .app-layout:is(.admin-dark, .navy-student) :is(.m-chip--wr
   background: var(--m-review-wrong-soft) !important;
   color: var(--m-review-wrong) !important;
 }
+
+/* --------------------------------------------------------------------------
+   Responsive fix (≤900px): styles.css khoá .review-sidebar-col bằng
+   sticky/overflow !important → sơ đồ câu hỏi đè lên câu hỏi và tràn ngang.
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  html[data-ui="mochi"] #questions-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-ui="mochi"] #questions-grid > .m-review-questions-col,
+  html[data-ui="mochi"] #questions-grid > .review-sidebar-col.m-review-nav-col {
+    min-width: 0;
+    max-width: 100%;
+  }
+  html[data-ui="mochi"] .review-sidebar-col.m-review-nav-col {
+    position: static !important;
+    top: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+    z-index: auto !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-ui="mochi"] .m-review-tip-card {
+    display: none !important;
+  }
+  html[data-ui="mochi"] .review-navigator-card.m-review-nav-card {
+    padding: 14px;
+  }
+}

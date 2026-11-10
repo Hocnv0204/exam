@@ -1024,3 +1024,27 @@ html[data-ui="mochi"] :is(.exam-room-layout, .app-layout) :focus-visible {
     display: none !important;
   }
 }
+
+/* Đầu trang Làm bài (≤640px): chip + 3 nút không vừa một dòng 360px →
+   chip một dòng riêng, nút (Tải PDF, Lưu nháp, đồng hồ) xuống dòng dưới. */
+@media (max-width: 640px) {
+  html[data-ui="mochi"] .m-solver-row-secondary {
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+  }
+  html[data-ui="mochi"] .m-solver-chips {
+    flex: 1 1 100% !important;
+    overflow: hidden !important;
+  }
+  html[data-ui="mochi"] .m-solver-actions {
+    flex: 1 1 100% !important;
+    justify-content: flex-end !important;
+    flex-wrap: wrap !important;
+  }
+  html[data-ui="mochi"] .m-solver-actions #btn-download-solver-pdf {
+    min-height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+}
