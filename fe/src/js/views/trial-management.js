@@ -26,7 +26,7 @@ import { showToast } from '../components/toast.js'
 import { escapeHtml } from '../utils/download-helper.js'
 import { isAdminProUI } from '../ui-flag.js'
 
-if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/ops.css') }
 import {
   classifyVideoUrl,
   isValidVideoUrl,
@@ -94,12 +94,24 @@ function renderKpis() {
   const el = document.getElementById('trial-kpis')
   if (!el) return
   const kpis = currentKpis()
+  const proUI = typeof isAdminProUI === 'function' && isAdminProUI()
   const cards = [
     { label: 'Tổng số bài học', value: kpis.total, icon: 'fa-book-open', color: '#0369a1', bg: '#eff6ff', border: '#bfdbfe' },
     { label: 'Đang công khai', value: kpis.publicCount, icon: 'fa-earth-asia', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
     { label: 'Có video, chưa công khai', value: kpis.draftWithVideoCount, icon: 'fa-video', color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
     { label: 'Thiếu video', value: kpis.missingVideoCount, icon: 'fa-video-slash', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
   ]
+  if (proUI) {
+    el.innerHTML = cards.map((c) => `
+      <div class="card ap-card ap-kpi-card" style="padding:18px 20px;">
+        <div style="font-size:12px; font-weight:800; color:var(--ap-muted); text-transform:uppercase; letter-spacing:0.5px;">
+          <i class="fa-solid ${c.icon}"></i> ${c.label}
+        </div>
+        <div style="font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:30px; font-weight:800; color:var(--ap-ink); margin-top:6px;">${c.value}</div>
+      </div>
+    `).join('')
+    return
+  }
   el.innerHTML = cards.map((c) => `
     <div class="card" style="padding:16px; border:1px solid ${c.border}; background:${c.bg};">
       <div style="font-size:11px; font-weight:700; color:${c.color}; text-transform:uppercase;">
@@ -541,10 +553,16 @@ export function renderTrialManagementView() {
   viewState = 'loading'
   loadErrorMessage = ''
   serverKpis = null
-  const proUI = typeof isAdminProUI === 'function' && isAdminProUI()
 
+  if (typeof isAdminProUI === 'function' && isAdminProUI()) {
+    return renderProTrialManagementView()
+  }
+  return renderClassicTrialManagementView()
+}
+
+export function renderClassicTrialManagementView() {
   return `
-    <div class="app-layout${proUI ? ' admin-dark" id="trial-management" data-route="trial-management" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar('trial-management')}
       <div class="main-content">
         ${renderNavbar('Quản lý học thử')}
@@ -602,6 +620,73 @@ export function renderTrialManagementView() {
           <div class="card" style="padding:0; overflow:hidden;">
             <div id="trial-mgmt-list"></div>
           </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function renderProTrialManagementView() {
+  return `
+    <div class="app-layout admin-dark" id="trial-management" data-route="trial-management" data-role="ADMIN">
+      ${renderSidebar('trial-management')}
+      <div class="main-content">
+        ${renderNavbar('Quản lý học thử')}
+        <div class="content-body" style="padding-top:20px;">
+          <section class="page-header" style="margin-bottom:24px;">
+            <div>
+              <p style="margin:0 0 4px; color:var(--ap-muted); font-weight:700; font-size:14px;">Quản lý đào tạo · Học thử</p>
+              <h1 class="page-title" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:32px; font-weight:800; line-height:1.2; color:var(--ap-ink);">Quản lý học thử</h1>
+              <p class="page-description" style="margin:6px 0 0 0; color:var(--ap-muted); font-size:15px; font-weight:700;">Quản lý video và trạng thái công khai của bài học thử; link công khai không cần đăng nhập.</p>
+            </div>
+          </section>
+
+          <section id="trial-kpis"></section>
+
+          <section class="card ap-card" style="padding:20px; margin-bottom:20px;">
+            <div class="trial-filter-bar" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+              <div style="flex:1 1 240px;">
+                <label style="display:block; font-size:13px; font-weight:800; color:var(--ap-ink); margin-bottom:6px;">Tìm kiếm</label>
+                <input type="search" id="trial-filter-q" placeholder="Tên bài học, chương, lớp..." style="width:100%; min-height:44px; box-sizing:border-box;">
+              </div>
+              <div style="flex:1 1 160px;">
+                <label style="display:block; font-size:13px; font-weight:800; color:var(--ap-ink); margin-bottom:6px;">Lớp</label>
+                <select id="trial-filter-class" style="width:100%; min-height:44px; box-sizing:border-box;">
+                  <option value="">Tất cả lớp</option>
+                </select>
+              </div>
+              <div style="flex:1 1 160px;">
+                <label style="display:block; font-size:13px; font-weight:800; color:var(--ap-ink); margin-bottom:6px;">Chương</label>
+                <select id="trial-filter-chapter" style="width:100%; min-height:44px; box-sizing:border-box;">
+                  <option value="">Tất cả chương</option>
+                </select>
+              </div>
+              <div style="flex:1 1 150px;">
+                <label style="display:block; font-size:13px; font-weight:800; color:var(--ap-ink); margin-bottom:6px;">Trạng thái</label>
+                <select id="trial-filter-status" style="width:100%; min-height:44px; box-sizing:border-box;">
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="public">Đang công khai</option>
+                  <option value="draft">Chưa công khai</option>
+                </select>
+              </div>
+              <div style="flex:1 1 150px;">
+                <label style="display:block; font-size:13px; font-weight:800; color:var(--ap-ink); margin-bottom:6px;">Video</label>
+                <select id="trial-filter-video" style="width:100%; min-height:44px; box-sizing:border-box;">
+                  <option value="all">Tất cả video</option>
+                  <option value="with">Có video</option>
+                  <option value="without">Thiếu video</option>
+                </select>
+              </div>
+              <button type="button" class="btn-secondary" id="btn-trial-reset-filters-top" style="min-height:44px; padding:0 16px;">Xóa bộ lọc</button>
+            </div>
+            <div id="trial-count" style="font-size:13px; font-weight:800; color:var(--ap-muted); margin-top:14px;"></div>
+          </section>
+
+          <div id="trial-notice"></div>
+
+          <section class="card ap-card ap-trial-table-card" style="padding:0; overflow:hidden;">
+            <div id="trial-mgmt-list"></div>
+          </section>
         </div>
       </div>
     </div>

@@ -36,7 +36,13 @@ globalThis.window = {
 
 const { state } = await import('../src/js/state.js')
 const { setTheme } = await import('../src/js/theme.js')
-const { renderAdminDashboardView, getAdminChartPalette } = await import('../src/js/views/admin-dashboard.js')
+const {
+  renderAdminDashboardView,
+  renderClassicAdminDashboardView,
+  bindAdminDashboardEvents,
+  getAdminChartPalette
+} = await import('../src/js/views/admin-dashboard.js')
+const { api } = await import('../src/js/api.js')
 const { renderTuitionLedgerView } = await import('../src/js/views/tuition-ledger.js')
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
@@ -129,12 +135,13 @@ function splitSelectorList(selectorList) {
   return selectors
 }
 
-test('opt-out classic giữ nguyên root markup cũ của dashboard và sổ học phí', () => {
+test('opt-out classic giữ nguyên output renderer cũ của dashboard và sổ học phí', () => {
   fixture()
   setUI('classic')
 
   window.location.hash = '#admin-dashboard'
   const dashboard = renderAdminDashboardView()
+  assert.equal(dashboard, renderClassicAdminDashboardView(), 'cờ tắt phải trả về renderer classic y hệt')
   assert.match(dashboard, /<div class="app-layout" data-route="admin-dashboard" data-role="ADMIN">/)
   assert.doesNotMatch(dashboard, /id="admin-dashboard"/)
 
@@ -160,12 +167,53 @@ test('Pro có root hook mới và giữ toàn bộ id/data-* chức năng của 
   window.location.hash = '#admin-dashboard'
   const proDashboard = renderAdminDashboardView()
   assert.match(proDashboard, /class="app-layout admin-dark" id="admin-dashboard" data-route="admin-dashboard"/)
+  assert.match(proDashboard, /class="ap-dashboard-hero"/, 'Có header Mochi Pro')
+  assert.match(proDashboard, /class="ap-dashboard-kpis"/, 'Có lưới KPI sticker')
+  assert.match(proDashboard, /Học phí theo tháng/, 'Có biểu đồ học phí')
+  assert.match(proDashboard, /Phân bố điểm/, 'Có khối phân bố điểm')
+  assert.match(proDashboard, /Học sinh cần đóng tiền/, 'Có khối học sinh cần đóng tiền')
   assertSuperset(functionalHooks(proDashboard), functionalHooks(classicDashboard), 'Dashboard Pro')
 
   window.location.hash = '#tuition-ledger'
   const proLedger = renderTuitionLedgerView()
   assert.match(proLedger, /class="app-layout admin-dark" id="tuition-ledger" data-route="tuition-ledger" data-role="ADMIN"/)
   assertSuperset(functionalHooks(proLedger), functionalHooks(classicLedger), 'Sổ học phí Pro')
+})
+
+test('bind dashboard trên DOM Pro tối thiểu và dữ liệu rỗng/lỗi không ném lỗi', async () => {
+  fixture()
+  setUI('mochi')
+  state.dashboard = null
+  const markup = renderAdminDashboardView()
+  assert.match(markup, /id="dash-stu-table-body"/)
+
+  const events = []
+  const fakeElement = () => ({
+    addEventListener: (type) => events.push(type),
+    innerHTML: '',
+    textContent: '',
+    closest: () => null
+  })
+  const originalGetElementById = document.getElementById
+  const originalZeroBalance = api.getZeroBalanceCount
+  const elements = new Map([
+    ['dash-zero-balance-card', fakeElement()],
+    ['dash-stu-search', fakeElement()],
+    ['dash-stu-filter-month', fakeElement()],
+    ['dash-stu-filter-class', fakeElement()],
+    ['dash-stu-filter-status', fakeElement()]
+  ])
+  document.getElementById = id => elements.get(id) || null
+  api.getZeroBalanceCount = async () => { throw new Error('fixture error') }
+
+  try {
+    assert.doesNotThrow(() => bindAdminDashboardEvents())
+    await Promise.resolve()
+    assert.ok(events.length >= 6, 'Các hook Pro phải nhận listener của bind')
+  } finally {
+    document.getElementById = originalGetElementById
+    api.getZeroBalanceCount = originalZeroBalance
+  }
 })
 
 test('palette Chart.js Pro dùng token tương ứng ở cả sáng và tối', () => {

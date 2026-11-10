@@ -118,8 +118,8 @@ let generatorState = {
 // ========================================================
 // Main Render
 // ========================================================
-export function renderQuestionBankView() {
-  const isPro = isAdminProUI()
+export function renderClassicQuestionBankView() {
+const isPro = isAdminProUI()
   return `
     <div class="app-layout${isPro ? ' ap-question-bank' : ''}">
       ${renderSidebar('question-bank')}
@@ -448,7 +448,353 @@ export function renderQuestionBankView() {
   `
 }
 
-// ========================================================
+export function renderProQuestionBankView() {
+  return `
+    <div class="app-layout ap-question-bank">
+      ${renderSidebar('question-bank')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Ngân hàng câu hỏi')}
+        <div class="content-body ap-qb-body">
+
+          <!-- Page Header -->
+          <section class="ap-qb-header">
+            <div class="ap-qb-header-meta">
+              <p class="ap-qb-subtitle">
+                <span class="ap-badge-constant"><i class="fa-solid fa-shield-halved"></i> Chuẩn hóa Constant Taxonomy</span>
+                <span>Kho lưu trữ câu hỏi chuẩn hóa phân tầng theo Khối &rarr; Lớp &rarr; Chương &rarr; Bài học Constant</span>
+              </p>
+              <h1 class="ap-qb-title">Ngân hàng câu hỏi & Đề thi</h1>
+            </div>
+
+            <!-- Header Action Buttons -->
+            <div class="ap-qb-header-actions">
+              <button id="btn-open-matrix-gen" class="btn-primary ap-btn-primary" type="button">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Tạo đề theo Ma trận
+              </button>
+              <button id="btn-open-sync-modal" class="btn-primary ap-btn-sync" type="button">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Đồng bộ sang Constant
+              </button>
+              <button id="btn-open-taxonomy-modal" class="btn-secondary ap-btn-secondary" type="button">
+                <i class="fa-solid fa-sitemap"></i> Danh mục Constant
+              </button>
+              <button id="btn-open-import-md" class="btn-secondary ap-btn-secondary" type="button">
+                <i class="fa-solid fa-file-arrow-up"></i> Nhập từ Markdown
+              </button>
+              <button id="btn-open-import-hw" class="btn-secondary ap-btn-secondary" type="button">
+                <i class="fa-solid fa-clock-rotate-left"></i> Lấy từ Bài cũ
+              </button>
+            </div>
+          </section>
+
+          <!-- Statistics Counters Cards -->
+          <section class="ap-qb-stats-grid">
+            <div class="card ap-qb-stat-card">
+              <div class="ap-stat-icon ap-stat-icon-total">
+                <i class="fa-solid fa-boxes-stacked"></i>
+              </div>
+              <div class="ap-stat-info">
+                <div class="ap-stat-label">Tổng số câu hỏi</div>
+                <div id="stat-total-q" class="ap-stat-value">0</div>
+                <div class="ap-stat-sub"><i class="fa-solid fa-database"></i> Toàn bộ kho câu hỏi</div>
+              </div>
+            </div>
+
+            <div class="card ap-qb-stat-card">
+              <div class="ap-stat-icon ap-stat-icon-mc">
+                <i class="fa-solid fa-list-check"></i>
+              </div>
+              <div class="ap-stat-info">
+                <div class="ap-stat-label">Trắc nghiệm (Phần I)</div>
+                <div id="stat-mc-q" class="ap-stat-value">0</div>
+                <div class="ap-stat-sub">4 lựa chọn (ABCD)</div>
+              </div>
+            </div>
+
+            <div class="card ap-qb-stat-card">
+              <div class="ap-stat-icon ap-stat-icon-tf">
+                <i class="fa-solid fa-square-check"></i>
+              </div>
+              <div class="ap-stat-info">
+                <div class="ap-stat-label">Đúng / Sai (Phần II)</div>
+                <div id="stat-tf-q" class="ap-stat-value">0</div>
+                <div class="ap-stat-sub">4 ý (a, b, c, d)</div>
+              </div>
+            </div>
+
+            <div class="card ap-qb-stat-card">
+              <div class="ap-stat-icon ap-stat-icon-sa">
+                <i class="fa-solid fa-pen-clip"></i>
+              </div>
+              <div class="ap-stat-info">
+                <div class="ap-stat-label">Trả lời ngắn (Phần III)</div>
+                <div id="stat-sa-q" class="ap-stat-value">0</div>
+                <div class="ap-stat-sub">Điền số / kết quả</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Filter & Search Card -->
+          <section class="card ap-qb-filter-section" aria-label="Bộ lọc">
+            <div class="ap-qb-filter-header">
+              <div class="ap-qb-filter-title">
+                <i class="fa-solid fa-filter"></i>
+                <span>Bộ lọc Danh mục Constant & Thuộc tính câu hỏi</span>
+              </div>
+              <span class="ap-qb-filter-tag"><i class="fa-solid fa-sitemap"></i> Phân cấp 4 tầng</span>
+            </div>
+
+            <div class="ap-qb-filter-row">
+              <div class="ap-filter-col">
+                <label class="ap-filter-label" for="qb-filter-grade-block">
+                  <i class="fa-solid fa-layer-group"></i> Khối học
+                </label>
+                <select id="qb-filter-grade-block" class="ap-select">
+                  <option value="">-- Tất cả các Khối --</option>
+                  ${cachedGradeBlocksList.map(b => `<option value="${escapeHtmlAttr(b)}" ${b === filterState.gradeBlock ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('')}
+                </select>
+              </div>
+
+              <div class="ap-filter-col">
+                <label class="ap-filter-label" for="qb-filter-class">
+                  <i class="fa-solid fa-graduation-cap"></i> Lớp Constant
+                </label>
+                <select id="qb-filter-class" class="ap-select">
+                  <option value="">-- Tất cả Lớp --</option>
+                </select>
+              </div>
+
+              <div class="ap-filter-col">
+                <label class="ap-filter-label" for="qb-filter-chapter">
+                  <i class="fa-solid fa-book-bookmark"></i> Chương Constant
+                </label>
+                <select id="qb-filter-chapter" class="ap-select">
+                  <option value="">-- Tất cả Chương --</option>
+                </select>
+              </div>
+
+              <div class="ap-filter-col ap-lesson-col" id="qb-filter-lesson-wrap" style="position:relative;">
+                <label class="ap-filter-label" style="display:flex; justify-content:space-between; align-items:center;">
+                  <span><i class="fa-solid fa-file-lines"></i> Bài học Constant</span>
+                  <span id="qb-filter-lesson-count-badge" class="ap-badge-count" style="display:none;">0 bài</span>
+                </label>
+                <div id="qb-filter-lesson-trigger" class="ap-select-trigger">
+                  <span id="qb-filter-lesson-display">-- Tất cả Bài học --</span>
+                  <i id="qb-filter-lesson-chevron" class="fa-solid fa-chevron-down"></i>
+                </div>
+                <div id="qb-filter-lesson-dropdown" class="ap-lesson-dropdown" style="display:none;">
+                  <div class="ap-lesson-dropdown-actions">
+                    <button type="button" id="qb-lesson-select-all" class="ap-link-btn">Chọn tất cả</button>
+                    <button type="button" id="qb-lesson-clear-all" class="ap-link-btn ap-link-danger">Bỏ chọn</button>
+                  </div>
+                  <div id="qb-filter-lesson-list">
+                    <div class="ap-empty-hint">Vui lòng chọn Chương học trước</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ap-qb-filter-row ap-qb-filter-row-secondary">
+              <div class="ap-filter-col">
+                <label class="ap-filter-label" for="qb-filter-question-type-id">
+                  <i class="fa-solid fa-diagram-project"></i> Dạng bài Constant
+                </label>
+                <select id="qb-filter-question-type-id" class="ap-select">
+                  <option value="">-- Tất cả Dạng bài --</option>
+                </select>
+              </div>
+
+              <div class="ap-filter-col">
+                <label class="ap-filter-label" for="qb-filter-type">
+                  <i class="fa-solid fa-tag"></i> Dạng câu hỏi
+                </label>
+                <select id="qb-filter-type" class="ap-select">
+                  <option value="">-- Tất cả các dạng --</option>
+                  <option value="MULTIPLE_CHOICE">Trắc nghiệm ABCD (Phần I)</option>
+                  <option value="TRUE_FALSE">Đúng / Sai 4 ý (Phần II)</option>
+                  <option value="SHORT_ANSWER">Trả lời ngắn / Điền số (Phần III)</option>
+                </select>
+              </div>
+
+              <div class="ap-filter-col">
+                <label class="ap-filter-label" for="qb-filter-unassigned">
+                  <i class="fa-solid fa-triangle-exclamation"></i> Trạng thái phân loại
+                </label>
+                <select id="qb-filter-unassigned" class="ap-select">
+                  <option value="">-- Tất cả trạng thái --</option>
+                  <option value="no_class">Chưa gán Lớp học</option>
+                  <option value="no_chapter">Chưa gán Chương</option>
+                  <option value="no_lesson">Chưa gán Bài học</option>
+                </select>
+              </div>
+
+              <div class="ap-filter-col ap-diff-chips-col">
+                <label class="ap-filter-label">
+                  <i class="fa-solid fa-gauge-high"></i> Mức độ nhận thức
+                </label>
+                <select id="qb-filter-difficulty" class="ap-select" style="display:none;">
+                  <option value="">-- Tất cả mức độ --</option>
+                  <option value="NHAN_BIET">Nhận biết</option>
+                  <option value="THONG_HIEU">Thông hiểu</option>
+                  <option value="VAN_DUNG">Vận dụng</option>
+                  <option value="VAN_DUNG_CAO">Vận dụng cao</option>
+                </select>
+                <div role="group" aria-label="Mức độ nhận thức" class="ap-diff-chips-group">
+                  <button type="button" class="ap-diff-chip ${!filterState.difficulty ? 'active' : ''}" data-diff="" aria-pressed="${!filterState.difficulty ? 'true' : 'false'}">
+                    Tất cả
+                  </button>
+                  <button type="button" class="ap-diff-chip ap-diff-chip-nb ${filterState.difficulty === 'NHAN_BIET' ? 'active' : ''}" data-diff="NHAN_BIET" aria-pressed="${filterState.difficulty === 'NHAN_BIET' ? 'true' : 'false'}">
+                    Nhận biết <span class="ap-diff-chip-count" data-diff-count="NHAN_BIET">${statsState.diffCounts?.NHAN_BIET || 0}</span>
+                  </button>
+                  <button type="button" class="ap-diff-chip ap-diff-chip-th ${filterState.difficulty === 'THONG_HIEU' ? 'active' : ''}" data-diff="THONG_HIEU" aria-pressed="${filterState.difficulty === 'THONG_HIEU' ? 'true' : 'false'}">
+                    Thông hiểu <span class="ap-diff-chip-count" data-diff-count="THONG_HIEU">${statsState.diffCounts?.THONG_HIEU || 0}</span>
+                  </button>
+                  <button type="button" class="ap-diff-chip ap-diff-chip-vd ${filterState.difficulty === 'VAN_DUNG' ? 'active' : ''}" data-diff="VAN_DUNG" aria-pressed="${filterState.difficulty === 'VAN_DUNG' ? 'true' : 'false'}">
+                    Vận dụng <span class="ap-diff-chip-count" data-diff-count="VAN_DUNG">${statsState.diffCounts?.VAN_DUNG || 0}</span>
+                  </button>
+                  <button type="button" class="ap-diff-chip ap-diff-chip-vdc ${filterState.difficulty === 'VAN_DUNG_CAO' ? 'active' : ''}" data-diff="VAN_DUNG_CAO" aria-pressed="${filterState.difficulty === 'VAN_DUNG_CAO' ? 'true' : 'false'}">
+                    Vận dụng cao <span class="ap-diff-chip-count" data-diff-count="VAN_DUNG_CAO">${statsState.diffCounts?.VAN_DUNG_CAO || 0}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="ap-qb-search-row">
+              <div class="ap-search-input-wrap">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input id="qb-search-input" type="text" placeholder="Tìm kiếm theo nội dung đề bài..." class="ap-search-input" />
+              </div>
+              <button id="qb-btn-reset-filters" class="btn-secondary ap-btn-secondary" type="button">
+                <i class="fa-solid fa-rotate-left"></i> Đặt lại bộ lọc
+              </button>
+            </div>
+          </section>
+
+          <!-- Main Grid: Questions List + Sticky Cart Panel -->
+          <section class="ap-qb-main-grid">
+            <div class="ap-qb-list-col">
+              <div id="qb-bulk-bar" class="ap-qb-bulk-bar" style="display:none;">
+                <div class="ap-bulk-bar-left">
+                  <span class="ap-bulk-bar-badge"><i class="fa-solid fa-check"></i></span>
+                  <span class="ap-bulk-bar-text">
+                    Đã chọn <strong id="qb-bulk-selected-count">0</strong> câu hỏi
+                  </span>
+                </div>
+                <div class="ap-bulk-bar-right">
+                  <span class="ap-bulk-label">Gán mức độ:</span>
+                  <select id="qb-bulk-diff-select" class="ap-bulk-select">
+                    <option value="NHAN_BIET">Nhận biết</option>
+                    <option value="THONG_HIEU">Thông hiểu</option>
+                    <option value="VAN_DUNG">Vận dụng</option>
+                    <option value="VAN_DUNG_CAO">Vận dụng cao</option>
+                  </select>
+                  <button id="qb-bulk-apply-btn" type="button" class="ap-bulk-btn ap-bulk-btn-apply">
+                    <i class="fa-solid fa-check-double"></i> Gán hàng loạt
+                  </button>
+                  <button id="qb-bulk-create-btn" type="button" class="ap-bulk-btn ap-bulk-btn-create">
+                    <i class="fa-solid fa-file-circle-plus"></i> Tạo đề từ đã chọn
+                  </button>
+                  <button id="qb-bulk-delete-btn" type="button" class="ap-bulk-btn ap-bulk-btn-delete">
+                    <i class="fa-solid fa-trash-can"></i> Xóa hàng loạt
+                  </button>
+                  <button id="qb-bulk-deselect-btn" type="button" class="ap-bulk-btn ap-bulk-btn-cancel">
+                    Bỏ chọn
+                  </button>
+                </div>
+              </div>
+
+              <div class="ap-qb-list-header">
+                <div class="ap-qb-list-header-left">
+                  <label class="ap-qb-select-all-label">
+                    <input type="checkbox" id="qb-select-all-page" class="ap-checkbox" />
+                    <span>Chọn tất cả trang này</span>
+                  </label>
+                  <span class="ap-qb-count-note">
+                    (Hiển thị <strong id="qb-current-count">0</strong> câu hỏi)
+                  </span>
+                </div>
+                <div class="ap-qb-list-header-right">
+                  <i class="fa-solid fa-eye"></i> Chế độ xem chi tiết câu hỏi & đáp án
+                </div>
+              </div>
+
+              <div id="qb-questions-container" class="ap-qb-cards-container">
+                <div class="card ap-qb-loading-card">
+                  <div class="ap-loading-spinner">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                  </div>
+                  <div class="ap-loading-title">Đang tải danh sách câu hỏi...</div>
+                  <div class="ap-loading-desc">Đang kết nối kho dữ liệu Ngân hàng câu hỏi chuẩn hóa</div>
+                </div>
+              </div>
+
+              <div id="qb-pagination-container" class="ap-qb-pagination-container"></div>
+            </div>
+
+            <!-- Sticky Cart Panel -->
+            <aside aria-label="Đề đang tạo" class="ap-qb-cart-panel">
+              <div class="ap-cart-header">
+                <h2 class="ap-cart-title">Đề đang tạo</h2>
+                <span id="ap-cart-selected-count" class="ap-cart-badge">0 câu</span>
+              </div>
+              <label class="ap-cart-field">
+                <span class="ap-cart-field-label">Tên bài tập</span>
+                <input type="text" id="ap-cart-exam-title" placeholder="Ví dụ: Kiểm tra 15 phút · Cực trị" class="ap-cart-input" />
+              </label>
+              <div class="ap-cart-parts">
+                <div class="ap-cart-part-item">
+                  <div class="ap-cart-part-meta">
+                    <strong class="ap-cart-part-title">Phần I · Trắc nghiệm</strong>
+                    <span class="ap-cart-part-rate">0,25 điểm/câu</span>
+                  </div>
+                  <span id="ap-cart-mc-count" class="ap-cart-part-count ap-color-accent">0</span>
+                </div>
+                <div class="ap-cart-part-item">
+                  <div class="ap-cart-part-meta">
+                    <strong class="ap-cart-part-title">Phần II · Đúng / Sai</strong>
+                    <span class="ap-cart-part-rate">1 điểm/câu</span>
+                  </div>
+                  <span id="ap-cart-tf-count" class="ap-cart-part-count ap-color-blue">0</span>
+                </div>
+                <div class="ap-cart-part-item">
+                  <div class="ap-cart-part-meta">
+                    <strong class="ap-cart-part-title">Phần III · Trả lời ngắn, tự luận</strong>
+                    <span class="ap-cart-part-rate">0,5 điểm/câu</span>
+                  </div>
+                  <span id="ap-cart-sa-count" class="ap-cart-part-count ap-color-ok">0</span>
+                </div>
+              </div>
+              <div class="ap-cart-total-row">
+                <span class="ap-cart-total-label">Tổng điểm dự kiến</span>
+                <span id="ap-cart-total-points" class="ap-cart-total-value">0 / 10</span>
+              </div>
+              <label class="ap-cart-pdf-option">
+                <input type="checkbox" id="ap-cart-auto-pdf" checked class="ap-checkbox" />
+                <span>Tự tạo PDF đề trắng và gắn vào bài tập</span>
+              </label>
+              <button type="button" id="ap-cart-create-btn" class="ap-cart-btn-primary">
+                Tạo bài tập từ <span id="ap-cart-btn-count">0</span> câu
+              </button>
+              <button type="button" id="ap-cart-clear-btn" class="ap-cart-btn-secondary">
+                Bỏ chọn tất cả
+              </button>
+            </aside>
+          </section>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Container for Overlays & Modals -->
+    <div id="qb-modal-container"></div>
+  `
+}
+
+export function renderQuestionBankView() {
+  if (isAdminProUI()) {
+    return renderProQuestionBankView()
+  }
+  return renderClassicQuestionBankView()
+}
 // Events & Data Lifecycle
 // ========================================================
 export async function bindQuestionBankEvents() {
@@ -602,6 +948,15 @@ function updateStatsUI() {
   if (mcEl) mcEl.textContent = statsState.mc || 0
   if (tfEl) tfEl.textContent = statsState.tf || 0
   if (saEl) saEl.textContent = statsState.sa || 0
+
+  if (statsState.diffCounts) {
+    document.querySelectorAll('[data-diff-count]').forEach(el => {
+      const d = el.getAttribute('data-diff-count')
+      if (d && statsState.diffCounts[d] !== undefined) {
+        el.textContent = statsState.diffCounts[d]
+      }
+    })
+  }
 }
 
 function setupFilterListeners() {
@@ -735,10 +1090,34 @@ function setupFilterListeners() {
   // Difficulty changed
   diffSelect?.addEventListener('change', async (e) => {
     filterState.difficulty = e.target.value
+    document.querySelectorAll('.ap-diff-chip').forEach(c => {
+      const isActive = (c.getAttribute('data-diff') || '') === filterState.difficulty
+      c.classList.toggle('active', isActive)
+      c.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+    })
     filterState.page = 1
     selectedQuestionIds.clear()
     selectedQuestionCache.clear()
     await fetchAndRenderQuestions()
+  })
+
+  // Prototype Difficulty Chips Click
+  document.querySelectorAll('.ap-diff-chip').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      const targetDiff = chip.getAttribute('data-diff') || ''
+      if (filterState.difficulty === targetDiff && chip.classList.contains('active')) return
+      document.querySelectorAll('.ap-diff-chip').forEach(c => {
+        const isActive = (c.getAttribute('data-diff') || '') === targetDiff
+        c.classList.toggle('active', isActive)
+        c.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+      })
+      if (diffSelect) diffSelect.value = targetDiff
+      filterState.difficulty = targetDiff
+      filterState.page = 1
+      selectedQuestionIds.clear()
+      selectedQuestionCache.clear()
+      await fetchAndRenderQuestions()
+    })
   })
 
   // Unassigned filter changed (Phase 1.4)
@@ -791,6 +1170,11 @@ function setupFilterListeners() {
     if (listContainer) listContainer.innerHTML = '<div style="font-size:12px; color:#94a3b8; padding:8px; text-align:center;">Vui lòng chọn Chương học trước</div>'
     if (typeSelect) typeSelect.value = ''
     if (diffSelect) diffSelect.value = ''
+    document.querySelectorAll('.ap-diff-chip').forEach(c => {
+      const isAll = (c.getAttribute('data-diff') || '') === ''
+      c.classList.toggle('active', isAll)
+      c.setAttribute('aria-pressed', isAll ? 'true' : 'false')
+    })
     if (unassignedSelect) unassignedSelect.value = ''
     if (questionTypeIdSelect) questionTypeIdSelect.value = ''
     if (searchInput) searchInput.value = ''
@@ -1008,7 +1392,15 @@ async function fetchAndRenderQuestions(options = {}) {
   const paginationContainer = document.getElementById('qb-pagination-container')
   if (!container) return
 
-  container.innerHTML = `
+  container.innerHTML = isAdminProUI() ? `
+    <div class="card ap-qb-loading-card">
+      <div class="ap-loading-spinner">
+        <i class="fa-solid fa-circle-notch fa-spin"></i>
+      </div>
+      <div class="ap-loading-title">Đang tải danh sách câu hỏi...</div>
+      <div class="ap-loading-desc">Hệ thống đang truy vấn kho câu hỏi theo bộ lọc phân cấp</div>
+    </div>
+  ` : `
     <div class="card" style="margin:0; padding:48px 20px; text-align:center; border:1px solid #e2e8f0; border-radius:14px; background:#ffffff;">
       <div style="width:52px; height:52px; border-radius:50%; background:#eff6ff; color:#0284c7; display:inline-flex; align-items:center; justify-content:center; font-size:24px; margin-bottom:12px; box-shadow:0 2px 8px rgba(2,132,199,0.12);">
         <i class="fa-solid fa-circle-notch fa-spin"></i>
@@ -1063,7 +1455,24 @@ async function fetchAndRenderQuestions(options = {}) {
 
     if (allQuestions.length === 0) {
       if (paginationContainer) paginationContainer.innerHTML = ''
-      container.innerHTML = `
+      container.innerHTML = isAdminProUI() ? `
+        <div class="card ap-qb-empty-card">
+          <div class="ap-empty-icon">
+            <i class="fa-solid fa-box-open"></i>
+          </div>
+          <h3 class="ap-empty-title">
+            Chưa có câu hỏi nào phù hợp bộ lọc
+          </h3>
+          <p class="ap-empty-desc">
+            Bạn có thể điều chỉnh lại tiêu chí lọc hoặc nhập câu hỏi mới bằng file Markdown, đồng bộ từ bài học động sang Constant, hoặc lấy nhanh từ bài tập cũ.
+          </p>
+          <div class="ap-empty-actions">
+            <button id="qb-empty-import-md" class="btn-primary ap-btn-primary" type="button">
+              <i class="fa-solid fa-file-arrow-up"></i> Nhập từ Markdown
+            </button>
+          </div>
+        </div>
+      ` : `
         <div class="card" style="margin:0; padding:48px 24px; text-align:center; border:2px dashed #cbd5e1; border-radius:16px; background:#f8fafc;">
           <div style="width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg, #eff6ff, #dbeafe); color:#0284c7; display:inline-flex; align-items:center; justify-content:center; font-size:26px; margin-bottom:14px; box-shadow:0 2px 8px rgba(2,132,199,0.12);">
             <i class="fa-solid fa-box-open"></i>
@@ -1131,7 +1540,13 @@ async function fetchAndRenderQuestions(options = {}) {
     if (requestId !== questionsRequestId) return
     console.error('[QuestionBank] Failed to fetch questions:', err)
     if (paginationContainer) paginationContainer.innerHTML = ''
-    container.innerHTML = `
+    container.innerHTML = isAdminProUI() ? `
+      <div class="card ap-qb-error-card">
+        <div class="ap-error-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <h4 class="ap-error-title">Lỗi khi tải câu hỏi</h4>
+        <p class="ap-error-desc">${escapeHtml(err.message)}</p>
+      </div>
+    ` : `
       <div class="card" style="margin:0; padding:36px 20px; text-align:center; border:1px solid #fee2e2; border-radius:14px; background:#fff5f5; color:#991b1b;">
         <div style="width:52px; height:52px; border-radius:50%; background:#fee2e2; color:#ef4444; display:inline-flex; align-items:center; justify-content:center; font-size:24px; margin-bottom:12px;">
           <i class="fa-solid fa-triangle-exclamation"></i>
@@ -1192,7 +1607,7 @@ export function parseQuestionPrompt(rawPrompt) {
 }
 
 // Render individual Question Card
-function renderQuestionCard(q, displayIndex) {
+function renderClassicQuestionCard(q, displayIndex) {
   // Parse prompt payload
   const promptData = parseQuestionPrompt(q.prompt)
 
@@ -1327,7 +1742,7 @@ function renderQuestionCard(q, displayIndex) {
   `
 }
 
-function renderCardAnswers(q, promptData) {
+function renderClassicCardAnswers(q, promptData) {
   // 1. True / False (4 statements a, b, c, d)
   if (q.question_type === 'TRUE_FALSE' || (promptData.statements && promptData.statements.length > 0)) {
     const statements = (promptData.statements && promptData.statements.length > 0)
@@ -1403,28 +1818,271 @@ function renderCardAnswers(q, promptData) {
   return ''
 }
 
+function renderProCardAnswers(q, promptData) {
+  // 1. True / False (4 statements a, b, c, d)
+  if (q.question_type === 'TRUE_FALSE' || (promptData.statements && promptData.statements.length > 0)) {
+    const statements = (promptData.statements && promptData.statements.length > 0)
+      ? promptData.statements
+      : (promptData.options || [])
+    let tfKeys = {}
+    try {
+      tfKeys = typeof q.tf_answers === 'string' ? JSON.parse(q.tf_answers) : (q.tf_answers || {})
+    } catch (_) {}
+
+    return `
+      <div class="ap-tf-list">
+        ${statements.map(s => {
+          const sKey = (s.id || s.key || '').toLowerCase()
+          const isTrue = Boolean(tfKeys[sKey])
+          return `
+            <div class="ap-tf-row">
+              <div class="ap-tf-content">
+                <span class="ap-tf-key">${escapeHtml(sKey)})</span>
+                <span class="math-content ap-tf-text">${renderMarkdown(s.text || '')}</span>
+              </div>
+              <span class="ap-tf-badge ${isTrue ? 'ap-tf-true' : 'ap-tf-false'}">
+                ${isTrue ? 'ĐÚNG' : 'SAI'}
+              </span>
+            </div>
+          `
+        }).join('')}
+      </div>
+    `
+  }
+
+  // 2. Multiple Choice ABCD
+  if (q.question_type === 'MULTIPLE_CHOICE' || (promptData.options && promptData.options.length > 0)) {
+    const opts = promptData.options || []
+    const correctKey = (q.mc_answer || '').trim().toUpperCase()
+
+    return `
+      <div class="ap-mc-grid">
+        ${opts.map(o => {
+          const optKey = (o.id || o.key || '').trim().toUpperCase()
+          const isCorrect = (optKey === correctKey)
+          return `
+            <div class="ap-mc-opt ${isCorrect ? 'ap-mc-correct' : ''}">
+              <span class="ap-mc-key">${escapeHtml(optKey)}</span>
+              <div class="math-content ap-mc-text">${renderMarkdown(o.text || '')}</div>
+              ${isCorrect ? `<i class="fa-solid fa-circle-check ap-mc-check"></i>` : ''}
+            </div>
+          `
+        }).join('')}
+      </div>
+    `
+  }
+
+  // 3. Short Answer / Fill in
+  if (q.question_type === 'SHORT_ANSWER') {
+    return `
+      <div class="ap-sa-box">
+        <span class="ap-sa-label">Đáp án đúng:</span>
+        <span class="ap-sa-val">
+          ${q.sa_answer !== null && q.sa_answer !== undefined ? escapeHtml(q.sa_answer) : '(Chưa có)'}
+        </span>
+        ${Number(q.sa_tolerance) > 0 ? `
+          <span class="ap-sa-tol">(Dung sai: ±${escapeHtml(q.sa_tolerance)})</span>
+        ` : ''}
+      </div>
+    `
+  }
+
+  return ''
+}
+
+function renderProQuestionCard(q, displayIndex) {
+  // Parse prompt payload
+  const promptData = parseQuestionPrompt(q.prompt)
+
+  // Determine actual question type
+  const isTf = q.question_type === 'TRUE_FALSE' || (promptData.statements && promptData.statements.length > 0)
+  const isSa = q.question_type === 'SHORT_ANSWER'
+  const isMc = !isTf && !isSa
+
+  const typeLabel = isTf ? 'Đúng / Sai' : (isSa ? 'Trả lời ngắn' : 'Trắc nghiệm')
+  const typeSlug = isTf ? 'tf' : (isSa ? 'sa' : 'mc')
+
+  const diffMap = {
+    NHAN_BIET: { label: 'Nhận biết', slug: 'nb' },
+    THONG_HIEU: { label: 'Thông hiểu', slug: 'th' },
+    VAN_DUNG: { label: 'Vận dụng', slug: 'vd' },
+    VAN_DUNG_CAO: { label: 'Vận dụng cao', slug: 'vdc' }
+  }
+  const diffInfo = diffMap[q.difficulty] || diffMap['THONG_HIEU']
+
+  const gradeBlockName = q.grade_block || q.qb_classes?.grade_block || q.chapters?.classes?.grade_block || '12-Toán'
+  const className = q.qb_classes?.name || q.chapters?.classes?.name || ''
+  const chapterTitle = q.qb_chapters?.title || q.chapters?.title || ''
+  const lessonTitle = q.qb_lessons?.title || q.lessons?.title || ''
+  let locationBreadcrumb = []
+  if (className) locationBreadcrumb.push(className)
+  if (chapterTitle) locationBreadcrumb.push(chapterTitle)
+  if (lessonTitle) locationBreadcrumb.push(lessonTitle)
+  const breadcrumbText = locationBreadcrumb.join(' / ') || 'Chung'
+
+  const isConstantTaxonomy = Boolean(q.qb_lesson_id || q.qb_chapter_id || q.qb_class_id)
+  const isSyncedFromDynamic = Boolean(q.source_dynamic_lesson_id || q.sync_source_id)
+
+  const isSelected = selectedQuestionIds.has(q.id)
+
+  return `
+    <article class="card qb-question-card ap-qb-card${isSelected ? ' ap-selected' : ''}" data-id="${q.id}">
+      <label class="ap-qb-card-select-label" title="Chọn câu hỏi này">
+        <input type="checkbox" class="qb-select-card-chk ap-checkbox" data-id="${q.id}" ${isSelected ? 'checked' : ''} aria-label="Chọn câu hỏi #${displayIndex}" />
+      </label>
+      <div class="ap-qb-card-body">
+        <!-- Top meta row -->
+        <div class="ap-qb-card-header">
+          <div class="ap-qb-card-badges">
+            <span class="ap-badge-index">#${displayIndex}</span>
+            <span class="ap-chip-grade"><i class="fa-solid fa-layer-group"></i> ${escapeHtml(gradeBlockName)}</span>
+            ${isConstantTaxonomy ? `
+              <span class="ap-chip-constant" title="Thuộc danh mục chuẩn Constant">
+                <i class="fa-solid fa-certificate"></i> Constant
+              </span>
+            ` : ''}
+            ${isSyncedFromDynamic ? `
+              <span class="ap-chip-synced" title="Được nhân bản độc lập từ bài học động sang bài học constant">
+                <i class="fa-solid fa-code-branch"></i> Đã sync
+              </span>
+            ` : ''}
+            <span class="ap-chip-type ap-chip-type-${typeSlug}">
+              ${typeLabel}
+            </span>
+            <span class="ap-chip-level ap-chip-level-${diffInfo.slug}">
+              ${diffInfo.label}
+            </span>
+            <span class="ap-chip-lesson" title="${escapeHtml(breadcrumbText)}">
+              <i class="fa-solid fa-folder-tree"></i> ${escapeHtml(breadcrumbText)}
+            </span>
+            <span class="ap-badge-usage" title="Số lần đã được bốc vào đề thi">
+              <i class="fa-solid fa-repeat"></i> Đã dùng: ${q.usage_count || 0} lần
+            </span>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="ap-qb-card-actions">
+            <button type="button" class="btn-edit-question ap-icon-btn" data-id="${q.id}" title="Chỉnh sửa câu hỏi" aria-label="Chỉnh sửa câu hỏi #${displayIndex}">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+            <button type="button" class="btn-delete-question ap-icon-btn ap-btn-danger" data-id="${q.id}" title="Xóa câu hỏi khỏi ngân hàng" aria-label="Xóa câu hỏi #${displayIndex}">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Question Prompt Content -->
+        <div class="math-content ap-qb-prompt">
+          ${renderMarkdown(promptData.text || '')}
+        </div>
+
+        <!-- Optional Image -->
+        ${promptData.imageUrl ? `
+          <div class="ap-qb-img-wrap">
+            <img src="${promptData.imageUrl}" alt="Hình vẽ minh họa câu hỏi #${displayIndex}" />
+          </div>
+        ` : ''}
+
+        <!-- Options / Answers Display -->
+        <div class="ap-qb-answers">
+          ${renderProCardAnswers(q, promptData)}
+        </div>
+
+        <!-- Explanation Collapsible Accordion -->
+        ${promptData.explanation ? `
+          <div class="ap-qb-explanation-wrap">
+            <button type="button" class="btn-toggle-explanation ap-btn-toggle-exp">
+              <i class="fa-solid fa-lightbulb"></i>
+              <span>Xem lời giải chi tiết</span>
+              <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="explanation-box math-content ap-qb-explanation" style="display:none;">
+              ${renderMarkdown(promptData.explanation)}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    </article>
+  `
+}
+
+function renderQuestionCard(q, displayIndex) {
+  if (isAdminProUI()) {
+    return renderProQuestionCard(q, displayIndex)
+  }
+  return renderClassicQuestionCard(q, displayIndex)
+}
+
+function renderCardAnswers(q, promptData) {
+  if (isAdminProUI()) {
+    return renderProCardAnswers(q, promptData)
+  }
+  return renderClassicCardAnswers(q, promptData)
+}
+
 function updateBulkActionBar() {
   const bar = document.getElementById('qb-bulk-bar')
   const countEl = document.getElementById('qb-bulk-selected-count')
   const selectAllPage = document.getElementById('qb-select-all-page')
-  if (!bar) return
+  if (bar) {
+    const count = selectedQuestionIds.size
+    if (count > 0) {
+      bar.style.display = 'flex'
+      if (countEl) countEl.textContent = count
+    } else {
+      bar.style.display = 'none'
+    }
 
-  const count = selectedQuestionIds.size
-  if (count > 0) {
-    bar.style.display = 'flex'
-    if (countEl) countEl.textContent = count
-  } else {
-    bar.style.display = 'none'
+    if (selectAllPage && allQuestions.length > 0) {
+      const allSelected = allQuestions.every(q => selectedQuestionIds.has(q.id))
+      const someSelected = allQuestions.some(q => selectedQuestionIds.has(q.id))
+      selectAllPage.checked = allSelected
+      selectAllPage.indeterminate = someSelected && !allSelected
+    } else if (selectAllPage) {
+      selectAllPage.checked = false
+      selectAllPage.indeterminate = false
+    }
   }
 
-  if (selectAllPage && allQuestions.length > 0) {
-    const allSelected = allQuestions.every(q => selectedQuestionIds.has(q.id))
-    const someSelected = allQuestions.some(q => selectedQuestionIds.has(q.id))
-    selectAllPage.checked = allSelected
-    selectAllPage.indeterminate = someSelected && !allSelected
-  } else if (selectAllPage) {
-    selectAllPage.checked = false
-    selectAllPage.indeterminate = false
+  // Synchronize Pro Cart Panel
+  const cartSelectedCount = document.getElementById('ap-cart-selected-count')
+  if (cartSelectedCount) {
+    let mcCount = 0, tfCount = 0, saCount = 0
+    selectedQuestionIds.forEach(id => {
+      const q = selectedQuestionCache.get(id) || allQuestions.find(item => String(item.id) === String(id))
+      if (q) {
+        const isTf = q.question_type === 'TRUE_FALSE' || (q.prompt && String(q.prompt).includes('"statements"'))
+        const isSa = q.question_type === 'SHORT_ANSWER'
+        if (isTf) tfCount++
+        else if (isSa) saCount++
+        else mcCount++
+      } else {
+        mcCount++
+      }
+    })
+    const totalCount = selectedQuestionIds.size
+    const totalScore = (mcCount * 0.25 + tfCount * 1.0 + saCount * 0.5)
+
+    cartSelectedCount.textContent = `${totalCount} câu`
+    const cartBtnCount = document.getElementById('ap-cart-btn-count')
+    if (cartBtnCount) cartBtnCount.textContent = totalCount
+    const cartMcCount = document.getElementById('ap-cart-mc-count')
+    if (cartMcCount) cartMcCount.textContent = mcCount
+    const cartTfCount = document.getElementById('ap-cart-tf-count')
+    if (cartTfCount) cartTfCount.textContent = tfCount
+    const cartSaCount = document.getElementById('ap-cart-sa-count')
+    if (cartSaCount) cartSaCount.textContent = saCount
+    const cartTotalPoints = document.getElementById('ap-cart-total-points')
+    if (cartTotalPoints) {
+      const formattedScore = Number.isInteger(totalScore) ? totalScore : totalScore.toFixed(2).replace('.', ',')
+      cartTotalPoints.textContent = `${formattedScore} / 10`
+    }
+    const cartCreateBtn = document.getElementById('ap-cart-create-btn')
+    if (cartCreateBtn) {
+      cartCreateBtn.disabled = totalCount === 0
+      cartCreateBtn.style.opacity = totalCount === 0 ? '0.6' : '1'
+      cartCreateBtn.style.cursor = totalCount === 0 ? 'not-allowed' : 'pointer'
+    }
   }
 }
 
@@ -1441,6 +2099,7 @@ function bindQuestionCardEvents(container) {
         selectedQuestionIds.delete(qId)
         selectedQuestionCache.delete(qId)
       }
+      chk.closest('.qb-question-card')?.classList.toggle('ap-selected', chk.checked)
       updateBulkActionBar()
     })
   })
@@ -3119,11 +3778,25 @@ function setupHeaderActionListeners() {
       }
     }
   })
+
+  // Pro Sticky Cart Action Listeners
+  document.getElementById('ap-cart-create-btn')?.addEventListener('click', () => {
+    if (selectedQuestionIds.size === 0) {
+      return showToast('Vui lòng tick chọn ít nhất một câu hỏi trong danh sách!', 'warning')
+    }
+    const enteredTitle = document.getElementById('ap-cart-exam-title')?.value?.trim()
+    openCreateFromSelectedModal(Array.from(selectedQuestionIds), { defaultTitle: enteredTitle })
+  })
+
+  document.getElementById('ap-cart-clear-btn')?.addEventListener('click', () => {
+    document.getElementById('qb-bulk-deselect-btn')?.click()
+  })
 }
 
-function openCreateFromSelectedModal(questionBankIds) {
+function openCreateFromSelectedModal(questionBankIds, options = {}) {
   const modalContainer = document.getElementById('qb-modal-container')
   if (!modalContainer) return
+  const initialTitle = options.defaultTitle || ''
   modalContainer.innerHTML = `
     <div class="modal-backdrop" id="create-selected-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="modal-content" onclick="event.stopPropagation()" style="width:100%; max-width:640px; background:#ffffff; border-radius:16px; overflow:hidden;">
@@ -3134,7 +3807,7 @@ function openCreateFromSelectedModal(questionBankIds) {
         <div style="padding:20px 24px; display:flex; flex-direction:column; gap:12px;">
           <div>
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px;">Tên đề / bài tập *</label>
-            <input type="text" id="create-selected-title" placeholder="Ví dụ: Đề ôn tập chương 1" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px;" />
+            <input type="text" id="create-selected-title" value="${escapeHtmlAttr(initialTitle)}" placeholder="Ví dụ: Đề ôn tập chương 1" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px;" />
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div>

@@ -66,7 +66,7 @@ export function renderClassicAssignmentReviewView() {
 
   if (!result) {
     return `
-      <div class="app-layout${isAdminProUI() ? ' admin-dark" id="assignment-review" data-route="assignment-review" data-role="ADMIN' : ''}">
+      <div class="app-layout">
         ${renderSidebar(isTrial ? 'trial' : 'history')}
         <div class="main-content">
           ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : 'Nền tảng / Bảng điều khiển')}
@@ -306,7 +306,7 @@ export function renderClassicAssignmentReviewView() {
   }
 
   return `
-    <div class="app-layout${isAdminProUI() ? ' admin-dark" id="assignment-review" data-route="assignment-review" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar(isTrial ? 'trial' : (state.user?.role === 'ADMIN' ? 'admin-history' : 'history'))}
       <div class="main-content">
         ${renderNavbar(isTrial ? 'Học thử / Kết quả đánh giá' : (state.user?.role === 'ADMIN' ? 'Quản trị / Chi tiết bài nộp học sinh' : 'Nền tảng / Bảng điều khiển'))}
@@ -898,6 +898,23 @@ export function renderClassicAssignmentReviewView() {
       </div>
     </div>
   `
+}
+
+/** Renderer riêng cho ADMIN Pro. Dữ liệu và hook nghiệp vụ lấy nguyên vẹn từ renderer
+ * classic, sau đó dựng shell/bố cục semantic riêng để tránh nhân đôi logic chấm điểm. */
+export function renderProAssignmentReviewView() {
+  const classic = renderClassicAssignmentReviewView()
+  return classic
+    .replace('<div class="app-layout">', '<div class="app-layout admin-dark" id="assignment-review" data-route="assignment-review" data-role="ADMIN" data-pro-layout="submission-review">')
+    .replace('<div class="content-body">', '<div class="content-body ap-review-page">')
+    .replace('<div class="content-body" style="padding:40px; text-align:center; color:#64748b;">', '<div class="content-body ap-review-page ap-grade-state">')
+    .replace('<div class="page-header">', '<header class="page-header ap-review-hero">')
+    .replace('</div>\n\n          <!-- Top Overview Banner -->', '</header>\n\n          <!-- Top Overview Banner -->')
+    .replace('id="overview-banner-card" class="card"', 'id="overview-banner-card" class="card ap-review-overview"')
+    .replace('id="review-layout-wrapper"', 'id="review-layout-wrapper" class="ap-review-workspace"')
+    .replace('id="content-pane"', 'id="content-pane" class="ap-review-content"')
+    .replace('id="questions-grid" class="grid-3"', 'id="questions-grid" class="grid-3 ap-review-questions-grid"')
+    .replace('class="card review-navigator-card"', 'class="card review-navigator-card ap-review-navigator"')
 }
 
 export function renderMochiAssignmentReviewView() {
@@ -1738,6 +1755,7 @@ export function renderMochiAssignmentReviewView() {
 }
 
 export function renderAssignmentReviewView() {
+  if (state.user?.role === 'ADMIN' && isAdminProUI()) return renderProAssignmentReviewView()
   if (!isMochiMode()) return renderClassicAssignmentReviewView()
   return renderMochiAssignmentReviewView()
 }
@@ -2250,7 +2268,7 @@ export function bindAssignmentReviewEvents() {
 
   if (togglePdfBtn && pdfPane && wrapper) {
     const rawPdfUrl = state.lastSubmissionResult?.submission?.pdfUrl || state.lastSubmissionResult?.pdfUrl || ''
-    const pdfUrl = rawPdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+    const pdfUrl = rawPdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env?.VITE_SUPABASE_URL || 'http://localhost:54321')
 
     togglePdfBtn.onclick = () => {
       const isSplitActive = wrapper.classList.contains('split-review-active')

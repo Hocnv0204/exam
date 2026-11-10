@@ -21,7 +21,15 @@ globalThis.CustomEvent = class {
   constructor(type, options = {}) { this.type = type; this.detail = options.detail }
 }
 globalThis.document = {
-  documentElement: { dataset: { theme: 'light' }, style: {} },
+  documentElement: {
+    dataset: { theme: 'light' },
+    style: {},
+    getAttribute: attr => {
+      if (attr === 'data-admin-ui') return saved.get('eduportal-ui') === 'mochi' ? 'pro' : null
+      if (attr === 'data-theme') return saved.get('eduportal-theme') || 'light'
+      return null
+    }
+  },
   addEventListener: () => {},
   dispatchEvent: () => {},
   querySelector: () => null,
@@ -38,10 +46,27 @@ globalThis.window = {
 
 const { state } = await import('../src/js/state.js')
 const { setTheme } = await import('../src/js/theme.js')
-const { renderAdminHistoryView } = await import('../src/js/views/admin-history.js')
-const { renderClassicAssignmentReviewView, renderAssignmentReviewView } = await import('../src/js/views/assignment-review.js')
-const { renderQuestionAppealsView } = await import('../src/js/views/question-appeals.js')
-const { renderExamProctoringView } = await import('../src/js/views/exam-proctoring.js')
+const { api } = await import('../src/js/api.js')
+const {
+  renderAdminHistoryView,
+  renderClassicAdminHistoryView,
+  bindAdminHistoryEvents
+} = await import('../src/js/views/admin-history.js')
+const {
+  renderAssignmentReviewView,
+  renderClassicAssignmentReviewView,
+  bindAssignmentReviewEvents
+} = await import('../src/js/views/assignment-review.js')
+const {
+  renderQuestionAppealsView,
+  renderClassicQuestionAppealsView,
+  bindQuestionAppealsEvents
+} = await import('../src/js/views/question-appeals.js')
+const {
+  renderExamProctoringView,
+  renderClassicExamProctoringView,
+  bindExamProctoringEvents
+} = await import('../src/js/views/exam-proctoring.js')
 const { renderClassHomeworkHistory } = await import('../src/js/views/class-homework-history-modal.js')
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
@@ -199,16 +224,16 @@ test('(b) Pro có root hook mới và giữ toàn bộ id/data-* chức năng c�
   setUI('classic')
 
   window.location.hash = '#admin-history'
-  const classicHistory = renderAdminHistoryView()
+  const classicHistory = renderClassicAdminHistoryView()
 
   window.location.hash = '#assignment-review'
   const classicReview = renderClassicAssignmentReviewView()
 
   window.location.hash = '#question-appeals'
-  const classicAppeals = renderQuestionAppealsView()
+  const classicAppeals = renderClassicQuestionAppealsView()
 
   window.location.hash = '#exam-proctoring'
-  const classicProctoring = renderExamProctoringView()
+  const classicProctoring = renderClassicExamProctoringView()
 
   setUI('mochi')
 
@@ -218,7 +243,7 @@ test('(b) Pro có root hook mới và giữ toàn bộ id/data-* chức năng c�
   assertSuperset(functionalHooks(proHistory), functionalHooks(classicHistory), 'AdminHistory Pro')
 
   window.location.hash = '#assignment-review'
-  const proReview = renderClassicAssignmentReviewView()
+  const proReview = renderAssignmentReviewView()
   assert.match(proReview, /class="app-layout admin-dark" id="assignment-review" data-route="assignment-review" data-role="ADMIN"/)
   assertSuperset(functionalHooks(proReview), functionalHooks(classicReview), 'AssignmentReview Pro')
 
@@ -233,7 +258,133 @@ test('(b) Pro có root hook mới và giữ toàn bộ id/data-* chức năng c�
   assertSuperset(functionalHooks(proProctoring), functionalHooks(classicProctoring), 'ExamProctoring Pro')
 })
 
-test('(c) mọi rule trong grading.css đều được scope bằng cổng html[data-admin-ui="pro"]', () => {
+test('(c) gọi hàm bind trên DOM Pro giả lập không ném lỗi', () => {
+  fixtureAdmin()
+  setUI('mochi')
+
+  const domElements = new Map()
+  function createMockElement(id = '', tag = 'div') {
+    const listeners = new Map()
+    const classList = new Set()
+    return {
+      id,
+      tagName: tag.toUpperCase(),
+      dataset: {},
+      style: {},
+      value: '',
+      classList: {
+        add: (...c) => c.forEach(x => classList.add(x)),
+        remove: (...c) => c.forEach(x => classList.delete(x)),
+        contains: c => classList.has(c),
+        toggle: (c, v) => (v ?? !classList.has(c)) ? classList.add(c) : classList.delete(c)
+      },
+      addEventListener: (evt, fn) => {
+        if (!listeners.has(evt)) listeners.set(evt, [])
+        listeners.get(evt).push(fn)
+      },
+      dispatchEvent: evt => (listeners.get(evt.type) || []).forEach(fn => fn(evt)),
+      querySelectorAll: () => [],
+      querySelector: (sel) => createMockElement(sel ? String(sel).replace(/^[#.]/, '') : ''),
+      closest: () => null,
+      appendChild: () => {},
+      removeChild: () => {},
+      setAttribute: () => {},
+      getAttribute: () => null,
+      focus: () => {}
+    }
+  }
+
+  window.location.hash = '#admin-history'
+  const historyHtml = renderAdminHistoryView()
+  for (const match of historyHtml.matchAll(/\bid="([^"]+)"/g)) {
+    domElements.set(match[1], createMockElement(match[1]))
+  }
+
+  window.location.hash = '#assignment-review'
+  const reviewHtml = renderAssignmentReviewView()
+  for (const match of reviewHtml.matchAll(/\bid="([^"]+)"/g)) {
+    domElements.set(match[1], createMockElement(match[1]))
+  }
+
+  window.location.hash = '#question-appeals'
+  const appealsHtml = renderQuestionAppealsView()
+  for (const match of appealsHtml.matchAll(/\bid="([^"]+)"/g)) {
+    domElements.set(match[1], createMockElement(match[1]))
+  }
+
+  window.location.hash = '#exam-proctoring?homeworkId=hw-1'
+  const proctorHtml = renderExamProctoringView()
+  for (const match of proctorHtml.matchAll(/\bid="([^"]+)"/g)) {
+    domElements.set(match[1], createMockElement(match[1]))
+  }
+
+  const origGetElementById = document.getElementById
+  const origQuerySelectorAll = document.querySelectorAll
+  const origQuerySelector = document.querySelector
+
+  document.getElementById = (id) => domElements.get(id) || createMockElement(id)
+  document.querySelectorAll = () => []
+  document.querySelector = () => createMockElement()
+
+  try {
+    assert.doesNotThrow(() => {
+      bindAdminHistoryEvents()
+    }, 'bindAdminHistoryEvents không được ném lỗi trên DOM Pro')
+
+    assert.doesNotThrow(() => {
+      bindAssignmentReviewEvents()
+    }, 'bindAssignmentReviewEvents không được ném lỗi trên DOM Pro')
+
+    assert.doesNotThrow(() => {
+      bindQuestionAppealsEvents()
+    }, 'bindQuestionAppealsEvents không được ném lỗi trên DOM Pro')
+
+    assert.doesNotThrow(() => {
+      bindExamProctoringEvents()
+    }, 'bindExamProctoringEvents không được ném lỗi trên DOM Pro')
+  } finally {
+    document.getElementById = origGetElementById
+    document.querySelectorAll = origQuerySelectorAll
+    document.querySelector = origQuerySelector
+  }
+})
+
+test('(d) dữ liệu rỗng/lỗi không crash', () => {
+  fixtureAdmin()
+  setUI('mochi')
+
+  // 1. Lịch sử không có submission / không có lớp
+  state.classes = []
+  window.location.hash = '#admin-history'
+  assert.doesNotThrow(() => {
+    const html = renderAdminHistoryView()
+    assert.match(html, /Chưa có lượt nộp phù hợp|Danh sách lượt nộp/)
+  }, 'AdminHistory Pro không crash khi classes rỗng')
+
+  // 2. Assignment review không có kết quả bài nộp
+  state.lastSubmissionResult = null
+  window.location.hash = '#assignment-review'
+  assert.doesNotThrow(() => {
+    const html = renderAssignmentReviewView()
+    assert.match(html, /Chưa có kết quả làm bài/)
+  }, 'AssignmentReview Pro không crash khi lastSubmissionResult = null')
+
+  // 3. Question appeals khi chưa có yêu cầu
+  window.location.hash = '#question-appeals'
+  assert.doesNotThrow(() => {
+    const html = renderQuestionAppealsView()
+    assert.match(html, /id="appeal-inbox-list"/)
+  }, 'QuestionAppeals Pro không crash')
+
+  // 4. Exam proctoring không có homeworkId
+  window.location.hash = '#exam-proctoring'
+  assert.doesNotThrow(() => {
+    const html = renderExamProctoringView()
+    assert.match(html, /id="proctoring-mount"/)
+  }, 'ExamProctoring Pro không crash khi thiếu homeworkId')
+})
+
+test('(e) mọi rule trong grading.css đều được scope bằng cổng html[data-admin-ui="pro"]', () => {
   const selectors = collectRuleSelectors(gradingCss)
   assert.ok(selectors.length > 0, 'Phải có ít nhất 1 selector trong grading.css')
   for (const selectorList of selectors) {
@@ -244,9 +395,13 @@ test('(c) mọi rule trong grading.css đều được scope bằng cổng html[
   assert.match(gradingCss, /@media\s*\(max-width:\s*900px\)/, 'Phải có responsive breakpoint 900px')
   assert.match(gradingCss, /@media\s*\(max-width:\s*640px\)/, 'Phải có responsive breakpoint 640px')
   assert.match(gradingCss, /overflow-x:\s*auto/, 'Phải hỗ trợ cuộn ngang bảng overflow-x: auto')
+
+  // Không dùng mã màu cứng hex trong giá trị thuộc tính CSS
+  const hexPropertyValues = gradingCss.match(/:\s*#[0-9a-fA-F]{3,8}/g) || []
+  assert.equal(hexPropertyValues.length, 0, `Không được dùng màu cứng hex: ${hexPropertyValues.join(', ')}`)
 })
 
-test('(d) học sinh render assignment-review KHÔNG chịu ảnh hưởng — output nhánh Mochi học sinh y hệt', () => {
+test('(f) học sinh render assignment-review KHÔNG chịu ảnh hưởng — output nhánh Mochi học sinh y hệt', () => {
   fixtureStudent()
   setUI('mochi')
 

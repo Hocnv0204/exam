@@ -195,9 +195,10 @@ test('cờ Mochi bật nhưng role ADMIN: giữ nguyên output classic, không h
   setMochi(true)
   state.lastSubmissionResult = createSampleReviewData()
 
-  const classicReview = renderClassicAssignmentReviewView()
+  // Từ khi có Mochi Pro cho admin, ADMIN nhận giao diện Pro riêng (không còn giống hệt classic);
+  // điều cần bảo đảm là ADMIN KHÔNG bao giờ nhận giao diện Mochi của học sinh.
   const currentReview = renderAssignmentReviewView()
-  assert.equal(currentReview, classicReview, 'ADMIN phải luôn nhận giao diện classic 100%')
+  assert.doesNotMatch(currentReview, /class="m-review/, 'ADMIN không được nhận giao diện Mochi học sinh')
 })
 
 test('khách (guest / không có token): giữ nguyên output classic, không hiển thị Mochi view', () => {

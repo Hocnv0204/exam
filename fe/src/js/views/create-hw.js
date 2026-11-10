@@ -649,8 +649,7 @@ function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
   `
 }
 
-export function renderCreateHwView() {
-  const isPro = isAdminProUI()
+function prepareCreateHwViewData() {
   const isEdit = !!state.editHomeworkData
   const hw = isEdit ? state.editHomeworkData.homework : null
   const questions = isEdit ? (state.editHomeworkData.questions || []) : []
@@ -795,8 +794,41 @@ export function renderCreateHwView() {
     }
   }
 
+  return {
+    isEdit,
+    hw,
+    pdfDownloadUrl,
+    pdfDownloadName,
+    deadlineDateVal,
+    deadlineHourVal,
+    deadlineMinuteVal,
+    classOptions,
+    displayTitle
+  }
+}
+
+export function renderCreateHwView() {
+  if (isAdminProUI()) {
+    return renderProCreateHwView()
+  }
+  return renderClassicCreateHwView()
+}
+
+export function renderClassicCreateHwView() {
+  const {
+    isEdit,
+    hw,
+    pdfDownloadUrl,
+    pdfDownloadName,
+    deadlineDateVal,
+    deadlineHourVal,
+    deadlineMinuteVal,
+    classOptions,
+    displayTitle
+  } = prepareCreateHwViewData()
+
   return `
-    <div class="app-layout${isPro ? ' ap-create-homework' : ''}">
+    <div class="app-layout">
       ${renderSidebar('create-homework')}
       <div class="main-content">
         ${renderNavbar(isEdit ? 'Quản trị / Sửa bài tập' : 'Quản trị / Tạo bài tập')}
@@ -1003,6 +1035,330 @@ export function renderCreateHwView() {
             </div>
 
           </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function renderProCreateHwView() {
+  const {
+    isEdit,
+    hw,
+    pdfDownloadUrl,
+    pdfDownloadName,
+    deadlineDateVal,
+    deadlineHourVal,
+    deadlineMinuteVal,
+    classOptions,
+    displayTitle
+  } = prepareCreateHwViewData()
+
+  return `
+    <div class="app-layout ap-create-homework">
+      ${renderSidebar('create-homework')}
+      <div class="main-content">
+        ${renderNavbar(isEdit ? 'Quản trị / Sửa bài tập' : 'Quản trị / Tạo bài tập')}
+        <div class="content-body ap-create-hw-body">
+          
+          <!-- Breadcrumb (Mochi Pro) -->
+          <nav aria-label="Đường dẫn" class="ap-hw-breadcrumb">
+            <a href="#homework-mgmt" class="ap-breadcrumb-link">Quản lý bài tập</a>
+            <span class="ap-breadcrumb-sep">/</span>
+            <span class="ap-breadcrumb-curr">${isEdit ? 'Sửa bài tập' : 'Tạo bài tập mới'}</span>
+          </nav>
+
+          <!-- Top Hero Card (Mochi Pro) -->
+          <section class="ap-create-hw-hero" aria-label="Tiêu đề khởi tạo bài tập">
+            <div class="ap-create-hero-info">
+              <div class="ap-create-hero-kicker">
+                <span class="ap-kicker-badge">Quy trình 5 bước</span>
+                <span class="ap-kicker-text">${isEdit ? 'Chế độ chỉnh sửa' : 'Soạn bài mới'}</span>
+              </div>
+              <h1 class="ap-create-hero-title">${isEdit ? 'Cập nhật bài tập & bài thi' : 'Khởi tạo bài tập & bài thi'}</h1>
+              <p class="ap-create-hero-sub">Soạn thảo đề bài, thiết lập ma trận đáp án và cấu hình phòng thi trực tuyến</p>
+            </div>
+            <div class="ap-create-hero-actions">
+              <a href="#homework-mgmt" class="btn-secondary ap-btn-hero-cancel">Hủy bỏ</a>
+            </div>
+          </section>
+
+          <!-- Stepper 5 bước (Mochi Pro) -->
+          <nav aria-label="Các bước tạo bài tập" class="ap-hw-stepper" id="hw-stepper-bar">
+            <button type="button" class="ap-step-btn active" data-step="1">
+              <span class="ap-step-num">1</span>
+              <span class="ap-step-text">
+                <span class="ap-step-sub">Bước 1</span>
+                <strong class="ap-step-title">Thông tin chung</strong>
+              </span>
+            </button>
+            <button type="button" class="ap-step-btn" data-step="2">
+              <span class="ap-step-num">2</span>
+              <span class="ap-step-text">
+                <span class="ap-step-sub">Bước 2</span>
+                <strong class="ap-step-title">Đề bài Markdown / PDF</strong>
+              </span>
+            </button>
+            <button type="button" class="ap-step-btn" data-step="3">
+              <span class="ap-step-num">3</span>
+              <span class="ap-step-text">
+                <span class="ap-step-sub">Bước 3</span>
+                <strong class="ap-step-title">Đáp án & Điểm</strong>
+              </span>
+            </button>
+            <button type="button" class="ap-step-btn" data-step="4">
+              <span class="ap-step-num">4</span>
+              <span class="ap-step-text">
+                <span class="ap-step-sub">Bước 4</span>
+                <strong class="ap-step-title">Phòng thi & Deadline</strong>
+              </span>
+            </button>
+            <button type="button" class="ap-step-btn" data-step="5">
+              <span class="ap-step-num">5</span>
+              <span class="ap-step-text">
+                <span class="ap-step-sub">Bước 5</span>
+                <strong class="ap-step-title">Giao lớp & Xuất bản</strong>
+              </span>
+            </button>
+          </nav>
+
+          <!-- Form container with 5 Step Panels -->
+          <div class="ap-step-panels-container">
+
+            <!-- BƯỚC 1: THÔNG TIN CƠ BẢN -->
+            <div class="ap-step-panel active" data-step-panel="1">
+              <div class="ap-step-panel-header">
+                <h2 class="ap-step-heading">Bước 1: Thông tin cơ bản</h2>
+                <p class="ap-step-desc">Đặt tên bài tập và liên kết vào khối lớp, chương trình học</p>
+              </div>
+
+              <div class="ap-step1-grid">
+                <div class="ap-field-group ap-field-span2">
+                  <label for="hw-title" class="ap-label">Tên bài tập / Bài thi <span class="ap-required">*</span></label>
+                  <input type="text" id="hw-title" class="form-input ap-input" placeholder="Ví dụ: Kiểm tra 45 phút cực trị hàm số..." value="${displayTitle}">
+                  <span class="ap-field-hint"><i class="fa-solid fa-circle-info"></i> Tên bài học sẽ tự động được ghép phía trước khi lưu bài</span>
+                </div>
+
+                <div class="ap-field-group">
+                  <label for="hw-type" class="ap-label">Phân loại bài làm <span class="ap-required">*</span></label>
+                  <select id="hw-type" class="form-input ap-select">
+                    <option value="PRACTICE" ${isEdit && hw.type === 'PRACTICE' ? 'selected' : ''}>Luyện tập tự do (Tự chấm & hiện giải)</option>
+                    <option value="EXAM" ${isEdit && hw.type === 'EXAM' ? 'selected' : ''}>Bài thi chính thức (Có giám sát & tính điểm)</option>
+                  </select>
+                </div>
+
+                <div class="ap-field-group">
+                  <label for="hw-class-select" class="ap-label">Lớp học áp dụng <span class="ap-required">*</span></label>
+                  <select id="hw-class-select" class="form-input ap-select">
+                    ${classOptions}
+                  </select>
+                </div>
+
+                <div class="ap-field-group">
+                  <label for="hw-chapter-select" class="ap-label">Chương học <span class="ap-required">*</span></label>
+                  <select id="hw-chapter-select" class="form-input ap-select">
+                    <option value="">${isEdit ? 'Đang tải chương...' : 'Chọn lớp học trước...'}</option>
+                  </select>
+                </div>
+
+                <div class="ap-field-group">
+                  <label for="hw-lesson-select" class="ap-label">Bài học liên kết <span class="ap-required">*</span></label>
+                  <select id="hw-lesson-select" class="form-input ap-select">
+                    <option value="">${isEdit ? 'Đang tải bài học...' : 'Chọn chương trước...'}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- BƯỚC 2: SOẠN THẢO ĐỀ BÀI -->
+            <div class="ap-step-panel" data-step-panel="2">
+              <div class="ap-step-panel-header">
+                <h2 class="ap-step-heading">Bước 2: Soạn thảo đề bài & Câu hỏi</h2>
+                <p class="ap-step-desc">Soạn thảo Markdown với công thức toán KaTeX hoặc bóc tách từ PDF</p>
+              </div>
+
+              <div id="create-hw-left-pane" class="ap-create-hw-pane">
+                ${renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName)}
+              </div>
+            </div>
+
+            <!-- BƯỚC 3: MA TRẬN ĐÁP ÁN & ĐIỂM SỐ -->
+            <div class="ap-step-panel" data-step-panel="3">
+              <div class="ap-step-panel-header">
+                <h2 class="ap-step-heading">Bước 3: Ma trận đáp án & Sơ đồ câu hỏi</h2>
+                <p class="ap-step-desc">Chọn đáp án đúng cho từng câu hỏi và phân bổ điểm số theo mẫu đề thi</p>
+              </div>
+
+              <!-- Sơ đồ câu hỏi Card -->
+              <div class="card ap-panel-card">
+                <style>.hw-map-active{ outline:2px solid var(--ap-accent) !important; }</style>
+                <div class="ap-card-header">
+                  <h3 class="ap-card-title"><i class="fa-solid fa-map"></i> Sơ đồ câu hỏi</h3>
+                  <span class="ap-card-hint">Bấm vào ô để nhảy tới câu • <span class="ap-text-ok">xanh</span>: đã có đáp án • <span class="ap-text-warn">vàng</span>: thiếu đáp án</span>
+                </div>
+                <div id="hw-question-map" class="ap-map-container"></div>
+              </div>
+
+              <!-- Cấu hình số lượng câu hỏi Card -->
+              <div class="card ap-panel-card">
+                <div class="ap-card-header">
+                  <h3 class="ap-card-title"><i class="fa-solid fa-sliders"></i> Cấu hình số lượng câu hỏi</h3>
+                </div>
+                <div class="ap-counts-grid">
+                  <div class="ap-count-box">
+                    <label for="cfg-mc-count" class="ap-count-label">Trắc nghiệm ABCD</label>
+                    <input type="number" id="cfg-mc-count" class="form-input ap-count-input" value="${currentConfig.mcCount}" min="0" max="100">
+                  </div>
+                  <div class="ap-count-box">
+                    <label for="cfg-tf-count" class="ap-count-label">Đúng / Sai</label>
+                    <input type="number" id="cfg-tf-count" class="form-input ap-count-input" value="${currentConfig.tfCount}" min="0" max="50">
+                  </div>
+                  <div class="ap-count-box">
+                    <label for="cfg-sa-count" class="ap-count-label">Trả lời ngắn</label>
+                    <input type="number" id="cfg-sa-count" class="form-input ap-count-input" value="${currentConfig.saCount}" min="0" max="50">
+                  </div>
+                </div>
+                <button type="button" class="btn-primary ap-btn-update-counts" id="update-config-btn">
+                  <i class="fa-solid fa-arrows-rotate"></i> Cập nhật số lượng câu hỏi
+                </button>
+              </div>
+
+              <!-- Nhập/Xuất đáp án Card -->
+              <div class="card ap-panel-card">
+                <div class="ap-card-header">
+                  <h3 class="ap-card-title"><i class="fa-solid fa-file-import"></i> Nhập / Xuất đáp án nhanh</h3>
+                </div>
+                <div class="ap-json-actions">
+                  <button class="btn-secondary ap-json-btn" id="copy-sample-btn" type="button" title="Sao chép cấu trúc JSON mẫu gồm 12 câu TN, 4 câu Đ/S, 6 câu TLN">
+                    <i class="fa-regular fa-file-code"></i> Sao chép JSON mẫu
+                  </button>
+                  <button class="btn-secondary ap-json-btn" id="copy-answers-btn" type="button" title="Sao chép toàn bộ đáp án hiện tại của bảng dưới dạng JSON">
+                    <i class="fa-regular fa-copy"></i> Sao chép đáp án JSON
+                  </button>
+                  <button class="btn-primary ap-json-btn" id="import-answers-btn" type="button" title="Nhập danh sách đáp án từ chuỗi JSON">
+                    <i class="fa-solid fa-keyboard"></i> Nhập đáp án (JSON)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Ma trận đáp án Section -->
+              <div id="answer-matrix-container" class="ap-answer-matrix-wrap">
+                ${renderAnswerMatrix()}
+              </div>
+            </div>
+
+            <!-- BƯỚC 4: CẤU HÌNH PHÒNG THI -->
+            <div class="ap-step-panel" data-step-panel="4">
+              <div class="ap-step-panel-header">
+                <h2 class="ap-step-heading">Bước 4: Cấu hình phòng thi & Giám sát</h2>
+                <p class="ap-step-desc">Thiết lập thời gian làm bài, số lần vi phạm chống gian lận và quy định hiển thị lời giải</p>
+              </div>
+
+              <div class="ap-step4-grid">
+                <div class="ap-field-group">
+                  <label for="hw-duration" class="ap-label">Thời lượng làm bài (Phút)</label>
+                  <input type="number" id="hw-duration" class="form-input ap-input" value="${isEdit ? hw.durationMinutes || 90 : 90}" min="5">
+                </div>
+
+                <div class="ap-field-group">
+                  <label for="hw-max-attempts" class="ap-label">Số lần làm bài tối đa (0 = Không giới hạn)</label>
+                  <input type="number" id="hw-max-attempts" class="form-input ap-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.max_attempts !== undefined && hw.max_attempts !== null ? hw.max_attempts : 0)}" min="0">
+                </div>
+
+                <div class="ap-field-group">
+                  <label for="hw-max-violations" class="ap-label">Giới hạn vi phạm tối đa (Rời màn hình / chuyển tab)</label>
+                  <input type="number" id="hw-max-violations" class="form-input ap-input" value="${isEdit && hw.maxViolations !== undefined ? hw.maxViolations : 3}" min="1" max="10">
+                </div>
+
+                <div class="ap-field-group">
+                  <label class="ap-label">Hiển thị lời giải chi tiết</label>
+                  <div class="ap-checkbox-card">
+                    <label class="ap-checkbox-label">
+                      <input type="checkbox" id="hw-show-solutions" ${isEdit ? (hw?.showSolutions !== false && hw?.show_solutions !== false ? 'checked' : '') : ''} class="ap-checkbox">
+                      <span>Hiển thị đáp án & giải thích sau khi nộp</span>
+                    </label>
+                    <span class="ap-checkbox-hint">Nếu chọn thì khi nộp bài sẽ hiển thị đáp án và giải thích, nếu ẩn thì chỉ hiển thị đúng/sai.</span>
+                  </div>
+                </div>
+
+                <!-- Deadline Row -->
+                <div class="ap-field-group ap-field-span2">
+                  <div class="ap-deadline-header">
+                    <label class="ap-label"><i class="fa-regular fa-calendar-days"></i> Hạn chót nộp bài (Deadline 24h)</label>
+                    <span class="ap-field-hint">(Không bắt buộc)</span>
+                  </div>
+                  <div class="ap-deadline-inputs">
+                    <input type="date" id="hw-deadline-date" class="form-input ap-input" value="${deadlineDateVal}" title="Chọn ngày hết hạn">
+                    <div class="ap-time-group">
+                      <select id="hw-deadline-hour" class="form-input ap-select-time" title="Chọn giờ (00 - 23)">
+                        ${Array.from({ length: 24 }, (_, i) => {
+                          const val = String(i).padStart(2, '0')
+                          return `<option value="${val}" ${val === deadlineHourVal ? 'selected' : ''}>${val}h</option>`
+                        }).join('')}
+                      </select>
+                      <span class="ap-time-colon">:</span>
+                      <select id="hw-deadline-minute" class="form-input ap-select-time" title="Chọn phút (00 - 59)">
+                        ${Array.from({ length: 60 }, (_, i) => {
+                          const val = String(i).padStart(2, '0')
+                          return `<option value="${val}" ${val === deadlineMinuteVal ? 'selected' : ''}>${val}p</option>`
+                        }).join('')}
+                      </select>
+                    </div>
+                    <button type="button" id="hw-deadline-clear-btn" class="ap-btn-clear-deadline" title="Xóa hạn chót">
+                      <i class="fa-solid fa-xmark"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- BƯỚC 5: GIAO LỚP & HOÀN TẤT -->
+            <div class="ap-step-panel" data-step-panel="5">
+              <div class="ap-step-panel-header">
+                <h2 class="ap-step-heading">Bước 5: Giao cho học sinh & Xuất bản</h2>
+                <p class="ap-step-desc">Kiểm tra thông tin lần cuối trước khi thông báo tới học sinh trong lớp</p>
+              </div>
+
+              <div class="card ap-panel-card ap-assign-card">
+                <div class="ap-card-header">
+                  <h3 class="ap-card-title"><i class="fa-solid fa-user-check"></i> Giao riêng cho học sinh (tùy chọn)</h3>
+                  <span id="assign-selected-count" class="ap-selected-count"></span>
+                </div>
+                <p class="ap-card-desc">Không chọn ai = cả lớp đều thấy bài này. Tick chọn để chỉ các em được chọn mới thấy và làm bài.</p>
+                <div class="ap-assign-actions">
+                  <button type="button" id="btn-assign-select-all" class="ap-btn-text">Chọn tất cả</button>
+                  <span class="ap-sep">|</span>
+                  <button type="button" id="btn-assign-deselect-all" class="ap-btn-text">Bỏ chọn</button>
+                </div>
+                <div id="assign-students-list" class="ap-assign-list">
+                  Chọn lớp học ở Bước 1 để tải danh sách học sinh...
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Sticky Bottom Footer (Mochi Pro) -->
+          <div class="ap-hw-sticky-footer">
+            <div class="ap-footer-left">
+              <a href="#homework-mgmt" class="btn-secondary ap-btn-footer-cancel">Hủy bỏ</a>
+              <button type="button" class="btn-secondary ap-btn-footer-prev" id="btn-hw-prev-step">
+                <i class="fa-solid fa-arrow-left"></i> Bước trước
+              </button>
+            </div>
+            <div class="ap-footer-center">
+              <span class="ap-step-indicator">Bước <strong id="current-step-display">1</strong> / 5</span>
+            </div>
+            <div class="ap-footer-right">
+              <button type="button" class="btn-primary ap-btn-footer-next" id="btn-hw-next-step">
+                Tiếp tục <i class="fa-solid fa-arrow-right"></i>
+              </button>
+              <button class="btn-primary ap-btn-footer-save" id="save-homework-btn">
+                <i class="fa-solid fa-cloud-arrow-up"></i> ${isEdit ? 'Cập nhật bài tập' : 'Lưu bài tập'}
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -2955,4 +3311,67 @@ function bindMatrixEvents() {
       saAnswers[index] = e.target.value
     })
   })
+
+  // Pro mode stepper navigation (5 bước rõ ràng như prototype)
+  if (isAdminProUI()) {
+    const stepperBar = document.getElementById('hw-stepper-bar')
+    if (stepperBar) {
+      let currentStep = 1
+      const stepButtons = document.querySelectorAll('.ap-step-btn')
+      const stepPanels = document.querySelectorAll('.ap-step-panel')
+      const prevBtn = document.getElementById('btn-hw-prev-step')
+      const nextBtn = document.getElementById('btn-hw-next-step')
+      const stepDisplay = document.getElementById('current-step-display')
+
+      const setStep = (newStep) => {
+        currentStep = Math.max(1, Math.min(5, newStep))
+        if (stepDisplay) stepDisplay.textContent = String(currentStep)
+
+        stepButtons.forEach(btn => {
+          const stepNum = parseInt(btn.getAttribute('data-step'), 10)
+          btn.classList.toggle('active', stepNum === currentStep)
+          btn.classList.toggle('completed', stepNum < currentStep)
+        })
+
+        stepPanels.forEach(panel => {
+          const panelNum = parseInt(panel.getAttribute('data-step-panel'), 10)
+          panel.classList.toggle('active', panelNum === currentStep)
+        })
+
+        if (prevBtn) {
+          prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible'
+        }
+        if (nextBtn) {
+          nextBtn.style.display = currentStep === 5 ? 'none' : 'inline-flex'
+        }
+
+        if (currentStep === 2) {
+          const previewEl = document.getElementById('interactive-preview-container')
+          if (previewEl && typeof renderMath === 'function') {
+            renderMath(previewEl)
+          }
+        }
+
+        if (currentStep === 3) {
+          renderHwQuestionMap()
+        }
+
+        if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+      }
+
+      stepButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const stepNum = parseInt(btn.getAttribute('data-step'), 10)
+          if (!isNaN(stepNum)) setStep(stepNum)
+        })
+      })
+
+      prevBtn?.addEventListener('click', () => setStep(currentStep - 1))
+      nextBtn?.addEventListener('click', () => setStep(currentStep + 1))
+
+      setStep(1)
+    }
+  }
 }

@@ -1,0 +1,815 @@
+/* ==========================================================================
+   Admin Pro — Operations (Học thử, Lịch tuần, Khối lớp, Báo cáo tiến độ)
+   Mọi rule bắt buộc có tiền tố html[data-admin-ui="pro"]
+   Sử dụng toàn bộ token chuẩn --ap-* (hỗ trợ cả theme Sáng và Tối)
+   ========================================================================== */
+
+/* 1. Typography & Khung chung */
+html[data-admin-ui="pro"] :is(
+  .ap-page-title,
+  .ap-section-title,
+  .ap-kpi-val,
+  .ap-modal-title,
+  #student-report .report-hero-title,
+  #weekly-calendar .page-header h1,
+  #trial-management .page-header .page-title,
+  #grade-blocks .page-header .page-title
+) {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+}
+
+/* 2. Style chung cho các thẻ Card Admin Pro */
+html[data-admin-ui="pro"] :is(
+  #trial-management .card,
+  #weekly-calendar[data-role="ADMIN"] .navy-hero,
+  #weekly-calendar[data-role="ADMIN"] .wc-toolbar,
+  #weekly-calendar[data-role="ADMIN"] .wc-day,
+  #grade-blocks .card,
+  #student-report[data-role="ADMIN"] .report-hero,
+  #student-report[data-role="ADMIN"] .report-section,
+  #student-report[data-role="ADMIN"] .report-kpi,
+  #student-report[data-role="ADMIN"] .report-trend-block,
+  #student-report[data-role="ADMIN"] .report-share-panel
+) {
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  box-sizing: border-box;
+}
+
+/* 3. Nút bấm chuẩn Pro */
+html[data-admin-ui="pro"] :is(
+  .btn-primary,
+  #open-create-block-modal-btn,
+  #btn-trial-publish,
+  #share-create-btn,
+  #btn-trial-retry
+) {
+  min-height: 44px;
+  padding: 0 18px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 14px !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font, 'Nunito', system-ui, sans-serif) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  text-decoration: none;
+}
+
+html[data-admin-ui="pro"] :is(
+  .btn-primary,
+  #open-create-block-modal-btn,
+  #btn-trial-publish,
+  #share-create-btn,
+  #btn-trial-retry
+):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] :is(
+  .btn-primary,
+  #open-create-block-modal-btn,
+  #btn-trial-publish,
+  #share-create-btn,
+  #btn-trial-retry
+):active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] :is(
+  .btn-secondary,
+  #refresh-grade-blocks-btn,
+  #btn-trial-reset-filters-top,
+  #btn-trial-reset-filters,
+  #wc-prev,
+  #wc-today,
+  #wc-next,
+  #wc-export,
+  #wc-retry,
+  #share-copy-btn,
+  #share-qr-download-btn,
+  .trial-row-action
+) {
+  min-height: 42px;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font, 'Nunito', system-ui, sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  box-shadow: none !important;
+  text-decoration: none;
+}
+
+html[data-admin-ui="pro"] :is(
+  .btn-secondary,
+  #refresh-grade-blocks-btn,
+  #btn-trial-reset-filters-top,
+  #btn-trial-reset-filters,
+  #wc-prev,
+  #wc-today,
+  #wc-next,
+  #wc-export,
+  #wc-retry,
+  #share-copy-btn,
+  #share-qr-download-btn,
+  .trial-row-action
+):hover {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-surface2) !important;
+  transform: translateY(-1px);
+}
+
+html[data-admin-ui="pro"] :is(
+  .btn-secondary,
+  #refresh-grade-blocks-btn,
+  #btn-trial-reset-filters-top,
+  #btn-trial-reset-filters,
+  #wc-prev,
+  #wc-today,
+  #wc-next,
+  #wc-export,
+  #wc-retry,
+  #share-copy-btn,
+  #share-qr-download-btn,
+  .trial-row-action
+):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+  border-color: var(--ap-line) !important;
+}
+
+/* Các trường input, select */
+html[data-admin-ui="pro"] :is(
+  input[type="text"],
+  input[type="search"],
+  input[type="url"],
+  input[type="date"],
+  select,
+  textarea
+) {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  font-family: var(--ap-font, 'Nunito', system-ui, sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  padding: 8px 12px !important;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] :is(
+  input[type="text"],
+  input[type="search"],
+  input[type="url"],
+  input[type="date"],
+  select,
+  textarea
+):focus {
+  border-color: var(--ap-accent) !important;
+}
+
+/* Bảng dữ liệu chung */
+html[data-admin-ui="pro"] :is(.data-table, .report-table) {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--ap-ink) !important;
+  background: transparent !important;
+}
+
+html[data-admin-ui="pro"] :is(.data-table, .report-table) th {
+  padding: 14px 12px !important;
+  text-align: left;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  color: var(--ap-muted) !important;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+}
+
+html[data-admin-ui="pro"] :is(.data-table, .report-table) td {
+  padding: 14px 12px !important;
+  border-top: 1px solid var(--ap-line) !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  color: var(--ap-ink) !important;
+  font-size: 14px !important;
+}
+
+html[data-admin-ui="pro"] :is(.data-table, .report-table) tr:hover td {
+  background: var(--ap-surface2) !important;
+}
+
+/* ==========================================================================
+   4. HỌC THỬ (#trial-management)
+   ========================================================================== */
+html[data-admin-ui="pro"] #trial-management .page-header {
+  margin-bottom: 20px;
+}
+
+html[data-admin-ui="pro"] #trial-management .page-title {
+  margin: 0 0 6px 0;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #trial-management .page-description {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+/* KPIs Học thử */
+html[data-admin-ui="pro"] #trial-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+html[data-admin-ui="pro"] #trial-kpis .card {
+  padding: 18px 20px !important;
+}
+
+html[data-admin-ui="pro"] #trial-kpis .card > div:first-child {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #trial-kpis .card > div:last-child {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin-top: 6px;
+}
+
+/* Thanh lọc học thử */
+html[data-admin-ui="pro"] #trial-management .trial-filter-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-filter-bar label {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin-bottom: 6px !important;
+}
+
+html[data-admin-ui="pro"] #trial-count {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: var(--ap-muted) !important;
+  margin-top: 14px !important;
+}
+
+/* Bảng học thử */
+html[data-admin-ui="pro"] #trial-management .trial-row-highlight {
+  background: var(--ap-accent-soft) !important;
+}
+
+/* ==========================================================================
+   5. LỊCH TUẦN ADMIN (#weekly-calendar[data-role="ADMIN"])
+   ========================================================================== */
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] #weekly-calendar-root .navy-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 24px 28px !important;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] #weekly-calendar-root .navy-hero h1 {
+  margin: 0;
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  line-height: 1.15;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] #weekly-calendar-root .navy-hero p {
+  margin: 6px 0 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ap-muted) !important;
+}
+
+/* Toolbar lịch tuần */
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-toolbar {
+  padding: 16px 20px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 16px 0 !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] #wc-range {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+/* Ghi chú quy định */
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-note {
+  padding: 12px 18px !important;
+  border-radius: 16px !important;
+  background: var(--ap-blue-soft) !important;
+  border: 2px solid var(--ap-blue) !important;
+  color: var(--ap-blue) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.5;
+  margin: 12px 0 !important;
+}
+
+/* Lưới 7 ngày */
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-day {
+  padding: 16px 14px !important;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-day h3 {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-day[aria-current="date"] {
+  border-color: var(--ap-accent) !important;
+  box-shadow: 0 4px 0 var(--ap-accent-soft) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-event {
+  border: 2px solid var(--ap-line) !important;
+  border-left: 4px solid var(--ap-accent) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  padding: 10px !important;
+  margin-bottom: 10px;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-event.session {
+  border-left-color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-meta {
+  color: var(--ap-muted) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+/* Khối Meet */
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] section[aria-labelledby="wc-meet-heading"] {
+  padding: 22px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 22px !important;
+  background: var(--ap-surface) !important;
+  box-shadow: 0 4px 0 var(--ap-block) !important;
+  margin-top: 24px;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] #wc-meet-heading {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin: 0 0 4px 0;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-meet-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 14px;
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0 0;
+}
+
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-meet-list li {
+  padding: 16px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 16px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+}
+
+/* ==========================================================================
+   6. KHỐI LỚP (#grade-blocks)
+   ========================================================================== */
+html[data-admin-ui="pro"] #grade-blocks .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .page-title {
+  margin: 0 0 6px 0;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #grade-blocks .page-description {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+/* KPIs Khối lớp (3 thẻ) */
+html[data-admin-ui="pro"] #grade-blocks .grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .grid-3 .card {
+  padding: 18px 20px !important;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-left: 4px solid var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .grid-3 .card:nth-child(2) {
+  border-left-color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .grid-3 .card:nth-child(3) {
+  border-left-color: var(--ap-accent2) !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .grid-3 .card .fa-solid {
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .grid-3 .card div[style*="font-size:24px"] {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .grid-3 .card div[style*="font-size:13px"] {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: var(--ap-muted) !important;
+}
+
+/* Nút icon sửa/xóa trong bảng khối */
+html[data-admin-ui="pro"] #grade-blocks .btn-action-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--ap-line) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .btn-edit-grade-block {
+  color: var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .btn-delete-grade-block {
+  color: var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .btn-action-icon:hover {
+  border-color: var(--ap-ink) !important;
+  background: var(--ap-surface2) !important;
+}
+
+/* ==========================================================================
+   7. BÁO CÁO TIẾN ĐỘ ADMIN (#student-report[data-role="ADMIN"])
+   ========================================================================== */
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-hero {
+  padding: 24px 28px !important;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-hero-title {
+  margin: 0 0 6px 0;
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-hero-badge {
+  padding: 6px 16px !important;
+  border-radius: 999px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  border: 2px solid var(--ap-ok) !important;
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-section {
+  padding: 22px 24px !important;
+  margin-bottom: 20px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-section-title {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* KPIs Báo cáo tiến độ (4 cột x 2 hàng) */
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi {
+  padding: 16px 18px !important;
+  box-shadow: none !important;
+  background: var(--ap-surface2) !important;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-label {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  color: var(--ap-muted) !important;
+  margin: 0 0 6px 0;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-value {
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: var(--ap-ink) !important;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-sub {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--ap-muted) !important;
+  margin: 0;
+}
+
+/* Biểu đồ xu hướng điểm */
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-chart-wrap {
+  position: relative;
+  height: 320px;
+  width: 100%;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-chart-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ap-muted);
+  margin-bottom: 14px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-chart-note {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ap-muted);
+  margin-top: 12px;
+}
+
+/* Panel Chia sẻ cho phụ huynh */
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-share-panel {
+  border-color: var(--ap-accent2) !important;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-share-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-share-link-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-share-link-input {
+  flex: 1 1 260px;
+  min-height: 44px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-share-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0 0;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-share-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--ap-line);
+}
+
+/* Progress bar theo chương */
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-topic-row {
+  margin-bottom: 16px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-topic-bar-track {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--ap-surface2) !important;
+  overflow: hidden;
+  margin: 6px 0;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-topic-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-topic-bar-track--good .report-topic-bar {
+  background: var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-topic-bar-track--weak .report-topic-bar {
+  background: var(--ap-warn) !important;
+}
+
+/* Badges kết quả */
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-badge--pass {
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-badge--fail {
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-badge--best {
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+/* ==========================================================================
+   8. RESPONSIVE BREAKPOINTS (≥1280, 901–1279, ≤900, ≤640)
+   ========================================================================== */
+
+/* Tablet ngang & laptop nhỏ (901px – 1279px) */
+@media (max-width: 1279px) {
+  html[data-admin-ui="pro"] #trial-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Tablet dọc & điện thoại lớn (≤900px) */
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] #grade-blocks .grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  html[data-admin-ui="pro"] :is(.table-responsive, .report-table-responsive) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Điện thoại di động (≤640px) */
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] #trial-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  html[data-admin-ui="pro"] :is(.page-header, .navy-hero, .report-hero) {
+    padding: 16px !important;
+  }
+
+  html[data-admin-ui="pro"] :is(.page-title, .report-hero-title) {
+    font-size: 24px !important;
+  }
+}

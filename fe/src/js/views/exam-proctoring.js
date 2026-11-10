@@ -76,7 +76,7 @@ function logTable(logs) {
     <tbody>${logs.map(logRow).join('')}</tbody></table></div>`
 }
 
-export function renderExamProctoringView() {
+export function renderClassicExamProctoringView() {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '')
   currentHomeworkId = params.get('homeworkId')
   currentHomeworkData = null
@@ -91,11 +91,22 @@ export function renderExamProctoringView() {
   activeTab = 'sessions'
   requestVersion++
   detailVersion++
-  const proUI = typeof isAdminProUI === 'function' ? isAdminProUI() : false
-  return `<div class="app-layout${proUI ? ' admin-dark" id="exam-proctoring" data-route="exam-proctoring" data-role="ADMIN' : ''}">${renderSidebar('homework-mgmt')}<div class="main-content">${renderNavbar()}
+  return `<div class="app-layout">${renderSidebar('homework-mgmt')}<div class="main-content">${renderNavbar()}
     <div class="content-container" style="max-width:1240px;margin:0 auto;padding:24px 20px">
       <div id="proctoring-mount" aria-live="polite">Đang tải dữ liệu giám sát...</div>
     </div></div></div>`
+}
+
+export function renderProExamProctoringView() {
+  const classic = renderClassicExamProctoringView()
+  return classic
+    .replace('<div class="app-layout">', '<div class="app-layout admin-dark" id="exam-proctoring" data-route="exam-proctoring" data-role="ADMIN">')
+    .replace('<div class="content-container" style="max-width:1240px;margin:0 auto;padding:24px 20px">', '<div class="content-container ap-proctor-page">')
+}
+
+export function renderExamProctoringView() {
+  const isPro = typeof isAdminProUI === 'function' ? isAdminProUI() : false
+  return isPro ? renderProExamProctoringView() : renderClassicExamProctoringView()
 }
 
 async function fetchProctoringData(isSilent = false) {
@@ -165,6 +176,11 @@ function renderProctoringContent() {
   const matching = (profile, extra = '') => `${profile?.full_name || ''} ${profile?.username || ''} ${extra}`.toLocaleLowerCase('vi-VN').includes(q)
   const filteredSessions = sessionsList.filter(s => matching(s.profiles, `${s.student_id || ''} ${s.id || ''}`))
   const filteredLogs = logsList.filter(l => matching(l.profiles, `${l.action || ''} ${l.student_id || ''} ${l.session_id || ''}`))
+  if (typeof isAdminProUI === 'function' && isAdminProUI()) {
+    mount.innerHTML = renderProProctoringContent({ hw, now, online, disconnected, submitted, filteredSessions, filteredLogs })
+    bindProctoringDynamicEvents()
+    return
+  }
   mount.innerHTML = `
     <header style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px">
       <div><a href="#homework-mgmt" class="btn-secondary" style="display:inline-block;padding:6px 12px;margin-bottom:10px">← Quay lại</a>
@@ -203,6 +219,32 @@ function renderProctoringContent() {
       `}
     </section>`
   bindProctoringDynamicEvents()
+}
+
+function proctorStatusChip(session, now) {
+  const signal = sessionSignal(session, now)
+  if (session.status === 'SUBMITTED') return '<span class="ap-grade-chip is-ok">Đã nộp</span>'
+  if (signal.startsWith('Mất')) return '<span class="ap-grade-chip is-warn">Mất tín hiệu</span>'
+  if (session.status === 'ACTIVE') return '<span class="ap-grade-chip is-ok">Đang làm bài</span>'
+  return `<span class="ap-grade-chip">${escapeHTML(session.status || 'Không rõ')}</span>`
+}
+
+function renderProProctoringContent({ hw, now, online, disconnected, submitted, filteredSessions, filteredLogs }) {
+  const errors = [
+    !currentHomeworkId && 'Thiếu mã bài thi. Vui lòng quay lại danh sách bài tập.',
+    homeworkError && 'Không tải được thông tin bài thi.',
+    sessionsError && `Không tải được phiên trang ${sessionsPage}; số liệu có thể đã cũ.`,
+    logsError && `Không tải được nhật ký trang ${logsPage}; dữ liệu có thể đã cũ.`
+  ].filter(Boolean)
+  return `<div class="ap-proctor-content">
+    <header class="ap-grade-heading"><div><a href="#homework-mgmt" class="ap-grade-back"><i class="fa-solid fa-arrow-left"></i> Quay lại bài tập</a><p>Khảo thí &amp; Giám sát</p><h1>${escapeHTML(hw.title || 'Giám sát phòng thi')}</h1><span>Thời lượng: ${escapeHTML(hw.durationMinutes ?? hw.duration_minutes ?? 'Không rõ')} phút · Ngưỡng cấu hình: ${escapeHTML(hw.maxViolations ?? hw.max_violations ?? 'Không rõ')} lần</span></div><div class="ap-proctor-controls"><label><input type="checkbox" id="proctor-auto-refresh" ${isAutoRefresh ? 'checked' : ''}> Tự động cập nhật (5s)</label><button type="button" id="proctor-refresh-now" class="btn-secondary"><i class="fa-solid fa-rotate"></i> Làm mới</button></div></header>
+    ${errors.map(message => `<p class="ap-grade-alert" role="alert">${escapeHTML(message)}</p>`).join('')}
+    <p class="ap-proctor-updated">Phiên trang ${sessionsPage}: ${lastSessionsRefresh ? formatDate(lastSessionsRefresh) : 'Chưa tải'} · Nhật ký trang ${logsPage}: ${lastLogsRefresh ? formatDate(lastLogsRefresh) : 'Chưa tải'}</p>
+    <section class="ap-grade-kpis" aria-label="Chỉ số phòng thi">${[['Có tín hiệu', sessionsLoaded ? online : '—', 'is-ok'], ['Mất tín hiệu', sessionsLoaded ? disconnected : '—', 'is-warn'], ['Đã nộp', sessionsLoaded ? submitted : '—', 'is-accent'], ['Sự kiện trang này', logsLoaded ? logsList.length : '—', 'is-blue']].map(([label, value, tone]) => `<article class="${tone}"><span>${label}</span><strong>${value}</strong></article>`).join('')}</section>
+    <section class="ap-proctor-board"><div class="ap-proctor-tabs"><button type="button" id="tab-btn-sessions" class="btn-secondary" aria-pressed="${activeTab === 'sessions'}">Phiên thi · trang ${sessionsPage} (${sessionsLoaded ? sessionsList.length : '—'})</button><button type="button" id="tab-btn-logs" class="btn-secondary" aria-pressed="${activeTab === 'logs'}">Nhật ký · trang ${logsPage}</button><label>Tìm trong trang<input type="search" id="proctor-search" value="${escapeHTML(searchQuery)}" placeholder="Tên, tài khoản, sự kiện…"></label></div>
+      ${activeTab === 'sessions' ? `<p class="ap-proctor-note">Tìm kiếm và KPI chỉ áp dụng cho tối đa ${PAGE_SIZE} phiên ở trang hiện tại. Dữ liệu tín hiệu không tự kết luận gian lận.</p>${!sessionsLoaded ? '<div class="ap-grade-state"><strong>Chưa tải được phiên trang này.</strong></div>' : !filteredSessions.length ? '<div class="ap-grade-state"><strong>Không có phiên phù hợp trong trang này.</strong></div>' : `<div class="table-responsive"><table><thead><tr><th>Thí sinh</th><th>Trạng thái</th><th>Tín hiệu</th><th>Bắt đầu</th><th>Nhật ký</th></tr></thead><tbody>${filteredSessions.map(session => `<tr><td><strong>${displayName(session.profiles)}</strong><small>@${escapeHTML(session.profiles?.username || session.student_id || 'Không rõ')}</small></td><td>${proctorStatusChip(session, now)}</td><td><span class="ap-grade-chip ${sessionSignal(session, now).startsWith('Có') ? 'is-ok' : sessionSignal(session, now).startsWith('Mất') ? 'is-warn' : ''}">${sessionSignal(session, now)}</span></td><td>${formatDate(session.created_at)}</td><td><button type="button" class="btn-secondary view-session-logs-btn" data-session-id="${escapeHTML(session.id)}">Xem phiên</button></td></tr>`).join('')}</tbody></table></div>`}<div class="ap-grade-pager"><button type="button" id="sessions-prev" class="btn-secondary" ${sessionsPage <= 1 ? 'disabled' : ''}>Trang trước</button><span>Trang phiên ${sessionsPage}</span><button type="button" id="sessions-next" class="btn-secondary" ${!sessionsLoaded || sessionsList.length < PAGE_SIZE || sessionsPage >= 10000 ? 'disabled' : ''}>Trang sau</button></div>` : `<p class="ap-proctor-note">Tối đa ${PAGE_SIZE} sự kiện/trang, mới nhất trước. Sự kiện không gắn phiên là chưa xác minh.</p>${!logsLoaded ? '<div class="ap-grade-state"><strong>Chưa tải được nhật ký.</strong></div>' : !filteredLogs.length ? '<div class="ap-grade-state"><strong>Không có sự kiện phù hợp.</strong></div>' : logTable(filteredLogs)}<div class="ap-grade-pager"><button type="button" id="logs-prev" class="btn-secondary" ${logsPage <= 1 ? 'disabled' : ''}>Trang trước</button><span>Trang ${logsPage}</span><button type="button" id="logs-next" class="btn-secondary" ${!logsLoaded || logsList.length < PAGE_SIZE || logsPage >= 10000 ? 'disabled' : ''}>Trang sau</button></div>`}
+    </section>
+  </div>`
 }
 
 function showSessionDetail(session) {

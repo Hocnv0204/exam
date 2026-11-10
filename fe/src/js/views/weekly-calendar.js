@@ -1,6 +1,6 @@
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/weekly-calendar.css')
-  import('../../css/admin-pro/pages/students.css')
+  import('../../css/admin-pro/pages/ops.css')
 }
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import mascotUrl from '../../assets/mascot-study.svg'
@@ -133,8 +133,91 @@ export function renderMochiWeeklyCalendarView() {
     </div>`
 }
 
+export function renderProWeeklyCalendarView() {
+  return `
+    <div class="app-layout navy-student admin-dark" id="weekly-calendar" data-route="weekly-calendar" data-role="ADMIN">
+      ${renderSidebar('weekly-calendar')}
+      <div class="main-content">
+        ${renderNavbar('Học tập / Lịch tuần')}
+        <div class="content-body" id="weekly-calendar-root" style="padding-top:20px;">
+          <section class="page-header" style="display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px;">
+            <div>
+              <p style="margin:0 0 4px; color:var(--ap-muted); font-weight:700; font-size:13px;">Giờ Việt Nam (UTC+07:00, Asia/Ho_Chi_Minh)</p>
+              <h1 class="page-title" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:34px; font-weight:800; line-height:1.15; color:var(--ap-ink);">Lịch tuần đào tạo</h1>
+              <p class="page-description" style="margin:6px 0 0 0; color:var(--ap-muted); font-size:15px; font-weight:700;">Ngày học đã lưu và hạn nộp bài theo tuần của các lớp học</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="btn-secondary" id="wc-export" disabled style="min-height:44px; padding:0 18px; border:2px solid var(--ap-line); border-radius:14px; background:var(--ap-surface); color:var(--ap-ink); font-weight:800; display:inline-flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-download"></i> Xuất lịch .ics
+              </button>
+              <a href="#homework-mgmt" class="btn-primary" style="min-height:44px; padding:0 18px; border:2px solid var(--ap-ink); border-radius:14px; background:var(--ap-accent); color:var(--ap-accent-ink); font-weight:800; box-shadow:0 4px 0 var(--ap-block); text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-plus"></i> Giao bài tập
+              </a>
+            </div>
+          </section>
+
+          <!-- Toolbar điều hướng và lọc -->
+          <section class="wc-toolbar" role="group" aria-label="Điều hướng tuần và lọc lớp" style="padding:16px 20px; border:2px solid var(--ap-line); border-radius:20px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:16px 0;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn-secondary" id="wc-prev" aria-label="Tuần trước" style="min-height:42px; padding:0 14px; border:2px solid var(--ap-line); border-radius:12px; background:var(--ap-surface2); color:var(--ap-ink); font-weight:800; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-chevron-left"></i> Tuần trước
+              </button>
+              <button type="button" class="btn-secondary" id="wc-today" style="min-height:42px; padding:0 16px; border:2px solid var(--ap-ink); border-radius:12px; background:var(--ap-accent); color:var(--ap-accent-ink); font-weight:800; box-shadow:0 3px 0 var(--ap-block);">
+                Tuần này
+              </button>
+              <button type="button" class="btn-secondary" id="wc-next" aria-label="Tuần sau" style="min-height:42px; padding:0 14px; border:2px solid var(--ap-line); border-radius:12px; background:var(--ap-surface2); color:var(--ap-ink); font-weight:800; display:inline-flex; align-items:center; gap:6px;">
+                Tuần sau <i class="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <h2 id="wc-range" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:18px; font-weight:800; color:var(--ap-ink);"></h2>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <label for="wc-class" style="font-size:13px; font-weight:800; color:var(--ap-muted);">Lớp học:</label>
+              <select id="wc-class" style="min-height:42px; padding:0 12px; border:2px solid var(--ap-line); border-radius:12px; background:var(--ap-surface2); color:var(--ap-ink); font-weight:700;">
+                <option value="">Tất cả lớp</option>
+              </select>
+            </div>
+          </section>
+
+          <!-- Chú thích quy định -->
+          <div class="wc-note" style="padding:12px 18px; border-radius:16px; background:var(--ap-blue-soft); border:2px solid var(--ap-blue); color:var(--ap-blue); font-size:13px; font-weight:700; display:flex; align-items:center; gap:10px; margin:14px 0;">
+            <i class="fa-solid fa-circle-info" style="font-size:18px; flex-shrink:0;"></i>
+            <span>Ngày học là dữ liệu điểm danh đã lưu trên hệ thống. Link Meet theo bài học không phải lịch hẹn tự động. Lịch tuần dùng để theo dõi tiến độ tổng thể.</span>
+          </div>
+
+          <p id="wc-status" role="status" aria-live="polite" style="font-size:13px; font-weight:700; color:var(--ap-muted); margin:8px 0;"></p>
+          <div id="wc-content" aria-busy="true"></div>
+
+          <!-- Khối Link Meet theo bài học, chưa xếp giờ -->
+          <section aria-labelledby="wc-meet-heading" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); display:flex; flex-direction:column; gap:16px; margin-top:24px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="width:32px; height:32px; border-radius:10px; background:var(--ap-ok-soft); color:var(--ap-ok); display:inline-flex; align-items:center; justify-content:center;">
+                  <i class="fa-solid fa-video"></i>
+                </span>
+                <h2 id="wc-meet-heading" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:22px; font-weight:800; color:var(--ap-ink);">Link Meet theo bài học, chưa xếp giờ</h2>
+              </div>
+              <p class="wc-meta" style="margin:4px 0 0; color:var(--ap-muted); font-size:14px; font-weight:700;">Danh sách link phòng học Google Meet gắn trực tiếp vào từng bài học. Không phụ thuộc vào tuần đang chọn.</p>
+            </div>
+            <div id="wc-meet-content"></div>
+          </section>
+        </div>
+      </div>
+    </div>`
+}
+
 export function renderWeeklyCalendarView() {
-  return isMochiMode() ? renderMochiWeeklyCalendarView() : renderClassicWeeklyCalendarView()
+  if (isMochiMode()) return renderMochiWeeklyCalendarView()
+  if (state.user?.role === 'ADMIN' && typeof isAdminProUI === 'function' && isAdminProUI()) {
+    if (typeof document !== 'undefined' && typeof document.documentElement?.getAttribute !== 'function') {
+      return renderClassicWeeklyCalendarView()
+    }
+    return renderProWeeklyCalendarView()
+  }
+  return renderClassicWeeklyCalendarView()
 }
 
 function dayLabel(day, includeYear = false) {

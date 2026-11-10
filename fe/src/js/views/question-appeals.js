@@ -167,10 +167,9 @@ export function bindReviewQuestionAppeals(root, submissionId, client = api, sess
   void load()
 }
 
-export function renderQuestionAppealsView() {
+export function renderClassicQuestionAppealsView() {
   if (!state.token || state.user?.role !== 'ADMIN') return '<div class="content-body">Bạn không có quyền xem hộp thư này.</div>'
-  const proUI = isAdminProUI()
-  return `<div class="app-layout${proUI ? ' admin-dark" id="question-appeals" data-route="question-appeals" data-role="ADMIN' : ''}">${renderSidebar('question-appeals')}<div class="main-content">
+  return `<div class="app-layout">${renderSidebar('question-appeals')}<div class="main-content">
     ${renderNavbar('Quản trị / Hỏi về câu đã nộp')}
     <div class="content-body" id="question-appeals-view">
       <div class="page-header"><div><h1 class="page-title">Hỏi về câu đã nộp</h1><p class="page-description">Phản hồi cho học sinh; thao tác tại đây không thay đổi điểm.</p></div></div>
@@ -185,6 +184,27 @@ export function renderQuestionAppealsView() {
         <button type="button" data-inbox-page="-1" class="btn-secondary">Trước</button><span id="appeal-inbox-page"></span><button type="button" data-inbox-page="1" class="btn-secondary">Sau</button>
       </div>
     </div></div></div>`
+}
+
+export function renderProQuestionAppealsView() {
+  if (!state.token || state.user?.role !== 'ADMIN') return '<div class="content-body">Bạn không có quyền xem hộp thư này.</div>'
+  return `<div class="app-layout admin-dark" id="question-appeals" data-route="question-appeals" data-role="ADMIN">${renderSidebar('question-appeals')}<div class="main-content">
+    ${renderNavbar('Quản trị / Hỏi về câu đã nộp')}
+    <div class="content-body" id="question-appeals-view">
+      <header class="ap-grade-heading"><div><p>Khảo thí &amp; Chấm thi</p><h1>Hộp thư phúc khảo</h1><span>Đọc câu hỏi, đối chiếu bài nộp và phản hồi học sinh. Phản hồi không tự động thay đổi điểm.</span></div></header>
+      <form id="appeal-filters" class="ap-grade-toolbar">
+        <label>Trạng thái<select name="status"><option value="OPEN">Chờ phản hồi</option><option value="ANSWERED">Đã phản hồi</option><option value="CLOSED">Đã đóng</option><option value="">Tất cả</option></select></label>
+        <label>Mã lớp<input name="classId" placeholder="UUID lớp (tùy chọn)"></label>
+        <label>Mã học sinh<input name="studentId" placeholder="UUID học sinh (tùy chọn)"></label>
+        <button type="submit" class="btn-primary">Lọc / Tải lại</button>
+      </form>
+      <p id="appeal-inbox-error" class="ap-grade-alert" role="alert"></p>
+      <section class="ap-appeal-inbox" aria-label="Hộp thư phúc khảo"><aside><div class="ap-appeal-inbox-title"><h2>Danh sách thư</h2><span id="appeal-inbox-page"></span></div><div id="appeal-inbox-list" aria-live="polite"><p role="status">Đang tải hộp thư…</p></div><div class="ap-grade-pager"><button type="button" data-inbox-page="-1" class="btn-secondary">Trước</button><button type="button" data-inbox-page="1" class="btn-secondary">Sau</button></div></aside><div id="appeal-inbox-detail" class="ap-appeal-detail"><div class="ap-grade-state"><i class="fa-regular fa-envelope-open"></i><strong>Chọn một thư để xem chi tiết</strong></div></div></section>
+    </div></div></div>`
+}
+
+export function renderQuestionAppealsView() {
+  return isAdminProUI() ? renderProQuestionAppealsView() : renderClassicQuestionAppealsView()
 }
 
 export function renderAdminAppealCard(item) {
@@ -205,6 +225,21 @@ export function renderAdminAppealCard(item) {
   </article>`
 }
 
+function appealReviewLink(item) {
+  return UUID.test(item.submissionId || '') && Number.isInteger(Number(item.questionNumber)) && Number(item.questionNumber) > 0
+    ? `#assignment-review?submissionId=${encodeURIComponent(item.submissionId)}&questionNumber=${Number(item.questionNumber)}&from=question-appeals`
+    : ''
+}
+
+function renderProAppealSummary(item, selected = false) {
+  return `<button type="button" class="ap-appeal-summary ${selected ? 'is-selected' : ''}" data-inbox-select="${esc(item.id)}" aria-pressed="${selected}"><span><strong>${esc(item.studentName || 'Học sinh')}</strong><small>${esc(labels[item.status] || 'Yêu cầu')}</small></span><b>${esc(item.homeworkTitle || 'Bài tập')} · Câu ${esc(item.questionNumber ?? '?')}</b><small>${esc(item.className || 'Chưa có lớp')}</small></button>`
+}
+
+function renderProAppealDetail(item) {
+  const link = appealReviewLink(item)
+  return `<article data-inbox-appeal="${esc(item.id)}"><header><div><span class="ap-grade-chip ${item.status === 'OPEN' ? 'is-warn' : 'is-ok'}">${esc(labels[item.status] || 'Yêu cầu')}</span><h2>${esc(item.studentName || 'Học sinh')}</h2><p>${esc(item.homeworkTitle || '')} · Câu ${esc(item.questionNumber ?? '?')} · ${esc(item.className || 'Chưa có lớp')}</p></div>${link ? `<a class="ap-grade-button" href="${esc(link)}">Mở bài nộp tại câu này</a>` : ''}</header><section class="ap-appeal-thread">${renderAppealThread(item, { admin: true })}</section>${item.status === 'OPEN' ? `<form data-appeal-reply><label>Phản hồi cho học sinh<textarea name="response" required maxlength="2000" rows="5" placeholder="Nhập phản hồi rõ ràng, tối đa 2000 ký tự"></textarea></label><button type="submit" class="btn-primary">Gửi phản hồi</button></form>` : ''}${item.status === 'ANSWERED' ? '<button type="button" data-appeal-close class="btn-secondary">Đóng yêu cầu</button>' : ''}<p data-appeal-row-error role="alert"></p></article>`
+}
+
 export function bindQuestionAppealsEvents(client = api, session = state) {
   bindSidebarEvents()
   const root = document.getElementById('question-appeals-view')
@@ -218,6 +253,7 @@ export function bindQuestionAppealsEvents(client = api, session = state) {
   let page = 1, total = 0, generation = 0, loading = false
   const pageSize = 20
   let items = new Map()
+  let selectedAppealId = ''
   const pending = new Set()
   let appliedFilters = { status: 'OPEN' }
   async function load() {
@@ -231,7 +267,14 @@ export function bindQuestionAppealsEvents(client = api, session = state) {
       if (!active() || generation !== ticket) return
       total = response.total
       items = new Map(response.items.map(item => [item.id, item]))
-      list.innerHTML = response.items.length ? response.items.map(renderAdminAppealCard).join('') : '<p>Không có yêu cầu phù hợp.</p>'
+      if (isAdminProUI()) {
+        selectedAppealId = response.items.some(item => item.id === selectedAppealId) ? selectedAppealId : (response.items[0]?.id || '')
+        list.innerHTML = response.items.length ? response.items.map(item => renderProAppealSummary(item, item.id === selectedAppealId)).join('') : '<div class="ap-grade-state"><strong>Không có yêu cầu phù hợp.</strong></div>'
+        const detail = root.querySelector('#appeal-inbox-detail')
+        if (detail) detail.innerHTML = selectedAppealId ? renderProAppealDetail(items.get(selectedAppealId)) : '<div class="ap-grade-state"><strong>Không có thư để hiển thị.</strong></div>'
+      } else {
+        list.innerHTML = response.items.length ? response.items.map(renderAdminAppealCard).join('') : '<p>Không có yêu cầu phù hợp.</p>'
+      }
       pageNode.textContent = `Trang ${page} · ${total} yêu cầu`
     } catch (error) {
       if (!active() || generation !== ticket) return
@@ -244,23 +287,37 @@ export function bindQuestionAppealsEvents(client = api, session = state) {
       }
     }
   }
-  filters.addEventListener('submit', event => {
-    event.preventDefault()
-    if (!active()) return
-    const next = {}
-    for (const key of ['status', 'studentId', 'classId']) {
-      const value = filters.elements[key].value.trim()
-      if (key !== 'status' && value && !UUID.test(value)) { errorNode.textContent = 'Mã lớp và mã học sinh phải là UUID hợp lệ.'; return }
-      if (value) next[key] = value
-    }
-    appliedFilters = next
-    page = 1
-    void load()
-  })
+  if (filters) {
+    filters.addEventListener('submit', event => {
+      event.preventDefault()
+      if (!active()) return
+      const next = {}
+      for (const key of ['status', 'studentId', 'classId']) {
+        const value = filters.elements?.[key]?.value?.trim?.() || ''
+        if (key !== 'status' && value && !UUID.test(value)) { errorNode.textContent = 'Mã lớp và mã học sinh phải là UUID hợp lệ.'; return }
+        if (value) next[key] = value
+      }
+      appliedFilters = next
+      page = 1
+      void load()
+    })
+  }
   root.addEventListener('click', event => {
     if (!active()) return
     const pager = event.target.closest('[data-inbox-page]')
     if (pager && !pager.disabled && !loading) { page += Number(pager.dataset.inboxPage); void load(); return }
+    const select = event.target.closest('[data-inbox-select]')
+    if (select && items.has(select.dataset.inboxSelect)) {
+      selectedAppealId = select.dataset.inboxSelect
+      list.querySelectorAll('[data-inbox-select]').forEach(button => {
+        const on = button.dataset.inboxSelect === selectedAppealId
+        button.classList.toggle('is-selected', on)
+        button.setAttribute('aria-pressed', String(on))
+      })
+      const detail = root.querySelector('#appeal-inbox-detail')
+      if (detail) detail.innerHTML = renderProAppealDetail(items.get(selectedAppealId))
+      return
+    }
     const close = event.target.closest('[data-appeal-close]')
     if (close) void write(close.closest('[data-inbox-appeal]'), 'close')
   })

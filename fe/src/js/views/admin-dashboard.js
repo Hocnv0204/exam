@@ -474,7 +474,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-export function renderAdminDashboardView() {
+export function renderClassicAdminDashboardView() {
   const overview = state.dashboard?.overview || {
     totalStudents: 0,
     totalClasses: 0,
@@ -538,7 +538,9 @@ export function renderAdminDashboardView() {
   // thuần; app.js vẫn sync lại qua eduportal:themechange mà không render lại.
   const rawRole = String(state.user?.role || 'GUEST')
   const rootRole = /^[A-Za-z_-]{1,32}$/.test(rawRole) ? rawRole : 'GUEST'
-  const proUI = rootRole === 'ADMIN' && isAdminProUI()
+  // Renderer classic giữ nguyên HTML lịch sử, kể cả khi người dùng đang dùng
+  // Mochi Pro (renderer Pro được chọn bởi hàm bọc bên dưới).
+  const proUI = false
   const rootClass = rootRole === 'ADMIN' && (proUI || isDarkTheme()) ? 'app-layout admin-dark' : 'app-layout'
   const proRootHook = proUI ? ' id="admin-dashboard"' : ''
 
@@ -1118,6 +1120,126 @@ export function renderAdminDashboardView() {
       </div>
     </div>
   `
+}
+
+/** Bố cục Mochi Pro: dùng nguyên state/API của dashboard, chỉ thay presentation. */
+function renderProAdminDashboardView() {
+  const overview = state.dashboard?.overview || {}
+  const monthlyStats = state.dashboard?.monthlyStats || []
+  const recentSubmissions = state.dashboard?.recentSubmissions || []
+  const studentAttendanceStats = state.dashboard?.studentAttendanceStats || []
+  const scoreDistribution = state.dashboard?.scoreDistribution || { excellent: 0, good: 0, fair: 0, average: 0, poor: 0 }
+  const totalTuition = overview.totalTuitionFee || 0
+  const totalPaid = overview.totalPaidTuitionFee !== undefined
+    ? overview.totalPaidTuitionFee
+    : monthlyStats.reduce((sum, month) => sum + (month.paidTuitionFee || 0), 0)
+  const totalUnpaid = overview.totalUnpaidTuitionFee !== undefined ? overview.totalUnpaidTuitionFee : totalTuition - totalPaid
+  const collectionRate = totalTuition > 0 ? Math.round((totalPaid / totalTuition) * 100) : (overview.collectionRate || 0)
+  const avgScore = Number(overview.averageScore || 0)
+  const classOptions = Array.from(new Set(studentAttendanceStats.flatMap(student => student.classNames || []))).filter(Boolean)
+  const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())
+  const rawRole = String(state.user?.role || 'GUEST')
+  const rootRole = /^[A-Za-z_-]{1,32}$/.test(rawRole) ? rawRole : 'GUEST'
+  const kpis = [
+    ['Tổng học sinh', overview.totalStudents || 0, 'fa-users', 'accent', 'Xem danh sách', "window.location.hash='#students'"],
+    ['Lớp học đang mở', overview.totalClasses || 0, 'fa-book-open', 'blue', 'Quản lý lớp', "window.location.hash='#classes-admin'"],
+    ['Tổng buổi đã dạy', `${overview.totalTaughtSessions || 0} buổi`, 'fa-calendar-check', 'ok', 'Theo điểm danh', ''],
+    ['Lượt nộp bài tập', overview.totalSubmissions || 0, 'fa-file-pen', 'pink', `${overview.onTimeRate || 100}% đúng hạn`, "window.location.hash='#homework-mgmt'"],
+    ['Điểm trung bình', `${avgScore.toFixed(1)} / 10`, 'fa-star', 'warn', `Tỷ lệ đạt ${overview.passRate || 0}%`, ''],
+    ['Học phí đã thu', `${totalPaid.toLocaleString('vi-VN')} đ`, 'fa-wallet', 'ok', `${collectionRate}% học phí phát sinh`, ''],
+    ['Học phí phát sinh', `${totalTuition.toLocaleString('vi-VN')} đ`, 'fa-receipt', 'blue', 'Theo buổi đã điểm danh', ''],
+    ['Công nợ / chưa đóng', `${totalUnpaid.toLocaleString('vi-VN')} đ`, 'fa-triangle-exclamation', 'warn', 'Cần theo dõi', '']
+  ]
+  const gradeTotal = Object.values(scoreDistribution).reduce((sum, value) => sum + (Number(value) || 0), 0)
+  const gradeRows = [
+    ['Xuất sắc (9 – 10)', scoreDistribution.excellent || 0, 'ok'],
+    ['Giỏi (8 – 8,9)', scoreDistribution.good || 0, 'accent'],
+    ['Khá (6,5 – 7,9)', scoreDistribution.fair || 0, 'blue'],
+    ['Trung bình (5 – 6,4)', scoreDistribution.average || 0, 'warn'],
+    ['Cần cải thiện', scoreDistribution.poor || 0, 'pink']
+  ]
+
+  return `
+    <div class="app-layout admin-dark" id="admin-dashboard" data-route="admin-dashboard" data-role="${rootRole}">
+      ${renderSidebar('admin-dashboard')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Trung tâm Thống kê')}
+        <main class="content-body ap-dashboard" aria-label="Trung tâm thống kê">
+          <section class="ap-dashboard-hero">
+            <div>
+              <p class="ap-dashboard-date">${today}</p>
+              <h1 class="ap-dashboard-title">Trung tâm thống kê</h1>
+              <p class="ap-dashboard-subtitle">Toàn cảnh hoạt động giảng dạy, học tập và học phí của trung tâm.</p>
+            </div>
+            <div class="ap-dashboard-actions">
+              <button class="btn-secondary ap-dashboard-action" onclick="window.location.hash='#classes-admin'"><i class="fa-solid fa-layer-group"></i> Quản lý lớp</button>
+              <button class="btn-primary ap-dashboard-action" onclick="window.location.hash='#create-homework'"><i class="fa-solid fa-plus"></i> Tạo bài tập</button>
+            </div>
+          </section>
+
+          <section class="ap-dashboard-kpis" aria-label="Chỉ số chính">
+            ${kpis.map(([label, value, icon, tone, note, action]) => `
+              <article class="ap-dashboard-kpi ap-tone-${tone}" ${action ? `role="link" tabindex="0" onclick="${action}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${action}}"` : ''}>
+                <div class="ap-dashboard-kpi-top"><span>${label}</span><i class="fa-solid ${icon}" aria-hidden="true"></i></div>
+                <strong>${value}</strong><small>${note}</small>
+              </article>`).join('')}
+            <article id="dash-zero-balance-card" class="ap-dashboard-kpi ap-tone-pink" role="button" tabindex="0" aria-label="Xem danh sách học sinh cần đóng tiền">
+              <div class="ap-dashboard-kpi-top"><span>Học sinh cần đóng tiền</span><i class="fa-solid fa-user-clock" aria-hidden="true"></i></div>
+              <strong id="dash-zero-balance-value">…</strong>
+              <small id="dash-zero-balance-subtext"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải số liệu...</small>
+            </article>
+          </section>
+
+          <section class="ap-dashboard-insights" aria-label="Biểu đồ tổng quan">
+            <article class="ap-dashboard-panel ap-dashboard-revenue">
+              <header class="ap-dashboard-panel-head"><div><h2>Học phí theo tháng</h2><p>Đã thu và chưa thu theo từng tháng học.</p></div><div class="ap-dashboard-legend"><span class="ap-legend-paid">Đã thu</span><span class="ap-legend-unpaid">Chưa thu</span></div></header>
+              <div class="ap-chart-scroll"><div class="ap-chart-wide"><canvas id="chart-monthly-revenue"></canvas></div></div>
+            </article>
+            <article class="ap-dashboard-panel ap-dashboard-grades">
+              <header class="ap-dashboard-panel-head"><div><h2>Phân bố điểm</h2><p>Điểm trung bình: <strong>${avgScore.toFixed(1)}</strong> / 10</p></div></header>
+              <div class="ap-grade-chart"><canvas id="chart-grade-dist"></canvas></div>
+              <div class="ap-grade-bars">${gradeRows.map(([label, count, tone]) => `<div><span>${label}</span><b>${count} học sinh</b><i class="ap-grade-${tone}" style="width:${gradeTotal ? Math.round((count / gradeTotal) * 100) : 0}%"></i></div>`).join('')}</div>
+            </article>
+          </section>
+
+          <section class="ap-dashboard-lower" aria-label="Học phí và công việc">
+            <article class="ap-dashboard-panel ap-dashboard-debtors">
+              <header class="ap-dashboard-panel-head"><div><h2>Học sinh cần đóng tiền</h2><p>Danh sách được cập nhật theo số dư hiện tại.</p></div><button class="ap-text-link" type="button" onclick="document.getElementById('dash-zero-balance-card')?.click()">Xem danh sách</button></header>
+              <div class="ap-debtor-callout"><i class="fa-solid fa-wallet"></i><div><strong id="ap-debtor-count">Mở danh sách để xem chi tiết</strong><span>Chọn học sinh trong danh sách để nạp tiền bằng luồng nạp hiện có.</span></div><button class="btn-secondary" type="button" onclick="document.getElementById('dash-zero-balance-card')?.click()">Nạp tiền</button></div>
+            </article>
+            <article class="ap-dashboard-panel ap-dashboard-collection">
+              <header class="ap-dashboard-panel-head"><div><h2>Tình hình thu học phí</h2><p>${collectionRate}% đã được thu hồi</p></div></header>
+              <div class="ap-collection-ring"><canvas id="chart-tuition-doughnut"></canvas></div>
+              <div class="ap-collection-values"><span>Đã thu <b>${totalPaid.toLocaleString('vi-VN')} đ</b></span><span>Còn nợ <b>${totalUnpaid.toLocaleString('vi-VN')} đ</b></span></div>
+            </article>
+          </section>
+
+          <section class="ap-dashboard-panel ap-student-ledger">
+            <header class="ap-dashboard-panel-head"><div><h2>Điểm danh & học phí học sinh</h2><p>Lọc theo tháng, lớp hoặc trạng thái để theo dõi công nợ.</p></div></header>
+            <div class="ap-dashboard-filters">
+              <input type="text" id="dash-stu-search" class="form-input" placeholder="Tìm tên học sinh, username...">
+              <select id="dash-stu-filter-month" class="form-input"><option value="all">Tất cả các tháng</option>${monthlyStats.map(m => `<option value="${m.month}">${m.label || m.month}</option>`).join('')}</select>
+              <select id="dash-stu-filter-class" class="form-input"><option value="all">Tất cả lớp học</option>${classOptions.map(cls => `<option value="${cls}">${cls}</option>`).join('')}</select>
+              <select id="dash-stu-filter-status" class="form-input"><option value="all">Tất cả trạng thái</option><option value="paid">Đã đóng đủ</option><option value="unpaid">Còn nợ học phí</option><option value="no_sessions">Chưa có buổi học</option></select>
+            </div>
+            <div id="dash-stu-kpi-summary" class="ap-student-summary"></div>
+            <div class="table-responsive"><table class="data-table"><thead><tr><th>Học sinh</th><th>Lớp học</th><th>Số buổi đã học</th><th>Đã đóng tiền</th><th>Chưa đóng / Nợ</th><th>Học phí phát sinh</th><th>Đã thanh toán</th><th>Còn nợ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="dash-stu-table-body"></tbody></table></div>
+            <div id="dash-stu-pagination" class="ap-student-pagination"></div>
+          </section>
+
+          <section class="ap-dashboard-secondary">
+            <article class="ap-dashboard-panel"><header class="ap-dashboard-panel-head"><div><h2>Hoạt động giảng dạy</h2><p>Số buổi đã dạy theo từng tháng.</p></div></header><div class="ap-chart-scroll"><div class="ap-chart-wide ap-chart-short"><canvas id="chart-activity-trend"></canvas></div></div></article>
+            <article class="ap-dashboard-panel"><header class="ap-dashboard-panel-head"><div><h2>Lượt nộp bài gần đây</h2><p>Các bài nộp mới nhất trong hệ thống.</p></div><button class="ap-text-link" onclick="window.location.hash='#homework-mgmt'">Xem tất cả</button></header><div class="ap-recent-list">${recentSubmissions.length ? recentSubmissions.slice(0, 5).map(sub => `<a href="#assignment-review?submissionId=${sub.submissionId}" class="ap-recent-item"><span>${getInitials(sub.studentName)}</span><div><strong>${sub.studentName || 'Học sinh'}</strong><small>${sub.homeworkTitle || 'Bài tập'}</small></div><b>${Number(sub.score || 0).toFixed(1)}/${sub.maxScore || 10}</b></a>`).join('') : '<p class="ap-empty-inline"><i class="fa-regular fa-folder-open"></i> Chưa có lượt nộp bài gần đây.</p>'}</div></article>
+          </section>
+        </main>
+      </div>
+    </div>`
+}
+
+export function renderAdminDashboardView() {
+  return isAdminProUI() && state.user?.role === 'ADMIN'
+    ? renderProAdminDashboardView()
+    : renderClassicAdminDashboardView()
 }
 
 function renderStudentAttendanceTable() {

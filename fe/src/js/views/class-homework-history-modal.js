@@ -3,6 +3,7 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
 import { renderMarkdown, renderMath } from '../utils/exam-parser.js'
+import { isAdminProUI } from '../ui-flag.js'
 
 if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/grading.css') }
 
@@ -173,7 +174,7 @@ function renderWrongQuestion(q, totalAttempts) {
 }
 
 /** Dữ liệu hiển thị chỉ lấy từ API đã giới hạn theo lớp + đúng bài tập. */
-export function renderClassHomeworkHistory(data, tab = 'submitted', options = {}) {
+export function renderClassicClassHomeworkHistory(data, tab = 'submitted', options = {}) {
   const { homework = null, canCopy = false } = options
   const history = Array.isArray(data?.history) ? data.history : []
   const missing = Array.isArray(data?.unsubmittedStudents) ? data.unsubmittedStudents : []
@@ -243,6 +244,17 @@ export function renderClassHomeworkHistory(data, tab = 'submitted', options = {}
       ${wrong.length ? `<section style="margin-bottom:20px;"><h4>Phân tích theo Dạng bài</h4><p style="font-size:13px;color:#64748b;">Số câu là số câu riêng biệt có lượt chưa đúng; lượt chưa đúng tính một lần cho mỗi cặp câu hỏi / lượt nộp, gồm cả bỏ trống. Không có metadata: Chưa phân loại.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;">${groupWrongQuestions(wrong).map(g => `<div style="padding:14px;background:#eff6ff;border-radius:10px;min-width:0;overflow-wrap:anywhere;"><strong>${escapeHtml(g.name)}</strong><div>${g.questionCount} câu có lỗi · ${g.failedAttempts} lượt chưa đúng</div></div>`).join('')}</div></section><div style="display:grid;grid-template-columns:minmax(0,1fr);gap:18px;">${wrong.map(q => renderWrongQuestion(q, history.length)).join('')}</div>` : '<div style="text-align:center;padding:32px;color:#16a34a;">Chưa ghi nhận câu sai nào.</div>'}
     `}
   `
+}
+
+export function renderProClassHomeworkHistory(data, tab = 'submitted', options = {}) {
+  const classic = renderClassicClassHomeworkHistory(data, tab, options)
+  return `<div class="ap-class-history" data-pro-layout="class-homework-history">${classic
+    .replace('<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">', '<div class="ap-class-history-summary">')
+    .replace('<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px;">', '<div class="ap-class-history-tabs" role="tablist">')}</div>`
+}
+
+export function renderClassHomeworkHistory(data, tab = 'submitted', options = {}) {
+  return isAdminProUI() ? renderProClassHomeworkHistory(data, tab, options) : renderClassicClassHomeworkHistory(data, tab, options)
 }
 
 export function openClassHomeworkHistoryModal(classId, homework) {

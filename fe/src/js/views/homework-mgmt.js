@@ -90,9 +90,15 @@ async function copyTextToClipboard(text) {
 }
 
 export function renderHomeworkMgmtView() {
-  const isPro = isAdminProUI()
+  if (isAdminProUI()) {
+    return renderProHomeworkMgmtView()
+  }
+  return renderClassicHomeworkMgmtView()
+}
+
+export function renderClassicHomeworkMgmtView() {
   return `
-    <div class="app-layout${isPro ? ' ap-homework-mgmt' : ''}">
+    <div class="app-layout">
       ${renderSidebar('homework-mgmt')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Quản lý bài tập')}
@@ -270,6 +276,189 @@ export function renderHomeworkMgmtView() {
             <!-- Homework Pagination Wrapper -->
             <div id="hw-pagination-wrapper" style="padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #fafbfc;"></div>
           </div>
+
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function renderProHomeworkMgmtView() {
+  return `
+    <div class="app-layout ap-homework-mgmt">
+      ${renderSidebar('homework-mgmt')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Quản lý bài tập')}
+        <div class="content-body ap-hw-mgmt-body">
+          
+          <!-- Page Header (Mochi Pro) -->
+          <section class="ap-hw-mgmt-header" aria-label="Tiêu đề quản lý bài tập">
+            <div class="ap-hw-header-info">
+              <p class="ap-hw-kicker">Khảo thí & Luyện tập</p>
+              <h1 class="ap-hw-title">Quản lý bài tập & bài thi</h1>
+              <p class="ap-hw-subtitle">Phân loại theo lớp, cấu hình phòng thi trực tuyến và kiểm soát hạn chót</p>
+            </div>
+            <div class="ap-hw-header-actions">
+              <button type="button" class="btn-secondary ap-btn-pill-bank" id="btn-goto-question-bank">
+                <i class="fa-solid fa-boxes-stacked"></i> Ngân hàng câu hỏi
+              </button>
+              <button type="button" class="btn-primary ap-btn-pill-create" id="btn-create-homework">
+                <i class="fa-solid fa-plus"></i> Tạo bài tập mới
+              </button>
+            </div>
+          </section>
+
+          <!-- KPI Cards (Mochi Pro 4 Thẻ) -->
+          <section class="ap-hw-kpi-grid" aria-label="Thống kê nhanh bài tập">
+            <article class="ap-hw-kpi-card ap-kpi-accent">
+              <div class="ap-kpi-top">
+                <span class="ap-kpi-label">Tổng số bài tập</span>
+                <span class="ap-kpi-icon-wrap ap-kpi-icon-accent"><i class="fa-solid fa-list-check"></i></span>
+              </div>
+              <strong id="stat-total-hw" class="ap-kpi-val">0</strong>
+              <span class="ap-kpi-sub">Tất cả các lớp</span>
+            </article>
+
+            <article class="ap-hw-kpi-card ap-kpi-ok">
+              <div class="ap-kpi-top">
+                <span class="ap-kpi-label">Bài luyện tập</span>
+                <span class="ap-kpi-icon-wrap ap-kpi-icon-ok"><i class="fa-solid fa-book-open"></i></span>
+              </div>
+              <strong id="stat-practice-hw" class="ap-kpi-val">0</strong>
+              <span class="ap-kpi-sub">Tự do làm & xem giải</span>
+            </article>
+
+            <article class="ap-hw-kpi-card ap-kpi-pink">
+              <div class="ap-kpi-top">
+                <span class="ap-kpi-label">Bài thi chính thức</span>
+                <span class="ap-kpi-icon-wrap ap-kpi-icon-pink"><i class="fa-solid fa-shield-halved"></i></span>
+              </div>
+              <strong id="stat-exam-hw" class="ap-kpi-val">0</strong>
+              <span class="ap-kpi-sub">Có giới hạn thời gian</span>
+            </article>
+
+            <article class="ap-hw-kpi-card ap-kpi-blue">
+              <div class="ap-kpi-top">
+                <span class="ap-kpi-label">Lớp đang áp dụng</span>
+                <span class="ap-kpi-icon-wrap ap-kpi-icon-blue"><i class="fa-solid fa-users"></i></span>
+              </div>
+              <strong id="stat-classes-count" class="ap-kpi-val">0</strong>
+              <span class="ap-kpi-sub">Đang mở nộp bài</span>
+            </article>
+          </section>
+
+          <!-- Search & Filter Controls Toolbar (Mochi Pro) -->
+          <section class="ap-hw-filter-card" aria-label="Bộ lọc bài tập">
+            <div class="ap-hw-filter-grid">
+              
+              <!-- Search Bar -->
+              <div class="ap-hw-search-col">
+                <label for="hw-search-input" class="ap-field-label">
+                  <i class="fa-solid fa-magnifying-glass"></i> Tìm kiếm bài tập
+                </label>
+                <div class="ap-input-search-wrap">
+                  <input type="search" id="hw-search-input" class="form-input ap-search-input" placeholder="Tìm kiếm bài tập, bài thi...">
+                </div>
+              </div>
+
+              <!-- Filter Class -->
+              <div>
+                <label for="hw-filter-class" class="ap-field-label">
+                  <i class="fa-solid fa-book-bookmark"></i> Lớp học
+                </label>
+                <select id="hw-filter-class" class="form-input ap-filter-select">
+                  <option value="">Tất cả lớp học</option>
+                </select>
+              </div>
+
+              <!-- Filter Chapter -->
+              <div>
+                <label for="hw-filter-chapter" class="ap-field-label">
+                  <i class="fa-solid fa-folder-open"></i> Chương
+                </label>
+                <select id="hw-filter-chapter" class="form-input ap-filter-select">
+                  <option value="">Tất cả chương</option>
+                </select>
+              </div>
+
+              <!-- Filter Lesson -->
+              <div>
+                <label for="hw-filter-lesson" class="ap-field-label">
+                  <i class="fa-solid fa-file-lines"></i> Bài học
+                </label>
+                <select id="hw-filter-lesson" class="form-input ap-filter-select">
+                  <option value="">Tất cả bài học</option>
+                </select>
+              </div>
+
+              <!-- Filter Type -->
+              <div>
+                <label for="hw-filter-type" class="ap-field-label">
+                  <i class="fa-solid fa-sliders"></i> Phân loại
+                </label>
+                <select id="hw-filter-type" class="form-input ap-filter-select">
+                  <option value="">Tất cả loại</option>
+                  <option value="PRACTICE">Luyện tập</option>
+                  <option value="EXAM">Bài thi</option>
+                </select>
+              </div>
+
+            </div>
+
+            <!-- Filter Footer Summary & Sort -->
+            <div class="ap-hw-filter-footer">
+              <div class="ap-hw-filter-count-wrap">
+                <span>Hiển thị <strong id="hw-filtered-count">0</strong> bài tập phù hợp</span>
+              </div>
+
+              <div class="ap-hw-filter-sort-wrap">
+                <div class="ap-sort-group">
+                  <label for="hw-sort-select" class="ap-sort-label">Sắp xếp:</label>
+                  <select id="hw-sort-select" class="form-input ap-sort-select">
+                    <option value="newest">Mới nhất (Ngày tạo)</option>
+                    <option value="oldest">Cũ nhất (Ngày tạo)</option>
+                    <option value="title-asc">Tên bài tập (A - Z)</option>
+                    <option value="title-desc">Tên bài tập (Z - A)</option>
+                    <option value="duration-desc">Thời gian thi (Dài nhất)</option>
+                    <option value="duration-asc">Thời gian thi (Ngắn nhất)</option>
+                  </select>
+                </div>
+
+                <button type="button" class="btn-secondary ap-btn-reset-filters" id="hw-reset-filter-btn">
+                  <i class="fa-solid fa-arrow-rotate-left"></i> Đặt lại
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Homework Data Table Section (Mochi Pro) -->
+          <section class="ap-hw-table-card" aria-label="Bảng quản lý bài tập">
+            <div class="table-responsive ap-hw-table-responsive">
+              <table class="ap-hw-table">
+                <thead>
+                  <tr>
+                    <th scope="col" style="width:48px; text-align:center;">#</th>
+                    <th scope="col" style="min-width:240px;">Bài tập / Bài thi</th>
+                    <th scope="col" style="min-width:180px;">Lớp / Bài học</th>
+                    <th scope="col" style="min-width:170px;">Cấu hình phòng thi</th>
+                    <th scope="col" style="min-width:140px;">Hạn chót</th>
+                    <th scope="col" style="min-width:120px;">Ngày tạo</th>
+                    <th scope="col" style="min-width:240px; text-align:center;">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="hw-table-body">
+                  <tr>
+                    <td colspan="7" class="ap-hw-loading-cell">
+                      <i class="fa-solid fa-spinner fa-spin"></i>
+                      <span>Đang tải danh sách bài tập...</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- Homework Pagination Wrapper -->
+            <div id="hw-pagination-wrapper" class="ap-hw-pagination-wrap"></div>
+          </section>
 
         </div>
       </div>
@@ -607,20 +796,40 @@ function attachFilterListeners() {
   })
 }
 
+function getDeadlineStatus(deadlineStr) {
+  if (!deadlineStr) return null
+  const d = new Date(deadlineStr)
+  if (isNaN(d.getTime())) return null
+  const now = new Date()
+  const diffMs = d.getTime() - now.getTime()
+  if (diffMs < 0) {
+    return { text: 'Quá hạn', badgeClass: 'ap-deadline-overdue' }
+  }
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays <= 1) {
+    return { text: 'Hết hạn hôm nay', badgeClass: 'ap-deadline-urgent' }
+  }
+  return { text: `Còn ${diffDays} ngày`, badgeClass: 'ap-deadline-upcoming' }
+}
+
 function renderHomeworkTableRows(list, tableBody, fromIndex) {
   let html = ''
   const isPro = isAdminProUI()
   list.forEach((hw, index) => {
     const isExam = hw.type === 'EXAM'
     const typeBadge = isExam
-      ? `<span class="badge" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px;"><i class="fa-solid fa-shield-halved"></i> BÀI THI</span>`
-      : `<span class="badge" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px;"><i class="fa-solid fa-pen-to-square"></i> LUYỆN TẬP</span>`
+      ? `<span class="badge ${isPro ? 'ap-badge-exam' : ''}" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px;"><i class="fa-solid fa-shield-halved"></i> BÀI THI</span>`
+      : `<span class="badge ${isPro ? 'ap-badge-practice' : ''}" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px;"><i class="fa-solid fa-pen-to-square"></i> LUYỆN TẬP</span>`
 
     const deadlineText = hw.deadline ? new Date(hw.deadline).toLocaleString('vi-VN') : '<span style="color:#94a3b8;">Không có</span>'
+    const deadlineObj = (isPro && hw.deadline) ? getDeadlineStatus(hw.deadline) : null
+    const deadlineBadge = deadlineObj
+      ? `<span class="ap-deadline-chip ${deadlineObj.badgeClass}">${deadlineObj.text}</span>`
+      : ''
     const createdAtText = hw.createdAt ? new Date(hw.createdAt).toLocaleDateString('vi-VN') : ''
 
     html += `
-      <tr style="border-bottom:1px solid #f1f5f9; transition:background 0.15s ease;">
+      <tr class="${isPro ? 'ap-hw-row' : ''}" style="border-bottom:1px solid #f1f5f9; transition:background 0.15s ease;">
         <td style="padding:12px 16px; text-align:center; font-weight:700; color:#64748b;">${fromIndex + index + 1}</td>
         <td style="padding:12px 16px;">
           <div style="display:flex; flex-direction:column; gap:4px;">
@@ -655,6 +864,7 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
         </td>
         <td style="padding:12px 16px; font-size:12px; color:#334155;">
           ${deadlineText}
+          ${deadlineBadge ? `<div style="margin-top:4px;">${deadlineBadge}</div>` : ''}
         </td>
         <td style="padding:12px 16px; font-size:12px; color:#64748b;">
           ${createdAtText}

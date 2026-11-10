@@ -6,7 +6,7 @@ import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 import { isAdminProUI } from '../ui-flag.js'
 
-if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/ops.css') }
 
 let cachedGradeBlocks = []
 let searchQuery = ''
@@ -46,6 +46,13 @@ function getFilteredBlocks() {
 }
 
 export function renderGradeBlocksView() {
+  if (typeof isAdminProUI === 'function' && isAdminProUI()) {
+    return renderProGradeBlocksView()
+  }
+  return renderClassicGradeBlocksView()
+}
+
+export function renderClassicGradeBlocksView() {
   const filtered = getFilteredBlocks()
   const totalItems = filtered.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
@@ -58,10 +65,9 @@ export function renderGradeBlocksView() {
   const totalBlocks = cachedGradeBlocks.length
   const totalClasses = cachedGradeBlocks.reduce((sum, b) => sum + (Number(b.classesCount) || 0), 0)
   const totalQuestions = cachedGradeBlocks.reduce((sum, b) => sum + (Number(b.questionsCount) || 0), 0)
-  const proUI = isAdminProUI()
 
   return `
-    <div class="app-layout${proUI ? ' admin-dark" id="grade-blocks" data-route="grade-blocks" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar('grade-blocks')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Quản trị viên')}
@@ -173,6 +179,122 @@ export function renderGradeBlocksView() {
               })}
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function renderProGradeBlocksView() {
+  const filtered = getFilteredBlocks()
+  const totalItems = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  if (currentPage > totalPages) currentPage = totalPages
+
+  const from = (currentPage - 1) * pageSize
+  const pagedBlocks = filtered.slice(from, from + pageSize)
+
+  // Calculate statistics
+  const totalBlocks = cachedGradeBlocks.length
+  const totalClasses = cachedGradeBlocks.reduce((sum, b) => sum + (Number(b.classesCount) || 0), 0)
+  const totalQuestions = cachedGradeBlocks.reduce((sum, b) => sum + (Number(b.questionsCount) || 0), 0)
+
+  return `
+    <div class="app-layout admin-dark" id="grade-blocks" data-route="grade-blocks" data-role="ADMIN">
+      ${renderSidebar('grade-blocks')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Quản trị viên')}
+        <div class="content-body" style="padding-top:20px;">
+          <!-- Page Header -->
+          <section class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
+            <div>
+              <p style="margin:0 0 4px; color:var(--ap-muted); font-weight:700; font-size:14px;">Quản lý đào tạo · Danh mục khối</p>
+              <h1 class="page-title" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:34px; font-weight:800; line-height:1.15; color:var(--ap-ink);">Quản lý khối học</h1>
+              <p class="page-description" style="margin:6px 0 0 0; color:var(--ap-muted); font-size:15px; font-weight:700;">Danh mục khối chuyên đề, lớp học áp dụng và liên kết ngân hàng câu hỏi.</p>
+            </div>
+            <div style="display:flex; gap:12px; align-items:center;">
+              <button type="button" class="btn-primary" id="open-create-block-modal-btn" style="min-height:44px; padding:0 18px; border:2px solid var(--ap-ink); border-radius:14px; background:var(--ap-accent); color:var(--ap-accent-ink); font-weight:800; box-shadow:0 4px 0 var(--ap-block); cursor:pointer;">
+                <i class="fa-solid fa-plus"></i> Tạo khối mới
+              </button>
+            </div>
+          </section>
+
+          <!-- KPI Stats Overview -->
+          <section class="grid-3" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap:14px; margin-bottom:24px;">
+            <article class="card ap-card" style="padding:20px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block);">
+              <strong style="display:block; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:32px; font-weight:800; color:var(--ap-ink); line-height:1.1;">${totalBlocks}</strong>
+              <span style="display:block; margin-top:6px; color:var(--ap-muted); font-size:13px; font-weight:800; text-transform:uppercase;">Tổng số khối học</span>
+            </article>
+
+            <article class="card ap-card" style="padding:20px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block);">
+              <strong style="display:block; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:32px; font-weight:800; color:var(--ap-ok); line-height:1.1;">${totalClasses}</strong>
+              <span style="display:block; margin-top:6px; color:var(--ap-muted); font-size:13px; font-weight:800; text-transform:uppercase;">Lớp học đã phân khối</span>
+            </article>
+
+            <article class="card ap-card" style="padding:20px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block);">
+              <strong style="display:block; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:32px; font-weight:800; color:var(--ap-accent2); line-height:1.1;">${totalQuestions}</strong>
+              <span style="display:block; margin-top:6px; color:var(--ap-muted); font-size:13px; font-weight:800; text-transform:uppercase;">Câu hỏi trong ngân hàng</span>
+            </article>
+          </section>
+
+          <!-- Main Table Card -->
+          <section class="card ap-card" style="padding:20px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block);">
+            <!-- Filter Bar -->
+            <div class="flex-wrap-mobile" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:16px;">
+              <div class="search-box full-width-mobile" style="width:100%; max-width:420px;">
+                <input type="search" id="grade-block-search-input" placeholder="Tìm theo tên khối hoặc mô tả..." value="${searchQuery}" style="width:100%; min-height:44px; box-sizing:border-box;">
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="btn-secondary" id="refresh-grade-blocks-btn" style="min-height:44px; padding:0 16px; font-weight:800;">
+                  <i class="fa-solid fa-rotate-right"></i> Làm mới
+                </button>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive" style="overflow-x:auto;">
+              <table class="data-table" style="width:100%; min-width:850px;">
+                <thead>
+                  <tr>
+                    <th style="width:180px;">Tên khối học</th>
+                    <th>Mô tả chi tiết</th>
+                    <th style="width:240px;">Lớp học áp dụng</th>
+                    <th style="width:160px; text-align:center;">Ngân hàng câu hỏi</th>
+                    <th style="width:140px;">Ngày tạo</th>
+                    <th style="width:140px; text-align:right;">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="grade-blocks-table-body">
+                  ${isLoading ? `
+                    <tr>
+                      <td colspan="6" style="text-align:center; padding:40px; color:var(--ap-muted);">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size:20px; color:var(--ap-accent); margin-bottom:8px;"></i>
+                        <div>Đang tải danh sách khối học...</div>
+                      </td>
+                    </tr>
+                  ` : pagedBlocks.length === 0 ? `
+                    <tr>
+                      <td colspan="6" style="text-align:center; padding:40px; color:var(--ap-muted);">
+                        <i class="fa-regular fa-folder-open" style="font-size:28px; margin-bottom:8px; display:block;"></i>
+                        Không tìm thấy khối học nào phù hợp.
+                      </td>
+                    </tr>
+                  ` : pagedBlocks.map(b => renderGradeBlockRow(b)).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div id="grade-block-pagination-wrapper">
+              ${renderPaginationBar({
+                currentPage,
+                totalItems,
+                pageSize,
+                containerId: 'grade-block-pagination-container',
+                pageSizeOptions: [10, 20, 50]
+              })}
+            </div>
+          </section>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/student-report.css')
-  import('../../css/admin-pro/pages/students.css')
+  import('../../css/admin-pro/pages/ops.css')
 }
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
@@ -236,6 +236,10 @@ function renderMochiStudentReportView() {
   `
 }
 
+export function renderProStudentReportView() {
+  return renderBackdrop('Nền tảng / Báo cáo tiến độ')
+}
+
 export function renderStudentReportView() {
   const hashUrl = window.location.hash.replace('#', '')
   const [_, queryString] = hashUrl.split('?')
@@ -255,6 +259,9 @@ export function renderStudentReportView() {
 
   if (isMochiMode()) {
     return renderMochiStudentReportView()
+  }
+  if (state.user?.role === 'ADMIN' && typeof isAdminProUI === 'function' && isAdminProUI()) {
+    return renderProStudentReportView()
   }
   return renderClassicStudentReportView()
 }
@@ -1955,6 +1962,7 @@ export function renderMochiReportInner(opts) {
   if (!isEmpty) {
     renderScoreTrendChart(scoreTrendArr)
   }
+  return body
 }
 
 export function renderClassicReportInner(opts, { includeSharePanel = false } = {}) {
@@ -2013,6 +2021,153 @@ export function renderClassicReportInner(opts, { includeSharePanel = false } = {
   if (!isEmpty) {
     renderScoreTrendChart(scoreTrendArr)
   }
+  return body
+}
+
+export function renderProReportInner(opts, { includeSharePanel = false } = {}) {
+  const {
+    studentName,
+    className,
+    period,
+    summary,
+    comparison,
+    scoreTrend,
+    topicBreakdown,
+    submissions,
+    isEmpty
+  } = opts
+
+  const scoreTrendArr = Array.isArray(scoreTrend) ? scoreTrend : []
+  const periodText = `${fmtDateVN(period?.fromDate)} – ${fmtDateVN(period?.toDate)}`
+  const trendInfo = trendLabelFor(comparison?.trend)
+
+  const emptyBanner = isEmpty ? `
+    <div class="report-empty-banner" style="padding:14px 18px; border-radius:14px; background:var(--ap-surface2); border:1.5px solid var(--ap-line); margin-bottom:20px; font-weight:700; color:var(--ap-muted);">
+      <i class="fa-solid fa-circle-info"></i>
+      Học sinh chưa có lượt nộp nào trong kỳ báo cáo nên các chỉ số hiển thị là 0 và tổng kết dựa trên bài được giao.
+    </div>
+  ` : ''
+
+  const sharePanel = includeSharePanel && state.user?.role === 'ADMIN' ? renderSharePanel() : ''
+
+  const s = {
+    assignedCount: Number(summary?.assignedCount || 0),
+    submittedCount: Number(summary?.submittedCount || 0),
+    completionRate: Number(summary?.completionRate || 0),
+    onTimeRate: Number(summary?.onTimeRate ?? 0),
+    averageScore: Number(summary?.averageScore || 0),
+    highestScore: Number(summary?.highestScore || 0),
+    lowestScore: Number(summary?.lowestScore || 0),
+    activeDays: Number(summary?.activeDays || 0),
+    attemptCount: Number(summary?.attemptCount || 0)
+  }
+
+  const kpis = [
+    { label: 'Bài được giao', val: String(s.assignedCount), note: 'theo hạn trong kỳ' },
+    { label: 'Bài đã nộp', val: String(s.submittedCount), note: `${s.submittedCount}/${s.assignedCount || 0} bài` },
+    { label: 'Tỷ lệ hoàn thành', val: fmtPercent(s.completionRate), note: 'trên bài được giao' },
+    { label: 'Nộp đúng hạn', val: fmtPercent(s.onTimeRate), note: `${s.attemptCount} lượt nộp` },
+    { label: 'Điểm trung bình', val: fmtScore(s.averageScore, 1), note: 'best mỗi bài (thang 10)' },
+    { label: 'Điểm cao nhất', val: fmtScore(s.highestScore, 1), note: 'quy đổi thang 10' },
+    { label: 'Điểm thấp nhất', val: fmtScore(s.lowestScore, 1), note: 'cần theo sát' },
+    { label: 'Ngày hoạt động', val: String(s.activeDays), note: 'ngày có lượt nộp' },
+  ]
+
+  const body = `
+    <section class="page-header" style="margin-bottom:24px;">
+      <div>
+        <p style="margin:0 0 4px; color:var(--ap-muted); font-weight:700; font-size:13px;">Báo cáo tiến độ học tập · Quản trị</p>
+        <h1 class="page-title" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:34px; font-weight:800; line-height:1.15; color:var(--ap-ink);">Báo cáo tiến độ</h1>
+        <p class="page-description" style="margin:6px 0 0 0; color:var(--ap-muted); font-size:15px; font-weight:700;">${escapeHtml(studentName || 'Học sinh')} &middot; ${escapeHtml(className || '')}</p>
+      </div>
+    </section>
+
+    <!-- Toolbar chọn khoảng ngày -->
+    <section class="card ap-card" style="padding:18px 20px; border:2px solid var(--ap-line); border-radius:20px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+      <label style="font-weight:800; font-size:13px; color:var(--ap-ink);">Từ ngày
+        <input type="date" id="report-filter-from" value="${escapeHtml(period?.fromDate || '')}" style="min-height:44px; display:block; margin-top:6px;">
+      </label>
+      <label style="font-weight:800; font-size:13px; color:var(--ap-ink);">Đến ngày
+        <input type="date" id="report-filter-to" value="${escapeHtml(period?.toDate || '')}" style="min-height:44px; display:block; margin-top:6px;">
+      </label>
+      <button type="button" id="btn-report-update-date" class="btn-primary" style="min-height:44px; padding:0 18px;">Cập nhật báo cáo</button>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+        <span class="report-hero-badge" style="padding:6px 16px; border-radius:999px; font-size:13px; font-weight:800; background:var(--ap-ok-soft); color:var(--ap-ok); border:2px solid var(--ap-ok);">Xu hướng: ${escapeHtml(trendInfo.text)}</span>
+      </div>
+    </section>
+
+    ${emptyBanner}
+    ${sharePanel}
+
+    <!-- 8 thẻ KPI tổng quan -->
+    <section class="report-section ap-card" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); margin-bottom:20px;">
+      <h2 class="report-section-title" style="margin:0 0 16px 0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:22px; font-weight:800; color:var(--ap-ink);"><i class="fa-solid fa-gauge-high"></i> Chỉ số tổng quan</h2>
+      <div class="report-kpi-grid" style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px;">
+        ${kpis.map(k => `
+          <article class="report-kpi" style="padding:16px; border:2px solid var(--ap-line); border-radius:18px; background:var(--ap-surface2);">
+            <span style="color:var(--ap-muted); font-size:12px; font-weight:800; text-transform:uppercase;">${k.label}</span>
+            <strong style="display:block; margin:8px 0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:28px; font-weight:800; color:var(--ap-ink); line-height:1.1;">${k.val}</strong>
+            <small style="color:var(--ap-muted); font-weight:700; font-size:12px;">${k.note}</small>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+
+    <!-- Grid 2 cột: Biểu đồ & So sánh nửa kỳ -->
+    <section style="display:grid; grid-template-columns:minmax(0, 2fr) minmax(320px, 1fr); gap:16px; margin-bottom:20px;">
+      <article class="report-section ap-card" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); margin-bottom:0;">
+        <h2 class="report-section-title" style="margin:0 0 10px 0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:21px; font-weight:800; color:var(--ap-ink);"><i class="fa-solid fa-chart-line"></i> Biểu đồ điểm theo từng lượt nộp</h2>
+        <div class="report-chart-legend" style="display:flex; gap:12px; flex-wrap:wrap; font-size:12px; font-weight:800; color:var(--ap-muted); margin-bottom:12px;">
+          <span><span class="report-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#10b981; margin-right:4px;"></span> Best (đúng hạn)</span>
+          <span><span class="report-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#f59e0b; margin-right:4px;"></span> Best (muộn)</span>
+          <span><span class="report-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#0284c7; margin-right:4px;"></span> Lượt nộp thường</span>
+          <span><span class="report-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#ef4444; margin-right:4px;"></span> Muộn</span>
+        </div>
+        <div class="report-chart-wrap" style="position:relative; height:280px; width:100%;">
+          <canvas id="report-trend-chart" aria-label="Biểu đồ điểm theo từng lượt nộp" role="img"></canvas>
+        </div>
+        <p class="report-chart-note" style="margin:10px 0 0 0; color:var(--ap-muted); font-size:13px; font-weight:700;">Điểm quy đổi thang 10 &middot; cột best đậm hơn. Nhấp hoặc chạm vào điểm để xem chi tiết.</p>
+      </article>
+
+      <article class="report-section ap-card" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); margin-bottom:0;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <h2 class="report-section-title" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:21px; font-weight:800; color:var(--ap-ink);"><i class="fa-solid fa-arrows-split-up-and-left"></i> So sánh nửa kỳ</h2>
+          <span style="padding:4px 12px; border-radius:999px; background:var(--ap-ok-soft); color:var(--ap-ok); font-weight:800; font-size:12px;">${escapeHtml(trendInfo.text)}</span>
+        </div>
+        ${renderTrendSection(comparison || {})}
+      </article>
+    </section>
+
+    <!-- Phân tích theo chương -->
+    <section class="report-section ap-card" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); margin-bottom:20px;">
+      ${renderTopicSection(topicBreakdown)}
+    </section>
+
+    <!-- Danh sách lượt nộp -->
+    <section class="report-section ap-card" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); margin-bottom:20px;">
+      ${renderSubmissionsSection(submissions)}
+    </section>
+  `
+
+  setBody(body)
+
+  document.getElementById('btn-report-update-date')?.addEventListener('click', () => {
+    const fromInput = document.getElementById('report-filter-from')
+    const toInput = document.getElementById('report-filter-to')
+    const from = fromInput ? fromInput.value : ''
+    const to = toInput ? toInput.value : ''
+    if (!from || !to) {
+      showToast('Vui lòng chọn cả từ ngày và đến ngày.', 'warning')
+      return
+    }
+    const { studentId, classId } = state.reportParams || {}
+    window.location.hash = `#student-report?studentId=${encodeURIComponent(studentId)}&classId=${encodeURIComponent(classId)}&fromDate=${encodeURIComponent(from)}&toDate=${encodeURIComponent(to)}`
+  })
+
+  if (!isEmpty) {
+    renderScoreTrendChart(scoreTrendArr)
+  }
+  return body
 }
 
 // ================== Full render ==================
@@ -2020,6 +2175,11 @@ export function renderClassicReportInner(opts, { includeSharePanel = false } = {
 function renderReportInner(opts, { includeSharePanel = false } = {}) {
   if (isMochiMode()) {
     renderMochiReportInner(opts)
+    return
+  }
+  // Báo cáo chia sẻ công khai (#shared-report) luôn giữ giao diện classic, kể cả khi admin đang đăng nhập.
+  if (reportMountedPath !== 'shared-report' && state.user?.role === 'ADMIN' && typeof isAdminProUI === 'function' && isAdminProUI()) {
+    renderProReportInner(opts, { includeSharePanel })
     return
   }
   renderClassicReportInner(opts, { includeSharePanel })

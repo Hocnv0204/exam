@@ -394,8 +394,206 @@ html[data-admin-ui="pro"] #tuition-ledger .btn-ledger-print {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  html[data-admin-ui="pro"] #tuition-ledger #ledger-export-btn {
-    width: 100%;
-    justify-content: center;
-  }
+html[data-admin-ui="pro"] #tuition-ledger #ledger-export-btn {
+  width: 100%;
+  justify-content: center;
+}
+}
+
+/* Mochi Pro dashboard: renderer mới dùng các khối ap-dashboard-* thay vì
+   bố cục section/card cũ ở phía trên. */
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  padding: clamp(18px, 2.4vw, 30px);
+  background: var(--ap-bg);
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-hero,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-actions,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel-head,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi-top,
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout,
+html[data-admin-ui="pro"] #admin-dashboard .ap-collection-values,
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item {
+  display: flex;
+  align-items: center;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-hero {
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-date,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-subtitle,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel-head p {
+  margin: 0;
+  color: var(--ap-muted);
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-date {
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-title,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel h2 {
+  margin: 0;
+  color: var(--ap-ink);
+  font-family: var(--ap-font-heading);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-title {
+  font-size: clamp(30px, 3vw, 38px);
+  line-height: 1.1;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-subtitle { margin-top: 5px; }
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-actions { gap: 10px; flex-wrap: wrap; }
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-action,
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout .btn-secondary {
+  width: auto;
+  min-height: 44px;
+  border: 2px solid var(--ap-ink);
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-action.btn-primary {
+  background: var(--ap-accent);
+  color: var(--ap-accent-ink);
+  box-shadow: 0 4px 0 var(--ap-block);
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel {
+  box-sizing: border-box;
+  min-width: 0;
+  border: 2px solid var(--ap-line);
+  border-radius: 22px;
+  background: var(--ap-surface);
+  box-shadow: 0 4px 0 var(--ap-block);
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi {
+  display: flex;
+  min-height: 145px;
+  padding: 16px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi[role] { cursor: pointer; }
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi[role]:hover,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi[role]:focus-visible {
+  border-color: var(--ap-ink);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi-top { justify-content: space-between; gap: 10px; color: var(--ap-muted); font-size: 12px; font-weight: 800; letter-spacing: .35px; text-transform: uppercase; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi-top i { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 10px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi strong { color: var(--ap-ink); font: 800 clamp(23px, 2vw, 29px)/1.1 var(--ap-font-heading); overflow-wrap: anywhere; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi small { color: var(--ap-muted); font-size: 12px; font-weight: 700; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-tone-accent .ap-dashboard-kpi-top i { background: var(--ap-accent-soft); color: var(--ap-accent); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-tone-blue .ap-dashboard-kpi-top i { background: var(--ap-blue-soft); color: var(--ap-blue); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-tone-ok .ap-dashboard-kpi-top i { background: var(--ap-ok-soft); color: var(--ap-ok); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-tone-warn .ap-dashboard-kpi-top i { background: var(--ap-warn-soft); color: var(--ap-warn); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-tone-pink .ap-dashboard-kpi-top i { background: var(--ap-accent2-soft); color: var(--ap-accent2); }
+
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-insights,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-lower,
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-secondary { display: grid; gap: 16px; min-width: 0; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-insights { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-lower { grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel { padding: clamp(16px, 2vw, 22px); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel-head { align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel h2 { font-size: 22px; line-height: 1.1; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel-head p { margin-top: 3px; font-size: 13px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-legend { display: flex; gap: 12px; flex-wrap: wrap; color: var(--ap-muted); font-size: 12px; font-weight: 800; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-legend span::before { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 3px; content: ''; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-legend-paid::before { background: var(--ap-ok); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-legend-unpaid::before { background: var(--ap-accent2); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-chart-scroll { overflow-x: auto; scrollbar-color: var(--ap-muted) var(--ap-surface2); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-chart-wide { position: relative; min-width: 560px; height: 290px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-chart-short { height: 240px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-chart { position: relative; height: 180px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars { display: grid; gap: 8px; margin-top: 12px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars > div { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-bottom: 8px; color: var(--ap-ink); font-size: 12px; font-weight: 800; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars b { color: var(--ap-muted); font-size: 11px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars i { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--ap-surface2); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars i::after { display: block; width: 100%; height: 100%; border-radius: inherit; background: var(--ap-accent); content: ''; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars .ap-grade-ok::after { background: var(--ap-ok); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars .ap-grade-blue::after { background: var(--ap-blue); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars .ap-grade-warn::after { background: var(--ap-warn); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-grade-bars .ap-grade-pink::after { background: var(--ap-accent2); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout { min-height: 92px; gap: 12px; padding: 14px; border: 2px solid var(--ap-line); border-radius: 16px; background: var(--ap-surface2); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout > i { display: inline-flex; width: 40px; height: 40px; flex: 0 0 40px; align-items: center; justify-content: center; border-radius: 12px; background: var(--ap-warn-soft); color: var(--ap-warn); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout > div { flex: 1; min-width: 0; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout strong,
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout span { display: block; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout span { margin-top: 2px; color: var(--ap-muted); font-size: 12px; font-weight: 700; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-text-link { width: auto; min-height: 40px; border: 0; background: transparent; color: var(--ap-accent); font-weight: 800; cursor: pointer; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-collection-ring { position: relative; height: 170px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-collection-values { justify-content: space-around; gap: 12px; margin-top: 10px; padding-top: 12px; border-top: 2px solid var(--ap-line); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-collection-values span { color: var(--ap-muted); font-size: 12px; font-weight: 800; text-align: center; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-collection-values b { display: block; margin-top: 3px; color: var(--ap-ink); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-filters { display: grid; grid-template-columns: minmax(180px, 1.3fr) repeat(3, minmax(150px, 1fr)); gap: 10px; padding: 12px; border: 2px solid var(--ap-line); border-radius: 16px; background: var(--ap-surface2); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-filters .form-input { box-sizing: border-box; width: 100%; min-height: 44px; border: 2px solid var(--ap-line); border-radius: 12px; background: var(--ap-surface); color: var(--ap-ink); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-student-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-student-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--ap-line); }
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-list { display: grid; gap: 3px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item { min-height: 52px; gap: 10px; padding: 8px 0; border-top: 2px solid var(--ap-line); color: var(--ap-ink); text-decoration: none; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item > span { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 50%; background: var(--ap-accent-soft); color: var(--ap-accent); font-weight: 800; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item div { flex: 1; min-width: 0; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item strong,
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item small { color: var(--ap-muted); font-weight: 700; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item b { color: var(--ap-ok); font-size: 13px; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-empty-inline { padding: 24px 0; color: var(--ap-muted); font-weight: 700; text-align: center; }
+
+@media (min-width: 901px) and (max-width: 1279px) {
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-insights { grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); }
+}
+
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] #admin-dashboard :is(.ap-dashboard-insights, .ap-dashboard-lower, .ap-dashboard-secondary) { grid-template-columns: minmax(0, 1fr); }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard { gap: 18px; padding: 16px 14px; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-title { font-size: 29px; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-actions { width: 100%; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-action { flex: 1 1 145px; justify-content: center; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis { gap: 10px; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi { min-height: 126px; padding: 12px; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi strong { font-size: 23px; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel { padding: 14px; border-radius: 18px; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel-head { flex-wrap: wrap; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-filters { grid-template-columns: minmax(0, 1fr); }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-student-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-student-pagination { align-items: stretch; flex-direction: column; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout { align-items: flex-start; flex-wrap: wrap; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout .btn-secondary { width: 100%; }
 }
