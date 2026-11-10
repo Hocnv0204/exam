@@ -253,15 +253,15 @@ export function renderProGradeBlocksView() {
 
             <!-- Table -->
             <div class="table-responsive" style="overflow-x:auto;">
-              <table class="data-table" style="width:100%; min-width:850px;">
+              <table class="data-table" style="width:100%; min-width:720px;">
                 <thead>
                   <tr>
-                    <th style="width:180px;">Tên khối học</th>
-                    <th>Mô tả chi tiết</th>
-                    <th style="width:240px;">Lớp học áp dụng</th>
-                    <th style="width:160px; text-align:center;">Ngân hàng câu hỏi</th>
-                    <th style="width:140px;">Ngày tạo</th>
-                    <th style="width:140px; text-align:right;">Thao tác</th>
+                    <th style="width:180px; white-space:nowrap;">Tên khối học</th>
+                    <th style="min-width:180px; white-space:nowrap;">Mô tả chi tiết</th>
+                    <th style="width:240px; white-space:nowrap;">Lớp học áp dụng</th>
+                    <th style="width:160px; text-align:center; white-space:nowrap;">Ngân hàng câu hỏi</th>
+                    <th style="width:140px; white-space:nowrap;">Ngày tạo</th>
+                    <th style="width:140px; text-align:right; white-space:nowrap;">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody id="grade-blocks-table-body">

@@ -1389,6 +1389,9 @@ html[data-admin-ui="pro"] .ap-question-bank .ap-error-desc {
   html[data-admin-ui="pro"] .ap-question-bank .ap-qb-cart-panel {
     position: static !important;
     top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   html[data-admin-ui="pro"] .ap-question-bank .ap-qb-stats-grid {
@@ -1396,7 +1399,7 @@ html[data-admin-ui="pro"] .ap-question-bank .ap-error-desc {
   }
 
   html[data-admin-ui="pro"] .ap-question-bank .ap-diff-chips-col {
-    grid-column: span 1 !important;
+    grid-column: 1 / -1 !important;
   }
 }
 
@@ -1417,14 +1420,26 @@ html[data-admin-ui="pro"] .ap-question-bank .ap-error-desc {
     padding: 16px 14px !important;
   }
 
+  html[data-admin-ui="pro"] .ap-question-bank .ap-qb-cart-panel {
+    padding: 16px 14px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-question-bank .ap-diff-chips-col {
+    grid-column: 1 / -1 !important;
+  }
+
   html[data-admin-ui="pro"] .ap-question-bank .ap-diff-chips-group {
-    flex-direction: column !important;
-    align-items: stretch !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
   }
 
   html[data-admin-ui="pro"] .ap-question-bank .ap-diff-chip {
-    width: 100% !important;
-    justify-content: center !important;
+    width: auto !important;
+    min-height: 44px !important;
+    justify-content: flex-start !important;
   }
 }
 
@@ -1647,4 +1662,9 @@ html[data-admin-ui="pro"] .ap-question-bank [style*="color:#0284c7; background:#
     gap: 8px !important;
     padding: 14px !important;
   }
+}
+
+/* Ô tìm kiếm: chừa chỗ cho icon kính lúp (rule chung của form đang ghi đè padding) */
+html[data-admin-ui="pro"] .ap-question-bank .ap-search-input-wrap input#qb-search-input {
+  padding-left: 40px !important;
 }

@@ -2104,10 +2104,10 @@ export function renderProReportInner(opts, { includeSharePanel = false } = {}) {
       <h2 class="report-section-title" style="margin:0 0 16px 0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:22px; font-weight:800; color:var(--ap-ink);"><i class="fa-solid fa-gauge-high"></i> Chỉ số tổng quan</h2>
       <div class="report-kpi-grid" style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px;">
         ${kpis.map(k => `
-          <article class="report-kpi" style="padding:16px; border:2px solid var(--ap-line); border-radius:18px; background:var(--ap-surface2);">
-            <span style="color:var(--ap-muted); font-size:12px; font-weight:800; text-transform:uppercase;">${k.label}</span>
-            <strong style="display:block; margin:8px 0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:28px; font-weight:800; color:var(--ap-ink); line-height:1.1;">${k.val}</strong>
-            <small style="color:var(--ap-muted); font-weight:700; font-size:12px;">${k.note}</small>
+          <article class="report-kpi" style="padding:16px; border:2px solid var(--ap-line); border-radius:18px; background:var(--ap-surface2); display:flex; flex-direction:column; align-items:flex-start; min-width:0; box-sizing:border-box;">
+            <span class="report-kpi-label" style="display:block; color:var(--ap-muted); font-size:12px; font-weight:800; text-transform:uppercase; margin-bottom:6px;">${k.label}</span>
+            <strong class="report-kpi-value" style="display:block; margin:0 0 6px 0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:28px; font-weight:800; color:var(--ap-ink); line-height:1.15;">${k.val}</strong>
+            <small class="report-kpi-sub" style="display:block; color:var(--ap-muted); font-weight:700; font-size:12px;">${k.note}</small>
           </article>
         `).join('')}
       </div>

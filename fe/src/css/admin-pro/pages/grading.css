@@ -213,6 +213,7 @@ html[data-admin-ui="pro"] .ap-grade-filters label {
   font-size: 13px;
   font-weight: 800;
   color: var(--ap-muted);
+  white-space: nowrap;
 }
 
 html[data-admin-ui="pro"] .ap-grade-toolbar :is(select, input[type="search"], input[type="text"]) {
@@ -239,14 +240,15 @@ html[data-admin-ui="pro"] .ap-grade-search {
   gap: 8px;
   flex: 1 1 240px;
   min-width: 200px;
+  min-height: 44px;
 }
 
 html[data-admin-ui="pro"] .ap-grade-search span {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ap-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 html[data-admin-ui="pro"] .ap-grade-search input {
@@ -613,6 +615,7 @@ html[data-admin-ui="pro"] .ap-grade-pager button {
 /* 11. Bảng dữ liệu chung (Data Tables) */
 html[data-admin-ui="pro"] :is(#admin-history, #exam-proctoring) table {
   width: 100%;
+  min-width: 880px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -631,6 +634,7 @@ html[data-admin-ui="pro"] :is(#admin-history, #exam-proctoring) thead th {
   color: var(--ap-muted);
   border: none;
   text-align: left;
+  white-space: nowrap;
 }
 
 html[data-admin-ui="pro"] :is(#admin-history, #exam-proctoring) tbody tr {
@@ -1129,6 +1133,34 @@ html[data-admin-ui="pro"] :is(
   html[data-admin-ui="pro"] .ap-grade-filters {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
+  }
+
+  html[data-admin-ui="pro"] .ap-grade-filters label {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  html[data-admin-ui="pro"] .ap-grade-filters label select {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-grade-search {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-height: 44px !important;
+    height: auto !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-grade-search input {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
   }
 }
 

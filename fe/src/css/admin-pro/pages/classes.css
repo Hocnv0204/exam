@@ -1246,6 +1246,10 @@ html[data-admin-ui="pro"] .ap-block-chip {
   color: var(--ap-ink);
   font-family: var(--ap-font);
   font-size: 13px;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1566,6 +1570,9 @@ html[data-admin-ui="pro"] .ap-breadcrumb-link {
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
+  min-height: 44px !important;
+  padding: 0 4px !important;
+  box-sizing: border-box !important;
 }
 
 html[data-admin-ui="pro"] .ap-breadcrumb-sep {
@@ -1642,20 +1649,25 @@ html[data-admin-ui="pro"] .ap-kpi-box {
   gap: 12px !important;
 }
 
-html[data-admin-ui="pro"] .ap-details-tabs-bar {
+html[data-admin-ui="pro"] .ap-details-tabs-bar,
+html[data-admin-ui="pro"] .class-tabs-nav {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
   overflow-x: auto !important;
   -webkit-overflow-scrolling: touch !important;
-  padding: 6px !important;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  padding: 8px 12px !important;
   margin-bottom: 20px !important;
   border: 2px solid var(--ap-line) !important;
   border-radius: 18px !important;
   background: var(--ap-surface) !important;
+  box-sizing: border-box !important;
 }
 
-html[data-admin-ui="pro"] .ap-details-tabs-bar .class-tab-item {
+html[data-admin-ui="pro"] .ap-details-tabs-bar .class-tab-item,
+html[data-admin-ui="pro"] .class-tabs-nav .class-tab-item {
   min-height: 44px !important;
   padding: 0 16px !important;
   border-radius: 12px !important;
@@ -1669,8 +1681,19 @@ html[data-admin-ui="pro"] .ap-details-tabs-bar .class-tab-item {
   align-items: center !important;
   gap: 8px !important;
   white-space: nowrap !important;
+  flex-shrink: 0 !important;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+/* Đệm cuối thanh cuộn ngang mượt để tab cuối không bị cấn viền hoặc góc bo */
+html[data-admin-ui="pro"] .ap-details-tabs-bar::after,
+html[data-admin-ui="pro"] .class-tabs-nav::after {
+  content: "" !important;
+  display: block !important;
+  flex: 0 0 10px !important;
+  width: 10px !important;
+  height: 1px !important;
 }
 
 html[data-admin-ui="pro"] .ap-details-tabs-bar .class-tab-item:hover {
@@ -2041,11 +2064,39 @@ html[data-admin-ui="pro"][data-theme="dark"] .class-banner-metrics {
     width: 100% !important;
   }
 
+  /* Cụm nút tiêu đề #classes-admin: 2 nút phụ chia đôi 1 hàng, nút tạo lớp mới full-width hàng dưới */
+  html[data-admin-ui="pro"] .ap-classes-header .ap-header-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-classes-header .ap-header-actions .ap-header-link,
+  html[data-admin-ui="pro"] .ap-classes-header .ap-header-actions #open-manage-grade-blocks-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 8px !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    font-size: 13px !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-classes-header .ap-header-actions #open-create-class-btn {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+
   html[data-admin-ui="pro"] #open-manage-grade-blocks-btn,
   html[data-admin-ui="pro"] #open-create-class-btn,
   html[data-admin-ui="pro"] #open-create-block-modal-btn {
-    width: 100% !important;
-    justify-content: center !important;
+    min-height: 44px !important;
   }
 
   html[data-admin-ui="pro"] .class-kpi-grid {
@@ -2064,13 +2115,120 @@ html[data-admin-ui="pro"][data-theme="dark"] .class-banner-metrics {
     grid-template-columns: 1fr !important;
   }
 
-  html[data-admin-ui="pro"] .ap-filter-row {
-    flex-direction: column !important;
-    align-items: stretch !important;
+  /* Toolbar bộ lọc #classes-admin gọn gàng, ô tìm kiếm full-width cao 44px */
+  html[data-admin-ui="pro"] .ap-filter-card {
+    padding: 16px 14px !important;
   }
 
-  html[data-admin-ui="pro"] .ap-search-box {
+  html[data-admin-ui="pro"] .ap-filter-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-filter-row .ap-search-box {
+    flex: none !important;
+    width: 100% !important;
     max-width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-filter-row .ap-search-box input {
+    height: 100% !important;
+    width: 100% !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-view-switch {
+    align-self: flex-start !important;
+    width: fit-content !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-block-filters {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-chip-scroller {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    max-width: 100% !important;
+    padding-bottom: 4px !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-chip-scroller::-webkit-scrollbar {
+    display: none;
+  }
+
+  html[data-admin-ui="pro"] .ap-block-chip {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    min-height: 36px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Tab chi tiết lớp #class-details */
+  html[data-admin-ui="pro"] .ap-tab-card {
+    padding: 16px 14px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-tab-toolbar,
+  html[data-admin-ui="pro"] .class-tab-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-toolbar-filters,
+  html[data-admin-ui="pro"] .class-toolbar-filters {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-tab-toolbar .ap-search-box,
+  html[data-admin-ui="pro"] .class-tab-toolbar .ap-search-box,
+  html[data-admin-ui="pro"] .class-toolbar-filters .ap-search-box {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-tab-toolbar .ap-search-box input,
+  html[data-admin-ui="pro"] .class-tab-toolbar .ap-search-box input {
+    height: 100% !important;
+    width: 100% !important;
+  }
+
+  html[data-admin-ui="pro"] .class-filter-select,
+  html[data-admin-ui="pro"] #tab-student-status-filter {
+    width: 100% !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+
+  html[data-admin-ui="pro"] .class-toolbar-actions,
+  html[data-admin-ui="pro"] .class-toolbar-actions button,
+  html[data-admin-ui="pro"] .class-toolbar-actions a {
+    width: 100% !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
   }
 
   html[data-admin-ui="pro"] .ap-details-top-bar {
@@ -2083,8 +2241,14 @@ html[data-admin-ui="pro"][data-theme="dark"] .class-banner-metrics {
     justify-content: space-between !important;
   }
 
+  html[data-admin-ui="pro"] .ap-details-top-actions button,
+  html[data-admin-ui="pro"] .ap-details-top-actions a {
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+
   html[data-admin-ui="pro"] .ap-details-tabs-bar {
-    padding: 6px !important;
+    padding: 6px 10px !important;
   }
 
   html[data-admin-ui="pro"] .ap-attendance-sticky-bar {
@@ -2098,12 +2262,26 @@ html[data-admin-ui="pro"][data-theme="dark"] .class-banner-metrics {
   }
 
   html[data-admin-ui="pro"] .class-banner-card {
-    padding: 18px !important;
+    padding: 16px !important;
   }
 
+  html[data-admin-ui="pro"] .ap-hero-avatar {
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 56px !important;
+    font-size: 22px !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-tab-table-wrap,
   html[data-admin-ui="pro"] .table-responsive {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+
+  html[data-admin-ui="pro"] .ap-tab-table-wrap .data-table,
+  html[data-admin-ui="pro"] .table-responsive .data-table {
+    min-width: 600px !important;
   }
 }
 
@@ -2111,11 +2289,41 @@ html[data-admin-ui="pro"][data-theme="dark"] .class-banner-metrics {
 html[data-admin-ui="pro"] .class-kpi-grid.ap-details-kpi-grid {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
 }
-@media (max-width: 900px) {
+@media (max-width: 900px) and (min-width: 481px) {
   html[data-admin-ui="pro"] .class-kpi-grid.ap-details-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
+@media (max-width: 480px) {
+  html[data-admin-ui="pro"] .class-kpi-grid.ap-details-kpi-grid,
+  html[data-admin-ui="pro"] .class-kpi-grid,
+  html[data-admin-ui="pro"] .ap-details-kpi-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] .class-kpi-card,
+  html[data-admin-ui="pro"] .ap-kpi-box {
+    padding: 14px 16px !important;
+    min-width: 0 !important;
+  }
+
+  html[data-admin-ui="pro"] .class-kpi-title {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+
+  html[data-admin-ui="pro"] .class-kpi-value {
+    font-size: 20px !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word !important;
+  }
+}
+
 /* Số đếm trên tab chưa chọn bị nhạt: dùng chữ ink trên nền surface2 có viền. */
 html[data-admin-ui="pro"] .class-tab-item:not(.active) .class-tab-badge {
   background: var(--ap-surface2) !important;

@@ -168,7 +168,7 @@ html[data-admin-ui="pro"] :is(
   input[type="date"],
   select,
   textarea
-) {
+):not(.ap-filter-box input) {
   background: var(--ap-surface2) !important;
   color: var(--ap-ink) !important;
   border: 2px solid var(--ap-line) !important;
@@ -188,7 +188,7 @@ html[data-admin-ui="pro"] :is(
   input[type="date"],
   select,
   textarea
-):focus {
+):not(.ap-filter-box input):focus {
   border-color: var(--ap-accent) !important;
 }
 
@@ -280,6 +280,47 @@ html[data-admin-ui="pro"] #trial-management .trial-filter-bar {
   gap: 12px;
   flex-wrap: wrap;
   align-items: flex-end;
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  html[data-admin-ui="pro"] #trial-management .trial-filter-bar {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    align-items: end !important;
+  }
+
+  html[data-admin-ui="pro"] #trial-management .trial-filter-bar > * {
+    width: 100% !important;
+    flex: none !important;
+    box-sizing: border-box !important;
+  }
+
+  html[data-admin-ui="pro"] #trial-management #btn-trial-reset-filters-top {
+    width: 100% !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] #trial-management .trial-filter-bar {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] #trial-management .trial-filter-bar > * {
+    width: 100% !important;
+    flex: none !important;
+    box-sizing: border-box !important;
+  }
+
+  html[data-admin-ui="pro"] #trial-management #btn-trial-reset-filters-top {
+    width: 100% !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
 }
 
 html[data-admin-ui="pro"] #trial-management .trial-filter-bar label {
@@ -543,6 +584,44 @@ html[data-admin-ui="pro"] #grade-blocks .btn-action-icon:hover {
   background: var(--ap-surface2) !important;
 }
 
+/* Bảng khối học & thanh công cụ */
+html[data-admin-ui="pro"] #grade-blocks .table-responsive {
+  width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .data-table {
+  width: 100% !important;
+  min-width: 720px !important;
+}
+
+html[data-admin-ui="pro"] #grade-blocks .data-table th {
+  white-space: nowrap !important;
+}
+
+@media (max-width: 834px) {
+  html[data-admin-ui="pro"] #grade-blocks .flex-wrap-mobile {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] #grade-blocks .search-box,
+  html[data-admin-ui="pro"] #grade-blocks .full-width-mobile {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  html[data-admin-ui="pro"] #grade-blocks #grade-block-search-input {
+    width: 100% !important;
+  }
+
+  html[data-admin-ui="pro"] #grade-blocks #refresh-grade-blocks-btn {
+    align-self: flex-start;
+  }
+}
+
 /* ==========================================================================
    7. BÁO CÁO TIẾN ĐỘ ADMIN (#student-report[data-role="ADMIN"])
    ========================================================================== */
@@ -607,33 +686,44 @@ html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {
 }
 
 html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
   padding: 16px 18px !important;
   box-shadow: none !important;
   background: var(--ap-surface2) !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
 }
 
-html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-label {
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi > :is(span, .report-kpi-label) {
+  display: block !important;
   font-size: 12px !important;
   font-weight: 800 !important;
   text-transform: uppercase;
   color: var(--ap-muted) !important;
-  margin: 0 0 6px 0;
+  margin: 0 0 6px 0 !important;
+  line-height: 1.3 !important;
 }
 
-html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-value {
-  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif);
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi > :is(strong, .report-kpi-value) {
+  display: block !important;
+  font-family: var(--ap-font-heading, 'Baloo 2', system-ui, sans-serif) !important;
   font-size: 28px !important;
   font-weight: 800 !important;
   color: var(--ap-ink) !important;
-  line-height: 1.1;
-  margin-bottom: 4px;
+  line-height: 1.15 !important;
+  margin: 0 0 6px 0 !important;
 }
 
-html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-sub {
+html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi > :is(small, .report-kpi-sub) {
+  display: block !important;
   font-size: 12px !important;
   font-weight: 700 !important;
   color: var(--ap-muted) !important;
-  margin: 0;
+  margin: 0 !important;
+  line-height: 1.3 !important;
 }
 
 /* Biểu đồ xu hướng điểm */
@@ -789,6 +879,11 @@ html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-badge--best
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+
+  html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
 }
 
 /* Điện thoại di động (≤640px) */
@@ -802,7 +897,8 @@ html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-badge--best
   }
 
   html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
   }
 
   html[data-admin-ui="pro"] :is(.page-header, .navy-hero, .report-hero) {
@@ -811,5 +907,13 @@ html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-badge--best
 
   html[data-admin-ui="pro"] :is(.page-title, .report-hero-title) {
     font-size: 24px !important;
+  }
+}
+
+/* Màn hình điện thoại nhỏ (≤380px): 1 cột */
+@media (max-width: 380px) {
+  html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
 }

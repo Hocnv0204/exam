@@ -530,7 +530,7 @@ function renderProStudentsTabHTML(currentClass, classStudents) {
       <!-- Toolbar -->
       <div class="class-tab-toolbar ap-tab-toolbar">
         <div class="class-toolbar-filters ap-toolbar-filters">
-          <div class="search-box ap-search-box" style="flex:1; min-width:240px;">
+          <div class="search-box ap-search-box">
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" id="tab-student-search-input" placeholder="Tìm theo tên, mã HS, tên đăng nhập..." value="${escapeHtml(studentSearchQuery)}">
           </div>

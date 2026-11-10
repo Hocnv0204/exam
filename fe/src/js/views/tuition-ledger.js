@@ -134,7 +134,7 @@ function renderProLedgerShell() {
               <span class="ap-filter-label">Tìm kiếm</span>
               <span class="ap-filter-box">
                 <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                <input id="ledger-search" type="text" value="${escapeHtml(filterSearch)}" placeholder="Tìm theo tên học sinh, biên lai...">
+                <input id="ledger-search" type="text" value="${escapeHtml(filterSearch)}" placeholder="Tìm theo tên học sinh, biên lai..." style="padding-left:38px !important;">
               </span>
             </label>
             <label class="ap-filter-item">
