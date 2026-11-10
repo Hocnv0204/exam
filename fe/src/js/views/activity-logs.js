@@ -6,7 +6,7 @@ import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 import { isAdminProUI } from '../ui-flag.js'
 
-if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/ledger-logs.css') }
 
 let currentPage = 1
 let pageSize = 20
@@ -17,6 +17,7 @@ let filterFrom = ''
 let filterTo = ''
 let cachedTotal = 0
 let loadReqId = 0
+let proUI = false
 
 const ACTIVITY_LABELS = {
   LOGIN: 'Đăng nhập',
@@ -27,6 +28,22 @@ const ACTIVITY_LABELS = {
   HOMEWORK_SUBMIT: 'Nộp bài',
   EXAM_START: 'Vào phòng thi',
   EXAM_SUBMIT: 'Nộp bài thi'
+}
+
+// Tone + icon theo loại hành động cho dòng thời gian Pro
+const ACTIVITY_TONES = {
+  LOGIN: ['accent', 'fa-right-to-bracket'],
+  LOGOUT: ['muted', 'fa-right-from-bracket'],
+  LESSON_VIEW: ['blue', 'fa-book-open'],
+  VIDEO_WATCH: ['blue', 'fa-play'],
+  HOMEWORK_START: ['warn', 'fa-pen-to-square'],
+  HOMEWORK_SUBMIT: ['ok', 'fa-circle-check'],
+  EXAM_START: ['warn', 'fa-door-open'],
+  EXAM_SUBMIT: ['ok', 'fa-flag-checkered']
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 function formatSecs(total) {
@@ -44,9 +61,11 @@ function logDetail(log) {
 }
 
 export function renderActivityLogsView() {
-  const proUI = typeof isAdminProUI === 'function' && isAdminProUI()
+  proUI = typeof isAdminProUI === 'function' && isAdminProUI()
+
+  if (proUI) return renderProLogsShell()
   return `
-    <div class="app-layout${proUI ? ' admin-dark" id="activity-logs" data-route="activity-logs" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar('activity-logs')}
       <div class="main-content">
         ${renderNavbar('Quản trị / Nhật ký hoạt động')}
@@ -121,7 +140,81 @@ export function renderActivityLogsView() {
   `
 }
 
+function renderProLogsShell() {
+  return `
+    <div class="app-layout admin-dark" id="activity-logs" data-route="activity-logs" data-role="ADMIN">
+      ${renderSidebar('activity-logs')}
+      <div class="main-content">
+        ${renderNavbar('Quản trị / Nhật ký hoạt động')}
+        <div class="content-body ap-logs">
+          <section class="ap-page-head">
+            <div>
+              <p class="ap-page-kicker">Tài chính &amp; hệ thống</p>
+              <h1 class="ap-page-title">Nhật ký hoạt động</h1>
+              <p class="ap-page-desc">Đăng nhập, xem bài học/video và làm bài của học sinh theo thời gian.</p>
+            </div>
+          </section>
+
+          <section class="ap-page-filter" aria-label="Bộ lọc nhật ký">
+            <label class="ap-filter-item ap-filter-wide">
+              <span class="ap-filter-label">Tìm học sinh</span>
+              <input type="text" id="activity-search-input" class="ap-page-input" placeholder="Tên hoặc username..." value="${escapeHtml(filterSearch)}">
+            </label>
+            <label class="ap-filter-item">
+              <span class="ap-filter-label">Lớp</span>
+              <select id="activity-class-filter" class="ap-page-input">
+                <option value="">Tất cả lớp</option>
+                ${(state.classes || []).map(c => `<option value="${c.id}" ${filterClassId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="ap-filter-item">
+              <span class="ap-filter-label">Hành động</span>
+              <select id="activity-action-filter" class="ap-page-input">
+                <option value="">Tất cả</option>
+                ${Object.keys(ACTIVITY_LABELS).map(k => `<option value="${k}" ${filterAction === k ? 'selected' : ''}>${ACTIVITY_LABELS[k]}</option>`).join('')}
+              </select>
+            </label>
+            <label class="ap-filter-item">
+              <span class="ap-filter-label">Từ ngày</span>
+              <input type="date" id="activity-from-date" class="ap-page-input" value="${filterFrom}">
+            </label>
+            <label class="ap-filter-item">
+              <span class="ap-filter-label">Đến ngày</span>
+              <input type="date" id="activity-to-date" class="ap-page-input" value="${filterTo}">
+            </label>
+            <div class="ap-filter-actions">
+              <button id="activity-apply-btn" class="btn-primary" style="width:auto;" type="button"><i class="fa-solid fa-filter" aria-hidden="true"></i> Lọc</button>
+              <button id="activity-reset-btn" class="btn-secondary" style="width:auto;" type="button" title="Xóa hết điều kiện lọc và tải lại"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Làm mới</button>
+            </div>
+          </section>
+
+          <section class="ap-timeline-card">
+            <div class="ap-tl-head">
+              <h2 class="ap-tl-title"><span class="ap-icon-pill ap-tone-accent" aria-hidden="true"><i class="fa-solid fa-clipboard-list"></i></span> Dòng thời gian</h2>
+              <span id="ap-tl-count" class="ap-tl-count"></span>
+            </div>
+            <ol id="activity-logs-tbody" class="ap-tl">
+              <li class="ap-tl-note"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Đang tải nhật ký...</li>
+            </ol>
+            <div id="activity-pagination-wrapper"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  `
+}
+
 function skeletonRows(cols = 5, n = 6) {
+  if (proUI) {
+    return Array.from({ length: n }).map(() => `
+      <li class="ap-tl-item ap-tl-skeleton">
+        <span class="ap-tl-icon"></span>
+        <span class="ap-tl-who"><span class="skeleton-bar" style="width:70%;"></span></span>
+        <span class="ap-tl-what"><span class="skeleton-bar"></span></span>
+        <span class="ap-tl-when"><span class="skeleton-bar"></span></span>
+      </li>
+    `).join('')
+  }
   return Array.from({ length: n }).map(() => `
     <tr class="activity-skeleton-row">
       ${Array.from({ length: cols }).map((_, i) => `
@@ -131,11 +224,38 @@ function skeletonRows(cols = 5, n = 6) {
   `).join('')
 }
 
+function timelineItem(l) {
+  const [tone, icon] = ACTIVITY_TONES[l.action] || ['muted', 'fa-circle-info']
+  const detail = logDetail(l)
+  return `
+    <li class="ap-tl-item">
+      <span class="ap-tl-icon ap-tone-${tone}" aria-hidden="true"><i class="fa-solid ${icon}"></i></span>
+      <span class="ap-tl-who">
+        <strong>${escapeHtml(l.userName || '')}</strong>
+        ${l.username ? `<small>${escapeHtml(l.username)}</small>` : ''}
+      </span>
+      <span class="ap-tl-what">
+        <strong>${escapeHtml(ACTIVITY_LABELS[l.action] || l.action)}</strong>
+        ${detail ? `<small>${escapeHtml(detail)}</small>` : ''}
+      </span>
+      <span class="ap-tl-when">
+        <strong>${escapeHtml(new Date(l.createdAt).toLocaleString('vi-VN'))}</strong>
+        <small>${l.durationSeconds ? `Thời lượng ${formatSecs(l.durationSeconds)}` : '—'}</small>
+      </span>
+    </li>`
+}
+
 function renderRows(items) {
   const tbody = document.getElementById('activity-logs-tbody')
   if (!tbody) return
   if (!items || items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:32px; color:#94a3b8;">Không có bản ghi nào khớp bộ lọc.</td></tr>`
+    tbody.innerHTML = proUI
+      ? `<li class="ap-tl-note"><i class="fa-solid fa-inbox" aria-hidden="true"></i> Không có bản ghi nào khớp bộ lọc.</li>`
+      : `<tr><td colspan="5" style="text-align:center; padding:32px; color:#94a3b8;">Không có bản ghi nào khớp bộ lọc.</td></tr>`
+    return
+  }
+  if (proUI) {
+    tbody.innerHTML = items.map(timelineItem).join('')
     return
   }
   tbody.innerHTML = items.map(l => `
@@ -176,6 +296,11 @@ async function loadLogs() {
     cachedTotal = res?.total || 0
     renderRows(res?.items || [])
 
+    if (proUI) {
+      const tlCount = document.getElementById('ap-tl-count')
+      if (tlCount) tlCount.textContent = `Trang ${currentPage} · ${cachedTotal} bản ghi`
+    }
+
     const wrapper = document.getElementById('activity-pagination-wrapper')
     if (wrapper) {
       wrapper.innerHTML = renderPaginationBar({
@@ -195,7 +320,9 @@ async function loadLogs() {
     if (reqId !== loadReqId) return
     console.error('[activity-logs] load failed:', err)
     if (tbody) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:32px; color:#ef4444;">Tải thất bại: ${err.message}</td></tr>`
+      tbody.innerHTML = proUI
+        ? `<li class="ap-tl-note ap-tl-error"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Tải thất bại: ${escapeHtml(err.message)}</li>`
+        : `<tr><td colspan="5" style="text-align:center; padding:32px; color:#ef4444;">Tải thất bại: ${err.message}</td></tr>`
     }
     showToast(`Tải nhật ký thất bại: ${err.message}`, 'error')
   } finally {

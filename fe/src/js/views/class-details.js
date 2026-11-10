@@ -75,8 +75,28 @@ export function renderClassDetailsView() {
   const currentClass = state.classes.find(c => c.id === classId)
   const proUI = isAdminProUI()
   if (!currentClass) {
+    if (proUI) {
+      return `
+        <div class="app-layout admin-dark" id="class-details" data-route="class-details" data-role="ADMIN">
+          ${renderSidebar('classes-admin')}
+          <div class="main-content">
+            ${renderNavbar('Nền tảng / Chi tiết lớp học')}
+            <div class="content-body" style="padding: 24px;">
+              <div class="card ap-not-found-card" style="text-align:center; padding:48px 24px; color:var(--ap-warn); border-radius:20px; border:2px solid var(--ap-line); background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block);">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:42px; margin-bottom:16px;"></i>
+                <h2 style="font-family:var(--ap-font-heading); font-size:22px; font-weight:800; margin-bottom:8px; color:var(--ap-ink);">Không tìm thấy thông tin lớp học!</h2>
+                <p style="color:var(--ap-muted); font-size:14px; margin-bottom:20px; font-weight:600;">Lớp học có thể đã bị xóa hoặc đường dẫn không hợp lệ.</p>
+                <a href="#classes-admin" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; width:auto; text-decoration:none; padding:10px 20px;">
+                  <i class="fa-solid fa-arrow-left"></i> Quay lại danh sách lớp
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+    }
     return `
-      <div class="app-layout${proUI ? ' admin-dark" id="class-details" data-route="class-details" data-role="ADMIN' : ''}">
+      <div class="app-layout">
         ${renderSidebar('classes-admin')}
         <div class="main-content">
           ${renderNavbar('Nền tảng / Chi tiết lớp học')}
@@ -99,8 +119,15 @@ export function renderClassDetailsView() {
   const classStudents = state.students.filter(s => s.classIds ? s.classIds.includes(classId) : (s.classId === classId))
   const shortId = currentClass.id ? `${currentClass.id.substring(0, 8)}...${currentClass.id.substring(currentClass.id.length - 4)}` : 'N/A'
 
+  if (proUI) {
+    return renderProClassDetailsView(currentClass, classStudents, shortId)
+  }
+  return renderClassicClassDetailsView(currentClass, classStudents, shortId)
+}
+
+export function renderClassicClassDetailsView(currentClass, classStudents, shortId) {
   return `
-    <div class="app-layout${proUI ? ' admin-dark" id="class-details" data-route="class-details" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar('classes-admin')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Chi tiết lớp học')}
@@ -271,7 +298,198 @@ export function renderClassDetailsView() {
   `
 }
 
+function renderProClassDetailsView(currentClass, classStudents, shortId) {
+  return `
+    <div class="app-layout admin-dark" id="class-details" data-route="class-details" data-role="ADMIN">
+      ${renderSidebar('classes-admin')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Chi tiết lớp học')}
+        <div class="content-body ap-class-details-body">
+          
+          <!-- Top Breadcrumb & Actions -->
+          <div class="class-top-bar ap-details-top-bar">
+            <div class="class-top-breadcrumb ap-details-breadcrumb">
+              <a href="#classes-admin" class="ap-breadcrumb-link">
+                <i class="fa-solid fa-arrow-left"></i> Danh sách lớp
+              </a>
+              <span class="ap-breadcrumb-sep">/</span>
+              <select id="quick-class-switcher" class="form-input ap-quick-switcher">
+                ${state.classes.map(c => `<option value="${c.id}" ${c.id === currentClass.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+              </select>
+              ${currentClass.is_archived ? `<span class="badge badge-paused" style="margin-left: 8px;">Đã lưu trữ</span>` : ''}
+            </div>
+            <div class="class-top-actions ap-details-top-actions">
+              <button type="button" id="btn-edit-class-info" class="btn-secondary">
+                <i class="fa-solid fa-pen-to-square"></i> Sửa thông tin lớp
+              </button>
+              <a href="#classes-admin" class="btn-secondary" style="text-decoration:none;">
+                <i class="fa-solid fa-arrow-left"></i> Quay lại
+              </a>
+            </div>
+          </div>
+
+          <!-- Class Header Banner (Hero) -->
+          <div class="card class-banner-card ap-class-hero">
+            <div class="class-banner-container">
+              <div class="class-banner-main">
+                <div class="class-banner-icon ap-hero-avatar">
+                  <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div class="class-banner-details">
+                  <div class="class-banner-title-row">
+                    <h1 class="page-title class-title-heading">${escapeHtml(currentClass.name)}</h1>
+                    <span class="badge badge-class-grade">
+                      <i class="fa-solid fa-layer-group" style="font-size:11px;"></i> ${escapeHtml(currentClass.gradeBlock || '12-Toán')}
+                    </span>
+                  </div>
+                  <div class="class-banner-meta">
+                    <div class="class-id-pill" title="${currentClass.id}">
+                      <span>ID: <strong>${shortId}</strong></span>
+                      <button type="button" class="btn-copy-id" id="btn-copy-class-id" data-copy="${currentClass.id}" title="Sao chép toàn bộ ID" aria-label="Sao chép toàn bộ ID">
+                        <i class="fa-regular fa-copy"></i>
+                      </button>
+                    </div>
+                    ${currentClass.description ? `<span class="class-banner-desc">${escapeHtml(currentClass.description)}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="class-banner-metrics ap-hero-metrics">
+                <div class="class-banner-metric-item">
+                  <div class="class-metric-label">Học phí / Buổi</div>
+                  <strong class="class-metric-value text-emerald">
+                    ${(Number(currentClass.tuitionFee || 0)).toLocaleString('vi-VN')} <span class="class-metric-unit">VND</span>
+                  </strong>
+                </div>
+                <div class="class-banner-metric-item has-divider">
+                  <div class="class-metric-label">Sĩ số hiện tại</div>
+                  <strong id="header-student-count" class="class-metric-value text-slate">
+                    <i class="fa-solid fa-users" style="color:var(--ap-accent); font-size:16px;"></i> ${classStudents.length} <span class="class-metric-unit">học sinh</span>
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dashboard Stats (5 KPI Cards) -->
+          <div class="class-kpi-grid ap-details-kpi-grid" id="class-kpi-container">
+            <!-- Card 1: Tổng số buổi đã học -->
+            <div class="class-kpi-card ap-kpi-box">
+              <div class="class-kpi-icon icon-green">
+                <i class="fa-solid fa-calendar-check"></i>
+              </div>
+              <div class="class-kpi-content">
+                <div class="class-kpi-title">Tổng số buổi đã học</div>
+                <div class="class-kpi-value" id="kpi-total-sessions">${cachedKpiStats ? cachedKpiStats.totalSessions : '--'}</div>
+                <div class="class-kpi-subtitle">Số buổi học lớp đã diễn ra</div>
+              </div>
+            </div>
+
+            <!-- Card 2: Học phí chưa thu -->
+            <div class="class-kpi-card ap-kpi-box">
+              <div class="class-kpi-icon icon-amber">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+              </div>
+              <div class="class-kpi-content">
+                <div class="class-kpi-title">Học phí chưa thu</div>
+                <div class="class-kpi-value text-warn" id="kpi-unpaid-tuition">${cachedKpiStats ? `${(Number(cachedKpiStats.unpaidTuition || 0)).toLocaleString('vi-VN')} VND` : '0 VND'}</div>
+                <div class="class-kpi-subtitle" id="kpi-unpaid-students-count">${cachedKpiStats ? `${cachedKpiStats.unpaidStudentsCount || 0} học sinh còn nợ` : '0 học sinh còn nợ'}</div>
+              </div>
+            </div>
+
+            <!-- Card 3: Buổi học tháng này -->
+            <div class="class-kpi-card ap-kpi-box">
+              <div class="class-kpi-icon icon-purple">
+                <i class="fa-solid fa-calendar-days"></i>
+              </div>
+              <div class="class-kpi-content">
+                <div class="class-kpi-title">Buổi học tháng này</div>
+                <div class="class-kpi-value" id="kpi-month-sessions">${cachedKpiStats ? cachedKpiStats.monthSessions : '0'}</div>
+                <div class="class-kpi-subtitle" id="kpi-month-sessions-sub">Tính đến hôm nay</div>
+              </div>
+            </div>
+
+            <!-- Card 4: Buổi học gần nhất -->
+            <div class="class-kpi-card ap-kpi-box">
+              <div class="class-kpi-icon icon-blue">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+              </div>
+              <div class="class-kpi-content">
+                <div class="class-kpi-title">Buổi học gần nhất</div>
+                <div class="class-kpi-value" id="kpi-latest-session-date" style="font-size:16px;">${cachedKpiStats ? (cachedKpiStats.latestSessionDate || 'Chưa có') : 'Chưa có'}</div>
+                <div class="class-kpi-subtitle" id="kpi-latest-session-present">${cachedKpiStats ? (cachedKpiStats.latestSessionPresent || 'Chưa điểm danh') : 'Chưa điểm danh'}</div>
+              </div>
+            </div>
+
+            <!-- Card 5: Bài tập đang mở -->
+            <div class="class-kpi-card ap-kpi-box">
+              <div class="class-kpi-icon icon-orange">
+                <i class="fa-solid fa-list-check"></i>
+              </div>
+              <div class="class-kpi-content">
+                <div class="class-kpi-title">Bài tập đang mở</div>
+                <div class="class-kpi-value" id="kpi-open-homeworks">${cachedKpiStats ? cachedKpiStats.openHomeworks : '0'}</div>
+                <div class="class-kpi-subtitle" id="kpi-pending-submissions">Hạn sau thời điểm hiện tại</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Navigation Tab Bar -->
+          <div class="class-tabs-nav ap-details-tabs-bar" role="tablist">
+            <button class="class-tab-item ${activeTab === 'students' ? 'active' : ''}" data-tab="students" role="tab" aria-selected="${activeTab === 'students'}">
+              <i class="fa-solid fa-users"></i> Học sinh
+              <span class="class-tab-badge" id="tab-badge-students">${classStudents.length}</span>
+            </button>
+            <button class="class-tab-item ${activeTab === 'curriculum' ? 'active' : ''}" data-tab="curriculum" role="tab" aria-selected="${activeTab === 'curriculum'}">
+              <i class="fa-solid fa-book-open"></i> Chương trình học
+              <span class="class-tab-badge" id="tab-badge-curriculum" style="display:none;">0</span>
+            </button>
+            <button class="class-tab-item ${activeTab === 'attendance' ? 'active' : ''}" data-tab="attendance" role="tab" aria-selected="${activeTab === 'attendance'}">
+              <i class="fa-solid fa-clipboard-check"></i> Điểm danh
+              <span class="class-tab-badge" id="tab-badge-attendance">${attendanceTotal || 0}</span>
+            </button>
+            <button class="class-tab-item ${activeTab === 'tuition' ? 'active' : ''}" data-tab="tuition" role="tab" aria-selected="${activeTab === 'tuition'}">
+              <i class="fa-solid fa-money-bill-wave"></i> Học phí
+              <span class="class-tab-badge" id="tab-badge-tuition" style="display:none;">0 nợ</span>
+            </button>
+            <button class="class-tab-item ${activeTab === 'homework' ? 'active' : ''}" data-tab="homework" role="tab" aria-selected="${activeTab === 'homework'}">
+              <i class="fa-solid fa-file-pen"></i> Bài tập
+              <span class="class-tab-badge" id="tab-badge-homework">${cachedHomeworks?.length || 0}</span>
+            </button>
+            <button class="class-tab-item ${activeTab === 'settings' ? 'active' : ''}" data-tab="settings" role="tab" aria-selected="${activeTab === 'settings'}">
+              <i class="fa-solid fa-gear"></i> Cài đặt
+            </button>
+          </div>
+
+          <!-- Tab Content Container -->
+          <div id="class-tab-content-container" class="ap-details-tab-content">
+            ${renderActiveTabContent(currentClass, classStudents)}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  `
+}
+
 function renderActiveTabContent(currentClass, classStudents) {
+  if (isAdminProUI()) {
+    switch (activeTab) {
+      case 'curriculum':
+        return renderCurriculumTabHTML(currentClass)
+      case 'attendance':
+        return renderProAttendanceTabHTML(currentClass)
+      case 'tuition':
+        return renderProTuitionTabHTML(currentClass)
+      case 'homework':
+        return renderProHomeworkTabHTML(currentClass)
+      case 'settings':
+        return renderProSettingsTabHTML(currentClass)
+      case 'students':
+      default:
+        return renderProStudentsTabHTML(currentClass, classStudents)
+    }
+  }
+
   switch (activeTab) {
     case 'curriculum':
       return renderCurriculumTabHTML(currentClass)
@@ -287,6 +505,724 @@ function renderActiveTabContent(currentClass, classStudents) {
     default:
       return renderStudentsTabHTML(currentClass, classStudents)
   }
+}
+
+// =========================================================
+// PRO RENDERERS FOR PRO UI
+// =========================================================
+function renderProStudentsTabHTML(currentClass, classStudents) {
+  const studentsToRender = cachedClassStudents.length > 0 ? cachedClassStudents : classStudents
+
+  const filtered = studentsToRender.filter(s => {
+    const matchSearch = !studentSearchQuery || 
+      (s.fullName && s.fullName.toLowerCase().includes(studentSearchQuery.toLowerCase())) ||
+      (s.username && s.username.toLowerCase().includes(studentSearchQuery.toLowerCase())) ||
+      (s.studentCode && s.studentCode.toLowerCase().includes(studentSearchQuery.toLowerCase()))
+    
+    const status = s.status || 'ACTIVE'
+    const matchStatus = studentStatusFilter === 'ALL' || status === studentStatusFilter
+
+    return matchSearch && matchStatus
+  })
+
+  return `
+    <div class="card ap-tab-card">
+      <!-- Toolbar -->
+      <div class="class-tab-toolbar ap-tab-toolbar">
+        <div class="class-toolbar-filters ap-toolbar-filters">
+          <div class="search-box ap-search-box" style="flex:1; min-width:240px;">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="tab-student-search-input" placeholder="Tìm theo tên, mã HS, tên đăng nhập..." value="${escapeHtml(studentSearchQuery)}">
+          </div>
+          <select id="tab-student-status-filter" class="class-filter-select form-input">
+            <option value="ALL" ${studentStatusFilter === 'ALL' ? 'selected' : ''}>Tất cả trạng thái</option>
+            <option value="ACTIVE" ${studentStatusFilter === 'ACTIVE' ? 'selected' : ''}>Đang học</option>
+            <option value="PAUSED" ${studentStatusFilter === 'PAUSED' ? 'selected' : ''}>Tạm nghỉ</option>
+          </select>
+        </div>
+        <div class="class-toolbar-actions">
+          <button type="button" id="btn-add-student-to-class" class="btn-primary">
+            <i class="fa-solid fa-user-plus"></i> Thêm học sinh vào lớp
+          </button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-responsive ap-tab-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Học sinh</th>
+              <th scope="col">Mã học sinh</th>
+              <th scope="col">Trạng thái</th>
+              <th scope="col">Chuyên cần</th>
+              <th scope="col" style="text-align:center;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="class-students-tbody">
+            ${filtered.length === 0 ? `
+              <tr>
+                <td colspan="5" style="text-align:center; padding:48px 20px; color:var(--ap-muted);">
+                  <i class="fa-solid fa-users-slash" style="font-size:36px; color:var(--ap-line); display:block; margin-bottom:12px;"></i>
+                  ${studentSearchQuery || studentStatusFilter !== 'ALL' ? 'Không tìm thấy học sinh nào khớp với bộ lọc.' : 'Chưa có học sinh nào trong lớp này.'}
+                </td>
+              </tr>
+            ` : filtered.map(s => {
+              const sid = s.id || s.studentId
+              const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
+              const isActive = (s.status || 'ACTIVE') === 'ACTIVE'
+              const attendanceRate = s.attendanceRate !== undefined ? s.attendanceRate : 100
+              
+              return `
+                <tr id="student-row-${sid}">
+                  <td>
+                    <div class="student-info-cell">
+                      <div class="avatar-circle">${initials}</div>
+                      <div>
+                        <strong style="color:var(--ap-ink); display:block; font-size:15px;">${escapeHtml(s.fullName)}</strong>
+                        <span style="font-size:12px; color:var(--ap-muted);">${escapeHtml(s.username)}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td style="font-family:monospace; font-weight:700; color:var(--ap-ink);">${escapeHtml(s.studentCode || 'N/A')}</td>
+                  <td>
+                    <button type="button" class="btn-toggle-student-status badge ${isActive ? 'badge-present' : 'badge-paused'}" data-student-id="${sid}" data-current-status="${isActive ? 'ACTIVE' : 'PAUSED'}" title="Nhấn để đổi trạng thái" aria-label="Đổi trạng thái học sinh ${escapeHtml(s.fullName)}">
+                      <i class="fa-solid fa-circle" style="font-size:6px;"></i> ${isActive ? 'Đang học' : 'Tạm nghỉ'}
+                    </button>
+                  </td>
+                  <td>
+                    ${s.attendedSessions !== undefined ? `<div style="font-size:13px; font-weight:700; color:var(--ap-ink);"><i class="fa-regular fa-calendar-check" style="color:var(--ap-accent);"></i> ${s.attendedSessions} buổi đã học <span style="color:var(--ap-muted); font-weight:600;">(${attendanceRate}%)</span></div>` : '<div style="font-size:13px; font-weight:700; color:var(--ap-muted);">Chưa điểm danh</div>'}
+                    <div style="font-size:11px; color:var(--ap-muted); margin-top:2px;">Xem học phí ở tab Học phí</div>
+                  </td>
+                  <td style="text-align:center;">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                      <a href="#student-details?studentId=${sid}&classId=${currentClass.id}" class="btn-secondary" title="Xem chi tiết học tập & lịch học" aria-label="Chi tiết học sinh ${escapeHtml(s.fullName)}" style="padding:6px 12px; font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px;">
+                        <i class="fa-solid fa-calendar-day" style="color:var(--ap-accent);"></i> Chi tiết
+                      </a>
+                      <button type="button" class="btn-remove-from-class" data-student-id="${sid}" data-student-name="${escapeHtml(s.fullName)}" title="Xóa khỏi lớp học" aria-label="Xóa ${escapeHtml(s.fullName)} khỏi lớp" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:var(--ap-warn-soft); border:1px solid var(--ap-warn); color:var(--ap-warn); font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-solid fa-user-minus"></i> Xóa
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `
+}
+
+function renderProAttendanceTabHTML(currentClass) {
+  const history = cachedAttendanceHistory || []
+  const uniqueMonths = (attendanceMonths.length > 0 ? attendanceMonths : [...new Set(history.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean)).sort().reverse()
+  const today = new Date().toISOString().split('T')[0]
+  const formatMonth = (m) => {
+    const [year, month] = m.split('-')
+    return `Tháng ${month}/${year}`
+  }
+
+  const studentsList = cachedClassStudents.length > 0 ? cachedClassStudents : (state.students || []).filter(s => s.classIds ? s.classIds.includes(currentClass.id) : (s.classId === currentClass.id))
+  const activeStudents = studentsList.filter(s => s.status !== 'PAUSED' && s.status !== 'LOCKED')
+
+  return `
+    <div class="ap-attendance-grid">
+      <!-- Cột Trái: Chọn buổi điểm danh & Lịch sử -->
+      <div class="ap-att-left-col">
+        <!-- Card 1: Buổi điểm danh -->
+        <article class="card ap-att-session-card">
+          <h2 class="ap-card-section-title">
+            <i class="fa-solid fa-calendar-check" style="color:var(--ap-accent);"></i> Buổi điểm danh
+          </h2>
+
+          <div class="ap-att-form-fields">
+            <label class="ap-field-label">
+              <span>Ngày học <strong style="color:var(--ap-accent2);">*</strong></span>
+              <input type="date" id="attendance-session-date-input" class="form-input" value="${today}" max="${today}">
+            </label>
+
+            <label class="ap-field-label">
+              <span>Nội dung buổi học</span>
+              <input type="text" id="attendance-session-note" class="form-input" placeholder="Ví dụ: Ôn tập cực trị hàm số, đề 15 phút...">
+            </label>
+
+            <label class="ap-field-label">
+              <span>Học phí buổi này</span>
+              <input type="text" class="form-input" readonly value="${(Number(currentClass.tuitionFee || 0)).toLocaleString('vi-VN')} VND" style="cursor:default; font-weight:700;">
+            </label>
+          </div>
+
+          <p class="ap-info-tip">
+            <i class="fa-solid fa-circle-info"></i> Học sinh vắng không bị trừ học phí. Học sinh tạm nghỉ hoặc đang bị khoá không được tính.
+          </p>
+
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+            <div id="attendance-mode-badge">
+              <span class="badge badge-paid">
+                <i class="fa-solid fa-plus"></i> Chế độ: Điểm danh mới
+              </span>
+            </div>
+            <label class="ap-checkbox-inline" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--ap-muted); cursor:pointer;">
+              <input type="checkbox" id="cb-send-telegram-recap" style="width:16px; height:16px; accent-color:var(--ap-accent); cursor:pointer;" checked>
+              <span>Gửi tóm tắt vào nhóm Telegram lớp</span>
+            </label>
+          </div>
+
+          <div style="margin-top:10px;">
+            <button type="button" id="btn-open-attendance-modal" class="btn-primary ap-btn-open-modal" style="width:100%; justify-content:center;">
+              <i class="fa-solid fa-clipboard-user"></i> Mở popup điểm danh chi tiết
+            </button>
+          </div>
+        </article>
+
+        <!-- Card 2: Các buổi gần đây -->
+        <article class="card ap-att-history-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+            <h2 class="ap-card-section-title" style="margin:0;">
+              <i class="fa-solid fa-clock-rotate-left" style="color:var(--ap-blue);"></i> Các buổi gần đây
+            </h2>
+            ${uniqueMonths.length > 0 ? `
+              <select id="attendance-month-filter" class="form-input" style="width:auto; font-size:13px; font-weight:700; padding:6px 12px; border-radius:10px;">
+                <option value="all">Tất cả các tháng</option>
+                ${uniqueMonths.map(m => `<option value="${m}" ${m === attendanceMonth ? 'selected' : ''}>${formatMonth(m)}</option>`).join('')}
+              </select>
+            ` : ''}
+          </div>
+
+          <div class="table-responsive ap-att-history-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Ngày học</th>
+                  <th scope="col">Sĩ số</th>
+                  <th scope="col">Học phí</th>
+                  <th scope="col" style="text-align:right;">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="attendance-history-tbody">
+                ${history.length === 0 ? `
+                  <tr>
+                    <td colspan="4" style="text-align:center; padding:32px 14px; color:var(--ap-muted);">
+                      <i class="fa-solid fa-calendar-xmark" style="font-size:32px; color:var(--ap-line); display:block; margin-bottom:8px;"></i>
+                      Chưa có buổi điểm danh nào.
+                    </td>
+                  </tr>
+                ` : history.map(h => {
+                  const [y, m, d] = (h.sessionDate || '').split('-')
+                  const formattedDate = d && m && y ? `${d}/${m}/${y}` : h.sessionDate
+                  const rate = h.attendanceRate !== undefined ? h.attendanceRate : (h.totalCount > 0 ? Math.round((h.presentCount / h.totalCount) * 100) : 0)
+                  return `
+                    <tr id="session-row-${h.id}" class="attendance-row" data-month="${(h.sessionDate || '').substring(0, 7)}">
+                      <td>
+                        <strong style="color:var(--ap-ink); display:block; font-size:14px;">${formattedDate}</strong>
+                        <span style="font-size:12px; color:var(--ap-muted);">${h.note ? escapeHtml(h.note) : 'Không ghi chú'}</span>
+                      </td>
+                      <td>
+                        <span class="badge ${h.presentCount > 0 ? 'badge-present' : 'badge-absent'}">
+                          ${h.presentCount}/${h.totalCount}
+                        </span>
+                        <div style="font-size:11px; font-weight:700; color:var(--ap-muted); margin-top:2px;">${rate}%</div>
+                      </td>
+                      <td>
+                        <strong style="color:var(--ap-ok); font-size:13px;">
+                          ${(Number(h.totalFee || (h.presentCount * (h.feePerSession || 0)))).toLocaleString('vi-VN')}đ
+                        </strong>
+                      </td>
+                      <td style="text-align:right;">
+                        <div style="display:inline-flex; align-items:center; gap:6px;">
+                          <button type="button" class="btn-edit-attendance btn-secondary" data-date="${h.sessionDate}" title="Xem và sửa buổi điểm danh" aria-label="Xem sửa buổi ${formattedDate}" style="padding:6px 10px; font-size:12px; border-radius:8px;">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                          </button>
+                          <button type="button" class="btn-delete-attendance" data-session-id="${h.id}" data-class-id="${currentClass.id}" data-session-date="${h.sessionDate}" data-date="${formattedDate}" title="Xóa buổi điểm danh" aria-label="Xóa buổi ${formattedDate}" style="padding:6px 8px; font-size:12px; border-radius:8px; cursor:pointer; background:var(--ap-warn-soft); border:1px solid var(--ap-warn); color:var(--ap-warn);">
+                            <i class="fa-solid fa-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div id="attendance-pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; flex-wrap:wrap; gap:10px;">
+          </div>
+        </article>
+      </div>
+
+      <!-- Cột Phải: Danh sách học sinh điểm danh -->
+      <div class="ap-att-right-col">
+        <article class="card ap-att-roster-card">
+          <!-- Roster Header -->
+          <div class="ap-roster-header">
+            <div>
+              <h2 class="ap-card-section-title" style="margin:0 0 4px 0;">
+                <i class="fa-solid fa-users" style="color:var(--ap-accent);"></i> Danh sách lớp
+              </h2>
+              <span id="attendance-realtime-counter" class="badge badge-present">
+                Có mặt <strong id="att-present-num">${activeStudents.length}</strong> / ${activeStudents.length}
+              </span>
+            </div>
+            <div class="ap-roster-tools">
+              <button type="button" id="btn-att-select-all" class="btn-secondary ap-btn-pill-ok">
+                <i class="fa-solid fa-check-double"></i> Tất cả có mặt
+              </button>
+              <button type="button" id="btn-att-deselect-all" class="btn-secondary">
+                <i class="fa-solid fa-xmark"></i> Bỏ chọn
+              </button>
+            </div>
+          </div>
+
+          <!-- Roster Checklist List -->
+          <div id="attendance-roster-list" class="ap-roster-checklist">
+            ${activeStudents.length === 0 ? `
+              <div style="text-align:center; padding:48px 20px; color:var(--ap-muted);">
+                <i class="fa-solid fa-users-slash" style="font-size:36px; color:var(--ap-line); display:block; margin-bottom:12px;"></i>
+                Chưa có học sinh nào đang hoạt động trong lớp học này.
+              </div>
+            ` : activeStudents.map(s => {
+              const sid = s.id || s.studentId
+              const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
+              return `
+                <div class="attendance-roster-item present" id="att-item-${sid}">
+                  <label class="ap-roster-touch-target">
+                    <input type="checkbox" class="attendance-check-box" data-student-id="${sid}" data-is-paid="false" checked>
+                    <span class="avatar-circle">${initials}</span>
+                    <span class="ap-student-details">
+                      <strong class="attendance-student-name">${escapeHtml(s.fullName)}</strong>
+                      <span class="attendance-student-sub">${escapeHtml(s.username || s.studentCode || '')}</span>
+                    </span>
+                    <span class="att-status-pill badge badge-present">Có mặt</span>
+                  </label>
+                </div>
+              `
+            }).join('')}
+          </div>
+
+          <!-- Sticky Bottom Save Bar -->
+          <div class="ap-attendance-sticky-bar">
+            <span class="ap-sticky-hint">Chạm vào học sinh để đổi trạng thái Có mặt / Vắng</span>
+            <button type="button" id="btn-save-attendance-inline" class="btn-primary ap-save-attendance-btn">
+              <i class="fa-solid fa-floppy-disk"></i> Lưu điểm danh
+            </button>
+          </div>
+        </article>
+      </div>
+    </div>
+  `
+}
+
+function renderProTuitionTabHTML(currentClass) {
+  const debtList = cachedDebtSummary || []
+  const feePerSession = Number(currentClass.tuitionFee || 0)
+  const fmt = (n) => (Number(n || 0)).toLocaleString('vi-VN')
+
+  let totalAttended = 0, totalPaidSessions = 0, totalUnpaidSessions = 0, totalWaived = 0
+  let totalPaidAmount = 0, totalDebt = 0, totalBalance = 0
+
+  debtList.forEach(s => {
+    totalAttended += (s.attendedSessions || 0)
+    totalPaidSessions += (s.paidSessions || 0)
+    totalUnpaidSessions += (s.unpaidSessions || 0)
+    totalWaived += (s.waivedSessions || 0)
+    totalPaidAmount += (s.paidAmount !== undefined ? s.paidAmount : ((s.paidSessions || 0) * feePerSession))
+    totalDebt += (s.unpaidDebt || 0)
+    totalBalance += (s.balance || 0)
+  })
+  const owingCount = debtList.filter(s => (s.unpaidDebt || 0) > 0).length
+
+  const monthMap = new Map()
+  debtList.forEach(s => {
+    ;(s.sessions || []).forEach(sess => {
+      if (!sess.isPresent || !sess.sessionDate) return
+      const key = String(sess.sessionDate).slice(0, 7)
+      if (!/^\d{4}-\d{2}$/.test(key)) return
+      if (!monthMap.has(key)) monthMap.set(key, { sessions: 0, paid: 0, debt: 0, waived: 0 })
+      const m = monthMap.get(key)
+      m.sessions += 1
+      if (sess.paymentStatus === 'waived') m.waived += 1
+      else if (sess.isPaid) m.paid += Number(sess.feeAmount || 0)
+      else m.debt += Number(sess.feeAmount || 0)
+    })
+  })
+  const monthRows = Array.from(monthMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))
+
+  return `
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <!-- Toolbar thao tác nhanh -->
+      <div class="card ap-tab-card" style="padding:16px 20px;">
+        <div class="class-tab-toolbar ap-tab-toolbar" style="margin:0;">
+          <div>
+            <h2 class="ap-card-section-title" style="margin:0 0 4px 0;">
+              <i class="fa-solid fa-money-bill-wave" style="color:var(--ap-ok);"></i> Quản lý Học phí & Công nợ
+            </h2>
+            <p style="margin:0; font-size:13px; color:var(--ap-muted); font-weight:600;">
+              Mức học phí định mức: <strong>${fmt(feePerSession)} VND / buổi</strong>
+            </p>
+          </div>
+          <div class="class-toolbar-actions ap-tuition-actions">
+            <button type="button" id="btn-quick-edit-tuition" class="btn-secondary">
+              <i class="fa-solid fa-pen"></i> Đổi mức học phí
+            </button>
+            <button type="button" id="btn-goto-ledger" class="btn-secondary">
+              <i class="fa-solid fa-receipt"></i> Sổ giao dịch
+            </button>
+            <button type="button" id="btn-tuition-export" class="btn-secondary">
+              <i class="fa-solid fa-file-excel"></i> Xuất Excel
+            </button>
+            <button type="button" id="btn-collect-all-class-tuition" class="btn-primary" style="${owingCount > 0 ? '' : 'display:none;'}">
+              <i class="fa-solid fa-check-double"></i> Thu tất cả nợ
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 Summary KPI Cards -->
+      <div class="ap-tuition-kpi-grid">
+        <article class="ap-kpi-card">
+          <div class="ap-kpi-header">
+            <span class="ap-kpi-label">Buổi đã học</span>
+            <span class="ap-kpi-icon blue"><i class="fa-regular fa-calendar-check"></i></span>
+          </div>
+          <strong class="ap-kpi-val">${totalAttended}</strong>
+          <span class="ap-kpi-sub">${totalPaidSessions} đã đóng • ${totalUnpaidSessions} chưa đóng${totalWaived ? ` • ${totalWaived} miễn` : ''}</span>
+        </article>
+
+        <article class="ap-kpi-card">
+          <div class="ap-kpi-header">
+            <span class="ap-kpi-label">Đã thu</span>
+            <span class="ap-kpi-icon ok"><i class="fa-solid fa-sack-dollar"></i></span>
+          </div>
+          <strong class="ap-kpi-val text-emerald">${fmt(totalPaidAmount)} đ</strong>
+          <span class="ap-kpi-sub">Cộng dồn các buổi đã đóng</span>
+        </article>
+
+        <article class="ap-kpi-card">
+          <div class="ap-kpi-header">
+            <span class="ap-kpi-label">Số dư ví</span>
+            <span class="ap-kpi-icon pink"><i class="fa-solid fa-wallet"></i></span>
+          </div>
+          <strong class="ap-kpi-val" style="color:var(--ap-accent2);">${fmt(totalBalance)} đ</strong>
+          <span class="ap-kpi-sub">Tổng tiền HS đã nạp còn trong ví</span>
+        </article>
+      </div>
+
+      <!-- Nợ & thu theo tháng -->
+      <div class="card ap-tab-card">
+        <h2 class="ap-card-section-title" style="margin-bottom:4px;">
+          <i class="fa-solid fa-calendar-days" style="color:var(--ap-accent);"></i> Nợ & thu theo tháng
+        </h2>
+        <p style="font-size:13px; color:var(--ap-muted); margin:0 0 14px 0; font-weight:600;">Tổng hợp từ các buổi điểm danh có mặt, theo từng tháng học.</p>
+        <div class="table-responsive ap-tab-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Tháng</th>
+                <th scope="col">Lượt học</th>
+                <th scope="col">Đã thu</th>
+                <th scope="col">Chưa thu (nợ)</th>
+                <th scope="col">Được miễn</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${monthRows.length === 0 ? `
+                <tr><td colspan="5" style="text-align:center; padding:24px; color:var(--ap-muted);">Chưa có buổi điểm danh nào.</td></tr>
+              ` : monthRows.map(([key, m]) => {
+                const [yy, mm] = key.split('-')
+                return `
+                  <tr>
+                    <td><strong>Tháng ${mm}/${yy}</strong></td>
+                    <td>${m.sessions} lượt</td>
+                    <td style="color:var(--ap-ok); font-weight:800;">${fmt(m.paid)} đ</td>
+                    <td style="color:var(--ap-warn); font-weight:800;">${fmt(m.debt)} đ</td>
+                    <td>${m.waived} buổi</td>
+                  </tr>
+                `
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bảng công nợ từng học sinh -->
+      <div class="card ap-tab-card">
+        <h2 class="ap-card-section-title" style="margin-bottom:14px;">
+          <i class="fa-solid fa-file-invoice-dollar" style="color:var(--ap-accent);"></i> Công nợ từng học sinh
+        </h2>
+
+        <div class="table-responsive ap-tab-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Học sinh</th>
+                <th scope="col">Đã học</th>
+                <th scope="col">Số dư ví</th>
+                <th scope="col">Đã đóng</th>
+                <th scope="col">Chưa đóng</th>
+                <th scope="col">Trạng thái</th>
+                <th scope="col" style="text-align:center;">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="tuition-debt-tbody">
+              ${debtList.length === 0 ? `
+                <tr>
+                  <td colspan="7" style="text-align:center; padding:48px 20px; color:var(--ap-muted);">
+                    <i class="fa-solid fa-receipt" style="font-size:36px; color:var(--ap-line); display:block; margin-bottom:12px;"></i>
+                    Chưa có dữ liệu học phí hoặc điểm danh cho lớp học này.
+                  </td>
+                </tr>
+              ` : debtList.map(s => {
+                const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
+                const hasDebt = (s.unpaidDebt || 0) > 0
+                const paidMoney = s.paidAmount !== undefined ? s.paidAmount : ((s.paidSessions || 0) * feePerSession)
+
+                return `
+                  <tr id="debt-row-${s.studentId}">
+                    <td>
+                      <div class="student-info-cell">
+                        <div class="avatar-circle">${initials}</div>
+                        <div>
+                          <strong style="color:var(--ap-ink); display:block; font-size:15px;">${escapeHtml(s.fullName)}</strong>
+                          <span style="font-size:12px; color:var(--ap-muted);">${escapeHtml(s.username)}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <strong style="color:var(--ap-ink);">${s.attendedSessions || 0} buổi</strong>
+                      ${(s.waivedSessions || 0) > 0 ? `<div style="font-size:11px; color:var(--ap-muted);">${s.waivedSessions} buổi miễn</div>` : ''}
+                    </td>
+                    <td>
+                      <strong style="color:var(--ap-accent2);">${fmt(s.balance || 0)} đ</strong>
+                    </td>
+                    <td>
+                      <strong style="color:var(--ap-ok);">${s.paidSessions || 0} buổi</strong>
+                      <div style="font-size:12px; color:var(--ap-muted);">${fmt(paidMoney)} đ</div>
+                    </td>
+                    <td>
+                      ${(s.unpaidSessions || 0) > 0 ? `
+                        <strong style="color:var(--ap-warn);">${s.unpaidSessions} buổi</strong>
+                        <div style="font-size:12px; color:var(--ap-warn); font-weight:700;">${fmt(s.unpaidDebt)} đ</div>
+                      ` : `<span style="font-size:12px; color:var(--ap-muted);">—</span>`}
+                    </td>
+                    <td>
+                      ${hasDebt ? `
+                        <span class="badge badge-unpaid">
+                          <i class="fa-solid fa-clock" style="font-size:9px;"></i> Nợ ${fmt(s.unpaidDebt)} đ
+                        </span>
+                      ` : `
+                        <span class="badge badge-paid">
+                          <i class="fa-solid fa-check" style="font-size:10px;"></i> Đủ
+                        </span>
+                      `}
+                    </td>
+                    <td style="text-align:center;">
+                      <div style="display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;">
+                        <button type="button" class="btn-add-balance-class-tab" data-id="${s.studentId}" title="Nạp tiền vào ví" aria-label="Nạp tiền cho ${escapeHtml(s.fullName)}" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; background:var(--ap-warn-soft); border:1px solid var(--ap-warn); color:var(--ap-warn); font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-wallet"></i> Nạp tiền
+                        </button>
+                        <button type="button" class="btn-edit-balance-class-tab btn-secondary" data-id="${s.studentId}" title="Sửa trực tiếp số dư ví" aria-label="Sửa số dư ${escapeHtml(s.fullName)}" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-pen"></i> Sửa số dư
+                        </button>
+                        ${hasDebt ? `
+                          <button type="button" class="btn-collect-student-tuition btn-primary" data-student-id="${s.studentId}" data-student-name="${escapeHtml(s.fullName)}" data-debt="${s.unpaidDebt}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; width:auto; display:inline-flex; align-items:center; gap:4px; font-weight:700;">
+                            <i class="fa-solid fa-check"></i> Thu nợ
+                          </button>
+                          <button type="button" class="btn-waive-student-tuition btn-secondary" data-student-id="${s.studentId}" data-student-name="${escapeHtml(s.fullName)}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px;" title="Miễn toàn bộ nợ còn lại">
+                            <i class="fa-solid fa-hand-holding-heart"></i> Miễn
+                          </button>
+                        ` : ''}
+                        <button type="button" class="btn-view-student-sessions btn-secondary" data-student-id="${s.studentId}" data-student-name="${escapeHtml(s.fullName)}" style="padding:6px 12px; font-size:12px; border-radius:8px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                          <i class="fa-solid fa-list-check"></i> Xem buổi
+                        </button>
+                        <a href="#student-details?studentId=${s.studentId}&classId=${currentClass.id}" class="btn-secondary" title="Mở lịch học cá nhân của học sinh" aria-label="Lịch học của ${escapeHtml(s.fullName)}" style="padding:6px 10px; font-size:12px; border-radius:8px; text-decoration:none; display:inline-flex; align-items:center; gap:4px; font-weight:700;">
+                          <i class="fa-regular fa-calendar-check" style="color:var(--ap-accent);"></i> Lịch học
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                `
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function renderProHomeworkTabHTML(currentClass) {
+  const homeworks = cachedHomeworks || []
+
+  return `
+    <div class="card ap-tab-card">
+      <div class="class-tab-toolbar ap-tab-toolbar">
+        <div>
+          <h2 class="ap-card-section-title" style="margin:0 0 4px 0;">
+            <i class="fa-solid fa-book-open" style="color:var(--ap-accent);"></i> Danh sách Bài tập & Bài thi
+          </h2>
+          <p style="font-size:13px; color:var(--ap-muted); margin:0; font-weight:600;">
+            Các bài tập, bài thi trắc nghiệm và tự luận được phân bổ cho lớp học này.
+          </p>
+        </div>
+        <div class="class-toolbar-actions ap-homework-actions">
+          <button type="button" id="btn-generate-practice" class="btn-secondary ap-btn-ai-spark" title="Tự sinh đề luyện tập từ các chương cả lớp đang yếu">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Tạo đề luyện bù
+          </button>
+          <a href="#create-homework" class="btn-primary" style="text-decoration:none;">
+            <i class="fa-solid fa-plus"></i> Tạo bài tập mới
+          </a>
+        </div>
+      </div>
+
+      <div class="table-responsive ap-tab-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Tiêu đề bài tập</th>
+              <th scope="col">Loại bài</th>
+              <th scope="col">Đã nộp / Được giao</th>
+              <th scope="col">Hạn nộp</th>
+              <th scope="col">Trạng thái</th>
+              <th scope="col" style="text-align:center;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="class-homeworks-tbody">
+            ${homeworkLoadError ? `
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--ap-warn);">
+                ${escapeHtml(homeworkLoadError)} <button type="button" id="btn-retry-class-homeworks" class="btn-secondary" style="width:auto;margin-left:8px;">Thử lại</button>
+              </td></tr>
+            ` : cachedHomeworks === null ? `
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--ap-muted);">Đang tải danh sách và tiến độ nộp bài...</td></tr>
+            ` : homeworks.length === 0 ? `
+              <tr>
+                <td colspan="6" style="text-align:center; padding:48px 20px; color:var(--ap-muted);">
+                  <i class="fa-solid fa-folder-open" style="font-size:36px; color:var(--ap-line); display:block; margin-bottom:12px;"></i>
+                  Lớp học này chưa có bài tập nào. Hãy tạo bài tập mới để giao cho học sinh.
+                </td>
+              </tr>
+            ` : homeworks.map(hw => {
+              const isExam = hw.type === 'EXAM'
+              const status = getHomeworkDisplayStatus(hw)
+              const isOverdue = status.label === 'Quá hạn'
+
+              return `
+                <tr>
+                  <td>
+                    <strong style="color:var(--ap-ink); display:block; font-size:15px;">${escapeHtml(hw.title)}</strong>
+                    <div style="font-size:12px; color:var(--ap-muted);">Thời lượng: ${hw.durationMinutes || 45} phút | Điểm tối đa: ${hw.maxScore || 10}</div>
+                  </td>
+                  <td>
+                    <span class="badge ${isExam ? 'badge-paused' : 'badge-present'}">
+                      ${isExam ? '<i class="fa-solid fa-stopwatch"></i> Bài thi' : '<i class="fa-solid fa-feather-pointed"></i> Luyện tập'}
+                    </span>
+                  </td>
+                  <td style="color:var(--ap-ink); font-size:13px; font-weight:800;" title="Số học sinh trong lớp đã nộp ít nhất một lần / số học sinh được giao bài">
+                    ${formatHomeworkProgress(hw.progress)}
+                  </td>
+                  <td>
+                    ${hw.deadline ? `
+                      <span class="badge ${isOverdue ? 'badge-absent' : 'badge-unpaid'}">
+                        <i class="fa-regular fa-clock"></i> ${new Date(hw.deadline).toLocaleString('vi-VN')}
+                      </span>
+                    ` : '<span style="color:var(--ap-muted); font-size:12px;">Không có hạn</span>'}
+                  </td>
+                  <td>
+                    <span class="badge ${status.badge}">
+                      <i class="fa-solid fa-circle" style="font-size:6px;"></i> ${status.label}
+                    </span>
+                  </td>
+                  <td style="text-align:center;">
+                    <div style="display:inline-flex; align-items:center; gap:6px;">
+                      <button type="button" class="btn-primary btn-class-homework-results" data-homework-id="${hw.id}" title="Xem lịch sử và tiến độ nộp riêng bài này" aria-label="Xem tiến độ ${escapeHtml(hw.title)}" style="padding:6px 12px; font-size:12px; display:inline-flex; align-items:center; gap:4px; width:auto;">
+                        <i class="fa-solid fa-square-poll-vertical"></i> Kết quả
+                      </button>
+                      <button type="button" class="btn-secondary btn-class-homework-preview" data-homework-id="${hw.id}" title="Xem trước nội dung đề" aria-label="Xem trước đề ${escapeHtml(hw.title)}" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; width:auto;">
+                        <i class="fa-regular fa-eye"></i> Xem đề
+                      </button>
+                      ${(hw.pdfPath && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath !== 'INTERACTIVE' && canViewHomeworkPdf(state.user?.role, hw)) ? `
+                      <button type="button" class="btn-secondary btn-class-homework-download" data-homework-id="${hw.id}" title="Tải file PDF đề bài" aria-label="Tải file PDF ${escapeHtml(hw.title)}" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; width:auto;">
+                        <i class="fa-solid fa-file-pdf" style="color:var(--ap-warn);"></i> Tải PDF
+                      </button>` : ''}
+                    </div>
+                  </td>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `
+}
+
+function renderProSettingsTabHTML(currentClass) {
+  return `
+    <div class="ap-settings-grid">
+      <!-- Cột Trái: Thông tin lớp học -->
+      <div class="ap-settings-left-col">
+        <div class="card ap-tab-card">
+          <h2 class="ap-card-section-title" style="margin-bottom:16px;">
+            <i class="fa-solid fa-sliders" style="color:var(--ap-accent);"></i> Cấu hình thông tin lớp học
+          </h2>
+          <form id="form-update-class-settings" onsubmit="return false;" class="ap-settings-form">
+            <label class="ap-field-label">
+              <span>Tên lớp học <strong style="color:var(--ap-accent2);">*</strong></span>
+              <input type="text" id="setting-class-name" class="form-input" value="${escapeHtml(currentClass.name)}" required>
+            </label>
+
+            <label class="ap-field-label">
+              <span>Học phí (VND/Buổi) <strong style="color:var(--ap-accent2);">*</strong></span>
+              <input type="number" id="setting-class-tuition" class="form-input" min="0" value="${Number(currentClass.tuitionFee || 0)}" required>
+            </label>
+
+            <label class="ap-field-label">
+              <span>Mô tả ngắn</span>
+              <textarea id="setting-class-description" class="form-input" rows="4">${escapeHtml(currentClass.description || '')}</textarea>
+            </label>
+
+            <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+              <button type="submit" id="btn-save-class-settings" class="btn-primary">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Cột Phải: Bot Telegram & Vùng nguy hiểm -->
+      <div class="ap-settings-right-col">
+        <!-- Bot Telegram -->
+        <div class="card ap-tab-card" id="telegram-config-card">
+          <h2 class="ap-card-section-title" style="margin-bottom:12px;">
+            <i class="fa-brands fa-telegram" style="color:var(--ap-blue);"></i> Bot Telegram của lớp
+          </h2>
+          <div id="telegram-config-body">
+            <div style="color:var(--ap-muted); font-size:14px; font-weight:600;">Đang tải cấu hình Telegram...</div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card ap-tab-card ap-danger-zone-card">
+          <h2 class="ap-card-section-title text-warn" style="margin-bottom:8px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Vùng nguy hiểm (Danger Zone)
+          </h2>
+          <p style="font-size:13px; color:var(--ap-muted); margin:0 0 16px 0; font-weight:600;">
+            Lưu trữ để ẩn lớp khỏi danh sách đang mở, dữ liệu điểm danh và học phí vẫn được giữ. Xoá vĩnh viễn không thể hoàn tác.
+          </p>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button type="button" id="btn-archive-class" class="btn-secondary">
+              <i class="fa-solid fa-box-archive"></i> ${currentClass.is_archived ? 'Hủy lưu trữ lớp' : 'Lưu trữ lớp học'}
+            </button>
+            <button type="button" id="btn-delete-class-permanent" class="ap-btn-danger">
+              <i class="fa-solid fa-trash"></i> Xóa vĩnh viễn
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
 }
 
 // =========================================================
@@ -1203,7 +2139,7 @@ function loadAttendanceScope(classId, currentClass, force = false) {
     if (activeTab === 'attendance') {
       const container = document.getElementById('class-tab-content-container')
       if (container) {
-        container.innerHTML = renderAttendanceTabHTML(currentClass)
+        container.innerHTML = isAdminProUI() ? renderProAttendanceTabHTML(currentClass) : renderAttendanceTabHTML(currentClass)
         bindAttendanceTabEvents(classId, currentClass)
       }
     }
@@ -1232,7 +2168,7 @@ function loadHomeworkScope(classId, currentClass, force = false) {
     if (activeTab === 'homework') {
       const container = document.getElementById('class-tab-content-container')
       if (container) {
-        container.innerHTML = renderHomeworkTabHTML(currentClass)
+        container.innerHTML = isAdminProUI() ? renderProHomeworkTabHTML(currentClass) : renderHomeworkTabHTML(currentClass)
         bindHomeworkTabEvents(classId, currentClass)
       }
     }
@@ -1246,7 +2182,7 @@ function loadHomeworkScope(classId, currentClass, force = false) {
     if (activeTab === 'homework') {
       const container = document.getElementById('class-tab-content-container')
       if (container) {
-        container.innerHTML = renderHomeworkTabHTML(currentClass)
+        container.innerHTML = isAdminProUI() ? renderProHomeworkTabHTML(currentClass) : renderHomeworkTabHTML(currentClass)
         bindHomeworkTabEvents(classId, currentClass)
       }
     }
@@ -1439,7 +2375,7 @@ function bindStudentsTabEvents(classId, currentClass) {
 function refreshStudentsTable(currentClass) {
   const container = document.getElementById('class-tab-content-container')
   if (container && activeTab === 'students') {
-    container.innerHTML = renderStudentsTabHTML(currentClass, cachedClassStudents)
+    container.innerHTML = isAdminProUI() ? renderProStudentsTabHTML(currentClass, cachedClassStudents) : renderStudentsTabHTML(currentClass, cachedClassStudents)
     bindStudentsTabEvents(currentClass.id, currentClass)
   }
 }
@@ -1657,6 +2593,146 @@ function bindAttendanceTabEvents(classId, currentClass) {
       }
     }
   })
+
+  // Inline attendance handlers (Pro mode tab)
+  const saveInlineBtn = document.getElementById('btn-save-attendance-inline')
+  if (saveInlineBtn) {
+    saveInlineBtn.onclick = async () => {
+      const dateInput = document.getElementById('attendance-session-date-input')
+      const noteInput = document.getElementById('attendance-session-note')
+      const tgCheckbox = document.getElementById('cb-send-telegram-recap')
+
+      const today = new Date().toISOString().split('T')[0]
+      const sessionDate = dateInput?.value || today
+      const note = noteInput?.value?.trim() || ''
+      const sendTelegram = tgCheckbox?.checked ?? true
+
+      const checkboxes = document.querySelectorAll('#attendance-roster-list .attendance-check-box')
+      const records = Array.from(checkboxes).map(cb => ({
+        studentId: cb.getAttribute('data-student-id'),
+        isPresent: cb.checked
+      }))
+
+      let hasUncheckedPaid = false
+      checkboxes.forEach(cb => {
+        if (cb.getAttribute('data-is-paid') === 'true' && !cb.checked) {
+          hasUncheckedPaid = true
+        }
+      })
+      if (hasUncheckedPaid) {
+        if (!confirm('Cảnh báo: Có học sinh đã ĐÓNG HỌC PHÍ bị đánh dấu vắng mặt. Bạn có chắc chắn muốn bỏ tích học sinh này không?')) return
+      }
+
+      // Chống bấm lưu nhiều lần: lưu điểm danh kéo theo trừ học phí, không gửi lại khi request trước chưa xong.
+      if (saveInlineBtn.dataset.saving === 'true') return
+      saveInlineBtn.dataset.saving = 'true'
+      saveInlineBtn.disabled = true
+      saveInlineBtn.setAttribute('aria-busy', 'true')
+      showToast('Đang lưu dữ liệu điểm danh...', 'info')
+      try {
+        await api.saveAttendance({
+          classId,
+          sessionDate,
+          note,
+          records,
+          sendTelegram
+        })
+        showToast('Điểm danh thành công!', 'success')
+        await Promise.all([
+          loadAttendanceScope(classId, currentClass, true),
+          loadStudentsScope(classId, currentClass, true),
+          loadKpiStats(classId, true),
+        ])
+      } catch (err) {
+        showToast(`Lưu điểm danh thất bại: ${err.message}`, 'error')
+      } finally {
+        delete saveInlineBtn.dataset.saving
+        saveInlineBtn.disabled = false
+        saveInlineBtn.removeAttribute('aria-busy')
+      }
+    }
+  }
+
+  const updateInlineCounter = () => {
+    const checkboxes = document.querySelectorAll('#attendance-roster-list .attendance-check-box')
+    let presentCount = 0
+    checkboxes.forEach(cb => {
+      const item = cb.closest('.attendance-roster-item')
+      const pill = item?.querySelector('.att-status-pill')
+      if (cb.checked) {
+        presentCount++
+        item?.classList.add('present')
+        if (pill) {
+          pill.className = 'att-status-pill badge badge-present'
+          pill.textContent = 'Có mặt'
+        }
+      } else {
+        item?.classList.remove('present')
+        if (pill) {
+          pill.className = 'att-status-pill badge badge-absent'
+          pill.textContent = 'Vắng'
+        }
+      }
+    })
+    const numEl = document.getElementById('att-present-num')
+    if (numEl) numEl.textContent = presentCount
+  }
+
+  document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => {
+    cb.addEventListener('change', updateInlineCounter)
+  })
+
+  const selectAllBtn = document.getElementById('btn-att-select-all')
+  if (selectAllBtn) {
+    selectAllBtn.onclick = () => {
+      document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => { cb.checked = true })
+      updateInlineCounter()
+    }
+  }
+
+  const deselectAllBtn = document.getElementById('btn-att-deselect-all')
+  if (deselectAllBtn) {
+    deselectAllBtn.onclick = () => {
+      document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => { cb.checked = false })
+      updateInlineCounter()
+    }
+  }
+
+  const sessionDateInput = document.getElementById('attendance-session-date-input')
+  if (sessionDateInput) {
+    sessionDateInput.addEventListener('change', async () => {
+      const targetDate = sessionDateInput.value
+      if (!targetDate) return
+      try {
+        const attData = await api.getAttendance(classId, targetDate)
+        const isEdit = !!attData?.session
+        const badgeEl = document.getElementById('attendance-mode-badge')
+        if (badgeEl) {
+          badgeEl.innerHTML = isEdit
+            ? `<span class="badge" style="background:var(--ap-blue-soft); color:var(--ap-blue); border:1px solid var(--ap-blue);"><i class="fa-solid fa-pen-to-square"></i> Chế độ: Sửa điểm danh</span>`
+            : `<span class="badge badge-paid"><i class="fa-solid fa-plus"></i> Chế độ: Điểm danh mới</span>`
+        }
+        const noteInput = document.getElementById('attendance-session-note')
+        if (noteInput && attData?.session?.note !== undefined) {
+          noteInput.value = attData.session.note || ''
+        }
+        if (attData?.students && attData.students.length > 0) {
+          const map = new Map(attData.students.map(s => [s.studentId, s]))
+          document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => {
+            const sid = cb.getAttribute('data-student-id')
+            const st = map.get(sid)
+            if (st) {
+              cb.checked = !!st.isPresent
+              cb.setAttribute('data-is-paid', st.paymentStatus === 'paid' ? 'true' : 'false')
+            }
+          })
+          updateInlineCounter()
+        }
+      } catch (err) {
+        console.warn('Failed to load date attendance:', err)
+      }
+    })
+  }
 }
 
 // MODAL ĐIỂM DANH CHUẨN ĐẶC TẢ
@@ -2406,7 +3482,7 @@ function bindHomeworkTabEvents(classId, currentClass) {
     retryBtn.disabled = true
     homeworkLoadError = ''
     const container = document.getElementById('class-tab-content-container')
-    if (container) container.innerHTML = renderHomeworkTabHTML(currentClass)
+    if (container) container.innerHTML = isAdminProUI() ? renderProHomeworkTabHTML(currentClass) : renderHomeworkTabHTML(currentClass)
     loadHomeworkScope(classId, currentClass, true)
   }
   const genBtn = document.getElementById('btn-generate-practice')

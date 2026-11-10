@@ -8,7 +8,7 @@ html[data-admin-ui="pro"] body {
 /* Shell Pro dùng grid riêng, không kế thừa rail nổi/margin-left của classic. */
 html[data-admin-ui="pro"] .app-layout {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr); /* thiết bị cảm ứng: sidebar đầy đủ; máy có chuột thu gọn 88px trong media query bên dưới */
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 100vh;
   background: var(--ap-bg) !important;
@@ -109,7 +109,7 @@ html[data-admin-ui="pro"] .ap-sidebar {
   bottom: auto !important;
   align-self: start;
   flex-direction: column;
-  width: 88px !important;
+  width: auto !important;
   height: calc(100vh - 70px);
   padding: 16px 10px max(16px, env(safe-area-inset-bottom)) !important;
   background: var(--ap-bg) !important;

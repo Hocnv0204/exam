@@ -11,6 +11,29 @@ if (typeof document !== 'undefined' && document.head) { import('../../css/admin-
 export const DEFAULT_GRADE_BLOCKS = ['12-Toán', '12-Hóa', '11-Toán', '11-Hóa']
 
 let cachedGradeBlocks = []
+let currentFilterBlock = 'ALL'
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function getClassesViewMode() {
+  try {
+    return localStorage.getItem('eduportal-classes-view-mode') || 'card'
+  } catch (e) {
+    return 'card'
+  }
+}
+
+function setClassesViewMode(mode) {
+  try {
+    localStorage.setItem('eduportal-classes-view-mode', mode)
+  } catch (e) {}
+}
 
 export async function fetchGradeBlocks(forceRefresh = false) {
   if (!forceRefresh && cachedGradeBlocks && cachedGradeBlocks.length > 0) {
@@ -36,11 +59,17 @@ export async function fetchGradeBlocks(forceRefresh = false) {
 }
 
 export function renderClassMgmtView() {
-  const classes = state.classes
-  const proUI = isAdminProUI()
+  if (isAdminProUI()) {
+    return renderProClassMgmtView()
+  }
+  return renderClassicClassMgmtView()
+}
+
+export function renderClassicClassMgmtView() {
+  const classes = state.classes || []
 
   return `
-    <div class="app-layout${proUI ? ' admin-dark" id="classes-admin" data-route="classes-admin" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar('classes-admin')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -92,6 +121,230 @@ export function renderClassMgmtView() {
         </div>
       </div>
     </div>
+  `
+}
+
+function renderProClassMgmtView() {
+  const classes = state.classes || []
+  const viewMode = getClassesViewMode()
+
+  // KPI Calculations
+  const totalClasses = classes.length
+  const totalStudents = Array.isArray(state.students) && state.students.length > 0
+    ? state.students.length
+    : classes.reduce((sum, c) => sum + (Number(c.studentsCount) || 0), 0)
+  const uniqueBlocks = Array.from(new Set(classes.map(c => c.gradeBlock).filter(Boolean)))
+  const totalBlocks = uniqueBlocks.length || (cachedGradeBlocks?.length || DEFAULT_GRADE_BLOCKS.length)
+  const avgTuition = totalClasses > 0
+    ? Math.round(classes.reduce((sum, c) => sum + (Number(c.tuitionFee) || 0), 0) / totalClasses)
+    : 0
+  const avgTuitionText = avgTuition > 0 ? `${avgTuition.toLocaleString('vi-VN')}đ` : '0đ'
+
+  // Block filters
+  const allBlocks = Array.from(new Set([
+    ...DEFAULT_GRADE_BLOCKS,
+    ...(cachedGradeBlocks || []).map(b => b.name),
+    ...uniqueBlocks
+  ].filter(Boolean)))
+
+  return `
+    <div class="app-layout admin-dark" id="classes-admin" data-route="classes-admin" data-role="ADMIN">
+      ${renderSidebar('classes-admin')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Quản lý lớp học')}
+        <div class="content-body ap-classes-body">
+          
+          <!-- 1. Header -->
+          <div class="page-header ap-classes-header">
+            <div>
+              <h1 class="page-title">Quản lý lớp học</h1>
+              <p class="page-description">Chọn một lớp để vào thẳng không gian quản lý lớp học, điểm danh và học phí.</p>
+            </div>
+            <div class="ap-header-actions">
+              <a href="#curriculum" class="btn-secondary ap-header-link" style="text-decoration:none;">
+                <i class="fa-solid fa-book-open"></i> Chương trình học
+              </a>
+              <button type="button" class="btn-secondary" id="open-manage-grade-blocks-btn">
+                <i class="fa-solid fa-layer-group"></i> Khối học
+              </button>
+              <button type="button" class="btn-primary" id="open-create-class-btn">
+                <i class="fa-solid fa-plus"></i> Tạo lớp học mới
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Thống kê nhanh 4 KPI -->
+          <section class="ap-classes-kpi-grid" aria-label="Tổng quan lớp học">
+            <article class="ap-kpi-card">
+              <div class="ap-kpi-header">
+                <span class="ap-kpi-label">Tổng số lớp học</span>
+                <span class="ap-kpi-icon accent"><i class="fa-solid fa-graduation-cap"></i></span>
+              </div>
+              <strong class="ap-kpi-val">${totalClasses}</strong>
+              <span class="ap-kpi-sub">Lớp đang vận hành</span>
+            </article>
+
+            <article class="ap-kpi-card">
+              <div class="ap-kpi-header">
+                <span class="ap-kpi-label">Học sinh đang học</span>
+                <span class="ap-kpi-icon blue"><i class="fa-solid fa-users"></i></span>
+              </div>
+              <strong class="ap-kpi-val">${totalStudents}</strong>
+              <span class="ap-kpi-sub">Đang theo học các lớp</span>
+            </article>
+
+            <article class="ap-kpi-card">
+              <div class="ap-kpi-header">
+                <span class="ap-kpi-label">Khối học áp dụng</span>
+                <span class="ap-kpi-icon pink"><i class="fa-solid fa-layer-group"></i></span>
+              </div>
+              <strong class="ap-kpi-val">${totalBlocks} khối</strong>
+              <span class="ap-kpi-sub">Toán, Hóa, Lý, ĐGNL</span>
+            </article>
+
+            <article class="ap-kpi-card">
+              <div class="ap-kpi-header">
+                <span class="ap-kpi-label">Học phí TB / buổi</span>
+                <span class="ap-kpi-icon ok"><i class="fa-solid fa-hand-holding-dollar"></i></span>
+              </div>
+              <strong class="ap-kpi-val">${avgTuitionText}</strong>
+              <span class="ap-kpi-sub">Định mức lớp học</span>
+            </article>
+          </section>
+
+          <!-- 3. Toolbar bộ lọc & chuyển chế độ xem -->
+          <section class="card ap-filter-card" aria-label="Bộ lọc danh sách lớp">
+            <div class="ap-filter-row">
+              <!-- Ô tìm kiếm -->
+              <div class="search-box ap-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="class-search-input" placeholder="Tìm tên lớp học, khối học...">
+              </div>
+
+              <!-- Chip lọc khối -->
+              <div class="ap-block-filters" role="group" aria-label="Khối học">
+                <span class="ap-block-filter-label">Khối học:</span>
+                <div class="ap-chip-scroller">
+                  <button type="button" class="ap-block-chip ${currentFilterBlock === 'ALL' ? 'active' : ''}" data-block="ALL">Tất cả</button>
+                  ${allBlocks.map(b => `
+                    <button type="button" class="ap-block-chip ${currentFilterBlock === b ? 'active' : ''}" data-block="${escapeHtml(b)}">${escapeHtml(b)}</button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- Nút chuyển Lưới / Bảng -->
+              <div class="ap-view-switch" role="group" aria-label="Chế độ hiển thị">
+                <button type="button" class="ap-view-btn ${viewMode === 'card' ? 'active' : ''}" id="btn-view-card" aria-label="Xem dạng thẻ" title="Xem dạng thẻ">
+                  <i class="fa-solid fa-grip"></i>
+                </button>
+                <button type="button" class="ap-view-btn ${viewMode === 'table' ? 'active' : ''}" id="btn-view-table" aria-label="Xem dạng bảng" title="Xem dạng bảng">
+                  <i class="fa-solid fa-list"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Tóm tắt số lượng -->
+            <div class="ap-filter-footer">
+              <div id="class-count-summary">Hiển thị 1 đến ${classes.length} trong tổng số ${classes.length} lớp học</div>
+              <span class="ap-filter-hint">Nhấp vào thẻ hoặc hàng lớp để vào chi tiết & điểm danh</span>
+            </div>
+          </section>
+
+          <!-- 4. Lưới thẻ lớp (Card view) -->
+          <section class="ap-classes-grid ${viewMode === 'card' ? '' : 'is-hidden'}" id="classes-cards-grid" aria-label="Danh sách thẻ lớp học">
+            <!-- Thẻ tạo lớp mới viền đứt -->
+            <button type="button" class="ap-create-class-card" id="card-create-class-trigger" aria-label="Tạo lớp học mới">
+              <span class="ap-create-card-icon"><i class="fa-solid fa-plus"></i></span>
+              <strong class="ap-create-card-title">+ Tạo lớp mới</strong>
+              <span class="ap-create-card-sub">Khởi tạo lớp và phân khối học</span>
+            </button>
+
+            ${classes.map(c => renderProClassCard(c)).join('')}
+          </section>
+
+          <!-- 5. Bảng lớp học (Table view) -->
+          <section class="table-responsive class-list-table-wrap ap-classes-table-wrap ${viewMode === 'table' ? '' : 'is-hidden'}" id="classes-table-container" aria-label="Bảng danh sách lớp học">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Tên lớp học</th>
+                  <th scope="col">Khối học</th>
+                  <th scope="col" style="text-align:center;">Học sinh</th>
+                  <th scope="col" style="text-align:right;">Học phí / Buổi</th>
+                  <th scope="col" style="text-align:center;">Trạng thái</th>
+                  <th scope="col" style="text-align:right;">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="classes-table-body">
+                ${classes.map(c => renderClassRow(c)).join('')}
+              </tbody>
+            </table>
+          </section>
+
+          <!-- 6. Trạng thái rỗng -->
+          <div class="card ap-empty-state" id="classes-empty-state" style="${classes.length === 0 ? 'display:flex;' : 'display:none;'}">
+            <i class="fa-solid fa-graduation-cap ap-empty-icon"></i>
+            <h2 class="ap-empty-title">Chưa có lớp học nào</h2>
+            <p class="ap-empty-sub">Hãy tạo lớp học mới để bắt đầu sắp xếp lịch học và học sinh.</p>
+            <button type="button" class="btn-primary ap-empty-cta" id="btn-empty-create-class">
+              <i class="fa-solid fa-plus"></i> Tạo lớp học đầu tiên
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function renderProClassCard(c) {
+  const isArchived = Boolean(c.is_archived)
+  const studentCount = c.studentsCount || 0
+  const tuitionFee = Number(c.tuitionFee || 0)
+  const tuitionText = tuitionFee > 0 ? `${tuitionFee.toLocaleString('vi-VN')} VND` : '0 VND'
+
+  return `
+    <article class="ap-class-card${isArchived ? ' is-archived' : ''}" id="row-class-${c.id}" data-id="${c.id}" data-block="${escapeHtml(c.gradeBlock || '12-Toán')}">
+      <div class="ap-card-top">
+        <span class="ap-badge-block"><i class="fa-solid fa-layer-group"></i> ${escapeHtml(c.gradeBlock || '12-Toán')}</span>
+        <span class="ap-badge-status ${isArchived ? 'archived' : 'active'}">${isArchived ? 'Đã lưu trữ' : 'Đang mở'}</span>
+      </div>
+
+      <div class="ap-card-main">
+        <h2 class="ap-card-title">
+          <a href="#class-details?classId=${c.id}" class="class-list-name-link">
+            <span class="class-list-icon"><i class="fa-solid fa-graduation-cap"></i></span>
+            <span class="class-list-name">${escapeHtml(c.name)}</span>
+          </a>
+        </h2>
+        <span class="class-list-hint">${escapeHtml(c.description || 'Không gian quản lý lớp học')}</span>
+      </div>
+
+      <div class="ap-card-stats">
+        <div class="ap-stat-pill">
+          <span class="ap-stat-label">Học sinh</span>
+          <strong class="ap-stat-val">${studentCount} em</strong>
+        </div>
+        <div class="ap-stat-pill">
+          <span class="ap-stat-label">Học phí / Buổi</span>
+          <strong class="ap-stat-val text-emerald">${tuitionText}</strong>
+        </div>
+      </div>
+
+      <div class="ap-card-actions">
+        <div class="ap-card-btn-group">
+          <button type="button" class="btn-edit-class" data-id="${c.id}" title="Chỉnh sửa lớp học" aria-label="Chỉnh sửa lớp ${escapeHtml(c.name)}">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+          <button type="button" class="btn-delete-class" data-id="${c.id}" data-name="${escapeHtml(c.name)}" title="Xóa lớp học" aria-label="Xóa lớp ${escapeHtml(c.name)}">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+        <a href="#class-details?classId=${c.id}" class="btn-primary class-enter-btn">
+          Vào lớp học <i class="fa-solid fa-arrow-right"></i>
+        </a>
+      </div>
+    </article>
   `
 }
 
@@ -554,13 +807,65 @@ export function bindClassMgmtEvents() {
     })
   }
 
+  const emptyCreateBtn = document.getElementById('btn-empty-create-class')
+  if (emptyCreateBtn) {
+    emptyCreateBtn.addEventListener('click', (e) => {
+      e.preventDefault()
+      showCreateClassModal()
+    })
+  }
+
+  const cardTrigger = document.getElementById('card-create-class-trigger')
+  if (cardTrigger) {
+    cardTrigger.addEventListener('click', (e) => {
+      e.preventDefault()
+      showCreateClassModal()
+    })
+  }
+
+  // Switch Lưới / Bảng
+  const btnCard = document.getElementById('btn-view-card')
+  const btnTable = document.getElementById('btn-view-table')
+  const cardsGrid = document.getElementById('classes-cards-grid')
+  const tableContainer = document.getElementById('classes-table-container')
+
+  const applyViewMode = (mode) => {
+    setClassesViewMode(mode)
+    if (mode === 'card') {
+      btnCard?.classList.add('active')
+      btnTable?.classList.remove('active')
+      cardsGrid?.classList.remove('is-hidden')
+      tableContainer?.classList.add('is-hidden')
+    } else {
+      btnTable?.classList.add('active')
+      btnCard?.classList.remove('active')
+      tableContainer?.classList.remove('is-hidden')
+      cardsGrid?.classList.add('is-hidden')
+    }
+  }
+
+  btnCard?.addEventListener('click', () => applyViewMode('card'))
+  btnTable?.addEventListener('click', () => applyViewMode('table'))
+
+  // Chip lọc khối học
+  document.querySelectorAll('.ap-block-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.ap-block-chip').forEach(c => c.classList.remove('active'))
+      chip.classList.add('active')
+      currentFilterBlock = chip.getAttribute('data-block') || 'ALL'
+      filterClasses()
+    })
+  })
+
   const searchInput = document.getElementById('class-search-input')
 
   const filterClasses = () => {
     const query = searchInput?.value.toLowerCase().trim() || ''
 
-    const filtered = state.classes.filter(c => {
-      return !query || c.name.toLowerCase().includes(query) || (c.gradeBlock && c.gradeBlock.toLowerCase().includes(query))
+    const filtered = (state.classes || []).filter(c => {
+      const matchQuery = !query || c.name.toLowerCase().includes(query) || (c.gradeBlock && c.gradeBlock.toLowerCase().includes(query))
+      const matchBlock = currentFilterBlock === 'ALL' || c.gradeBlock === currentFilterBlock
+      return matchQuery && matchBlock
     })
 
     const tbody = document.getElementById('classes-table-body')
@@ -568,9 +873,25 @@ export function bindClassMgmtEvents() {
       tbody.innerHTML = filtered.map(c => renderClassRow(c)).join('')
     }
 
+    if (cardsGrid) {
+      const trigger = cardsGrid.querySelector('#card-create-class-trigger')
+      cardsGrid.innerHTML = ''
+      if (trigger) cardsGrid.appendChild(trigger)
+      filtered.forEach(c => {
+        const temp = document.createElement('div')
+        temp.innerHTML = renderProClassCard(c)
+        if (temp.firstElementChild) cardsGrid.appendChild(temp.firstElementChild)
+      })
+    }
+
     const summary = document.getElementById('class-count-summary')
     if (summary) {
-      summary.textContent = `Hiển thị 1 đến ${filtered.length} trong tổng số ${state.classes.length} lớp học`
+      summary.textContent = `Hiển thị 1 đến ${filtered.length} trong tổng số ${(state.classes || []).length} lớp học`
+    }
+
+    const emptyState = document.getElementById('classes-empty-state')
+    if (emptyState) {
+      emptyState.style.display = filtered.length === 0 ? 'flex' : 'none'
     }
 
     bindClassTableActionEvents()
@@ -589,9 +910,24 @@ function updateClassTable(newClass) {
     }
   }
 
+  const cardsGrid = document.getElementById('classes-cards-grid')
+  if (cardsGrid) {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = renderProClassCard(newClass)
+    const cardEl = tempDiv.firstElementChild
+    if (cardEl) {
+      const trigger = cardsGrid.querySelector('#card-create-class-trigger')
+      if (trigger && trigger.nextElementSibling) {
+        cardsGrid.insertBefore(cardEl, trigger.nextElementSibling)
+      } else {
+        cardsGrid.appendChild(cardEl)
+      }
+    }
+  }
+
   const summary = document.getElementById('class-count-summary')
   if (summary) {
-    summary.textContent = `Hiển thị 1 đến ${state.classes.length} trong tổng số ${state.classes.length} lớp học`
+    summary.textContent = `Hiển thị 1 đến ${(state.classes || []).length} trong tổng số ${(state.classes || []).length} lớp học`
   }
 
   bindClassTableActionEvents()
@@ -607,7 +943,11 @@ function bindClassTableActionEvents() {
           showToast('Đang xóa lớp học...', 'info')
           await api.deleteClass(id)
           state.classes = state.classes.filter(c => c.id !== id)
-          document.getElementById(`row-class-${id}`)?.remove()
+          document.querySelectorAll(`[id="row-class-${id}"]`).forEach(el => el.remove())
+          const summary = document.getElementById('class-count-summary')
+          if (summary) {
+            summary.textContent = `Hiển thị 1 đến ${(state.classes || []).length} trong tổng số ${(state.classes || []).length} lớp học`
+          }
           showToast(`Đã xóa lớp học ${name}`, 'success')
         } catch (err) {
           showToast(`Xóa lớp học thất bại: ${err.message}`, 'error')

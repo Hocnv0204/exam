@@ -4,22 +4,26 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
 import { isAdminProUI } from '../ui-flag.js'
+import { showAddBalanceModal, showEditBalanceModal } from './student-mgmt.js'
 
-if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students-pro.css') }
 
 let selectedSessionDates = new Map()
 
 export function renderStudentDetailsView() {
+  return isAdminProUI() ? renderProStudentDetailsView() : renderClassicStudentDetailsView()
+}
+
+export function renderClassicStudentDetailsView() {
   const hashUrl = window.location.hash.replace('#', '')
   const [_, queryString] = hashUrl.split('?')
   const params = new URLSearchParams(queryString || '')
   const studentId = params.get('studentId')
   
-  const proUI = isAdminProUI()
   const student = state.students.find(s => s.id === studentId)
   if (!student) {
     return `
-      <div class="app-layout${proUI ? ' admin-dark" id="student-details" data-route="student-details" data-role="ADMIN' : ''}">
+      <div class="app-layout">
         ${renderSidebar('students')}
         <div class="main-content">
           ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -41,7 +45,7 @@ export function renderStudentDetailsView() {
 
   if (!currentClass) {
     return `
-      <div class="app-layout${proUI ? ' admin-dark" id="student-details" data-route="student-details" data-role="ADMIN' : ''}">
+      <div class="app-layout">
         ${renderSidebar('students')}
         <div class="main-content">
           ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -81,7 +85,7 @@ export function renderStudentDetailsView() {
   const defaultReportFrom = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
 
   return `
-    <div class="app-layout${proUI ? ' admin-dark" id="student-details" data-route="student-details" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar('students')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Chi tiết học sinh')}
@@ -211,6 +215,98 @@ export function renderStudentDetailsView() {
   `
 }
 
+export function renderProStudentDetailsView() {
+  const hashUrl = window.location.hash.replace('#', '')
+  const [, queryString] = hashUrl.split('?')
+  const params = new URLSearchParams(queryString || '')
+  const studentId = params.get('studentId')
+  const student = (state.students || []).find(s => s.id === studentId)
+
+  if (!student) return renderProDetailsError('Không tìm thấy thông tin học sinh!')
+
+  const studentClassIds = student.classIds || (student.classId ? [student.classId] : [])
+  const classId = params.get('classId') || studentClassIds[0]
+  const currentClass = (state.classes || []).find(c => c.id === classId)
+  if (!currentClass) return renderProDetailsError('Không tìm thấy thông tin lớp học!')
+
+  const studentClasses = (state.classes || []).filter(c => studentClassIds.includes(c.id))
+  const now = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  const defaultMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`
+  const defaultReportTo = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const defaultReportFrom = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+  const fullName = escapeDetailsHtml(student.fullName || 'Học sinh')
+  const username = escapeDetailsHtml(student.username || '')
+  const initials = student.fullName ? student.fullName.split(' ').filter(Boolean).map(word => word[0]).join('').slice(0, 2).toUpperCase() : 'HS'
+  const isLocked = Boolean(student.isLocked) || student.status === 'Tạm khóa'
+  const balance = Number(student.balance || 0)
+  const classSelectorHTML = studentClasses.length > 1
+    ? `<label class="ap-detail-class-picker" for="details-class-selector"><span>Chọn lớp</span><select id="details-class-selector" class="form-input">${studentClasses.map(c => `<option value="${escapeDetailsHtml(c.id)}" ${c.id === classId ? 'selected' : ''}>${escapeDetailsHtml(c.name)}</option>`).join('')}</select></label>`
+    : `<div class="ap-detail-class-picker"><span>Lớp đang học</span><strong>${escapeDetailsHtml(currentClass.name)}</strong></div>`
+
+  return `
+    <div class="app-layout admin-dark" id="student-details" data-route="student-details" data-role="ADMIN">
+      ${renderSidebar('students')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Chi tiết học sinh')}
+        <main class="content-body ap-student-detail-page">
+          <header class="ap-detail-heading">
+            <div><p class="ap-eyebrow">Hồ sơ học sinh</p><h1>Chi tiết học sinh</h1><p>Hồ sơ, lịch học, học phí và kết quả trong lớp đang chọn.</p></div>
+            <a href="#class-details?classId=${encodeURIComponent(classId)}" class="btn-secondary"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Quay lại lớp học</a>
+          </header>
+
+          <section class="ap-profile-card">
+            <div class="ap-profile-main"><span class="ap-profile-avatar">${escapeDetailsHtml(initials)}</span><div><span id="detail-profile-status" class="ap-status-chip ${isLocked ? 'is-locked' : 'is-active'}">${isLocked ? 'Tạm khóa' : escapeDetailsHtml(student.status || 'Hoạt động')}</span><h2>${fullName}</h2><p>@${username} · ${escapeDetailsHtml(currentClass.name)}</p></div></div>
+            <button id="open-progress-report-shortcut" class="btn-primary ap-primary-action" type="button"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Xem báo cáo tiến độ</button>
+          </section>
+
+          <section class="ap-detail-summary" aria-label="Thông tin tài chính và tài khoản">
+            <article class="ap-balance-card"><span>Số dư</span><strong id="detail-balance-display" class="${balance < 0 ? 'is-negative' : 'is-positive'}">${balance.toLocaleString('vi-VN')} đ</strong><div class="ap-card-actions"><button id="detail-add-balance-btn" class="btn-primary" type="button"><i class="fa-solid fa-wallet" aria-hidden="true"></i> Nạp tiền</button><button id="detail-edit-balance-btn" class="btn-secondary" type="button"><i class="fa-solid fa-pen" aria-hidden="true"></i> Sửa số dư</button></div></article>
+            <article><span>Học phí quy định</span><strong>${Number(currentClass.tuitionFee || 0).toLocaleString('vi-VN')} đ</strong><p>Mỗi buổi học</p></article>
+            <article><span>Trạng thái tài khoản</span><strong id="detail-account-status">${isLocked ? 'Đang tạm khóa' : 'Đang hoạt động'}</strong><button id="detail-toggle-lock-btn" class="${isLocked ? 'btn-secondary' : 'ap-warning-action'}" data-id="${escapeDetailsHtml(student.id)}" data-name="${fullName}" data-locked="${isLocked}" type="button"><i class="fa-solid ${isLocked ? 'fa-lock-open' : 'fa-lock'}" aria-hidden="true"></i> ${isLocked ? 'Mở khóa tài khoản' : 'Tạm khóa tài khoản'}</button></article>
+          </section>
+
+          <section class="ap-learning-layout">
+            <article class="ap-detail-card ap-class-card">
+              <h2>Lớp đang học</h2>
+              ${classSelectorHTML}
+              <div class="ap-class-note"><strong>Lịch học cá nhân</strong><span id="sessions-count-display">0 Buổi</span><small>Lịch học được phân bổ trong tháng đang chọn.</small></div>
+              <div class="ap-tuition-inline"><span>Học phí trong tháng</span><strong id="tuition-amount-display">0 VND</strong><small id="tuition-formula-display">0 buổi × 0 VND/buổi</small></div>
+            </article>
+
+            <article class="ap-detail-card ap-schedule-card">
+              <div class="ap-card-heading"><div><p class="ap-eyebrow">Điểm danh & học phí</p><h2>Lịch học trong tháng</h2></div><input type="month" id="details-month-picker" class="form-input" value="${defaultMonth}"></div>
+              <div id="student-calendar-grid-container"><div class="ap-loading-state"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i><span>Đang tải lịch học…</span></div></div>
+              <div class="ap-save-row"><button class="btn-primary" id="save-student-sessions-btn" type="button"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Lưu lịch học học sinh</button></div>
+            </article>
+          </section>
+
+          <section class="ap-detail-card ap-homework-card">
+            <div class="ap-card-heading"><div><p class="ap-eyebrow">Kết quả học tập</p><h2>Bài nộp và bài tập</h2></div></div>
+            <div id="student-homework-stats-container"><div class="ap-loading-state"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i><span>Đang tải thống kê bài tập…</span></div></div>
+          </section>
+
+          <section class="ap-detail-lower-grid">
+            <article class="ap-detail-card ap-report-card">
+              <h2>Báo cáo tiến bộ học tập</h2><p>Tổng hợp KPI, xu hướng điểm và phân tích theo chương trong một khoảng ngày.</p>
+              <div class="report-launch-bar"><div class="report-launch-fields"><label class="report-launch-field" for="report-from-date"><span>Từ ngày</span><input type="date" id="report-from-date" class="form-input" value="${defaultReportFrom}"></label><label class="report-launch-field" for="report-to-date"><span>Đến ngày</span><input type="date" id="report-to-date" class="form-input" value="${defaultReportTo}"></label><button id="open-progress-report-btn" class="btn-primary" type="button"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Mở báo cáo</button></div><p id="report-input-error" class="report-inline-error" role="alert" style="display:none;"></p></div>
+            </article>
+            <article class="ap-detail-card ap-weak-card"><h2>Điểm yếu theo chương</h2><p>Các chương học sinh làm sai nhiều nhất trong lớp hiện tại.</p><div id="student-weak-topics-container"><div class="ap-loading-state"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i><span>Đang phân tích kết quả…</span></div></div></article>
+          </section>
+        </main>
+      </div>
+    </div>
+  `
+}
+
+function renderProDetailsError(message) {
+  return `<div class="app-layout admin-dark" id="student-details" data-route="student-details" data-role="ADMIN">${renderSidebar('students')}<div class="main-content">${renderNavbar('Nền tảng / Chi tiết học sinh')}<main class="content-body ap-student-detail-page"><section class="ap-detail-error" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><h1>${escapeDetailsHtml(message)}</h1><a href="#students" class="btn-primary">Quay lại danh sách học sinh</a></section></main></div></div>`
+}
+
+function escapeDetailsHtml(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
 export function bindStudentDetailsEvents() {
   bindSidebarEvents()
 
@@ -221,6 +317,58 @@ export function bindStudentDetailsEvents() {
   const student = state.students.find(s => s.id === studentId)
   const studentClassIds = student?.classIds || (student?.classId ? [student.classId] : [])
   const classId = params.get('classId') || studentClassIds[0]
+
+  const addBalanceBtn = document.getElementById('detail-add-balance-btn')
+  if (addBalanceBtn && studentId) {
+    addBalanceBtn.onclick = () => showAddBalanceModal(studentId, {
+      onSuccess: (_, result) => {
+        const balanceDisplay = document.getElementById('detail-balance-display')
+        if (!balanceDisplay || !Number.isFinite(Number(result?.balance))) return
+        const balance = Number(result.balance)
+        balanceDisplay.textContent = `${balance.toLocaleString('vi-VN')} đ`
+        balanceDisplay.className = balance < 0 ? 'is-negative' : 'is-positive'
+      }
+    })
+  }
+
+  const editBalanceBtn = document.getElementById('detail-edit-balance-btn')
+  if (editBalanceBtn && studentId) editBalanceBtn.onclick = () => showEditBalanceModal(studentId)
+
+  const lockBtn = document.getElementById('detail-toggle-lock-btn')
+  if (lockBtn && student) {
+    lockBtn.onclick = async () => {
+      const currentlyLocked = lockBtn.getAttribute('data-locked') === 'true'
+      const nextLocked = !currentlyLocked
+      const action = nextLocked ? 'tạm khóa' : 'mở khóa'
+      // Cùng nội dung xác nhận với trang danh sách học sinh (nêu rõ hệ quả).
+      const lockMsg = nextLocked
+        ? `Tạm khóa tài khoản "${student.fullName}"?\nHọc sinh sẽ không đăng nhập được và chuyển sang Tạm nghỉ ở các lớp.`
+        : `Mở khóa tài khoản "${student.fullName}"?\nHọc sinh đăng nhập lại được và chuyển về Đang học.`
+      if (!confirm(lockMsg)) return
+      try {
+        showToast(`Đang ${action} tài khoản...`, 'info')
+        await api.setUserLock(studentId, nextLocked)
+        student.isLocked = nextLocked
+        student.status = nextLocked ? 'Tạm khóa' : 'Hoạt động'
+        lockBtn.setAttribute('data-locked', String(nextLocked))
+        lockBtn.className = nextLocked ? 'btn-secondary' : 'ap-warning-action'
+        lockBtn.innerHTML = `<i class="fa-solid ${nextLocked ? 'fa-lock-open' : 'fa-lock'}" aria-hidden="true"></i> ${nextLocked ? 'Mở khóa tài khoản' : 'Tạm khóa tài khoản'}`
+        const profileStatus = document.getElementById('detail-profile-status')
+        if (profileStatus) {
+          profileStatus.className = `ap-status-chip ${nextLocked ? 'is-locked' : 'is-active'}`
+          profileStatus.textContent = nextLocked ? 'Tạm khóa' : 'Hoạt động'
+        }
+        const accountStatus = document.getElementById('detail-account-status')
+        if (accountStatus) accountStatus.textContent = nextLocked ? 'Đang tạm khóa' : 'Đang hoạt động'
+        showToast(`Đã ${action} tài khoản "${student.fullName}"`, 'success')
+      } catch (err) {
+        showToast(`${nextLocked ? 'Tạm khóa' : 'Mở khóa'} thất bại: ${err.message}`, 'error')
+      }
+    }
+  }
+
+  const reportShortcut = document.getElementById('open-progress-report-shortcut')
+  if (reportShortcut) reportShortcut.onclick = () => document.getElementById('open-progress-report-btn')?.click()
 
   const monthPicker = document.getElementById('details-month-picker')
   if (monthPicker) {

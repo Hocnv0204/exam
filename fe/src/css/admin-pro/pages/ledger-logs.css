@@ -1,0 +1,619 @@
+/* ==========================================================================
+   Admin Pro — G7 Sổ học phí (#tuition-ledger) & Nhật ký hoạt động (#activity-logs)
+   LƯU Ý: CSS mọi trang được nạp toàn cục → tên class phải độc nhất để không
+   bị đè bởi page css khác (vd .ap-filter-card của trang classes).
+   MỌI rule bắt buộc có tiền tố html[data-admin-ui="pro"], chỉ dùng token --ap-*
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Khối tiêu đề trang (dùng chung 2 trang)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] .ap-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .ap-page-head .ap-page-kicker {
+  margin: 0 0 4px;
+  color: var(--ap-muted);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+html[data-admin-ui="pro"] .ap-page-head .ap-page-title {
+  margin: 0;
+  font-family: var(--ap-font-heading);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .ap-page-head .ap-page-desc {
+  margin: 5px 0 0;
+  color: var(--ap-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+html[data-admin-ui="pro"] .ap-btn-primary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px !important;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  box-shadow: var(--ap-shadow) !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] .ap-btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ap-block) !important;
+}
+
+/* --------------------------------------------------------------------------
+   2. Thanh lọc — MỘT HÀNG lưới đều nhau trên desktop
+   Class .ap-page-filter là tên riêng của 2 trang này (không trùng .ap-filter-card
+   mà trang classes dùng với flex-direction: column)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .ap-page-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 14px;
+  padding: 16px 18px;
+  border: 2px solid var(--ap-line);
+  border-radius: 20px;
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-item,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-item {
+  flex: 1 1 170px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-wide,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-wide {
+  flex: 2 1 260px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-label,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  margin-bottom: 6px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-page-input,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-page-input,
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter select,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter select {
+  width: 100%;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font: 700 14px/1.4 var(--ap-font);
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-page-input:focus,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-page-input:focus,
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter select:focus,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter select:focus {
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-box,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius-sm) !important;
+  background: var(--ap-surface2) !important;
+  transition: border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-box:focus-within,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-box:focus-within {
+  border-color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-box i,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-box i {
+  position: absolute;
+  left: 12px;
+  color: var(--ap-muted);
+  font-size: 14px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-box input,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-box input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px 0 36px;
+  border: none;
+  background: transparent;
+  color: var(--ap-ink);
+  font: 700 14px/1.4 var(--ap-font);
+  outline: none;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-box input::placeholder,
+html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-box input::placeholder {
+  color: var(--ap-muted);
+}
+
+/* Nút Xuất Excel lấp ô thứ 4 của hàng lọc (Sổ học phí) */
+html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-btn-primary {
+  flex: 0 0 auto;
+}
+
+/* Lọc + Làm mới của Nhật ký xếp cuối hàng */
+html[data-admin-ui="pro"] .ap-filter-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .ap-page-filter .btn-primary,
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .ap-page-filter .btn-secondary {
+  width: auto !important;
+  min-height: 44px;
+  padding: 0 16px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .ap-page-filter .btn-primary {
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+}
+
+html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .ap-page-filter .btn-secondary {
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+}
+
+/* --------------------------------------------------------------------------
+   3. Chip / pill dùng riêng 2 trang này
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #tuition-ledger .ap-tx-chip,
+html[data-admin-ui="pro"] #tuition-ledger .ap-tx-class-chip {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-tx-class-chip {
+  background: var(--ap-blue-soft);
+  color: var(--ap-blue);
+}
+
+html[data-admin-ui="pro"] .ap-icon-pill {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-tone-ok,
+html[data-admin-ui="pro"] #activity-logs .ap-tone-ok { background: var(--ap-ok-soft); color: var(--ap-ok); }
+html[data-admin-ui="pro"] #tuition-ledger .ap-tone-warn,
+html[data-admin-ui="pro"] #activity-logs .ap-tone-warn { background: var(--ap-warn-soft); color: var(--ap-warn); }
+html[data-admin-ui="pro"] #tuition-ledger .ap-tone-blue,
+html[data-admin-ui="pro"] #activity-logs .ap-tone-blue { background: var(--ap-blue-soft); color: var(--ap-blue); }
+html[data-admin-ui="pro"] #tuition-ledger .ap-tone-accent,
+html[data-admin-ui="pro"] #activity-logs .ap-tone-accent { background: var(--ap-accent-soft); color: var(--ap-accent); }
+html[data-admin-ui="pro"] #tuition-ledger .ap-tone-muted,
+html[data-admin-ui="pro"] #activity-logs .ap-tone-muted { background: var(--ap-surface2); color: var(--ap-muted); }
+
+/* --------------------------------------------------------------------------
+   4. Sổ học phí (#tuition-ledger)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #tuition-ledger .content-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-summary-card {
+  padding: 18px;
+  border: 2px solid var(--ap-line);
+  border-radius: 20px;
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-summary-label {
+  color: var(--ap-muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-summary-value {
+  display: block;
+  margin-top: 9px;
+  font-family: var(--ap-font-heading);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-summary-sub {
+  color: var(--ap-muted);
+  font-size: 13px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-card {
+  padding: 20px 22px;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-head {
+  margin-bottom: 12px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--ap-font-heading);
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-count {
+  color: var(--ap-muted);
+  font-weight: 800;
+  font-size: 14px;
+  font-family: var(--ap-font);
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-sub {
+  font-size: 13px;
+  color: var(--ap-muted);
+  margin: 4px 0 0 46px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table {
+  min-width: 860px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-date,
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-student,
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-amount {
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-time,
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-receipt {
+  color: var(--ap-muted);
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-amt-plus { color: var(--ap-ok); }
+html[data-admin-ui="pro"] #tuition-ledger .ap-amt-minus { color: var(--ap-warn); }
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-receipt {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-col-note {
+  color: var(--ap-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .ap-tx-empty td {
+  text-align: center;
+  padding: 24px;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #tuition-ledger .btn-ledger-print {
+  min-height: 32px;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  border-radius: var(--ap-radius-sm);
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   5. Nhật ký hoạt động (#activity-logs)
+   -------------------------------------------------------------------------- */
+html[data-admin-ui="pro"] #activity-logs .content-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-timeline-card {
+  padding: 20px 22px;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--ap-font-heading);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-count {
+  color: var(--ap-muted);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-item {
+  display: grid;
+  grid-template-columns: 44px minmax(140px, 210px) minmax(0, 1fr) minmax(130px, auto);
+  gap: 14px;
+  align-items: center;
+  padding: 13px 0;
+  border-top: 2px solid var(--ap-line);
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-item:first-child {
+  border-top: none;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-who strong,
+html[data-admin-ui="pro"] #activity-logs .ap-tl-what strong,
+html[data-admin-ui="pro"] #activity-logs .ap-tl-when strong {
+  display: block;
+  color: var(--ap-ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-who small,
+html[data-admin-ui="pro"] #activity-logs .ap-tl-what small,
+html[data-admin-ui="pro"] #activity-logs .ap-tl-when small {
+  display: block;
+  color: var(--ap-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-when {
+  text-align: right;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  padding: 26px 0;
+  color: var(--ap-muted);
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-note.ap-tl-error {
+  color: var(--ap-danger);
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .skeleton-bar {
+  min-height: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   6. Responsive
+   -------------------------------------------------------------------------- */
+@media (min-width: 1280px) {
+  html[data-admin-ui="pro"] #tuition-ledger .ap-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] .ap-page-head .ap-page-title { font-size: 28px; }
+
+  /* ≤900px: 2 cột cho hàng lọc */
+  html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-item,
+  html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-item,
+  html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-wide,
+  html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-wide {
+    flex: 1 1 calc(50% - 7px);
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .ap-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-card,
+  html[data-admin-ui="pro"] #activity-logs .ap-timeline-card,
+  html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* ≤640px: 1 cột */
+  html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-item,
+  html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-item,
+  html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-filter-wide,
+  html[data-admin-ui="pro"] #activity-logs .ap-page-filter .ap-filter-wide {
+    flex: 1 1 100%;
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .ap-page-filter .ap-btn-primary {
+    flex: 1 1 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-filter-actions {
+    flex: 1 1 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-filter-actions .btn-primary,
+  html[data-admin-ui="pro"] .ap-filter-actions .btn-secondary {
+    flex: 1 1 44%;
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .ap-summary-grid { grid-template-columns: 1fr; }
+  html[data-admin-ui="pro"] .ap-page-head .ap-page-title { font-size: 24px; }
+
+  /* Bảng giao dịch chuyển thành khối thẻ trên điện thoại */
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table thead { display: none; }
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table,
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table tbody,
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table tr,
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table tr {
+    border-top: 2px solid var(--ap-line);
+    padding: 12px 0;
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .ap-table-scroll .data-table td {
+    border: none;
+    padding: 3px 0;
+    white-space: normal;
+  }
+
+  html[data-admin-ui="pro"] #tuition-ledger .ap-col-amount { text-align: left; }
+
+  html[data-admin-ui="pro"] #activity-logs .ap-tl-item {
+    grid-template-columns: 44px minmax(0, 1fr);
+    row-gap: 6px;
+  }
+
+  html[data-admin-ui="pro"] #activity-logs .ap-tl-what,
+  html[data-admin-ui="pro"] #activity-logs .ap-tl-when {
+    grid-column: 2;
+  }
+
+  html[data-admin-ui="pro"] #activity-logs .ap-tl-when {
+    text-align: left;
+  }
+}

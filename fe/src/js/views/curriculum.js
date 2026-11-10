@@ -9,7 +9,10 @@ import { openAssignHomeworkModal } from '../components/assign-homework-modal.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 import { isAdminProUI } from '../ui-flag.js'
 
-if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
+if (typeof document !== 'undefined' && document.head) {
+  import('../../css/admin-pro/pages/classes.css')
+  import('../../css/admin-pro/pages/curriculum.css')
+}
 import {
   normalizeSearchText,
   highlightMatch,
@@ -334,6 +337,14 @@ export function renderCurriculumTabHTML(currentClass) {
     }
   }
 
+  if (!isAdminProUI()) {
+    return renderClassicCurriculumTabHTML(currentClass, chapters, totalLessons, selectedChapter, selectedLesson)
+  }
+
+  return renderProCurriculumTabHTML(currentClass, chapters, totalLessons, selectedChapter, selectedLesson)
+}
+
+export function renderClassicCurriculumTabHTML(currentClass, chapters = [], totalLessons = 0, selectedChapter = null, selectedLesson = null) {
   return `
     <div class="card" style="padding:24px; border-radius:16px;">
       <!-- Toolbar Header -->
@@ -392,6 +403,85 @@ export function renderCurriculumTabHTML(currentClass) {
       ` : `
         <div id="curriculum-level-container">
           ${selectedLesson ? renderLessonDetail(selectedChapter, selectedLesson) : renderLessonFirstView(currentClass, chapters, serverLessonsResult)}
+        </div>
+      `)}
+    </div>
+  `
+}
+
+export function renderProCurriculumTabHTML(currentClass, chapters = [], totalLessons = 0, selectedChapter = null, selectedLesson = null) {
+  if (!currentClass) {
+    return `<div class="card ap-card" style="padding:24px; text-align:center; color:var(--ap-muted);">Không tìm thấy thông tin lớp học.</div>`
+  }
+
+  const gradeBlockLabel = currentClass.gradeBlock || currentClass.name || 'Lớp học'
+
+  return `
+    <div class="ap-curriculum-container">
+      <!-- Top Header & Toolbar -->
+      <section class="ap-curriculum-header-card" aria-label="Thanh công cụ chương trình học">
+        <div class="ap-curriculum-header-info">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="ap-curriculum-class-chip">
+              <i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> ${escapeHtml(gradeBlockLabel)}
+            </span>
+          </div>
+          <h2 class="ap-curriculum-header-title">Chương trình & Kế hoạch giảng dạy</h2>
+          <p class="ap-curriculum-header-desc">
+            Quản lý các chương, bài học, video bài giảng Google Drive và tài liệu lý thuyết của lớp <strong>${escapeHtml(currentClass.name)}</strong>
+          </p>
+        </div>
+
+        <!-- 2 Thẻ số nhỏ trong header -->
+        <div class="ap-curriculum-stats">
+          <div class="ap-curriculum-stat-card">
+            <span class="ap-curriculum-stat-label">Tổng số chương</span>
+            <strong class="ap-curriculum-stat-value">${chapters.length}</strong>
+          </div>
+          <div class="ap-curriculum-stat-card">
+            <span class="ap-curriculum-stat-label">Tổng số bài học</span>
+            <strong class="ap-curriculum-stat-value">${totalLessons}</strong>
+          </div>
+        </div>
+
+        <!-- Nút thao tác -->
+        <div class="ap-curriculum-header-actions">
+          <button type="button" class="btn-secondary" id="add-chapter-btn" style="width:auto;" aria-label="Tạo chương mới">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i> Tạo chương mới
+          </button>
+          <button type="button" class="btn-primary" id="btn-quick-add-lesson" style="width:auto;" aria-label="Tạo bài học nhanh">
+            <i class="fa-solid fa-bolt" aria-hidden="true"></i> Tạo bài học nhanh
+          </button>
+        </div>
+      </section>
+
+      <!-- Main Curriculum Workspace -->
+      ${isLoadingCurriculum ? `
+        <div class="ap-curriculum-loading">
+          <i class="fa-solid fa-circle-notch fa-spin" style="font-size:32px; color:var(--ap-accent); margin-bottom:10px; display:block;"></i>
+          <p style="font-weight:700; margin:0; color:var(--ap-ink);">Đang tải danh sách bài học & chương trình...</p>
+        </div>
+      ` : curriculumError ? `
+        <div class="ap-curriculum-error">
+          <i class="fa-solid fa-triangle-exclamation" style="font-size:32px; margin-bottom:8px; display:block;"></i>
+          <h4>Lỗi tải chương trình học</h4>
+          <p>${escapeHtml(curriculumError)}</p>
+          <button id="btn-retry-curriculum" class="btn-primary" style="width:auto;" aria-label="Thử lại tải dữ liệu">
+            <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Thử lại
+          </button>
+        </div>
+      ` : (chapters.length === 0 ? `
+        <div class="ap-curriculum-empty">
+          <i class="fa-solid fa-folder-open" style="font-size:36px; display:block; margin-bottom:8px;"></i>
+          <h4 style="margin:0 0 4px 0; font-family:var(--ap-font-heading); font-size:18px; font-weight:800; color:var(--ap-ink);">Chưa có chương học nào cho lớp học này</h4>
+          <p style="margin:0 0 16px 0; font-size:14px;">Nhấn nút <strong>"Tạo chương mới"</strong> ở trên để bắt đầu thêm bài học.</p>
+          <button type="button" class="btn-primary" id="add-chapter-btn-grid" style="width:auto;" aria-label="Tạo chương mới">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i> Tạo chương mới
+          </button>
+        </div>
+      ` : `
+        <div id="curriculum-level-container">
+          ${selectedLesson ? renderProLessonDetail(selectedChapter, selectedLesson) : renderProLessonFirstView(currentClass, chapters, serverLessonsResult)}
         </div>
       `)}
     </div>
@@ -760,7 +850,7 @@ function renderLessonWorkspace(ch, l) {
           ${theoryFiles.map(file => {
             const cleanName = formatTheoryFileName(file)
             const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
-            const mappedUrl = file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
+            const mappedUrl = file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 'http://localhost:54321')
             return `
               <div class="lw-doc-card">
                 <div class="lw-doc-main">
@@ -850,6 +940,531 @@ function renderLessonWorkspace(ch, l) {
       `)}
     </div>
   </div>
+  `
+}
+
+export function renderProLessonDetail(selectedChapter, selectedLesson) {
+  return `
+    <div class="ap-lw-topbar">
+      <div class="ap-lw-breadcrumb-row">
+        <nav class="curriculum-breadcrumb ap-lw-breadcrumb" aria-label="Đường dẫn bài học">
+          <button type="button" class="curriculum-bc-link btn-back-to-curriculum ap-lw-bc-back" aria-label="Quay lại danh sách bài học">
+            <i class="fa-solid fa-book-open" aria-hidden="true"></i> Danh sách bài học
+          </button>
+          <i class="fa-solid fa-chevron-right curriculum-bc-sep" aria-hidden="true"></i>
+          <span class="ap-lw-bc-chapter">
+            <i class="fa-solid fa-folder" aria-hidden="true"></i> ${escapeHtml(selectedChapter?.title || 'Chương')}
+          </span>
+          <i class="fa-solid fa-chevron-right curriculum-bc-sep" aria-hidden="true"></i>
+          <span class="curriculum-bc-current ap-lw-bc-current">
+            Bài ${escapeHtml(selectedLesson?.code || '')}: ${escapeHtml(selectedLesson?.title || '')}
+          </span>
+        </nav>
+        <button type="button" class="btn-secondary lw-btn btn-back-to-curriculum ap-lw-back-btn" aria-label="Quay lại danh sách bài học">
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Quay lại danh sách
+        </button>
+      </div>
+    </div>
+    ${renderProLessonWorkspace(selectedChapter, selectedLesson)}
+  `
+}
+
+export function renderProLessonWorkspace(ch, l) {
+  const platform = getVideoPlatformInfo(l.videoUrl)
+  const theoryFiles = l.theoryFiles || []
+  const homeworks = l.homeworks || []
+  const isHwLoading = l.homeworks === null
+  const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
+
+  return `
+    <div class="lw-workspace ap-curriculum-container">
+      <!-- Lesson Workspace Header -->
+      <header class="lw-header ap-lw-header-card">
+        <div class="ap-lw-header-main">
+          <div class="lw-chapter-chip ap-chip ap-chip-chapter">
+            <i class="fa-solid fa-folder-open" aria-hidden="true"></i> ${escapeHtml(ch?.title || 'Chương')}
+          </div>
+          <h2 class="lw-title ap-lw-title">
+            Bài ${escapeHtml(l.code || '')}: ${escapeHtml(l.title)}
+          </h2>
+          <div class="lw-meta ap-lw-meta">
+            ${(l.isTrial || l.is_trial) ? `
+              <span class="lw-badge lw-badge--trial ap-chip ap-chip-trial">
+                <i class="fa-solid fa-sparkles" aria-hidden="true"></i> Cho phép học thử (Công khai)
+              </span>
+            ` : `
+              <span class="lw-badge lw-badge--internal ap-chip ap-chip-internal">
+                <i class="fa-solid fa-lock" aria-hidden="true"></i> Lớp học nội bộ
+              </span>
+            `}
+            ${createdDateStr ? `
+              <span class="lw-date ap-meta-pill">
+                <i class="fa-regular fa-calendar" aria-hidden="true"></i> Tạo ngày: ${createdDateStr}
+              </span>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="lw-actions ap-lw-header-actions">
+          <a href="#trial-management?lessonId=${l.id}" class="btn-secondary lw-btn lw-btn-md lw-btn-green" title="Quản lý video và trạng thái công khai của bài này trong module Quản lý học thử" aria-label="Quản lý học thử">
+            <i class="fa-solid fa-sparkles" aria-hidden="true"></i> Quản lý học thử
+          </a>
+          <button type="button" class="btn-secondary lw-btn lw-btn-md btn-edit-selected-lesson" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" aria-label="Sửa bài học" title="Sửa bài học">
+            <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Sửa bài học
+          </button>
+          <button type="button" class="btn-secondary lw-btn lw-btn-md lw-btn-danger btn-delete-selected-lesson" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" aria-label="Xóa bài học" title="Xóa bài học">
+            <i class="fa-solid fa-trash" aria-hidden="true"></i> Xóa bài
+          </button>
+        </div>
+      </header>
+
+      <!-- 2 Cột Workspace: Trái (Video Drive/ô link + lý thuyết/tài liệu + mô tả); Phải (Bài tập của bài) -->
+      <div class="ap-lw-grid">
+        <!-- Cột trái -->
+        <div class="ap-lw-left-col">
+          <!-- Khối 1: Video bài giảng Google Drive -->
+          <div class="lw-card ap-card">
+            <div class="lw-card-head ap-card-head">
+              <h3 class="lw-card-title ap-card-title">
+                <i class="fa-solid fa-video" aria-hidden="true"></i> Video bài giảng
+              </h3>
+            </div>
+            ${l.videoUrl ? `
+              <div class="lw-video-card ap-video-card">
+                <div class="lw-video-meta ap-video-meta">
+                  <div class="lw-video-icon ap-video-icon" style="color:${platform.color};">
+                    <i class="${platform.icon}" aria-hidden="true"></i>
+                  </div>
+                  <div class="ap-video-info">
+                    <div class="lw-video-name ap-video-name">${platform.name}</div>
+                    <div class="lw-video-url ap-video-url" title="${escapeHtml(l.videoUrl)}">
+                      ${escapeHtml(l.videoUrl)}
+                    </div>
+                  </div>
+                </div>
+                <div class="lw-actions ap-video-actions">
+                  <button type="button" class="btn-primary lw-btn lw-btn-md btn-preview-video" data-url="${escapeHtml(l.videoUrl)}" aria-label="Xem trước video bài giảng">
+                    <i class="fa-solid fa-play" aria-hidden="true"></i> Xem trước
+                  </button>
+                  <button type="button" class="btn-secondary lw-btn lw-btn-md btn-copy-video-link" data-url="${escapeHtml(l.videoUrl)}" title="Copy link video" aria-label="Copy link video">
+                    <i class="fa-regular fa-copy" aria-hidden="true"></i> Copy link
+                  </button>
+                  <a href="${l.videoUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary lw-btn lw-btn-md" title="Mở video trong tab mới" aria-label="Mở tab mới">
+                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Mở tab mới
+                  </a>
+                  <button type="button" class="btn-secondary lw-btn lw-btn-md btn-video-url" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" title="Chỉnh sửa liên kết video" aria-label="Đổi link video">
+                    <i class="fa-solid fa-pen" aria-hidden="true"></i> Đổi link
+                  </button>
+                </div>
+              </div>
+              <div id="meet-origin" data-lesson-id="${l.id}"></div>
+            ` : `
+              <div id="meet-section" data-lesson-id="${l.id}" data-lesson-title="${escapeHtml(l.title)}">
+                <div class="lw-empty ap-empty">
+                  <i class="fa-solid fa-circle-notch fa-spin lw-empty-icon lw-empty-icon--sm"></i>
+                  <span class="lw-empty-text">Đang kiểm tra buổi học Google Meet...</span>
+                </div>
+              </div>
+            `}
+          </div>
+
+          <!-- Khối 2: Tài liệu lý thuyết đính kèm -->
+          <div class="lw-card ap-card">
+            <div class="lw-card-head ap-card-head">
+              <h3 class="lw-card-title ap-card-title">
+                <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Tài liệu lý thuyết (${theoryFiles.length})
+              </h3>
+              <input type="file" id="theory-upload-input" accept=".pdf" style="display:none;" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}">
+              <button type="button" class="btn-secondary lw-btn lw-btn-xs" id="btn-upload-theory-file" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" title="Tải file PDF lý thuyết lên" aria-label="Tải file PDF lý thuyết lên">
+                <i class="fa-solid fa-upload" aria-hidden="true"></i> Tải file lên
+              </button>
+            </div>
+            ${theoryFiles.length > 0 ? `
+              <div class="lw-docs-grid ap-docs-grid">
+                ${theoryFiles.map(file => {
+                  const cleanName = formatTheoryFileName(file)
+                  const fileUrl = file.startsWith('http') ? file : `${SUPABASE_URL}/storage/v1/object/public/pdf-files/${file}`
+                  const mappedUrl = file.startsWith('http') ? file : fileUrl.replace(/https?:\/\/kong:8000/g, (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 'http://localhost:54321')
+                  return `
+                    <div class="lw-doc-card ap-doc-card">
+                      <div class="lw-doc-main ap-doc-main">
+                        <i class="fa-solid fa-file-pdf lw-doc-icon ap-doc-icon" aria-hidden="true"></i>
+                        <span class="lw-doc-name ap-doc-name" title="${escapeHtml(cleanName)}">
+                          ${escapeHtml(cleanName)}
+                        </span>
+                      </div>
+                      <div class="lw-doc-actions ap-doc-actions">
+                        <button type="button" class="btn-secondary lw-btn lw-btn-xs" onclick="window.previewTheoryPdf('${escapeHtml(cleanName)}', '${mappedUrl}')" title="Xem trước tài liệu" aria-label="Xem tài liệu ${escapeHtml(cleanName)}">
+                          <i class="fa-solid fa-eye" aria-hidden="true"></i> Xem
+                        </button>
+                        <a href="${mappedUrl}" target="_blank" download class="btn-secondary lw-btn lw-btn-xs" title="Tải xuống" aria-label="Tải xuống ${escapeHtml(cleanName)}">
+                          <i class="fa-solid fa-download" aria-hidden="true"></i>
+                        </a>
+                        <button type="button" class="btn-secondary lw-btn lw-btn-xs lw-btn-danger btn-delete-theory-file" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" data-file="${escapeHtml(file)}" data-name="${escapeHtml(cleanName)}" title="Xóa file này" aria-label="Xóa file ${escapeHtml(cleanName)}">
+                          <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                    </div>
+                  `
+                }).join('')}
+              </div>
+            ` : `
+              <div class="lw-empty ap-empty">
+                <i class="fa-solid fa-file-arrow-up lw-empty-icon" aria-hidden="true"></i>
+                <span class="lw-empty-text">Chưa có tài liệu lý thuyết nào đính kèm.</span>
+              </div>
+            `}
+          </div>
+
+          <!-- Khối 3: Mô tả bài học (nếu có) -->
+          ${l.content ? `
+            <div class="lw-card ap-card ap-lesson-content-card">
+              <div class="lw-card-head ap-card-head">
+                <h3 class="lw-card-title ap-card-title">
+                  <i class="fa-solid fa-align-left" aria-hidden="true"></i> Mô tả nội dung bài học
+                </h3>
+              </div>
+              <div class="ap-lesson-content-body">
+                ${escapeHtml(l.content)}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Cột phải: "Bài tập của bài" + thao tác -->
+        <div class="ap-lw-right-col">
+          <div class="lw-card ap-card">
+            <div class="lw-card-head ap-card-head">
+              <h3 class="lw-card-title ap-card-title">
+                <i class="fa-solid fa-list-check" aria-hidden="true"></i> Bài tập của bài (${homeworks.length})
+              </h3>
+              <a href="#create-homework?classId=${activeClassId}&chapterId=${ch?.id}&lessonId=${l.id}" class="btn-primary lw-btn lw-btn-sm" aria-label="Tạo bài tập mới">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i> Tạo bài tập mới
+              </a>
+            </div>
+
+            ${isHwLoading ? `
+              <div class="lw-hw-loading ap-loading">
+                <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Đang tải danh sách bài tập...
+              </div>
+            ` : (homeworks.length > 0 ? `
+              <div class="lw-hw-list ap-hw-list">
+                ${homeworks.map(hw => `
+                  <div class="lw-hw-card ap-hw-card">
+                    <div class="lw-hw-main ap-hw-main">
+                      <div class="lw-hw-icon ap-hw-icon">
+                        <i class="fa-solid fa-file-signature" aria-hidden="true"></i>
+                      </div>
+                      <div class="ap-hw-info">
+                        <div class="lw-hw-title ap-hw-title">
+                          ${escapeHtml(hw.title)}
+                        </div>
+                        <div class="lw-hw-meta ap-hw-meta">
+                          <span><i class="fa-regular fa-clock" aria-hidden="true"></i> ${hw.durationMinutes || 45} phút</span>
+                          <span>•</span>
+                          <span><i class="fa-solid fa-bullseye" aria-hidden="true"></i> Điểm đạt: ${hw.passScore || 5}/${hw.maxScore || 10}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="lw-actions ap-hw-actions">
+                      <button type="button" class="btn-secondary lw-btn lw-btn-sm lw-btn-green btn-assign-homework" data-id="${hw.id}" data-title="${escapeHtml(hw.title)}" data-duration="${hw.durationMinutes || 45}" data-type="${hw.type || 'PRACTICE'}" data-chapter-title="${escapeHtml(ch?.title || '')}" data-lesson-title="${escapeHtml(l.title)}" title="Gán bài tập sang lớp khác" aria-label="Gán bài tập ${escapeHtml(hw.title)} sang lớp khác">
+                        <i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Gán lớp
+                      </button>
+                      <button type="button" class="btn-secondary lw-btn lw-btn-sm btn-edit-homework" data-id="${hw.id}" title="Chỉnh sửa nội dung đề" aria-label="Sửa đề ${escapeHtml(hw.title)}">
+                        <i class="fa-solid fa-wrench" aria-hidden="true"></i> Sửa đề
+                      </button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div class="lw-empty lw-empty--lg ap-empty">
+                <i class="fa-solid fa-clipboard-question lw-empty-icon" aria-hidden="true"></i>
+                <span class="lw-empty-text">Chưa có bài tập nào được tạo cho bài học này.</span>
+                <div class="lw-empty-actions">
+                  <a href="#create-homework?classId=${activeClassId}&chapterId=${ch?.id}&lessonId=${l.id}" class="btn-secondary lw-btn lw-btn-sm" aria-label="Tạo bài tập ngay">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i> Tạo bài tập ngay
+                  </a>
+                </div>
+              </div>
+            `)}
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function renderProLessonFirstView(currentClass, chapters, lessonResult) {
+  const pagedLessons = lessonResult.items || []
+  const totalItems = typeof lessonResult.total === 'number' ? lessonResult.total : pagedLessons.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / CURRICULUM_PAGE_SIZE))
+  if (curriculumCurrentPage > totalPages) curriculumCurrentPage = totalPages
+  if (curriculumCurrentPage < 1) curriculumCurrentPage = 1
+
+  const startIndex = (curriculumCurrentPage - 1) * CURRICULUM_PAGE_SIZE
+
+  const activeFilteredChapter = selectedChapterFilter !== 'all'
+    ? chapters.find(c => c.id === selectedChapterFilter)
+    : null
+
+  return `
+    <div class="ap-curriculum-grid">
+      <!-- Cột trái: Cây chương trình -->
+      <aside class="ap-curriculum-tree" aria-label="Cây chương trình">
+        <header class="ap-curriculum-tree-head">
+          <div>
+            <h3 class="ap-curriculum-tree-title">Cây chương trình</h3>
+            <span class="ap-curriculum-tree-subtitle">${chapters.length} chương · ${totalItems} bài</span>
+          </div>
+          <button type="button" class="ap-curriculum-tree-add-btn" id="add-chapter-btn-tree" aria-label="Tạo chương mới" title="Tạo chương mới">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="ap-curriculum-tree-list" role="list">
+          <!-- Item: Tất cả bài học -->
+          <div class="ap-curriculum-tree-item-wrapper ${selectedChapterFilter === 'all' ? 'active' : ''}">
+            <button type="button" class="ap-curriculum-tree-item curriculum-tree-btn ${selectedChapterFilter === 'all' ? 'active' : ''}" data-chapter-id="all" aria-pressed="${selectedChapterFilter === 'all' ? 'true' : 'false'}" aria-label="Xem tất cả bài học">
+              <span class="ap-curriculum-tree-badge">ALL</span>
+              <span class="ap-curriculum-tree-item-title">Tất cả bài học</span>
+              <span class="ap-curriculum-tree-count">${lessonResult.total || 0} bài</span>
+            </button>
+          </div>
+
+          <!-- Danh sách chương -->
+          ${chapters.map((ch, idx) => {
+            const isSelected = selectedChapterFilter === ch.id
+            const lessonCount = (ch.lessons && Array.isArray(ch.lessons)) ? ch.lessons.length : (ch.lessonCount || 0)
+            const chapterCode = `C${idx + 1}`
+            return `
+              <div class="ap-curriculum-tree-item-wrapper ${isSelected ? 'active' : ''}">
+                <button type="button" class="ap-curriculum-tree-item curriculum-tree-btn ${isSelected ? 'active' : ''}" data-chapter-id="${ch.id}" aria-pressed="${isSelected ? 'true' : 'false'}" aria-label="Lọc theo chương ${escapeHtml(ch.title)}">
+                  <span class="ap-curriculum-tree-badge">${chapterCode}</span>
+                  <span class="ap-curriculum-tree-item-title" title="${escapeHtml(ch.title)}">${escapeHtml(ch.title)}</span>
+                  <span class="ap-curriculum-tree-count">${lessonCount} bài</span>
+                </button>
+                <span class="chapter-weak-badge" data-weak-chapter="${ch.id}" style="display:none;" title="Tỉ lệ sai của lớp ở chương này"></span>
+                <div class="ap-curriculum-tree-item-actions">
+                  <button type="button" class="btn-secondary btn-edit-chapter" data-id="${ch.id}" data-title="${escapeHtml(ch.title)}" data-order="${ch.orderIndex ?? ch.order_index ?? ''}" aria-label="Sửa chương ${escapeHtml(ch.title)}" title="Sửa chương">
+                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                  </button>
+                  <button type="button" class="btn-secondary btn-delete-chapter" data-id="${ch.id}" aria-label="Xóa chương ${escapeHtml(ch.title)}" title="Xóa chương">
+                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                  </button>
+                  <button type="button" class="btn-secondary btn-add-lesson" data-chapter-id="${ch.id}" aria-label="Thêm bài vào chương ${escapeHtml(ch.title)}" title="Thêm bài học">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+            `
+          }).join('')}
+        </div>
+      </aside>
+
+      <!-- Cột phải: Không gian bài học -->
+      <section class="ap-curriculum-main" aria-label="Không gian bài học">
+        <!-- Toolbar trong bảng bài học (Tìm kiếm, Sắp xếp, Bộ lọc) -->
+        <div class="ap-curriculum-toolbar-row">
+          <!-- Hidden / Synced Select for Chapter Filter -->
+          <select id="curriculum-chapter-filter" style="display:none;" aria-hidden="true">
+            <option value="all" ${selectedChapterFilter === 'all' ? 'selected' : ''}>
+              Tất cả chương (${chapters.length} chương)
+            </option>
+            ${chapters.map((ch, idx) => `
+              <option value="${ch.id}" ${selectedChapterFilter === ch.id ? 'selected' : ''}>
+                Chương ${idx + 1}: ${escapeHtml(ch.title)}
+              </option>
+            `).join('')}
+          </select>
+
+          <!-- Search Input -->
+          <div class="ap-curriculum-search-box">
+            <i class="fa-solid fa-magnifying-glass ap-search-icon" aria-hidden="true"></i>
+            <input
+              type="search"
+              id="curriculum-lesson-search-input"
+              class="form-input"
+              placeholder="Tìm theo tên bài học, mô tả, số thứ tự... (Phím tắt: /)"
+              value="${escapeHtml(currentSearchQuery)}"
+              autocomplete="off"
+              aria-label="Tìm kiếm bài học"
+            />
+            <div class="ap-curriculum-search-controls">
+              <button type="button" id="curriculum-lesson-search-clear" style="${currentSearchQuery ? 'display:inline-flex;' : 'display:none;'}" title="Xóa tìm kiếm" aria-label="Xóa tìm kiếm">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+              </button>
+              <kbd class="curriculum-search-shortcut" title="Phím tắt">Esc</kbd>
+            </div>
+          </div>
+
+          <!-- Sort Order -->
+          <div class="ap-curriculum-sort-box">
+            <label for="curriculum-sort-select" class="ap-curriculum-field-label">
+              <i class="fa-solid fa-arrow-down-short-wide" aria-hidden="true"></i> Sắp xếp
+            </label>
+            <select id="curriculum-sort-select" class="form-input" aria-label="Sắp xếp bài học">
+              <option value="order" ${selectedSortOrder === 'order' ? 'selected' : ''}>Thứ tự: Chương & STT</option>
+              <option value="title-asc" ${selectedSortOrder === 'title-asc' ? 'selected' : ''}>Tên bài (A → Z)</option>
+              <option value="newest" ${selectedSortOrder === 'newest' ? 'selected' : ''}>Mới tạo gần nhất</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Active Chapter Filter Banner -->
+        ${activeFilteredChapter ? `
+          <div class="ap-curriculum-active-banner">
+            <div class="ap-curriculum-banner-info">
+              <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
+              <span class="ap-curriculum-banner-title">
+                Đang lọc: <strong>${escapeHtml(activeFilteredChapter.title)}</strong>
+              </span>
+              <span class="chapter-weak-badge" data-weak-chapter="${activeFilteredChapter.id}" style="display:none;" title="Tỉ lệ sai của lớp ở chương này"></span>
+            </div>
+            <div class="ap-curriculum-banner-actions">
+              <button type="button" class="btn-secondary btn-edit-chapter" data-id="${activeFilteredChapter.id}" data-title="${escapeHtml(activeFilteredChapter.title)}" data-order="${activeFilteredChapter.orderIndex ?? activeFilteredChapter.order_index ?? ''}" aria-label="Sửa chương ${escapeHtml(activeFilteredChapter.title)}" title="Sửa chương">
+                <i class="fa-solid fa-pen" aria-hidden="true"></i> Sửa chương
+              </button>
+              <button type="button" class="btn-secondary btn-delete-chapter" data-id="${activeFilteredChapter.id}" aria-label="Xóa chương ${escapeHtml(activeFilteredChapter.title)}" title="Xóa chương">
+                <i class="fa-solid fa-trash" aria-hidden="true"></i> Xóa chương
+              </button>
+              <button type="button" class="btn-secondary btn-add-lesson" data-chapter-id="${activeFilteredChapter.id}" aria-label="Thêm bài vào chương ${escapeHtml(activeFilteredChapter.title)}" title="Thêm bài học vào chương này">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i> Thêm bài
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Result Summary / Counter -->
+        <div class="ap-curriculum-result-bar">
+          <div class="ap-curriculum-result-count">
+            <i class="fa-solid fa-list-ul" aria-hidden="true"></i>
+            <span>Danh sách bài học (<strong>${totalItems}</strong> bài${(selectedChapterFilter !== 'all' || currentSearchQuery) ? ' phù hợp' : ''})</span>
+          </div>
+          ${(selectedChapterFilter !== 'all' || currentSearchQuery) ? `
+            <button type="button" id="btn-reset-filters" class="ap-curriculum-reset-btn" aria-label="Xóa bộ lọc tìm kiếm">
+              <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Xóa bộ lọc
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- Main Lessons List -->
+        ${pagedLessons.length === 0 ? `
+          <div class="ap-curriculum-no-lessons">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <h4 style="margin:0; font-family:var(--ap-font-heading); font-size:16px; font-weight:800; color:var(--ap-ink);">
+              ${(selectedChapterFilter !== 'all' || currentSearchQuery) ? 'Không tìm thấy bài học nào phù hợp' : 'Lớp học chưa có bài học nào'}
+            </h4>
+            <p style="margin:0; font-size:13px; color:var(--ap-muted);">
+              ${(selectedChapterFilter !== 'all' || currentSearchQuery)
+                ? 'Thử đổi từ khóa tìm kiếm hoặc chọn "Tất cả bài học" để xem đầy đủ.'
+                : 'Nhấn nút "Tạo bài học nhanh" ở trên để thêm bài học đầu tiên.'}
+            </p>
+            ${(selectedChapterFilter !== 'all' || currentSearchQuery) ? `
+              <button type="button" id="btn-reset-filters-empty" class="btn-secondary" style="width:auto; margin-top:8px;" aria-label="Xóa bộ lọc tìm kiếm">
+                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Xóa bộ lọc tìm kiếm
+              </button>
+            ` : ''}
+          </div>
+        ` : `
+          <div class="curriculum-lesson-list ap-curriculum-cards-list">
+            ${pagedLessons.map((l, lIdx) => {
+              const isSelected = selectedLessonId === l.id
+              const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
+              const highlightedTitle = highlightMatch(l.title, currentSearchQuery)
+              const highlightedContent = l.content ? highlightMatch(l.content, currentSearchQuery) : ''
+
+              return `
+                <article class="curriculum-lesson-card curriculum-lesson-item ap-lesson-card ${isSelected ? 'active' : ''}" data-id="${l.id}" data-chapter-id="${l.chapterId}">
+                  <div class="ap-lesson-card-top">
+                    <div class="ap-lesson-card-lead">
+                      <span class="ap-lesson-number" aria-hidden="true">
+                        ${escapeHtml(l.code || l.orderIndex || (startIndex + lIdx + 1))}
+                      </span>
+                      <div class="ap-lesson-info">
+                        <div class="curriculum-lesson-badges ap-lesson-badges">
+                          <span class="ap-chip ap-chip-chapter">
+                            <i class="fa-solid fa-folder" aria-hidden="true"></i> ${escapeHtml(l.chapterTitle || 'Chương')}
+                          </span>
+                          ${l.isTrial ? `
+                            <span class="ap-chip ap-chip-trial">
+                              <i class="fa-solid fa-sparkles" aria-hidden="true"></i> Học thử
+                            </span>
+                          ` : `
+                            <span class="ap-chip ap-chip-internal">
+                              <i class="fa-solid fa-lock" aria-hidden="true"></i> Nội bộ
+                            </span>
+                          `}
+                        </div>
+
+                        <h3 class="lesson-title-text ap-lesson-title" title="${escapeHtml(l.title)}">
+                          ${highlightedTitle}
+                        </h3>
+
+                        ${highlightedContent ? `
+                          <p class="ap-lesson-desc">${highlightedContent}</p>
+                        ` : ''}
+
+                        <div class="curriculum-lesson-meta ap-lesson-meta">
+                          ${l.hasVideo ? `
+                            <span class="ap-meta-pill ap-meta-video-ok">
+                              <i class="fa-solid fa-circle-play" aria-hidden="true"></i> Video bài giảng
+                            </span>
+                          ` : `
+                            <span class="ap-meta-pill ap-meta-video-missing">
+                              <i class="fa-regular fa-circle-play" aria-hidden="true"></i> Chưa có video
+                            </span>
+                          `}
+                          <span class="ap-meta-sep">•</span>
+                          <span class="ap-meta-pill ap-meta-docs">
+                            <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> ${l.theoryFilesCount || (Array.isArray(l.theoryFiles) ? l.theoryFiles.length : 0)} tài liệu
+                          </span>
+                          <span class="ap-meta-sep">•</span>
+                          <span class="ap-meta-pill ap-meta-hw">
+                            <i class="fa-solid fa-list-check" aria-hidden="true"></i> ${l.homeworksCount || (Array.isArray(l.homeworks) ? l.homeworks.length : 0)} bài tập
+                          </span>
+                          ${createdDateStr ? `
+                            <span class="ap-meta-sep">•</span>
+                            <span class="ap-meta-pill ap-meta-date">
+                              <i class="fa-regular fa-calendar" aria-hidden="true"></i> ${createdDateStr}
+                            </span>
+                          ` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="curriculum-lesson-actions ap-lesson-actions">
+                    <button type="button" class="btn-secondary btn-move-curriculum-lesson" data-lesson-id="${l.id}" data-chapter-id="${l.chapterId}" aria-label="Đổi chương cho bài học ${escapeHtml(l.title)}" title="Đổi chương">
+                      <i class="fa-solid fa-folder-tree" aria-hidden="true"></i> Đổi chương
+                    </button>
+                    <button type="button" class="btn-secondary btn-rename-curriculum-lesson" data-lesson-id="${l.id}" data-chapter-id="${l.chapterId}" aria-label="Sửa tên bài học ${escapeHtml(l.title)}" title="Sửa tên bài học">
+                      <i class="fa-solid fa-pen" aria-hidden="true"></i> Sửa tên
+                    </button>
+                    <button type="button" class="btn-secondary btn-open-lesson-hint" aria-label="Mở bài học ${escapeHtml(l.title)}" title="Mở chi tiết bài học">
+                      Mở bài học <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </article>
+              `
+            }).join('')}
+          </div>
+        `}
+
+        <!-- Pagination -->
+        ${totalPages > 1 ? `
+          <div style="padding:16px 20px; border-top:2px solid var(--ap-line); background:var(--ap-surface2);">
+            ${renderPaginationBar({
+              currentPage: curriculumCurrentPage,
+              totalItems,
+              pageSize: CURRICULUM_PAGE_SIZE,
+              containerId: 'curriculum-pagination-container',
+              pageSizeOptions: [15, 30, 50]
+            })}
+          </div>
+        ` : ''}
+      </section>
+    </div>
   `
 }
 
@@ -949,6 +1564,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
 
   document.getElementById('add-chapter-btn')?.addEventListener('click', openAddChapterModal)
   document.getElementById('add-chapter-btn-grid')?.addEventListener('click', openAddChapterModal)
+  document.getElementById('add-chapter-btn-tree')?.addEventListener('click', openAddChapterModal)
 
   // Quick Add Lesson Modal (cho phép chọn chương đích từ bất kỳ màn hình nào, tạo xong mở ngay)
   const openQuickAddLessonModal = (defaultChapterId) => {
@@ -1773,6 +2389,20 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
     selectedChapterFilter = e.target.value
     curriculumCurrentPage = 1
     await fetchLessonsAndRefresh()
+  })
+
+  // Chapter Tree Selection (Cây chương trình ở chế độ Pro)
+  document.querySelectorAll('.curriculum-tree-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const chId = btn.getAttribute('data-chapter-id')
+      if (!chId) return
+      selectedChapterFilter = chId
+      selectedLessonId = null
+      const filterSelect = document.getElementById('curriculum-chapter-filter')
+      if (filterSelect) filterSelect.value = chId
+      curriculumCurrentPage = 1
+      await fetchLessonsAndRefresh()
+    })
   })
 
   // Sort Order Change (Sắp xếp danh sách bài học)

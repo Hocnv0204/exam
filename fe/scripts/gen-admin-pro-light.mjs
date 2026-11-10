@@ -23,7 +23,10 @@ function hsl({ r, g, b }) {
 }
 function family(c) {
   const { h, s, l } = hsl(c)
-  if (s < 0.18) return l > 0.6 ? 'light-gray' : 'dark-gray'
+  // Xám theo chroma thực (max-min), không theo saturation HSL: màu rất sáng như #e2e8f0 có s cao
+  // nhưng thực chất là xám nhạt — phân loại nhầm sẽ đổi chữ của nó sang màu nhấn.
+  const chroma = (Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b)) / 255
+  if (s < 0.18 || chroma < 0.12) return l > 0.6 ? 'light-gray' : 'dark-gray'
   if (h >= 345 || h < 15) return 'red'
   if (h < 50) return 'orange'
   if (h < 70) return 'orange'

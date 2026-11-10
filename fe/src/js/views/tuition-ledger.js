@@ -5,7 +5,7 @@ import { state } from '../state.js'
 import { api } from '../api.js'
 import { isAdminProUI } from '../ui-flag.js'
 
-if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/dashboard.css') }
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/ledger-logs.css') }
 
 const TX_LABELS = {
   topup: 'Nạp ví',
@@ -15,6 +15,16 @@ const TX_LABELS = {
   waive: 'Miễn'
 }
 
+// Tone chip Pro: nạp=ok, trừ=warn, hoàn=blue, miễn=muted, thu tay=accent
+const TX_TONES = {
+  topup: 'ok',
+  auto_deduct: 'warn',
+  refund: 'blue',
+  manual_collect: 'accent',
+  waive: 'muted'
+}
+
+let proUI = false
 let allTx = []
 let filterClassId = ''
 let filterType = ''
@@ -40,10 +50,11 @@ export function renderTuitionLedgerView() {
   const params = new URLSearchParams(queryString || '')
   const presetClass = params.get('classId') || ''
   if (presetClass && !filterClassId) filterClassId = presetClass
-  const proUI = isAdminProUI()
+  proUI = isAdminProUI()
 
+  if (proUI) return renderProLedgerShell()
   return `
-    <div class="app-layout${proUI ? ' admin-dark' : ''}"${proUI ? ' id="tuition-ledger" data-route="tuition-ledger" data-role="ADMIN"' : ''}>
+    <div class="app-layout">
       ${renderSidebar('tuition-ledger')}
       <div class="main-content">
         ${renderNavbar('Quản trị / Sổ giao dịch học phí')}
@@ -101,6 +112,127 @@ export function renderTuitionLedgerView() {
   `
 }
 
+function renderProLedgerShell() {
+  const txTHeadTopup = '<thead><tr><th>Ngày nạp</th><th>Giờ</th><th>Học sinh</th><th>Lớp</th><th>Loại</th><th style="text-align:right;">Số tiền nạp</th><th>Biên lai</th><th>Ghi chú</th><th></th></tr></thead>'
+  const txTHeadDeduct = '<thead><tr><th>Ngày</th><th>Giờ</th><th>Lớp</th><th>Học sinh</th><th>Loại</th><th style="text-align:right;">Số tiền</th><th>Biên lai</th><th>Ghi chú</th><th></th></tr></thead>'
+  return `
+    <div class="app-layout admin-dark" id="tuition-ledger" data-route="tuition-ledger" data-role="ADMIN">
+      ${renderSidebar('tuition-ledger')}
+      <div class="main-content">
+        ${renderNavbar('Quản trị / Sổ giao dịch học phí')}
+        <div class="content-body ap-ledger">
+          <section class="ap-page-head">
+            <div>
+              <p class="ap-page-kicker">Tài chính &amp; hệ thống</p>
+              <h1 class="ap-page-title">Sổ giao dịch học phí</h1>
+              <p class="ap-page-desc">Đối soát các khoản nạp ví, trừ học phí, thu tay, hoàn tiền và miễn giảm.</p>
+            </div>
+          </section>
+
+          <section class="ap-page-filter" aria-label="Bộ lọc giao dịch">
+            <label class="ap-filter-item ap-filter-wide">
+              <span class="ap-filter-label">Tìm kiếm</span>
+              <span class="ap-filter-box">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input id="ledger-search" type="text" value="${escapeHtml(filterSearch)}" placeholder="Tìm theo tên học sinh, biên lai...">
+              </span>
+            </label>
+            <label class="ap-filter-item">
+              <span class="ap-filter-label">Lớp</span>
+              <select id="ledger-filter-class" class="ap-page-input">
+                <option value="">Tất cả lớp học</option>
+                ${(state.classes || []).map(c => `<option value="${c.id}" ${c.id === filterClassId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="ap-filter-item">
+              <span class="ap-filter-label">Loại giao dịch</span>
+              <select id="ledger-filter-type" class="ap-page-input">
+                <option value="">Tất cả loại</option>
+                <option value="topup" ${filterType === 'topup' ? 'selected' : ''}>Nạp ví</option>
+                <option value="auto_deduct" ${filterType === 'auto_deduct' ? 'selected' : ''}>Trừ ví (điểm danh)</option>
+                <option value="manual_collect" ${filterType === 'manual_collect' ? 'selected' : ''}>Thu tay</option>
+                <option value="refund" ${filterType === 'refund' ? 'selected' : ''}>Hoàn tiền</option>
+                <option value="waive" ${filterType === 'waive' ? 'selected' : ''}>Miễn</option>
+              </select>
+            </label>
+            <button id="ledger-export-btn" class="ap-btn-primary" type="button"><i class="fa-solid fa-cloud-arrow-down" aria-hidden="true"></i> Xuất Excel</button>
+          </section>
+
+          <div id="ledger-summary" class="ap-summary-grid" aria-label="Tổng hợp giao dịch"></div>
+
+          <section class="ap-table-card">
+            <div class="ap-table-head">
+              <div>
+                <h2 class="ap-table-title"><span class="ap-icon-pill ap-tone-ok" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span> Lịch sử nạp tiền <span id="ledger-topup-count" class="ap-table-count"></span></h2>
+                <div class="ap-table-sub">Nạp vào ngày nào, giờ nào, số tiền bao nhiêu.</div>
+              </div>
+            </div>
+            <div class="table-responsive ap-table-scroll" style="max-height:340px; overflow-y:auto;">
+              <table class="data-table">
+                ${txTHeadTopup}
+                <tbody id="ledger-topup-tbody"><tr class="ap-tx-empty"><td colspan="9">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="ap-table-card">
+            <div class="ap-table-head">
+              <div>
+                <h2 class="ap-table-title"><span class="ap-icon-pill ap-tone-warn" aria-hidden="true"><i class="fa-solid fa-money-bill-transfer"></i></span> Lịch sử trừ tiền <span id="ledger-deduct-count" class="ap-table-count"></span></h2>
+                <div class="ap-table-sub">Trừ ngày nào, giờ nào, ứng với lớp nào, số tiền trừ bao nhiêu.</div>
+              </div>
+            </div>
+            <div class="table-responsive ap-table-scroll" style="max-height:420px; overflow-y:auto;">
+              <table class="data-table">
+                ${txTHeadDeduct}
+                <tbody id="ledger-deduct-tbody"><tr class="ap-tx-empty"><td colspan="9">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function emptyProRow(message, cols) {
+  return `<tr class="ap-tx-empty"><td colspan="${cols}">${escapeHtml(message)}</td></tr>`
+}
+
+function txRowPro(t, showType) {
+  const { date, time } = splitDateTime(t.createdAt)
+  const amount = Number(t.amount)
+  const negative = amount < 0
+  const chip = `<span class="ap-tx-chip ap-tone-${TX_TONES[t.type] || 'muted'}">${escapeHtml(TX_LABELS[t.type] || t.type)}</span>`
+  const classChip = `<span class="ap-tx-class-chip">${escapeHtml(t.className || '')}</span>`
+  return `
+    <tr data-tx-student="${escapeHtml(((t.studentName || '') + ' ' + (t.receiptNo || '')).toLowerCase())}" data-tx-type="${escapeHtml(t.type || '')}">
+      <td class="ap-col-date">${escapeHtml(date)}</td>
+      <td class="ap-col-time">${escapeHtml(time)}</td>
+      ${showType ? '' : `<td>${classChip}</td>`}
+      <td class="ap-col-student">${escapeHtml(t.studentName || t.username || '')}</td>
+      ${showType ? `<td>${classChip}</td>` : ''}
+      <td>${chip}</td>
+      <td class="ap-col-amount ${negative ? 'ap-amt-minus' : 'ap-amt-plus'}">${negative ? '−' : '+'}${fmt(Math.abs(amount))} đ</td>
+      <td class="ap-col-receipt">${escapeHtml(t.receiptNo || '')}</td>
+      <td class="ap-col-note">${escapeHtml(t.note || '')}</td>
+      <td style="text-align:center;"><button type="button" class="btn-ledger-print btn-secondary" data-tx='${escapeHtml(JSON.stringify(t))}'>In BL</button></td>
+    </tr>
+  `
+}
+
+function summaryProCard({ label, value, sub, tone, icon }) {
+  return `
+    <article class="ap-summary-card">
+      <div class="ap-summary-top">
+        <span class="ap-summary-label">${label}</span>
+        <span class="ap-icon-pill ap-tone-${tone}" aria-hidden="true"><i class="fa-solid ${icon}"></i></span>
+      </div>
+      <strong class="ap-summary-value">${value} đ</strong>
+      <span class="ap-summary-sub">${escapeHtml(sub)}</span>
+    </article>`
+}
+
 function txRow(t, showType) {
   const { date, time } = splitDateTime(t.createdAt)
   return `
@@ -142,34 +274,48 @@ function renderTables() {
   const deducts = allTx.filter(t => t.type !== 'topup')
   const topBody = document.getElementById('ledger-topup-tbody')
   const dedBody = document.getElementById('ledger-deduct-tbody')
-  if (topBody) topBody.innerHTML = topups.length === 0 ? '<tr><td colspan="8" style="text-align:center; padding:24px; color:#64748b;">Chưa có lượt nạp nào.</td></tr>' : topups.map(t => txRow(t, true)).join('')
-  if (dedBody) dedBody.innerHTML = deducts.length === 0 ? '<tr><td colspan="9" style="text-align:center; padding:24px; color:#64748b;">Chưa có giao dịch trừ/thu nào.</td></tr>' : deducts.map(t => txRow(t, false)).join('')
+  if (proUI) {
+    if (topBody) topBody.innerHTML = topups.length === 0 ? emptyProRow('Chưa có lượt nạp nào.', 9) : topups.map(t => txRowPro(t, true)).join('')
+    if (dedBody) dedBody.innerHTML = deducts.length === 0 ? emptyProRow('Chưa có giao dịch trừ/thu nào.', 9) : deducts.map(t => txRowPro(t, false)).join('')
+  } else {
+    if (topBody) topBody.innerHTML = topups.length === 0 ? '<tr><td colspan="8" style="text-align:center; padding:24px; color:#64748b;">Chưa có lượt nạp nào.</td></tr>' : topups.map(t => txRow(t, true)).join('')
+    if (dedBody) dedBody.innerHTML = deducts.length === 0 ? '<tr><td colspan="9" style="text-align:center; padding:24px; color:#64748b;">Chưa có giao dịch trừ/thu nào.</td></tr>' : deducts.map(t => txRow(t, false)).join('')
+  }
 
   const sum = (arr) => arr.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0)
   const summary = document.getElementById('ledger-summary')
   if (summary) {
-    summary.innerHTML = `
-      <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #bbf7d0; background:#f0fdf4;">
-        <div style="font-size:12px; font-weight:700; color:#15803d;">TỔNG NẠP VÍ</div>
-        <div style="font-size:22px; font-weight:800;">${fmt(sum(topups))} đ</div>
-        <div style="font-size:12px; color:#64748b;">${topups.length} lượt</div>
-      </div>
-      <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #fecaca; background:#fef2f2;">
-        <div style="font-size:12px; font-weight:700; color:#b91c1c;">TỔNG TRỪ VÍ</div>
-        <div style="font-size:22px; font-weight:800;">${fmt(sum(deducts.filter(t => t.type === 'auto_deduct')))} đ</div>
-        <div style="font-size:12px; color:#64748b;">Điểm danh tự trừ</div>
-      </div>
-      <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #bfdbfe; background:#eff6ff;">
-        <div style="font-size:12px; font-weight:700; color:#0066cc;">TỔNG THU TAY</div>
-        <div style="font-size:22px; font-weight:800;">${fmt(sum(deducts.filter(t => t.type === 'manual_collect')))} đ</div>
-        <div style="font-size:12px; color:#64748b;">Thu nợ / đánh dấu đã đóng</div>
-      </div>
-      <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #fde68a; background:#fffbeb;">
-        <div style="font-size:12px; font-weight:700; color:#b45309;">TỔNG MIỄN</div>
-        <div style="font-size:22px; font-weight:800;">${fmt(sum(deducts.filter(t => t.type === 'waive')))} đ</div>
-        <div style="font-size:12px; color:#64748b;">Các buổi được miễn</div>
-      </div>
-    `
+    if (proUI) {
+      summary.innerHTML = [
+        { label: 'TỔNG NẠP VÍ', value: fmt(sum(topups)), sub: `${topups.length} lượt`, tone: 'ok', icon: 'fa-arrow-up' },
+        { label: 'TỔNG TRỪ VÍ', value: fmt(sum(deducts.filter(t => t.type === 'auto_deduct'))), sub: 'Điểm danh tự trừ', tone: 'warn', icon: 'fa-arrow-down' },
+        { label: 'TỔNG THU TAY', value: fmt(sum(deducts.filter(t => t.type === 'manual_collect'))), sub: 'Thu nợ / đánh dấu đã đóng', tone: 'blue', icon: 'fa-hand-holding-dollar' },
+        { label: 'TỔNG MIỄN', value: fmt(sum(deducts.filter(t => t.type === 'waive'))), sub: 'Các buổi được miễn', tone: 'muted', icon: 'fa-umbrella' }
+      ].map(summaryProCard).join('')
+    } else {
+      summary.innerHTML = `
+        <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #bbf7d0; background:#f0fdf4;">
+          <div style="font-size:12px; font-weight:700; color:#15803d;">TỔNG NẠP VÍ</div>
+          <div style="font-size:22px; font-weight:800;">${fmt(sum(topups))} đ</div>
+          <div style="font-size:12px; color:#64748b;">${topups.length} lượt</div>
+        </div>
+        <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #fecaca; background:#fef2f2;">
+          <div style="font-size:12px; font-weight:700; color:#b91c1c;">TỔNG TRỪ VÍ</div>
+          <div style="font-size:22px; font-weight:800;">${fmt(sum(deducts.filter(t => t.type === 'auto_deduct')))} đ</div>
+          <div style="font-size:12px; color:#64748b;">Điểm danh tự trừ</div>
+        </div>
+        <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #bfdbfe; background:#eff6ff;">
+          <div style="font-size:12px; font-weight:700; color:#0066cc;">TỔNG THU TAY</div>
+          <div style="font-size:22px; font-weight:800;">${fmt(sum(deducts.filter(t => t.type === 'manual_collect')))} đ</div>
+          <div style="font-size:12px; color:#64748b;">Thu nợ / đánh dấu đã đóng</div>
+        </div>
+        <div class="card" style="margin:0; padding:16px 18px; border-radius:14px; border:1px solid #fde68a; background:#fffbeb;">
+          <div style="font-size:12px; font-weight:700; color:#b45309;">TỔNG MIỄN</div>
+          <div style="font-size:22px; font-weight:800;">${fmt(sum(deducts.filter(t => t.type === 'waive')))} đ</div>
+          <div style="font-size:12px; color:#64748b;">Các buổi được miễn</div>
+        </div>
+      `
+    }
   }
   document.querySelectorAll('.btn-ledger-print').forEach(btn => {
     btn.onclick = () => {

@@ -8,7 +8,7 @@ import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 import { isAdminProUI } from '../ui-flag.js'
 
-if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students.css') }
+if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/students-pro.css') }
 
 let currentPage = 1
 let pageSize = 10
@@ -27,6 +27,10 @@ function getCurrentStudents() {
 }
 
 export function renderStudentMgmtView() {
+  return isAdminProUI() ? renderProStudentMgmtView() : renderClassicStudentMgmtView()
+}
+
+export function renderClassicStudentMgmtView() {
   // Khi vào trang: khởi tạo lại bộ lọc và hiển thị tất cả học sinh như hiện tại
   currentPage = 1
   searchQuery = ''
@@ -44,10 +48,9 @@ export function renderStudentMgmtView() {
 
   const from = (currentPage - 1) * pageSize
   const pagedStudents = currentList.slice(from, from + pageSize)
-  const proUI = isAdminProUI()
 
   return `
-    <div class="app-layout${proUI ? ' admin-dark" id="students" data-route="students" data-role="ADMIN' : ''}">
+    <div class="app-layout">
       ${renderSidebar('students')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -115,8 +118,90 @@ export function renderStudentMgmtView() {
   `
 }
 
+export function renderProStudentMgmtView() {
+  currentPage = 1
+  searchQuery = ''
+  selectedClass = ''
+  filteredStudents = null
+  if (filterDebounceTimer) {
+    clearTimeout(filterDebounceTimer)
+    filterDebounceTimer = null
+  }
+
+  const currentList = getCurrentStudents()
+  const totalItems = currentList.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  if (currentPage > totalPages) currentPage = totalPages
+  const from = (currentPage - 1) * pageSize
+  const pagedStudents = currentList.slice(from, from + pageSize)
+  const activeCount = currentList.filter(s => !s.isLocked && s.status !== 'Tạm khóa').length
+  const lockedCount = currentList.filter(s => s.isLocked || s.status === 'Tạm khóa').length
+  const debtCount = currentList.filter(s => Number(s.balance || 0) < 0).length
+
+  return `
+    <div class="app-layout admin-dark" id="students" data-route="students" data-role="ADMIN">
+      ${renderSidebar('students')}
+      <div class="main-content">
+        ${renderNavbar('Nền tảng / Học sinh')}
+        <main class="content-body ap-students-page">
+          <header class="ap-students-hero">
+            <div>
+              <p class="ap-eyebrow">Hồ sơ học sinh</p>
+              <h1>Quản lý học sinh</h1>
+              <p>Theo dõi tài khoản, lớp học và số dư từ dữ liệu hiện có.</p>
+            </div>
+            <button class="btn-primary ap-primary-action" id="open-create-student-btn" onclick="window.showCreateStudentModal()" style="width:auto; cursor:pointer;">
+              <i class="fa-solid fa-user-plus" aria-hidden="true"></i> Tạo học sinh mới
+            </button>
+          </header>
+
+          <section class="ap-student-stats" aria-label="Số liệu học sinh">
+            <article><span>Tổng học sinh</span><strong>${totalItems}</strong></article>
+            <article><span>Đang học</span><strong class="is-ok">${activeCount}</strong></article>
+            <article><span>Tạm khóa</span><strong class="is-blue">${lockedCount}</strong></article>
+            <article><span>Còn nợ</span><strong class="is-warn">${debtCount}</strong></article>
+          </section>
+
+          <section class="ap-student-filter" aria-label="Bộ lọc học sinh">
+            <label class="ap-filter-field ap-filter-search" for="student-search-input">
+              <span>Tìm kiếm</span>
+              <span class="ap-input-shell"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="student-search-input" placeholder="Tên, mã hoặc username" value="${escapeHtml(searchQuery)}"></span>
+            </label>
+            <label class="ap-filter-field" for="class-filter-select">
+              <span>Lớp học</span>
+              <select id="class-filter-select">
+                <option value="">Tất cả các lớp</option>
+                ${(state.classes || []).map(c => `<option value="${escapeHtml(c.id)}" ${c.id === selectedClass ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+              </select>
+            </label>
+          </section>
+
+          <section class="ap-students-table-card" aria-label="Danh sách học sinh">
+            <div class="table-responsive">
+              <table class="data-table ap-students-table">
+                <thead><tr><th>Học sinh</th><th>Mã học sinh</th><th>Lớp học</th><th>Số dư</th><th>Trạng thái</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
+                <tbody id="students-table-body">
+                  ${pagedStudents.length === 0 ? renderProStudentEmptyRow() : pagedStudents.map(s => renderStudentRow(s)).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div id="student-pagination-wrapper" class="ap-student-pagination">
+              ${renderPaginationBar({ currentPage, totalItems, pageSize, containerId: 'student-pagination-container', pageSizeOptions: [10, 20, 50] })}
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  `
+}
+
+function renderProStudentEmptyRow() {
+  return `<tr class="ap-empty-row"><td colspan="7"><i class="fa-solid fa-user-group" aria-hidden="true"></i><strong>Chưa có học sinh phù hợp</strong><span>Thử thay đổi từ khóa hoặc lớp học.</span></td></tr>`
+}
+
 function renderStudentRow(s) {
   const proUI = isAdminProUI()
+  if (proUI) return renderProStudentRow(s)
   const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
   const isLocked = Boolean(s.isLocked)
   
@@ -170,6 +255,40 @@ function renderStudentRow(s) {
           <button class="btn-delete-student" data-id="${s.id}" data-name="${s.fullName}" title="Xóa"${proUI ? ` aria-label="Xóa học sinh ${escapeHtml(s.fullName || '')}"` : ''} style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;"><i class="fa-solid fa-trash"></i></button>
         </div>
       </td>
+    </tr>
+  `
+}
+
+function renderProStudentRow(s) {
+  const fullName = escapeHtml(s.fullName || 'Học sinh')
+  const username = escapeHtml(s.username || '')
+  const initials = s.fullName ? s.fullName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
+  const isLocked = Boolean(s.isLocked) || s.status === 'Tạm khóa'
+  const balance = Number(s.balance || 0)
+  const classBadges = s.className
+    ? s.className.split(', ').map(name => `<span class="ap-class-chip">${escapeHtml(name)}</span>`).join('')
+    : '<span class="ap-no-class">Chưa phân lớp</span>'
+  const detailHref = `#student-details?studentId=${encodeURIComponent(s.id)}&classId=${encodeURIComponent(s.classId || (s.classIds && s.classIds[0]) || '')}`
+
+  return `
+    <tr id="row-student-${escapeHtml(s.id)}">
+      <td data-label="Học sinh"><div class="student-info-cell"><span class="avatar-circle">${escapeHtml(initials)}</span><span><strong>${fullName}</strong><small>@${username}</small></span></div></td>
+      <td data-label="Mã học sinh"><strong class="ap-student-code">${escapeHtml(s.studentCode || 'Chưa có mã')}</strong></td>
+      <td data-label="Lớp học"><div class="ap-class-list">${classBadges}</div></td>
+      <td data-label="Số dư"><strong class="ap-balance ${balance < 0 ? 'is-negative' : 'is-positive'}">${balance.toLocaleString('vi-VN')} đ</strong></td>
+      <td data-label="Trạng thái"><span class="ap-status-chip ${isLocked ? 'is-locked' : 'is-active'}"><i class="fa-solid ${isLocked ? 'fa-lock' : 'fa-circle-check'}" aria-hidden="true"></i>${isLocked ? 'Tạm khóa' : escapeHtml(s.status || 'Hoạt động')}</span></td>
+      <td data-label="Ngày tạo"><span class="ap-created-date">${escapeHtml(s.createdAt || 'Mới khởi tạo')}</span></td>
+      <td data-label="Thao tác"><div class="ap-row-actions">
+        <a href="${detailHref}" title="Xem chi tiết học tập & học phí" aria-label="Xem chi tiết ${fullName}"><i class="fa-solid fa-circle-user" aria-hidden="true"></i></a>
+        <button class="btn-view-activity" data-id="${escapeHtml(s.id)}" data-name="${fullName}" title="Xem nhật ký hoạt động" aria-label="Xem nhật ký hoạt động của ${fullName}"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
+        ${isLocked
+          ? `<button class="btn-unlock-student" data-id="${escapeHtml(s.id)}" data-name="${fullName}" title="Mở khóa tài khoản" aria-label="Mở khóa tài khoản ${fullName}"><i class="fa-solid fa-lock-open" aria-hidden="true"></i></button>`
+          : `<button class="btn-lock-student" data-id="${escapeHtml(s.id)}" data-name="${fullName}" title="Tạm khóa tài khoản" aria-label="Tạm khóa tài khoản ${fullName}"><i class="fa-solid fa-lock" aria-hidden="true"></i></button>`}
+        <button class="btn-add-balance" data-id="${escapeHtml(s.id)}" data-name="${fullName}" title="Nạp học phí (thêm số dư)" aria-label="Nạp học phí cho ${fullName}"><i class="fa-solid fa-wallet" aria-hidden="true"></i></button>
+        <button class="btn-edit-balance" data-id="${escapeHtml(s.id)}" data-name="${fullName}" title="Sửa số dư" aria-label="Sửa số dư của ${fullName}"><i class="fa-solid fa-money-bill-transfer" aria-hidden="true"></i></button>
+        <button class="btn-edit-student" data-id="${escapeHtml(s.id)}" title="Chỉnh sửa thông tin học sinh" aria-label="Chỉnh sửa thông tin của ${fullName}"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+        <button class="btn-delete-student" data-id="${escapeHtml(s.id)}" data-name="${fullName}" title="Xóa" aria-label="Xóa học sinh ${fullName}"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+      </div></td>
     </tr>
   `
 }
@@ -607,7 +726,7 @@ export function bindStudentMgmtEvents() {
     const tbody = document.getElementById('students-table-body')
     if (tbody) {
       tbody.innerHTML = pagedStudents.length === 0
-        ? `<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`
+        ? (isAdminProUI() ? renderProStudentEmptyRow() : `<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Không tìm thấy học sinh nào phù hợp.</td></tr>`)
         : pagedStudents.map(s => renderStudentRow(s)).join('')
     }
 

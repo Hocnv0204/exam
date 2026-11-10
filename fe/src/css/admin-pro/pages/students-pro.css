@@ -1,0 +1,638 @@
+/* Admin Pro — Students. Every selector is gated to prevent classic UI leakage. */
+html[data-admin-ui="pro"] :is(#students, #student-details) .content-body {
+  color: var(--ap-ink);
+  font-family: var(--ap-font);
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] :is(.ap-students-page, .ap-student-detail-page) {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+html[data-admin-ui="pro"] :is(.ap-students-hero, .ap-detail-heading) {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] :is(.ap-students-hero, .ap-detail-heading) h1 {
+  margin: 0;
+  color: var(--ap-ink);
+  font: 800 34px/1.15 var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] :is(.ap-students-hero, .ap-detail-heading) p:not(.ap-eyebrow) {
+  margin: 5px 0 0;
+  color: var(--ap-muted);
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] .ap-eyebrow {
+  margin: 0 0 4px;
+  color: var(--ap-accent2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .55px;
+  text-transform: uppercase;
+}
+
+html[data-admin-ui="pro"] :is(.ap-primary-action, #student-details .btn-primary, #student-details .btn-secondary, #student-details .ap-warning-action) {
+  box-sizing: border-box;
+  min-height: 44px;
+  width: auto;
+  padding: 0 16px;
+  border: 2px solid var(--ap-ink);
+  border-radius: 14px;
+  background: var(--ap-accent);
+  color: var(--ap-accent-ink);
+  box-shadow: 0 4px 0 var(--ap-block);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: 800 14px var(--ap-font);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] #student-details .btn-secondary {
+  border-color: var(--ap-line);
+  background: var(--ap-surface);
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #student-details .ap-warning-action {
+  border-color: var(--ap-warn);
+  background: var(--ap-warn-soft);
+  color: var(--ap-warn);
+  box-shadow: none;
+}
+
+html[data-admin-ui="pro"] :is(.ap-student-stats article, .ap-student-filter, .ap-students-table-card, .ap-profile-card, .ap-detail-summary article, .ap-detail-card, .ap-detail-error) {
+  box-sizing: border-box;
+  border: 2px solid var(--ap-line);
+  border-radius: 22px;
+  background: var(--ap-surface);
+  box-shadow: 0 4px 0 var(--ap-block);
+}
+
+html[data-admin-ui="pro"] .ap-student-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+html[data-admin-ui="pro"] .ap-student-stats article {
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+
+html[data-admin-ui="pro"] .ap-student-stats article > span,
+html[data-admin-ui="pro"] .ap-detail-summary article > span {
+  display: block;
+  color: var(--ap-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .35px;
+  text-transform: uppercase;
+}
+
+html[data-admin-ui="pro"] .ap-student-stats strong {
+  color: var(--ap-ink);
+  font: 800 28px var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] :is(.ap-student-stats, .ap-detail-summary) .is-ok,
+html[data-admin-ui="pro"] .ap-balance.is-positive,
+html[data-admin-ui="pro"] .ap-balance-card strong.is-positive {
+  color: var(--ap-ok);
+}
+
+html[data-admin-ui="pro"] .ap-student-stats .is-blue {
+  color: var(--ap-blue);
+}
+
+html[data-admin-ui="pro"] :is(.ap-student-stats, .ap-detail-summary) .is-warn,
+html[data-admin-ui="pro"] .ap-balance.is-negative,
+html[data-admin-ui="pro"] .ap-balance-card strong.is-negative {
+  color: var(--ap-warn);
+}
+
+html[data-admin-ui="pro"] .ap-student-filter {
+  padding: 16px;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .ap-filter-field {
+  flex: 1 1 190px;
+  color: var(--ap-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-filter-search {
+  flex: 2 1 300px;
+}
+
+html[data-admin-ui="pro"] :is(.ap-input-shell, .ap-filter-field select, .ap-detail-class-picker select, #student-details input[type="date"], #student-details input[type="month"]) {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 0 12px;
+  border: 2px solid var(--ap-line);
+  border-radius: 12px;
+  background: var(--ap-surface2);
+  color: var(--ap-ink);
+  font: 700 14px var(--ap-font);
+}
+
+html[data-admin-ui="pro"] .ap-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-admin-ui="pro"] .ap-input-shell i {
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-input-shell input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ap-ink);
+  font: 600 14px var(--ap-font);
+}
+
+html[data-admin-ui="pro"] .ap-students-table-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+html[data-admin-ui="pro"] .ap-students-table-card .table-responsive {
+  overflow-x: auto;
+}
+
+html[data-admin-ui="pro"] .ap-students-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+}
+
+html[data-admin-ui="pro"] .ap-students-table thead {
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] .ap-students-table th {
+  padding: 13px;
+  color: var(--ap-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .35px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+html[data-admin-ui="pro"] .ap-students-table td {
+  padding: 12px;
+  border-top: 2px solid var(--ap-line);
+  color: var(--ap-ink);
+  vertical-align: middle;
+}
+
+html[data-admin-ui="pro"] .student-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+html[data-admin-ui="pro"] .student-info-cell .avatar-circle,
+html[data-admin-ui="pro"] .ap-profile-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border: 2px solid var(--ap-line);
+  border-radius: 50%;
+  background: var(--ap-accent-soft);
+  color: var(--ap-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 14px var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] .student-info-cell strong,
+html[data-admin-ui="pro"] .student-info-cell small {
+  display: block;
+}
+
+html[data-admin-ui="pro"] .student-info-cell small,
+html[data-admin-ui="pro"] .ap-created-date,
+html[data-admin-ui="pro"] .ap-no-class {
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-student-code {
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-class-list {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] :is(.ap-class-chip, .ap-status-chip) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-class-chip {
+  background: var(--ap-blue-soft);
+  color: var(--ap-blue);
+}
+
+html[data-admin-ui="pro"] .ap-status-chip.is-active {
+  background: var(--ap-ok-soft);
+  color: var(--ap-ok);
+}
+
+html[data-admin-ui="pro"] .ap-status-chip.is-locked {
+  background: var(--ap-warn-soft);
+  color: var(--ap-warn);
+}
+
+html[data-admin-ui="pro"] .ap-row-actions {
+  display: flex;
+  gap: 7px;
+  min-width: max-content;
+}
+
+html[data-admin-ui="pro"] .ap-row-actions :is(a, button) {
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--ap-line);
+  border-radius: 12px;
+  background: var(--ap-surface);
+  color: var(--ap-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+html[data-admin-ui="pro"] .ap-row-actions :is(a, button):hover {
+  border-color: var(--ap-accent);
+  background: var(--ap-accent-soft);
+  color: var(--ap-accent);
+}
+
+html[data-admin-ui="pro"] .ap-student-pagination {
+  padding: 14px 16px;
+  border-top: 2px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] .ap-empty-row td {
+  padding: 42px 20px;
+  color: var(--ap-muted);
+  text-align: center;
+}
+
+html[data-admin-ui="pro"] .ap-empty-row td > * {
+  display: block;
+  margin: 5px auto;
+}
+
+html[data-admin-ui="pro"] .ap-profile-card {
+  padding: 20px;
+  border-color: var(--ap-ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .ap-profile-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+html[data-admin-ui="pro"] .ap-profile-avatar {
+  width: 64px;
+  height: 64px;
+  flex-basis: 64px;
+  border-radius: 20px;
+  font-size: 22px;
+}
+
+html[data-admin-ui="pro"] .ap-profile-main h2 {
+  margin: 6px 0 2px;
+  color: var(--ap-ink);
+  font: 800 27px var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] .ap-profile-main p {
+  margin: 0;
+  color: var(--ap-muted);
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] .ap-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+html[data-admin-ui="pro"] .ap-detail-summary article {
+  padding: 20px;
+}
+
+html[data-admin-ui="pro"] .ap-detail-summary article > strong {
+  display: block;
+  margin: 8px 0;
+  color: var(--ap-ink);
+  font: 800 25px var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] .ap-detail-summary article > p {
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .ap-learning-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+
+html[data-admin-ui="pro"] .ap-detail-card {
+  min-width: 0;
+  padding: 20px;
+}
+
+html[data-admin-ui="pro"] .ap-detail-card h2 {
+  margin: 0 0 12px;
+  color: var(--ap-ink);
+  font: 800 21px var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] .ap-detail-card > p {
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-detail-class-picker {
+  display: block;
+  color: var(--ap-ink);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] :is(.ap-class-note, .ap-tuition-inline) {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] :is(.ap-class-note, .ap-tuition-inline) > * {
+  display: block;
+  margin-top: 5px;
+}
+
+html[data-admin-ui="pro"] :is(.ap-class-note, .ap-tuition-inline) small {
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] :is(#sessions-count-display, #tuition-amount-display) {
+  color: var(--ap-accent);
+  font: 800 23px var(--ap-font-heading);
+}
+
+html[data-admin-ui="pro"] .ap-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .ap-card-heading h2 {
+  margin-bottom: 0;
+}
+
+html[data-admin-ui="pro"] #details-month-picker {
+  width: auto;
+  margin-top: 0;
+}
+
+html[data-admin-ui="pro"] .ap-loading-state {
+  min-height: 120px;
+  color: var(--ap-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-save-row {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+html[data-admin-ui="pro"] #student-homework-stats-container {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+html[data-admin-ui="pro"] .ap-detail-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  gap: 16px;
+}
+
+html[data-admin-ui="pro"] .report-launch-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+html[data-admin-ui="pro"] .report-launch-field {
+  flex: 1 1 150px;
+  color: var(--ap-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .report-inline-error {
+  color: var(--ap-warn);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-detail-error {
+  padding: 48px 24px;
+  color: var(--ap-warn);
+  text-align: center;
+}
+
+html[data-admin-ui="pro"] .ap-detail-error h1 {
+  font: 800 25px var(--ap-font-heading);
+}
+
+@media (max-width: 1279px) {
+  html[data-admin-ui="pro"] .ap-detail-lower-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] .ap-student-stats {
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
+
+  html[data-admin-ui="pro"] :is(.ap-detail-summary, .ap-learning-layout) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] :is(.ap-students-hero, .ap-detail-heading) {
+    align-items: stretch;
+  }
+
+  html[data-admin-ui="pro"] :is(.ap-students-hero, .ap-detail-heading) h1 {
+    font-size: 28px;
+  }
+
+  html[data-admin-ui="pro"] :is(.ap-students-hero, .ap-detail-heading) :is(button, a) {
+    width: 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-student-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  html[data-admin-ui="pro"] .ap-student-filter {
+    align-items: stretch;
+  }
+
+  html[data-admin-ui="pro"] .ap-filter-field {
+    flex-basis: 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table-card {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table-card .table-responsive {
+    overflow-x: visible;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table {
+    min-width: 0;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table thead {
+    display: none;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table tbody {
+    display: grid;
+    gap: 14px;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table tbody tr {
+    padding: 14px;
+    border: 2px solid var(--ap-line);
+    border-radius: 20px;
+    background: var(--ap-surface);
+    box-shadow: 0 4px 0 var(--ap-block);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table tbody td {
+    padding: 0;
+    border: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table tbody td::before {
+    content: attr(data-label);
+    color: var(--ap-muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  html[data-admin-ui="pro"] .ap-students-table tbody td:first-child,
+  html[data-admin-ui="pro"] .ap-students-table tbody td:last-child {
+    align-items: flex-start;
+    flex-direction: column;
+    text-align: left;
+  }
+
+  html[data-admin-ui="pro"] .ap-row-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  html[data-admin-ui="pro"] .ap-empty-row td {
+    display: block;
+    text-align: center;
+  }
+
+  html[data-admin-ui="pro"] .ap-empty-row td::before {
+    content: none;
+  }
+
+  html[data-admin-ui="pro"] .ap-profile-main {
+    align-items: flex-start;
+  }
+
+  html[data-admin-ui="pro"] .ap-profile-card > button {
+    width: 100%;
+  }
+
+  html[data-admin-ui="pro"] .report-launch-fields > * {
+    flex-basis: 100%;
+    width: 100%;
+  }
+}
