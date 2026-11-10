@@ -334,6 +334,23 @@ html[data-ui="mochi"] .interactive-q-prompt :is(p, span, div, strong, em, h1, h2
   color: inherit !important;
 }
 
+/* Công thức inline dài (vd \ce{H2N-CH2-CO-NH-...}) bị KaTeX gom vào một .base
+   nowrap → tràn khỏi thẻ câu hỏi trên điện thoại. Cho phép ngắt dòng bên trong
+   (giữ nguyên công thức display $$...$$). */
+html[data-ui="mochi"] .interactive-q-card :not(.katex-display) > .katex {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+html[data-ui="mochi"] .interactive-q-card :not(.katex-display) > .katex .base {
+  display: inline;
+  white-space: normal;
+}
+html[data-ui="mochi"] .interactive-q-card .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 /* Images & Diagrams */
 html[data-ui="mochi"] .interactive-q-card img,
 html[data-ui="mochi"] .interactive-q-image {
@@ -354,8 +371,22 @@ html[data-ui="mochi"] .exam-options-grid {
   margin-top: 16px;
 }
 
+/* Tối đa 2 cột; tự về 1 cột khi khung câu hỏi hẹp (<~690px) — theo bề rộng
+   khung chứ không theo viewport, vì sidebar/palette chiếm chỗ khác nhau. */
 html[data-ui="mochi"] .exam-options-grid.grid-2col {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(calc(50% - 6px), min(100%, 340px)), 1fr));
+}
+
+/* Nội dung đáp án (text/KaTeX) không được tràn sang thẻ bên cạnh */
+html[data-ui="mochi"] .exam-option-card > :not(.exam-opt-badge) {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  overflow-wrap: anywhere;
+  /* KaTeX inline đã tự ngắt dòng, display math tự cuộn (.katex-display) —
+     clip phần MathML ẩn của KaTeX để không hiện thanh cuộn thừa. */
+  overflow-x: clip;
+  overflow-y: visible;
+  padding-block: 2px;
 }
 
 html[data-ui="mochi"] .exam-option-card {
