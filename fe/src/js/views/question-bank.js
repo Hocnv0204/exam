@@ -22,6 +22,7 @@ import { isAdminProUI } from '../ui-flag.js'
 
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/admin-pro/pages/question-bank.css')
+  import('../../css/admin-pro/pages/matrix-gen.css')
 }
 
 // ========================================================
@@ -5589,6 +5590,468 @@ async function openImportFromHomeworkModal() {
 // ========================================================
 // Modal 3: Tạo Đề thi ngẫu nhiên theo Ma trận
 // ========================================================
+export function renderProMatrixModalHtml({ uniqueBlocks = [], treeDataCache = {} } = {}) {
+  return `
+    <div class="modal-backdrop ap-mx" id="matrix-gen-backdrop" data-step="config">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="matrix-gen-title" onclick="event.stopPropagation()">
+        
+        <!-- Header -->
+        <div class="matrix-gen-header ap-mx-header">
+          <div class="ap-mx-header-main">
+            <div class="matrix-gen-icon ap-mx-icon">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <div class="ap-mx-header-text">
+              <h3 id="matrix-gen-title" class="ap-mx-title">
+                Tạo đề kiểm tra / bài tập theo Ma trận
+              </h3>
+              <p class="ap-mx-subtitle">
+                Chọn nguồn câu hỏi, đặt số câu rồi bốc ngẫu nhiên để xem trước
+              </p>
+            </div>
+          </div>
+          <button type="button" id="matrix-gen-close-btn" class="ap-mx-close-btn" aria-label="Đóng hộp thoại tạo đề theo ma trận">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Stepper 3 bước -->
+        <div class="ap-mx-stepper" aria-label="Các bước tạo đề">
+          <div class="ap-mx-step" data-step-num="1">
+            <span class="ap-mx-step-badge">1</span>
+            <span class="ap-mx-step-label">Chọn nguồn</span>
+          </div>
+          <div class="ap-mx-step-sep" aria-hidden="true"></div>
+          <div class="ap-mx-step" data-step-num="2">
+            <span class="ap-mx-step-badge">2</span>
+            <span class="ap-mx-step-label">Số lượng câu</span>
+          </div>
+          <div class="ap-mx-step-sep" aria-hidden="true"></div>
+          <div class="ap-mx-step" data-step-num="3">
+            <span class="ap-mx-step-badge">3</span>
+            <span class="ap-mx-step-label">Xem trước &amp; giao bài</span>
+          </div>
+        </div>
+
+        <!-- Body Step 1: Matrix Config (chia 2 cột trên màn hình >=1100px) -->
+        <div id="matrix-gen-step1" class="matrix-gen-body ap-mx-body-step1">
+          <div class="ap-mx-grid-layout">
+            
+            <!-- Cột Trái (~58%): Nguồn câu hỏi -->
+            <section class="ap-mx-panel ap-mx-panel-scope" aria-labelledby="ap-mx-scope-heading">
+              <div class="ap-mx-panel-header">
+                <div class="ap-mx-panel-title" id="ap-mx-scope-heading">
+                  <span class="ap-mx-panel-num">1</span>
+                  <span>Phạm vi nguồn câu hỏi</span>
+                </div>
+                <p class="ap-mx-panel-desc">Chỉ dùng danh mục Constant. Tick Lớp / Chương / Bài / Dạng bài làm kho câu hỏi.</p>
+              </div>
+
+              <!-- Unified Scope Container -->
+              <div id="unified-scope-container" class="ap-mx-scope-container">
+                <!-- Toolbar: Lọc Khối + Badge tóm tắt + Các nút thao tác -->
+                <div class="ap-mx-scope-toolbar">
+                  <div class="ap-mx-scope-filter-row">
+                    <label for="gen-scope-grade-block" class="ap-mx-scope-label">
+                      <i class="fa-solid fa-layer-group"></i> Khối học nguồn:
+                    </label>
+                    <select id="gen-scope-grade-block" class="ap-mx-scope-select">
+                      <option value="ALL">-- Tất cả Khối học --</option>
+                      ${(uniqueBlocks || []).map(b => `<option value="${b}" ${b === generatorState.gradeBlock ? 'selected' : ''}>Khối: ${b}</option>`).join('')}
+                    </select>
+                    <span id="scope-selection-badge" class="ap-mx-selection-badge">
+                      <i class="fa-solid fa-list-check"></i>
+                      <span id="scope-selection-badge-text">Đã chọn: 0 lớp, 0 chương, 0 bài</span>
+                    </span>
+                  </div>
+                  <div class="ap-mx-scope-actions" role="toolbar" aria-label="Thao tác chọn phạm vi">
+                    <button type="button" id="btn-scope-select-block" class="ap-mx-btn-scope ap-mx-btn-scope-primary" title="Chọn tất cả lớp trong khối đang lọc">
+                      <i class="fa-solid fa-check-double"></i> Chọn cả khối
+                    </button>
+                    <button type="button" id="btn-scope-expand-all" class="ap-mx-btn-scope" title="Mở rộng tất cả các lớp và chương">
+                      <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Mở tất cả
+                    </button>
+                    <button type="button" id="btn-scope-collapse-all" class="ap-mx-btn-scope" title="Thu gọn tất cả">
+                      <i class="fa-solid fa-down-left-and-up-right-to-center"></i> Thu gọn
+                    </button>
+                    <button type="button" id="btn-scope-clear-selection" class="ap-mx-btn-scope ap-mx-btn-scope-danger" title="Bỏ chọn toàn bộ">
+                      <i class="fa-solid fa-xmark"></i> Bỏ chọn
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Hướng dẫn dạng accordion -->
+                <details class="ap-mx-help">
+                  <summary><i class="fa-solid fa-circle-question"></i> Cách chọn phạm vi</summary>
+                  <div class="ap-mx-help-content">
+                    Tick chọn <strong>Lớp / Chương / Bài</strong> để chọn toàn bộ <strong>Dạng bài</strong> bên trong (Bài chưa có Dạng bài sẽ bốc toàn bộ câu của Bài), hoặc bấm nút mũi tên <strong class="ap-mx-arrow">▶</strong> để mở chi tiết và tick từng <strong>Bài học / Dạng bài</strong> mong muốn. Bỏ tick một Dạng bài chỉ loại đúng Dạng bài đó, các Dạng bài khác trong bài vẫn được giữ.
+                  </div>
+                </details>
+
+                ${treeDataCache && treeDataCache.typeLoadError ? `
+                  <div class="ap-mx-error-alert" role="alert">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>Không tải được Dạng bài Constant: ${escapeHtml(treeDataCache.typeLoadError)}. Các Bài học vẫn có thể chọn theo hành vi cũ.</span>
+                  </div>
+                ` : ''}
+
+                <!-- Tree View Container -->
+                <div id="gen-scope-tree-container" class="ap-mx-tree-container" tabindex="0" role="region" aria-label="Cây phân cấp Lớp Chương Bài và Dạng bài">
+                  <!-- Dynamically rendered tree -->
+                </div>
+              </div>
+            </section>
+
+            <!-- Cột Phải (~42%): Số lượng câu hỏi (Sticky top) -->
+            <section class="ap-mx-panel ap-mx-panel-matrix" aria-labelledby="ap-mx-matrix-heading">
+              <div class="ap-mx-panel-header ap-mx-panel-header-inline">
+                <div class="ap-mx-panel-title" id="ap-mx-matrix-heading">
+                  <span class="ap-mx-panel-num">2</span>
+                  <span>Ma trận số lượng câu</span>
+                </div>
+                <label class="ap-mx-toggle-label">
+                  <input type="checkbox" id="gen-matrix-advanced-toggle" />
+                  <span><i class="fa-solid fa-layer-group"></i> Phân bổ chi tiết 4 mức độ</span>
+                </label>
+              </div>
+
+              <!-- Dải Khả dụng Banner -->
+              <div id="gen-avail-banner" class="ap-mx-avail-banner">
+                <div class="ap-mx-avail-chips">
+                  <span id="avail-mc-badge" class="ap-mx-avail-chip ap-mx-chip-mc">
+                    <i class="fa-solid fa-check"></i> <span id="avail-mc">0</span> Trắc nghiệm
+                  </span>
+                  <span id="avail-tf-badge" class="ap-mx-avail-chip ap-mx-chip-tf">
+                    <i class="fa-solid fa-check"></i> <span id="avail-tf">0</span> Đúng / Sai
+                  </span>
+                  <span id="avail-sa-badge" class="ap-mx-avail-chip ap-mx-chip-sa">
+                    <i class="fa-solid fa-check"></i> <span id="avail-sa">0</span> Trả lời ngắn
+                  </span>
+                </div>
+                <div id="avail-total" class="ap-mx-avail-total">Tổng có: 0 câu (Chưa chọn mục trong cây phân cấp)</div>
+              </div>
+
+              <!-- 3 Thẻ Phần Câu Hỏi -->
+              <div class="ap-mx-parts-container">
+                <!-- Phần I: Trắc nghiệm ABCD -->
+                <div class="ap-mx-part-card ap-mx-part-mc">
+                  <div class="ap-mx-part-main-row">
+                    <div class="ap-mx-part-info">
+                      <div class="ap-mx-part-name">PHẦN I: Trắc nghiệm ABCD</div>
+                      <div class="ap-mx-part-meta">
+                        <span id="mc-deficit-alert" class="ap-mx-deficit-alert">Khả dụng: 0</span>
+                        <span class="ap-mx-part-pts">0.25đ / câu</span>
+                      </div>
+                    </div>
+                    <div class="ap-mx-part-input-wrap">
+                      <input type="number" id="gen-matrix-mc" min="0" value="0" class="ap-mx-main-input" aria-label="Số câu trắc nghiệm" />
+                      <span class="ap-mx-unit">câu</span>
+                    </div>
+                  </div>
+
+                  <!-- MC Difficulty Subpanel -->
+                  <div class="matrix-difficulty-subpanel ap-mx-diff-subpanel" id="mc-difficulty-subpanel" style="display:none">
+                    <div class="ap-mx-diff-header">
+                      <span class="ap-mx-diff-title">Chi tiết mức độ nhận thức:</span>
+                      <div class="ap-mx-diff-actions">
+                        <span id="mc-match-status" class="ap-mx-match-status"></span>
+                        <button type="button" class="btn-auto-distribute ap-mx-btn-distribute" data-part="mc" title="Tự động phân bổ số câu theo tỷ lệ chuẩn Bộ GD&ĐT (40% NB - 35% TH - 15% VD - 10% VDC)">
+                          <i class="fa-solid fa-wand-magic-sparkles"></i> Tự động chia
+                        </button>
+                      </div>
+                    </div>
+                    <div class="ap-mx-diff-grid">
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-mc-nb" class="ap-mx-diff-label ap-mx-diff-nb">NB</label>
+                        <input type="number" id="gen-mc-nb" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="mc" data-diff="NHAN_BIET" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-mc-nb">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-mc-th" class="ap-mx-diff-label ap-mx-diff-th">TH</label>
+                        <input type="number" id="gen-mc-th" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="mc" data-diff="THONG_HIEU" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-mc-th">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-mc-vd" class="ap-mx-diff-label ap-mx-diff-vd">VD</label>
+                        <input type="number" id="gen-mc-vd" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="mc" data-diff="VAN_DUNG" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-mc-vd">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-mc-vdc" class="ap-mx-diff-label ap-mx-diff-vdc">VDC</label>
+                        <input type="number" id="gen-mc-vdc" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="mc" data-diff="VAN_DUNG_CAO" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-mc-vdc">Có: 0</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Phần II: Đúng / Sai -->
+                <div class="ap-mx-part-card ap-mx-part-tf">
+                  <div class="ap-mx-part-main-row">
+                    <div class="ap-mx-part-info">
+                      <div class="ap-mx-part-name">PHẦN II: Đúng / Sai (4 ý)</div>
+                      <div class="ap-mx-part-meta">
+                        <span id="tf-deficit-alert" class="ap-mx-deficit-alert">Khả dụng: 0</span>
+                        <span class="ap-mx-part-pts">1.0đ / câu</span>
+                      </div>
+                    </div>
+                    <div class="ap-mx-part-input-wrap">
+                      <input type="number" id="gen-matrix-tf" min="0" value="0" class="ap-mx-main-input" aria-label="Số câu đúng sai" />
+                      <span class="ap-mx-unit">câu</span>
+                    </div>
+                  </div>
+
+                  <!-- TF Difficulty Subpanel -->
+                  <div class="matrix-difficulty-subpanel ap-mx-diff-subpanel" id="tf-difficulty-subpanel" style="display:none">
+                    <div class="ap-mx-diff-header">
+                      <span class="ap-mx-diff-title">Chi tiết mức độ nhận thức:</span>
+                      <div class="ap-mx-diff-actions">
+                        <span id="tf-match-status" class="ap-mx-match-status"></span>
+                        <button type="button" class="btn-auto-distribute ap-mx-btn-distribute" data-part="tf" title="Tự động phân bổ số câu theo tỷ lệ chuẩn Bộ GD&ĐT (25% NB - 50% TH - 25% VD)">
+                          <i class="fa-solid fa-wand-magic-sparkles"></i> Tự động chia
+                        </button>
+                      </div>
+                    </div>
+                    <div class="ap-mx-diff-grid">
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-tf-nb" class="ap-mx-diff-label ap-mx-diff-nb">NB</label>
+                        <input type="number" id="gen-tf-nb" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="tf" data-diff="NHAN_BIET" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-tf-nb">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-tf-th" class="ap-mx-diff-label ap-mx-diff-th">TH</label>
+                        <input type="number" id="gen-tf-th" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="tf" data-diff="THONG_HIEU" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-tf-th">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-tf-vd" class="ap-mx-diff-label ap-mx-diff-vd">VD</label>
+                        <input type="number" id="gen-tf-vd" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="tf" data-diff="VAN_DUNG" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-tf-vd">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-tf-vdc" class="ap-mx-diff-label ap-mx-diff-vdc">VDC</label>
+                        <input type="number" id="gen-tf-vdc" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="tf" data-diff="VAN_DUNG_CAO" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-tf-vdc">Có: 0</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Phần III: Trả lời ngắn -->
+                <div class="ap-mx-part-card ap-mx-part-sa">
+                  <div class="ap-mx-part-main-row">
+                    <div class="ap-mx-part-info">
+                      <div class="ap-mx-part-name">PHẦN III: Trả lời ngắn / Điền số</div>
+                      <div class="ap-mx-part-meta">
+                        <span id="sa-deficit-alert" class="ap-mx-deficit-alert">Khả dụng: 0</span>
+                        <span class="ap-mx-part-pts">0.5đ / câu</span>
+                      </div>
+                    </div>
+                    <div class="ap-mx-part-input-wrap">
+                      <input type="number" id="gen-matrix-sa" min="0" value="0" class="ap-mx-main-input" aria-label="Số câu trả lời ngắn" />
+                      <span class="ap-mx-unit">câu</span>
+                    </div>
+                  </div>
+
+                  <!-- SA Difficulty Subpanel -->
+                  <div class="matrix-difficulty-subpanel ap-mx-diff-subpanel" id="sa-difficulty-subpanel" style="display:none">
+                    <div class="ap-mx-diff-header">
+                      <span class="ap-mx-diff-title">Chi tiết mức độ nhận thức:</span>
+                      <div class="ap-mx-diff-actions">
+                        <span id="sa-match-status" class="ap-mx-match-status"></span>
+                        <button type="button" class="btn-auto-distribute ap-mx-btn-distribute" data-part="sa" title="Tự động phân bổ số câu theo tỷ lệ chuẩn Bộ GD&ĐT (35% TH - 50% VD - 15% VDC)">
+                          <i class="fa-solid fa-wand-magic-sparkles"></i> Tự động chia
+                        </button>
+                      </div>
+                    </div>
+                    <div class="ap-mx-diff-grid">
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-sa-nb" class="ap-mx-diff-label ap-mx-diff-nb">NB</label>
+                        <input type="number" id="gen-sa-nb" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="sa" data-diff="NHAN_BIET" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-sa-nb">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-sa-th" class="ap-mx-diff-label ap-mx-diff-th">TH</label>
+                        <input type="number" id="gen-sa-th" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="sa" data-diff="THONG_HIEU" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-sa-th">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-sa-vd" class="ap-mx-diff-label ap-mx-diff-vd">VD</label>
+                        <input type="number" id="gen-sa-vd" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="sa" data-diff="VAN_DUNG" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-sa-vd">Có: 0</span>
+                      </div>
+                      <div class="ap-mx-diff-col">
+                        <label for="gen-sa-vdc" class="ap-mx-diff-label ap-mx-diff-vdc">VDC</label>
+                        <input type="number" id="gen-sa-vdc" min="0" value="0" class="matrix-sub-input ap-mx-sub-input" data-part="sa" data-diff="VAN_DUNG_CAO" />
+                        <span class="sub-avail-chip ap-mx-sub-chip" id="avail-sa-vdc">Có: 0</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tuỳ chọn Thuật toán Checkboxes -->
+              <div class="ap-mx-algorithm-options">
+                <label class="ap-mx-checkbox-label" title="Khi một mức độ nhận thức bị thiếu, hệ thống tự động bù từ mức độ thấp hơn liền kề thay vì báo lỗi (shortage: borrow)">
+                  <input type="checkbox" id="gen-matrix-borrow" checked />
+                  <i class="fa-solid fa-hand-holding-heart" style="color:var(--ap-accent);"></i>
+                  <span>Tự bù từ mức độ thấp hơn khi thiếu câu</span>
+                </label>
+                <label class="ap-mx-checkbox-label" title="Chia đều số câu hỏi cho các Chương hoặc Bài đã chọn kèm Quỹ bù trừ (balanced)">
+                  <input type="checkbox" id="gen-matrix-balanced" />
+                  <i class="fa-solid fa-scale-balanced" style="color:var(--ap-ok);"></i>
+                  <span>Chia đều giữa các Chương / Bài</span>
+                </label>
+              </div>
+            </section>
+
+          </div>
+        </div>
+
+        <!-- Body Step 2: Preview & Re-roll (Swap) -->
+        <div id="matrix-gen-step2" class="ap-mx-body-step2" style="display:none">
+          
+          <div class="ap-mx-preview-topbar">
+            <div class="ap-mx-preview-heading">
+              <h4 class="ap-mx-preview-title" id="preview-exam-title">Đề kiểm tra xem trước</h4>
+              <p class="ap-mx-preview-desc" id="preview-meta-desc">22 câu hỏi • 60 phút</p>
+            </div>
+            <div class="ap-mx-preview-top-actions">
+              <button type="button" id="btn-back-to-config" class="btn-secondary ap-mx-btn-secondary">
+                <i class="fa-solid fa-arrow-left"></i> Chỉnh lại ma trận
+              </button>
+              <button type="button" id="btn-matrix-export-student" class="btn-secondary ap-mx-btn-secondary ap-mx-btn-export-white">
+                <i class="fa-regular fa-file-pdf"></i> Xuất PDF đề trắng
+              </button>
+              <button type="button" id="btn-matrix-export-answer" class="btn-secondary ap-mx-btn-secondary ap-mx-btn-export-ans">
+                <i class="fa-solid fa-file-pdf"></i> Xuất PDF kèm đáp án
+              </button>
+            </div>
+          </div>
+
+          <!-- Assignment Metadata & Target Destination -->
+          <div class="ap-mx-assignment-panel">
+            <div class="ap-mx-assignment-header">
+              <div class="ap-mx-assignment-title">
+                <i class="fa-solid fa-file-pen" style="color:var(--ap-accent);"></i> Thông tin bài tập &amp; Lớp / Bài học đích nhận đề
+              </div>
+              <div class="ap-mx-assignment-desc">
+                Chọn vị trí lưu trữ bài tập và giao cho học sinh làm bài (tách biệt với phạm vi nguồn bốc câu hỏi ở Bước 1)
+              </div>
+            </div>
+
+            <div class="ap-mx-form-grid">
+              <div class="ap-mx-form-field">
+                <label for="gen-exam-title" class="ap-mx-form-label">Tên bài tập *</label>
+                <input type="text" id="gen-exam-title" class="ap-mx-input" placeholder="Ví dụ: TN - 1, Đề 15 phút, Đề kiểm tra..." />
+                <div class="ap-mx-field-hint"><i class="fa-solid fa-circle-info"></i> Tên bài học đích sẽ tự động được ghép phía trước khi tạo bài tập</div>
+              </div>
+              <div class="ap-mx-form-field">
+                <label for="gen-exam-type" class="ap-mx-form-label">Hình thức làm bài</label>
+                <select id="gen-exam-type" class="ap-mx-select">
+                  <option value="PRACTICE">Luyện tập tự do (Tối đa 3 lần làm)</option>
+                  <option value="EXAM">Kiểm tra / Thi chính thức (Chỉ 1 lần làm)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Cấu hình bài tập -->
+            <div class="ap-mx-hw-config-card">
+              <div class="ap-mx-hw-config-title">
+                <i class="fa-solid fa-sliders" style="color:var(--ap-accent);"></i> Cấu hình bài tập
+              </div>
+              ${renderHomeworkConfigFields('mx')}
+            </div>
+
+            <!-- Destination lesson selection -->
+            <div class="ap-mx-dest-grid">
+              <div class="ap-mx-form-field">
+                <label for="gen-dest-class" class="ap-mx-form-label">Gán vào Lớp đích *</label>
+                <select id="gen-dest-class" class="ap-mx-select">
+                  <option value="">-- Chọn lớp đích --</option>
+                  ${allClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="ap-mx-form-field">
+                <label for="gen-dest-chapter" class="ap-mx-form-label">Chương đích</label>
+                <select id="gen-dest-chapter" class="ap-mx-select">
+                  <option value="">-- Chọn chương đích --</option>
+                </select>
+              </div>
+              <div class="ap-mx-form-field">
+                <label for="gen-dest-lesson" class="ap-mx-form-label">Bài học đích *</label>
+                <select id="gen-dest-lesson" class="ap-mx-select">
+                  <option value="">-- Chọn bài học đích --</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Assign to specific students -->
+            <div class="ap-mx-assign-box">
+              <div class="ap-mx-assign-title">
+                <i class="fa-solid fa-user-check"></i> Giao riêng cho học sinh (tùy chọn)
+              </div>
+              <div class="ap-mx-assign-desc">Không chọn ai = cả lớp đích đều thấy bài này. Tick chọn để chỉ các em được chọn mới thấy và làm bài.</div>
+              <div class="ap-mx-assign-toolbar">
+                <button type="button" id="btn-gen-assign-select-all" class="ap-mx-btn-text">Chọn tất cả</button>
+                <span class="ap-mx-sep">|</span>
+                <button type="button" id="btn-gen-assign-deselect-all" class="ap-mx-btn-text">Bỏ chọn</button>
+                <span id="gen-assign-selected-count" class="ap-mx-selected-count"></span>
+              </div>
+              <div id="gen-assign-students-list" class="ap-mx-students-list">
+                Chọn lớp đích ở trên để tải danh sách học sinh...
+              </div>
+            </div>
+
+            <!-- Toggles -->
+            <div class="ap-mx-variants-row">
+              <label class="ap-mx-checkbox-label" title="Tự động tạo 4 mã đề hoán vị trật tự câu hỏi và phương án ABCD (Mã 101, 102, 103, 104)">
+                <input type="checkbox" id="gen-multi-variants" />
+                <i class="fa-solid fa-shuffle" style="color:var(--ap-accent);"></i>
+                <span>Tự động tạo 4 mã đề hoán vị (101, 102, 103, 104)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="ap-mx-preview-list-header">
+            <div class="ap-mx-preview-list-title"><i class="fa-solid fa-list-check" style="color:var(--ap-accent);"></i> Danh sách câu hỏi bốc ngẫu nhiên</div>
+            <div class="ap-mx-preview-list-hint">(Bấm "Đổi nhanh" hoặc "3 gợi ý" để thay đổi câu hỏi theo ý muốn)</div>
+          </div>
+
+          <!-- Preview Questions List -->
+          <div id="preview-questions-container" class="ap-mx-questions-container">
+            <!-- Generated questions will render here with swap buttons -->
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="matrix-gen-footer ap-mx-footer">
+          <div class="ap-mx-footer-summary">
+            <div class="ap-mx-summary-text">
+              Yêu cầu <strong id="gen-matrix-total-q">0</strong> câu · <strong id="gen-matrix-total-points">0.0</strong> điểm
+            </div>
+            <span id="mx-footer-hint" class="ap-mx-footer-hint" role="status" aria-live="polite"></span>
+          </div>
+
+          <div class="ap-mx-footer-actions">
+            <button type="button" id="matrix-gen-cancel-btn" class="btn-secondary ap-mx-btn-cancel">
+              Đóng
+            </button>
+            <button type="button" id="btn-roll-preview" class="btn-primary ap-mx-btn-primary">
+              <i class="fa-solid fa-dice"></i> Bốc ngẫu nhiên &amp; Xem trước
+            </button>
+            <button type="button" id="btn-finalize-create-hw" class="btn-primary ap-mx-btn-primary" style="display:none">
+              <i class="fa-solid fa-check"></i> Xác nhận &amp; Xuất bản đề thi
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `
+}
+
 async function openMatrixGeneratorModal() {
   // Invariant: saved templates cannot change the generator's constantOnly: true
   // scope contract. Only Constant taxonomy leaves can be restored below.
@@ -5660,7 +6123,7 @@ async function openMatrixGeneratorModal() {
     }
   }
 
-  modalContainer.innerHTML = `
+  modalContainer.innerHTML = (typeof isAdminProUI === 'function' && isAdminProUI()) ? renderProMatrixModalHtml({ uniqueBlocks, treeDataCache }) : `
     <div class="modal-backdrop" id="matrix-gen-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="matrix-gen-title" onclick="event.stopPropagation()" style="width:100%; max-width:1040px; max-height:92vh; background:#ffffff; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); display:flex; flex-direction:column; overflow:hidden;">
         
@@ -7204,10 +7667,33 @@ async function openMatrixGeneratorModal() {
     const button = document.getElementById('btn-roll-preview')
     if (!button || !isCurrentMatrixModal()) return
     let valid = false
-    try { validateMatrixSelection(); valid = true } catch { /* incomplete form */ }
+    let validateError = null
+    try {
+      validateMatrixSelection()
+      valid = true
+    } catch (err) {
+      validateError = err
+    }
     button.disabled = rolling || !availabilityReady || !valid || !(generatorState.availableStats?.total > 0)
     button.style.width = 'auto'
     if (!rolling) button.innerHTML = '<i class="fa-solid fa-dice"></i> Bốc ngẫu nhiên & Xem trước'
+
+    const footerHint = document.getElementById('mx-footer-hint')
+    if (footerHint) {
+      if (!hasScopeSelection()) {
+        footerHint.textContent = 'Chọn ít nhất 1 mục trong cây nguồn'
+      } else if (!availabilityReady) {
+        footerHint.textContent = 'Đang kiểm tra số câu khả dụng…'
+      } else if (validateError) {
+        footerHint.textContent = validateError.message || 'Cấu hình ma trận chưa hợp lệ'
+      } else if (!(generatorState.availableStats?.total > 0)) {
+        footerHint.textContent = 'Phạm vi đã chọn chưa có câu hỏi'
+      } else if (rolling) {
+        footerHint.textContent = 'Đang bốc câu…'
+      } else {
+        footerHint.textContent = ''
+      }
+    }
   }
 
   for (const input of [advancedToggle, document.getElementById('gen-matrix-borrow'), document.getElementById('gen-matrix-balanced')]) {
@@ -7279,6 +7765,7 @@ async function openMatrixGeneratorModal() {
   const btnFinalize = document.getElementById('btn-finalize-create-hw')
   const step1 = document.getElementById('matrix-gen-step1')
   const step2 = document.getElementById('matrix-gen-step2')
+  if (btnFinalize) btnFinalize.style.display = 'none'
 
   btnRollPreview?.addEventListener('click', async () => {
     if (!isCurrentMatrixModal() || rolling || !availabilityReady || btnRollPreview.disabled) return
@@ -7390,6 +7877,7 @@ async function openMatrixGeneratorModal() {
       step2.style.display = 'block'
       btnRollPreview.style.display = 'none'
       btnFinalize.style.display = 'inline-flex'
+      if (matrixModal) matrixModal.dataset.step = 'preview'
 
       const titleInput = document.getElementById('gen-exam-title')
       if (titleInput && !titleInput.value.trim()) {
@@ -7430,6 +7918,7 @@ async function openMatrixGeneratorModal() {
     step2.style.display = 'none'
     btnRollPreview.style.display = 'inline-flex'
     btnFinalize.style.display = 'none'
+    if (matrixModal) matrixModal.dataset.step = 'config'
   })
 
   // Export PDF from Matrix Step 2 Preview
