@@ -887,7 +887,8 @@ export function renderClassicCreateHwView() {
                     </div>
                   </div>
 
-                  <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px;">
+                  <input type="hidden" id="hw-max-violations" value="${isEdit && hw.maxViolations !== undefined && hw.maxViolations !== null ? hw.maxViolations : 3}">
+                  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Loại bài tập <span style="color:#ef4444;">*</span></label>
                       <select id="hw-type" class="form-input" style="background:#ffffff; cursor:pointer; padding:8px 12px; font-size:13px;">
@@ -898,10 +899,6 @@ export function renderClassicCreateHwView() {
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian (Phút)</label>
                       <input type="number" id="hw-duration" class="form-input" value="${isEdit ? hw.durationMinutes || 90 : 90}" min="5" style="padding:8px 12px; font-size:13px;">
-                    </div>
-                    <div>
-                      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Giới hạn vi phạm</label>
-                      <input type="number" id="hw-max-violations" class="form-input" value="${isEdit && hw.maxViolations !== undefined ? hw.maxViolations : 3}" min="1" max="10" style="padding:8px 12px; font-size:13px;">
                     </div>
                     <div>
                       <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần</label>
@@ -1251,10 +1248,11 @@ export function renderProCreateHwView() {
             <div class="ap-step-panel" data-step-panel="4">
               <div class="ap-step-panel-header">
                 <h2 class="ap-step-heading">Bước 4: Cấu hình phòng thi & Giám sát</h2>
-                <p class="ap-step-desc">Thiết lập thời gian làm bài, số lần vi phạm chống gian lận và quy định hiển thị lời giải</p>
+                <p class="ap-step-desc">Thiết lập thời gian làm bài và quy định hiển thị lời giải</p>
               </div>
 
               <div class="ap-step4-grid">
+                <input type="hidden" id="hw-max-violations" value="${isEdit && hw.maxViolations !== undefined && hw.maxViolations !== null ? hw.maxViolations : 3}">
                 <div class="ap-field-group">
                   <label for="hw-duration" class="ap-label">Thời lượng làm bài (Phút)</label>
                   <input type="number" id="hw-duration" class="form-input ap-input" value="${isEdit ? hw.durationMinutes || 90 : 90}" min="5">
@@ -1265,12 +1263,7 @@ export function renderProCreateHwView() {
                   <input type="number" id="hw-max-attempts" class="form-input ap-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.max_attempts !== undefined && hw.max_attempts !== null ? hw.max_attempts : 0)}" min="0">
                 </div>
 
-                <div class="ap-field-group">
-                  <label for="hw-max-violations" class="ap-label">Giới hạn vi phạm tối đa (Rời màn hình / chuyển tab)</label>
-                  <input type="number" id="hw-max-violations" class="form-input ap-input" value="${isEdit && hw.maxViolations !== undefined ? hw.maxViolations : 3}" min="1" max="10">
-                </div>
-
-                <div class="ap-field-group">
+                <div class="ap-field-group ap-field-span2">
                   <label class="ap-label">Hiển thị lời giải chi tiết</label>
                   <div class="ap-checkbox-card">
                     <label class="ap-checkbox-label">

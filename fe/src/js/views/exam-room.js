@@ -1,6 +1,9 @@
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/exam-room.css')
+  import('../../css/exam-focus-shield.css')
 }
+import { createFocusShield, applyShieldState } from '../utils/exam-focus-shield.js'
+import { renderExamFocusShield } from '../components/exam-focus-shield.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { state } from '../state.js'
@@ -359,13 +362,13 @@ export function renderClassicExamRoomView() {
   })
   const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
 
-  const maxViolationsAllowed = hw.maxViolations || hw.max_violations || 3
   const hasAttachedPdf = !!(hw && (hw.pdfUrl || (hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))))
   const pdfDownloadUrl = (hw?.pdfUrl || '').replace(/https?:\/\/kong:8000/, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321')
   const studentFullName = state.user?.fullName || state.user?.username || 'Thí sinh'
 
   return `
     <div class="${examShell()}">
+      ${renderExamFocusShield({ mochi: false })}
       <!-- TOP EXAM TOOLBAR (Dedicated Focus Bar, No Sidebar button) -->
       <header class="exam-top-toolbar">
         <div class="exam-toolbar-identity" style="display:flex; align-items:center; gap:16px; min-width:0; flex:1 1 auto;">
@@ -397,12 +400,6 @@ export function renderClassicExamRoomView() {
           <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#475569; background:#f8fafc; padding:6px 12px; border-radius:8px; border:1px solid #e2e8f0;">
             <i class="fa-solid fa-user-graduate" style="color:#0284c7;"></i>
             <strong style="color:#0f172a;">${escapeHtml(studentFullName)}</strong>
-          </div>
-
-          <!-- Violation counter in toolbar -->
-          <div id="exam-violations-pill" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; padding:6px 12px; border-radius:8px;" title="Số lần vi phạm quy chế thi (chuyển tab/mở app ngoài)">
-            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;"></i>
-            <span>Vi phạm: <strong id="exam-violations-count">0</strong>/${maxViolationsAllowed}</span>
           </div>
 
           ${hasAttachedPdf ? `
@@ -493,10 +490,6 @@ export function renderClassicExamRoomView() {
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; color:#475569; display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; align-items:center; gap:6px; font-weight:700; color:#0f172a;">
                 <i class="fa-solid fa-shield-cat" style="color:#0284c7;"></i> Giám sát thi tự động
-              </div>
-              <div style="display:flex; justify-content:space-between;">
-                <span>Giới hạn vi phạm:</span>
-                <strong style="color:#b91c1c;"><span id="exam-side-violations">0</span>/${maxViolationsAllowed} lần</strong>
               </div>
               <div style="font-size:11px; color:#64748b;">Không chuyển thẻ hoặc mở ứng dụng khác khi đang làm bài.</div>
             </div>
@@ -887,12 +880,12 @@ function renderMochiExamRoomView() {
   })
   const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
 
-  const maxViolationsAllowed = hw.maxViolations || hw.max_violations || 3
   const hasAttachedPdf = !!(hw && (hw.pdfUrl || (hw.pdfPath && hw.pdfPath !== 'INTERACTIVE' && hw.pdfPath !== 'Homework_Attachment.pdf' && hw.pdfPath.endsWith('.pdf'))))
   const studentFullName = state.user?.fullName || state.user?.username || 'Thí sinh'
 
   return `
     <div class="${examShell()} m-exam-room">
+      ${renderExamFocusShield({ mochi: true })}
       <!-- TOP EXAM TOOLBAR -->
       <header class="exam-top-toolbar m-exam-top">
         <div class="exam-toolbar-identity" style="display:flex; align-items:center; gap:14px; min-width:0; flex:1 1 auto;">
@@ -924,12 +917,6 @@ function renderMochiExamRoomView() {
           <div class="m-user-chip" style="display:flex; align-items:center; gap:8px; font-size:13px; color:#475569; background:#f8fafc; padding:6px 12px; border-radius:8px; border:1px solid #e2e8f0;">
             <i class="fa-solid fa-user-graduate" style="color:#0284c7;" aria-hidden="true"></i>
             <strong style="color:#0f172a;">${escapeHtml(studentFullName)}</strong>
-          </div>
-
-          <!-- Violation counter in toolbar -->
-          <div id="exam-violations-pill" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; padding:6px 12px; border-radius:8px;" title="Số lần vi phạm quy chế thi (chuyển tab/mở app ngoài)">
-            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;" aria-hidden="true"></i>
-            <span>Vi phạm: <strong id="exam-violations-count">0</strong>/${maxViolationsAllowed}</span>
           </div>
 
           ${hasAttachedPdf ? `
@@ -1020,10 +1007,6 @@ function renderMochiExamRoomView() {
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; color:#475569; display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; align-items:center; gap:6px; font-weight:700; color:#0f172a;">
                 <i class="fa-solid fa-shield-cat" style="color:#0284c7;" aria-hidden="true"></i> Giám sát thi tự động
-              </div>
-              <div style="display:flex; justify-content:space-between;">
-                <span>Giới hạn vi phạm:</span>
-                <strong style="color:#b91c1c;"><span id="exam-side-violations">0</span>/${maxViolationsAllowed} lần</strong>
               </div>
               <div style="font-size:11px; color:#64748b;">Không chuyển thẻ hoặc mở ứng dụng khác khi đang làm bài.</div>
             </div>
@@ -1126,6 +1109,7 @@ export function bindExamRoomEvents() {
   const submitAttemptKey = `exam_submit_attempt_${hw.id}_${state.user?.id || 'guest'}`
   const pendingLogKey = `exam_pending_log_${hw.id}_${state.user?.id || 'guest'}`
   const signalKey = `exam_pending_signals_${hw.id}_${state.user?.id || 'guest'}`
+  localStorage.removeItem(pendingLogKey)
   const clearSessionStorageData = (hwId) => {
     localStorage.removeItem(getSessionTokenKey(hwId))
     localStorage.removeItem(getActiveKey(hwId))
@@ -1144,16 +1128,31 @@ export function bindExamRoomEvents() {
                          sessionStorage.getItem(`exam_session_token_${hw.id}`) || null
   let examStarted = false
   let examSessionId = null
-  let isAway = false
-  let awayLog = null
   let examLocked = false
-  let pendingViolation = null
-  let currentViolationsCount = 0
-  let maxViolationsAllowed = hw.maxViolations || hw.max_violations || 3
+  let isSubmitting = false
   let signalQueue = []
   let signalFlush = null
   let wasOffline = typeof navigator !== 'undefined' && navigator.onLine === false
   let engineClosed = false
+
+  const shield = createFocusShield({
+    win: window,
+    doc: document,
+    isActive: () => examStarted && !examLocked && !isSubmitting && !submittedOrUncertain && remainingSeconds() > 0,
+    onChange: (shielded) => {
+      applyShieldState({
+        shielded,
+        shieldEl: document.getElementById('exam-focus-shield'),
+        contentEls: [
+          document.querySelector('.exam-room-body'),
+          document.querySelector('.exam-top-toolbar'),
+        ].filter(Boolean),
+        rootEl: document.querySelector('.exam-room-layout'),
+      })
+    },
+  })
+  shield.attach()
+
   const persistSignals = () => localStorage.setItem(signalKey, JSON.stringify(signalQueue))
   const loadSignals = () => {
     try {
@@ -1198,15 +1197,6 @@ export function bindExamRoomEvents() {
     if (!examStarted || examLocked || isSubmitting || engineClosed) return
     recordSignal('CONNECTION_RESTORED')
     flushSignals()
-  }
-  const loadPendingLog = () => {
-    try {
-      const event = JSON.parse(localStorage.getItem(pendingLogKey))
-      if (event?.sessionId === examSessionId && /^[A-Za-z0-9_-]{1,128}$/.test(event.eventId) &&
-        ['LEAVE_TAB', 'BLUR_TAB', 'LEAVE_EXAM', 'DEVTOOLS', 'FULLSCREEN_EXIT', 'COPY', 'PASTE'].includes(event.action)) return event
-    } catch (_) {}
-    localStorage.removeItem(pendingLogKey)
-    return null
   }
 
   // Render KaTeX Math across questions container (same proven approach as homework-solver.js)
@@ -1490,13 +1480,13 @@ export function bindExamRoomEvents() {
   }
 
   // Submit Handler
-  let isSubmitting = false
   const performSubmit = async (expired = false) => {
     expired = expired || remainingSeconds() <= 0
     if (isSubmitting || submittedOrUncertain || (examLocked && !expired)) return
     isSubmitting = true
     submittedOrUncertain = true
     examLocked = true
+    shield.sync()
     localStorage.setItem(submitAttemptKey, examSessionToken || '')
 
     // After expiry only the last acknowledged server snapshot is eligible; never claim
@@ -1661,35 +1651,31 @@ export function bindExamRoomEvents() {
   // TIMER & PROCTORING UI UPDATERS
   // =========================================================
   const updateTimerDisplay = () => {
-    const timerDisplay = document.getElementById('exam-timer-display')
-    if (!timerDisplay) return
     timeLeftSeconds = remainingSeconds()
     const safeSeconds = timeLeftSeconds
     const minutes = Math.floor(safeSeconds / 60)
     const seconds = safeSeconds % 60
-    timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    const timeText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 
-    if (safeSeconds <= 300) {
-      timerDisplay.style.color = '#dc2626'
-      timerDisplay.style.fontWeight = '800'
-      const timerBox = timerDisplay.closest('.timer-box') || timerDisplay.parentElement
-      if (timerBox) {
-        timerBox.style.background = '#fef2f2'
-        timerBox.style.borderColor = '#fca5a5'
-        timerBox.style.color = '#dc2626'
+    const timerDisplay = document.getElementById('exam-timer-display')
+    if (timerDisplay) {
+      timerDisplay.textContent = timeText
+
+      if (safeSeconds <= 300) {
+        timerDisplay.style.color = '#dc2626'
+        timerDisplay.style.fontWeight = '800'
+        const timerBox = timerDisplay.closest('.timer-box') || timerDisplay.parentElement
+        if (timerBox) {
+          timerBox.style.background = '#fef2f2'
+          timerBox.style.borderColor = '#fca5a5'
+          timerBox.style.color = '#dc2626'
+        }
       }
     }
-  }
 
-  const updateViolationsDisplay = () => {
-    const countEl = document.getElementById('exam-violations-count')
-    const sideCountEl = document.getElementById('exam-side-violations')
-    if (countEl) countEl.textContent = String(currentViolationsCount)
-    if (sideCountEl) sideCountEl.textContent = String(currentViolationsCount)
-    const pill = document.getElementById('exam-violations-pill')
-    const side = sideCountEl?.parentElement
-    if (pill?.querySelector('span')) pill.querySelector('span').innerHTML = `Vi phạm: <strong id="exam-violations-count">${currentViolationsCount}</strong>/${maxViolationsAllowed}`
-    if (side) side.innerHTML = `<span id="exam-side-violations">${currentViolationsCount}</span>/${maxViolationsAllowed} lần`
+    document.querySelectorAll('[data-exam-shield-timer]').forEach(el => {
+      el.textContent = timeText
+    })
   }
 
   const startTimer = () => {
@@ -1768,146 +1754,7 @@ export function bindExamRoomEvents() {
     }, 15000)
   }
 
-  const showLogUncertain = (event) => {
-    if (isSubmitting) return
-    showToast('Chưa xác nhận được nhật ký giám sát. Vui lòng thử đồng bộ lại; số vi phạm chưa được cập nhật.', 'warning')
-    openModal('CHƯA XÁC NHẬN NHẬT KÝ',
-      '<p>Không thể xác nhận trạng thái ghi nhận sự kiện. Bài làm vẫn được giữ; hãy thử đồng bộ lại trước khi tiếp tục.</p>',
-      async () => !!(await recordViolation(event.action, event)),
-      { confirmLabel: 'Thử đồng bộ lại', beforeClose: () => !pendingViolation })
-  }
-
-  const showPendingAutoSubmit = (event) => {
-    openModal('ĐANG XÁC MINH BÀI THI',
-      '<p>Máy chủ đang xử lý vi phạm. Chưa thể xác nhận bài thi đã nộp. Bản nháp được giữ trên thiết bị; vui lòng thử kiểm tra lại hoặc liên hệ giáo viên nếu trạng thái vẫn chưa rõ.</p>',
-      async () => {
-        await recordViolation(event.action, event)
-        return !pendingViolation
-      },
-      { confirmLabel: 'Kiểm tra lại', beforeClose: () => !pendingViolation })
-  }
-
-  const handleConfirmedDisqualification = () => {
-    if (examLocked && !pendingViolation) return
-    pendingViolation = null
-    examLocked = true
-    cleanupExamEngine()
-    disableAllInputs()
-    clearDraftStorage(hw.id)
-    clearSessionStorageData(hw.id)
-    localStorage.removeItem(pendingLogKey)
-    localStorage.removeItem(signalKey)
-    openModal('ĐÌNH CHỈ BÀI THI DO VI PHẠM', `
-      <div style="text-align:center; padding:18px; color:#b91c1c;">
-        <i class="fa-solid fa-ban" style="font-size:52px; margin-bottom:16px;"></i>
-        <h3>Máy chủ đã xác nhận đình chỉ và thu bài.</h3>
-        <p>Số lần vi phạm: ${currentViolationsCount}/${maxViolationsAllowed}.</p>
-      </div>`, () => { window.location.hash = '#my-classes'; return true },
-    { confirmLabel: 'Quay lại lớp học', showCancel: false })
-  }
-
-  // Each physical event has one ID. An uncertain request is retried with that SAME ID,
-  // never counted optimistically; only the server's confirmed count changes the UI.
-  const recordViolation = async (action, retryEvent = null) => {
-    if (!examStarted || isSubmitting || (examLocked && (!pendingViolation || retryEvent !== pendingViolation))) return null
-    const event = retryEvent || { action, eventId: crypto.randomUUID().replace(/-/g, '') }
-    if (event.inFlight) return event.inFlight
-    // A reload during a request must retry the same logical event, not invent a new violation.
-    if (action !== 'RETURN_TAB') localStorage.setItem(pendingLogKey, JSON.stringify({ action: event.action, eventId: event.eventId, sessionId: examSessionId }))
-    event.inFlight = (async () => {
-      try {
-        const res = await api.submitExamLog({
-          homeworkId: hw.id, action: event.action, sessionToken: examSessionToken,
-          eventId: event.eventId, ...(examSessionId ? { sessionId: examSessionId } : {})
-        })
-        if (typeof res?.currentViolations !== 'number' || typeof res?.maxViolations !== 'number' || typeof res?.autoSubmitted !== 'boolean') {
-          throw new Error('Phản hồi nhật ký không hợp lệ')
-        }
-        if (res.autoSubmitted && !res.submissionId) throw new Error('Thiếu xác nhận bài nộp')
-        currentViolationsCount = res.currentViolations
-        maxViolationsAllowed = res.maxViolations
-        updateViolationsDisplay()
-        if (res.autoSubmitted) {
-          handleConfirmedDisqualification()
-        } else if (res.autoSubmitPending || res.currentViolations >= res.maxViolations) {
-          // READY/unknown is not equivalent to a confirmed submission either.
-          examLocked = true
-          pendingViolation = event
-          clearInterval(timerInterval)
-          clearInterval(autosaveInterval)
-          disableAllInputs()
-          showPendingAutoSubmit(event)
-        } else if (pendingViolation === event) {
-          pendingViolation = null
-          examLocked = false
-          enableExamInputs()
-          startTimer()
-          startAutosave()
-        }
-        if (!pendingViolation && action !== 'RETURN_TAB') localStorage.removeItem(pendingLogKey)
-        return res
-      } catch (e) {
-        console.warn('[ExamRoom] Exam log status uncertain:', e)
-        examLocked = true
-        pendingViolation = event
-        clearInterval(timerInterval)
-        clearInterval(autosaveInterval)
-        saveDraftToStorage(hw.id, studentAnswers, timeLeftSeconds)
-        disableAllInputs()
-        showLogUncertain(event)
-        return null
-      } finally {
-        event.inFlight = null
-      }
-    })()
-    return event.inFlight
-  }
-
-  // Visibility and focus commonly fire together: one away event per absence.
-  const handleUserReturnedFromAway = async () => {
-    if (!examStarted || !isAway || isSubmitting || examLocked) return
-    isAway = false
-    const result = await awayLog
-    if (!result || examLocked || isSubmitting) return
-    recordViolation('RETURN_TAB')
-    openModal('CẢNH BÁO VI PHẠM QUY CHẾ THI', `
-      <div style="text-align:center; padding:12px;">
-        <p>Máy chủ đã ghi nhận sự kiện rời màn hình thi${result.counted ? ' và tính vi phạm' : ' (không tính thêm vi phạm)'}.</p>
-        <strong>Số lần vi phạm: ${currentViolationsCount}/${maxViolationsAllowed}</strong>
-      </div>`, () => true, { confirmLabel: 'Tiếp tục làm bài' })
-  }
-
-  const handleVisibilityChange = async () => {
-    if (!examStarted || isSubmitting) return
-    if (document.hidden) {
-      if (!isAway) {
-        isAway = true
-        awayLog = recordViolation('LEAVE_TAB')
-      }
-    } else {
-      await handleUserReturnedFromAway()
-    }
-  }
-
-  const handleBlur = async () => {
-    if (!examStarted || isSubmitting) return
-    if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
-      return
-    }
-    if (!document.hidden && !isAway) {
-      isAway = true
-      awayLog = recordViolation('BLUR_TAB')
-    }
-  }
-
-  const handleFocus = async () => {
-    if (!examStarted || isSubmitting) return
-    if (isAway && !document.hidden) {
-      await handleUserReturnedFromAway()
-    }
-  }
-
-  const handleKeyDown = async (e) => {
+  const handleKeyDown = (e) => {
     if (!examStarted) return
     const key = e.key
     const ctrl = e.ctrlKey || e.metaKey
@@ -1922,7 +1769,6 @@ export function bindExamRoomEvents() {
       e.preventDefault()
       e.stopPropagation()
       showToast('Phím tắt bị vô hiệu hóa trong phòng thi chính thức!', 'error')
-      await recordViolation('DEVTOOLS')
       return false
     }
 
@@ -1934,7 +1780,6 @@ export function bindExamRoomEvents() {
         e.preventDefault()
         e.stopPropagation()
         showToast('Thao tác sao chép / dán bị vô hiệu hóa trong phòng thi!', 'error')
-        await recordViolation(key.toUpperCase() === 'V' ? 'PASTE' : 'COPY')
         return false
       }
     }
@@ -1994,7 +1839,6 @@ export function bindExamRoomEvents() {
     if (!examStarted) return
     e.preventDefault()
     showToast('Không được phép sao chép nội dung trong phòng thi!', 'error')
-    recordViolation('COPY')
   }
 
   const handlePaste = (e) => {
@@ -2003,7 +1847,6 @@ export function bindExamRoomEvents() {
     if (!activeEl || activeEl.tagName !== 'INPUT') {
       e.preventDefault()
       showToast('Không được phép dán nội dung trong phòng thi!', 'error')
-      recordViolation('PASTE')
     }
   }
 
@@ -2015,13 +1858,11 @@ export function bindExamRoomEvents() {
 
   const cleanupExamEngine = () => {
     engineClosed = true
+    shield.detach()
     if (examAutosave) examAutosave.dispose()
     if (timerInterval) clearInterval(timerInterval)
     if (heartbeatInterval) clearInterval(heartbeatInterval)
     if (autosaveInterval) clearInterval(autosaveInterval)
-    document.removeEventListener('visibilitychange', handleVisibilityChange)
-    window.removeEventListener('blur', handleBlur)
-    window.removeEventListener('focus', handleFocus)
     window.removeEventListener('keydown', handleKeyDown, true)
     window.removeEventListener('beforeunload', handleBeforeUnload)
     window.removeEventListener('pagehide', handlePageHide)
@@ -2037,9 +1878,6 @@ export function bindExamRoomEvents() {
   window.addEventListener('online', handleOnline)
 
   // Attach event listeners
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('blur', handleBlur)
-  window.addEventListener('focus', handleFocus)
   window.addEventListener('keydown', handleKeyDown, true)
   window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('pagehide', handlePageHide)
@@ -2101,9 +1939,8 @@ export function bindExamRoomEvents() {
   }
 
   const startExamFlow = async () => {
-    // Initial display of timer & violations before starting
+    // Initial display of timer before starting
     updateTimerDisplay()
-    updateViolationsDisplay()
 
     const isExamActive = localStorage.getItem(getActiveKey(hw.id)) === 'true' ||
                          sessionStorage.getItem(getActiveKey(hw.id)) === 'true' ||
@@ -2117,15 +1954,13 @@ export function bindExamRoomEvents() {
           examSessionId = res.sessionId || null
           configureDeadline(res)
           restoreDraftAnswersFromServer(res.draftAnswers || [])
-          if (typeof res.currentViolations === 'number') {
-            currentViolationsCount = res.currentViolations
-            updateViolationsDisplay()
-          }
           examStarted = true
+          shield.sync()
           loadSignals()
           if (localStorage.getItem(submitAttemptKey) === examSessionToken) {
             submittedOrUncertain = true
             examLocked = true
+            shield.sync()
             disableAllInputs()
             openModal('CHƯA XÁC NHẬN KẾT QUẢ NỘP BÀI',
               '<p>Thiết bị này đã gửi yêu cầu nộp bài nhưng chưa nhận xác nhận. Hãy kiểm tra kết quả trong lớp học hoặc liên hệ giáo viên; không gửi lại bài.</p>',
@@ -2133,8 +1968,6 @@ export function bindExamRoomEvents() {
               { confirmLabel: 'Kiểm tra trong lớp học', showCancel: false })
             return
           }
-          const unresolved = loadPendingLog()
-          if (unresolved) await recordViolation(unresolved.action, unresolved)
           if (examLocked) return
           if (remainingSeconds() <= 0) {
             performSubmit(true)
@@ -2159,25 +1992,24 @@ export function bindExamRoomEvents() {
     }
 
     // Otherwise (fresh entry from my-classes or unconfirmed session), always show Official Exam Rules Modal
-    const maxVio = hw.maxViolations || hw.max_violations || 3
     const examRulesBody = `
       <div style="display:flex; flex-direction:column; gap:16px;">
         <div style="display:flex; align-items:center; gap:12px; background:#fef2f2; border:1px solid #fee2e2; padding:14px 16px; border-radius:12px; color:#991b1b;">
           <i class="fa-solid fa-shield-cat" style="font-size:32px; color:#ef4444; flex-shrink:0;"></i>
           <div style="font-size:13px; line-height:1.5;">
-            Đây là <strong>Bài thi chính thức</strong> được giám sát bằng hệ thống chống gian lận tự động. Vui lòng đọc kỹ các quy chế dưới đây trước khi bắt đầu:
+            Đây là <strong>Bài thi chính thức</strong>. Vui lòng đọc kỹ các quy chế dưới đây trước khi bắt đầu:
           </div>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; color:#334155; background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0;">
           <div style="display:flex; align-items:flex-start; gap:10px;">
             <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
-            <div><strong>Cấm chuyển tab / rời màn hình thi:</strong> Không chuyển thẻ, không mở ứng dụng ngoài, không thu nhỏ trình duyệt. Vi phạm quá <strong>${maxVio} lần</strong> hệ thống sẽ <strong>tự động thu bài & đình chỉ thi</strong>.</div>
+            <div><strong>Luôn ở trong màn hình thi:</strong> Nếu chuyển tab, mở ứng dụng khác hoặc thu nhỏ trình duyệt, đề thi sẽ bị che lại cho tới khi bạn quay về. Đồng hồ vẫn tiếp tục chạy.</div>
           </div>
           
           <div style="display:flex; align-items:flex-start; gap:10px;">
             <i class="fa-solid fa-ban" style="color:#ef4444; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
-            <div><strong>Cấm Sao chép & Dán (Copy/Paste):</strong> Thao tác copy, chuột phải và phím tắt đều bị khóa và ghi vào nhật ký vi phạm.</div>
+            <div><strong>Cấm Sao chép & Dán (Copy/Paste):</strong> Thao tác copy, chuột phải và phím tắt đều bị khóa.</div>
           </div>
 
           <div style="display:flex; align-items:flex-start; gap:10px;">
@@ -2218,27 +2050,22 @@ export function bindExamRoomEvents() {
           sessionStorage.setItem(getActiveKey(hw.id), 'true')
           sessionStorage.setItem(`exam_session_token_${hw.id}`, token)
           sessionStorage.setItem(`exam_active_${hw.id}`, 'true')
-           configureDeadline(res)
-           restoreDraftAnswersFromServer(res.draftAnswers || [])
-          if (typeof res?.currentViolations === 'number') {
-            currentViolationsCount = res.currentViolations
-            updateViolationsDisplay()
-          }
+          configureDeadline(res)
+          restoreDraftAnswersFromServer(res.draftAnswers || [])
         } catch (e) {
           showToast(e.message || 'Không thể bắt đầu phiên thi', 'error')
           return false
         }
 
-         examStarted = true
-         loadSignals()
-         const unresolved = loadPendingLog()
-         if (unresolved) await recordViolation(unresolved.action, unresolved)
-         if (examLocked) return true
-         if (remainingSeconds() <= 0) { performSubmit(true); return true }
+        examStarted = true
+        shield.sync()
+        loadSignals()
+        if (examLocked) return true
+        if (remainingSeconds() <= 0) { performSubmit(true); return true }
         startTimer()
         startHeartbeat()
-         startAutosave()
-         recordSignal('EXAM_STARTED')
+        startAutosave()
+        recordSignal('EXAM_STARTED')
         showToast('Bài thi đã bắt đầu! Thời gian đang đếm ngược.', 'info')
         return true
       }

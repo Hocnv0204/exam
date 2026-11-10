@@ -52,7 +52,10 @@ const { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCo
 // ---------- 1. Markup partial: chuỗi nền trắng phải còn để CSS map navy ----------
 for (const prefix of ['cs', 'mx']) {
   const markup = renderHomeworkConfigFields(prefix)
-  for (const field of ['duration', 'attempts', 'violations']) {
+  // Giới hạn vi phạm đã bỏ khỏi UI (spec 001): chỉ còn input ẩn giữ payload maxViolations.
+  assert.match(markup, new RegExp(`<input type="hidden" id="${prefix}-violations" value="3">`), `${prefix}-violations là input ẩn`)
+  assert.doesNotMatch(markup, /Giới hạn vi phạm/, `${prefix}: không còn nhãn Giới hạn vi phạm`)
+  for (const field of ['duration', 'attempts']) {
     assert.match(markup, new RegExp(`id="${prefix}-${field}"`), `${prefix}-${field} tồn tại`)
     const inputTag = markup.match(new RegExp(`<input[^>]*id="${prefix}-${field}"[^>]*>`))?.[0]
     assert.ok(inputTag, `tag ${prefix}-${field} khớp`)
@@ -65,7 +68,7 @@ for (const prefix of ['cs', 'mx']) {
 const wireFixture = prefix => ({
   type: makeEl(`${prefix}-type`, { value: 'PRACTICE' }),
   attempts: makeEl(`${prefix}-attempts`, { value: '0' }),
-  violations: makeEl(`${prefix}-violations`, { value: '3' })
+  violations: makeEl(`${prefix}-violations`, { value: '3', type: 'hidden' })
 })
 
 for (const prefix of ['cs', 'mx']) {
@@ -75,8 +78,8 @@ for (const prefix of ['cs', 'mx']) {
   // PRACTICE (mặc định): lần làm mở, vi phạm khóa + class
   assert.equal(f.attempts.disabled, false, `${prefix}: PRACTICE mở Số lần làm`)
   assert.equal(f.attempts.classList.contains('hw-config-locked'), false)
-  assert.equal(f.violations.disabled, true, `${prefix}: PRACTICE khóa Giới hạn vi phạm`)
-  assert.equal(f.violations.classList.contains('hw-config-locked'), true)
+  assert.equal(f.violations.disabled, false, `${prefix}: input ẩn vi phạm không bị khóa`)
+  assert.equal(f.violations.classList.contains('hw-config-locked'), false)
 
   // EXAM: lần làm = 1 và khóa, vi phạm mở
   f.type.value = 'EXAM'
@@ -84,7 +87,7 @@ for (const prefix of ['cs', 'mx']) {
   assert.equal(String(f.attempts.value), '1', `${prefix}: EXAM đặt Số lần làm = 1`)
   assert.equal(f.attempts.disabled, true, `${prefix}: EXAM khóa Số lần làm`)
   assert.equal(f.attempts.classList.contains('hw-config-locked'), true)
-  assert.equal(f.violations.disabled, false, `${prefix}: EXAM mở Giới hạn vi phạm`)
+  assert.equal(f.violations.disabled, false, `${prefix}: EXAM không đụng input ẩn vi phạm`)
   assert.equal(f.violations.classList.contains('hw-config-locked'), false)
 
   // Quay lại PRACTICE: class được gỡ sạch (toggle idempotent)
@@ -92,7 +95,7 @@ for (const prefix of ['cs', 'mx']) {
   f.type.listeners.get('change')()
   assert.equal(f.attempts.disabled, false)
   assert.equal(f.attempts.classList.contains('hw-config-locked'), false)
-  assert.equal(f.violations.classList.contains('hw-config-locked'), true)
+  assert.equal(f.violations.classList.contains('hw-config-locked'), false)
 
   assert.deepEqual(f.attempts.inlineStyleWrites, [], `${prefix}: không ghi inline style lên Số lần làm`)
   assert.deepEqual(f.violations.inlineStyleWrites, [], `${prefix}: không ghi inline style lên Giới hạn vi phạm`)

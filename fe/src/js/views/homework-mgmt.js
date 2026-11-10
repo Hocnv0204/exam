@@ -857,9 +857,6 @@ function renderHomeworkTableRows(list, tableBody, fromIndex) {
           <div style="display:flex; flex-direction:column; gap:3px; font-size:12px; color:#334155;">
             <div><i class="fa-regular fa-clock" style="color:#0284c7;"></i> <strong>${hw.durationMinutes || 45} phút</strong></div>
             <div><i class="fa-solid fa-rotate" style="color:#64748b;"></i> Lần làm: ${isExam ? '<strong>01 lần</strong>' : (hw.maxAttempts ? `Tối đa ${hw.maxAttempts} lần` : 'Không giới hạn')}</div>
-            ${isExam ? `
-              <div style="color:#dc2626; font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Tối đa ${hw.maxViolations || 3} lần vi phạm</div>
-            ` : ''}
           </div>
         </td>
         <td style="padding:12px 16px; font-size:12px; color:#334155;">

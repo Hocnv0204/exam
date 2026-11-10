@@ -185,7 +185,7 @@ function renderProctoringContent() {
     <header style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px">
       <div><a href="#homework-mgmt" class="btn-secondary" style="display:inline-block;padding:6px 12px;margin-bottom:10px">← Quay lại</a>
         <h1 style="font-size:22px;margin:0 0 6px">${escapeHTML(hw.title || 'Giám sát phòng thi')}</h1>
-        <div style="font-size:13px;color:#475569">Thời lượng: ${escapeHTML(hw.durationMinutes ?? hw.duration_minutes ?? 'Không rõ')} phút · Ngưỡng cấu hình: ${escapeHTML(hw.maxViolations ?? hw.max_violations ?? 'Không rõ')} lần</div></div>
+        <div style="font-size:13px;color:#475569">Thời lượng: ${escapeHTML(hw.durationMinutes ?? hw.duration_minutes ?? 'Không rõ')} phút</div></div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <label><input type="checkbox" id="proctor-auto-refresh" ${isAutoRefresh ? 'checked' : ''}> Tự động cập nhật (5s)</label>
         <button type="button" id="proctor-refresh-now" class="btn-secondary" style="padding:8px 14px">Làm mới</button>
@@ -237,7 +237,7 @@ function renderProProctoringContent({ hw, now, online, disconnected, submitted, 
     logsError && `Không tải được nhật ký trang ${logsPage}; dữ liệu có thể đã cũ.`
   ].filter(Boolean)
   return `<div class="ap-proctor-content">
-    <header class="ap-grade-heading"><div><a href="#homework-mgmt" class="ap-grade-back"><i class="fa-solid fa-arrow-left"></i> Quay lại bài tập</a><p>Khảo thí &amp; Giám sát</p><h1>${escapeHTML(hw.title || 'Giám sát phòng thi')}</h1><span>Thời lượng: ${escapeHTML(hw.durationMinutes ?? hw.duration_minutes ?? 'Không rõ')} phút · Ngưỡng cấu hình: ${escapeHTML(hw.maxViolations ?? hw.max_violations ?? 'Không rõ')} lần</span></div><div class="ap-proctor-controls"><label><input type="checkbox" id="proctor-auto-refresh" ${isAutoRefresh ? 'checked' : ''}> Tự động cập nhật (5s)</label><button type="button" id="proctor-refresh-now" class="btn-secondary"><i class="fa-solid fa-rotate"></i> Làm mới</button></div></header>
+    <header class="ap-grade-heading"><div><a href="#homework-mgmt" class="ap-grade-back"><i class="fa-solid fa-arrow-left"></i> Quay lại bài tập</a><p>Khảo thí &amp; Giám sát</p><h1>${escapeHTML(hw.title || 'Giám sát phòng thi')}</h1><span>Thời lượng: ${escapeHTML(hw.durationMinutes ?? hw.duration_minutes ?? 'Không rõ')} phút</span></div><div class="ap-proctor-controls"><label><input type="checkbox" id="proctor-auto-refresh" ${isAutoRefresh ? 'checked' : ''}> Tự động cập nhật (5s)</label><button type="button" id="proctor-refresh-now" class="btn-secondary"><i class="fa-solid fa-rotate"></i> Làm mới</button></div></header>
     ${errors.map(message => `<p class="ap-grade-alert" role="alert">${escapeHTML(message)}</p>`).join('')}
     <p class="ap-proctor-updated">Phiên trang ${sessionsPage}: ${lastSessionsRefresh ? formatDate(lastSessionsRefresh) : 'Chưa tải'} · Nhật ký trang ${logsPage}: ${lastLogsRefresh ? formatDate(lastLogsRefresh) : 'Chưa tải'}</p>
     <section class="ap-grade-kpis" aria-label="Chỉ số phòng thi">${[['Có tín hiệu', sessionsLoaded ? online : '—', 'is-ok'], ['Mất tín hiệu', sessionsLoaded ? disconnected : '—', 'is-warn'], ['Đã nộp', sessionsLoaded ? submitted : '—', 'is-accent'], ['Sự kiện trang này', logsLoaded ? logsList.length : '—', 'is-blue']].map(([label, value, tone]) => `<article class="${tone}"><span>${label}</span><strong>${value}</strong></article>`).join('')}</section>

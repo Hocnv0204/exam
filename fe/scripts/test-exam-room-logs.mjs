@@ -2,11 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import { setImmediate as nextTick } from 'node:timers/promises'
+import { createFocusShield, applyShieldState } from '../src/js/utils/exam-focus-shield.js'
+import { renderExamFocusShield } from '../src/js/components/exam-focus-shield.js'
 
 const source = readFileSync(new URL('../src/js/views/exam-room.js', import.meta.url), 'utf8')
   .replace(/^import .*$/gm, '')
   .replace(/export function /g, 'function ')
-  .replace(/import\.meta\.env\.VITE_SUPABASE_URL/g, 'undefined')
+  .replace(/import\.meta\.env(?:\??\.[A-Za-z0-9_]+)?/g, 'undefined')
 
 const homeworkId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const sessionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
@@ -31,23 +33,67 @@ async function scenario(responses, steps, options = {}) {
   let now = Date.now()
   const deadlineAt = new Date(now + (options.remainingMs ?? 45000)).toISOString()
   const element = id => {
-    if (!nodes.has(id)) nodes.set(id, {
-      id, style: {}, dataset: {}, textContent: '', innerHTML: '', disabled: false,
-      addEventListener(type, fn) { listeners.set(`${id}:${type}`, fn) },
-      querySelector() { return null }, querySelectorAll() { return [] },
-      closest() { return null }, classList: { add() {}, remove() {} }
-    })
+    if (!nodes.has(id)) {
+      const attributes = new Map()
+      const classes = new Set()
+      nodes.set(id, {
+        id, style: {}, dataset: {}, textContent: '', innerHTML: '', disabled: false,
+        hidden: id === 'exam-focus-shield',
+        attributes,
+        setAttribute(name, value) { attributes.set(name, String(value)) },
+        removeAttribute(name) { attributes.delete(name) },
+        hasAttribute(name) { return attributes.has(name) },
+        getAttribute(name) { return attributes.get(name) ?? null },
+        classList: {
+          add(cls) { classes.add(cls) },
+          remove(cls) { classes.delete(cls) },
+          contains(cls) { return classes.has(cls) },
+        },
+        addEventListener(type, fn) { listeners.set(`${id}:${type}`, fn) },
+        removeEventListener(type, fn) { listeners.delete(`${id}:${type}`) },
+        querySelector() { return null }, querySelectorAll() { return [] },
+        closest() { return null }
+      })
+    }
     return nodes.get(id)
   }
+  const queryMap = new Map()
+  const queryNode = selector => {
+    if (!queryMap.has(selector)) {
+      queryMap.set(selector, element(selector))
+    }
+    return queryMap.get(selector)
+  }
+  let docVisibilityState = 'visible'
+  let docHasFocus = true
   const document = {
-    hidden: false, activeElement: null,
+    get visibilityState() { return docVisibilityState },
+    set visibilityState(val) { docVisibilityState = val },
+    get hidden() { return docVisibilityState === 'hidden' },
+    set hidden(val) { docVisibilityState = val ? 'hidden' : 'visible' },
+    hasFocus() { return docHasFocus },
+    setHasFocus(val) { docHasFocus = val },
+    activeElement: null,
     body: { querySelectorAll() { return [] } },
-    getElementById: element, querySelector() { return null }, querySelectorAll() { return [] },
-    addEventListener(type, fn) { listeners.set(type, fn) }, removeEventListener() {}
+    getElementById: element,
+    querySelector(sel) { return queryNode(sel) },
+    querySelectorAll(sel) {
+      if (sel === '[data-exam-shield-timer]') return [element('exam-shield-timer-mock')]
+      if (sel === '.exam-option-card') {
+        const card = element('mock-opt-card')
+        card.dataset.qnum = '1'
+        card.dataset.optid = 'A'
+        return [card]
+      }
+      return []
+    },
+    addEventListener(type, fn) { listeners.set(type, fn) },
+    removeEventListener(type, fn) { listeners.delete(type) }
   }
   const window = {
     location: { hash: '#exam-room' },
-    addEventListener(type, fn) { listeners.set(`window:${type}`, fn) }, removeEventListener() {}
+    addEventListener(type, fn) { listeners.set(`window:${type}`, fn) },
+    removeEventListener(type, fn) { listeners.delete(`window:${type}`) }
   }
   const api = {
     initExamSession: async () => ({ success: true, sessionId, createdAt: new Date(now).toISOString(), deadlineAt,
@@ -77,6 +123,7 @@ async function scenario(responses, steps, options = {}) {
   const context = vm.createContext({
     state: { currentHomework: { homework: { id: homeworkId, durationMinutes: 45 }, questions: [] }, user: { id: 'fixture' } },
     api, document, window, localStorage, sessionStorage: storage(),
+    createFocusShield, applyShieldState, renderExamFocusShield,
     crypto: { randomUUID: () => `event-${++seq}` },
     openModal: (title, body, onConfirm, options) => { modals.push({ title, body, onConfirm, options }) },
     closeModal() {}, showToast() {}, renderMath() {}, renderMarkdown: x => x,
@@ -119,7 +166,8 @@ await scenario([], async ({ signals }) => {
 }, { resume: true })
 
 let saveCount = 0
-await scenario([], async ({ signals, advance }) => {
+await scenario([], async ({ signals, advance, listeners }) => {
+  listeners.get('mock-opt-card:click')?.()
   advance(15000)
   await nextTick()
   assert.equal(signals.filter(s => s.action === 'AUTOSAVE_RECOVERED').length, 0)
@@ -131,40 +179,70 @@ await scenario([], async ({ signals, advance }) => {
   assert.equal(signals.filter(s => s.action === 'AUTOSAVE_RECOVERED').length, 1)
 }, { autosave: async () => { if (++saveCount === 1) throw new Error('temporary save error') } })
 
-await scenario([acknowledged(1), acknowledged(1, { counted: false })], async ({ calls, listeners, document, nodes }) => {
+// (a), (b), (c), (d): Kiểm tra màn che khi hidden/blur, mở khi visible/focus, lặp 10 lần không khoá, không nộp, không gửi log vi phạm
+await scenario([], async ({ calls, signals, listeners, document, nodes, submissions, modals }) => {
+  await nextTick()
+  // (d) Vẫn gửi EXAM_STARTED khi bắt đầu bài thi
+  assert.equal(signals.length, 1)
+  assert.equal(signals[0].action, 'EXAM_STARTED')
+
+  const shieldEl = document.getElementById('exam-focus-shield')
+  const bodyEl = document.querySelector('.exam-room-body')
+  const rootEl = document.querySelector('.exam-room-layout')
+
+  // Ban đầu: chưa che
+  assert.equal(shieldEl.hidden, true)
+  assert.equal(bodyEl.hasAttribute('inert'), false)
+  assert.equal(rootEl.classList.contains('exam-shielded'), false)
+
+  // (b) Màn che bật khi hidden/blur
   document.hidden = true
   listeners.get('visibilitychange')()
   listeners.get('window:blur')()
   await Promise.resolve()
-  assert.equal(calls.length, 1, 'blur and visibility must count as one absence')
-  assert.equal(calls[0].action, 'LEAVE_TAB')
-  assert.equal(calls[0].sessionId, sessionId)
-  assert.ok(calls[0].sessionToken)
-  assert.ok(calls[0].eventId)
+
+  // (a) Không gọi submitExamLog với action vi phạm nào
+  assert.equal(calls.length, 0, 'hidden/blur không được gửi action vi phạm lên submitExamLog')
+  // (b) Màn che bật: shieldEl.hidden = false, bodyEl có inert + aria-hidden, rootEl có class exam-shielded
+  assert.equal(shieldEl.hidden, false, 'shield phải hiển thị (hidden = false)')
+  assert.equal(bodyEl.hasAttribute('inert'), true, 'vùng đề phải có inert')
+  assert.equal(bodyEl.getAttribute('aria-hidden'), 'true')
+  assert.equal(rootEl.classList.contains('exam-shielded'), true)
+
+  // Quay lại tab: visible và có focus -> mở che
   document.hidden = false
-  await listeners.get('window:focus')()
-  assert.equal(calls[1].action, 'RETURN_TAB')
-  assert.equal(nodes.get('exam-violations-count').textContent, '1')
-})
+  listeners.get('visibilitychange')()
+  listeners.get('window:focus')()
+  await Promise.resolve()
 
-await scenario([new Error('offline'), acknowledged(1)], async ({ calls, listeners, modals, nodes }) => {
-  listeners.get('window:blur')()
-  await nextTick()
-  assert.equal(nodes.get('exam-violations-count').textContent, '0', 'failed log must not increment counter')
-  assert.equal(modals.at(-1).title, 'CHƯA XÁC NHẬN NHẬT KÝ')
-  await modals.at(-1).onConfirm()
-  assert.equal(calls.length, 2)
-  assert.equal(calls[0].eventId, calls[1].eventId, 'retry must reuse the original event ID')
-})
+  assert.equal(shieldEl.hidden, true, 'shield phải ẩn (hidden = true)')
+  assert.equal(bodyEl.hasAttribute('inert'), false, 'vùng đề không còn inert')
+  assert.equal(bodyEl.hasAttribute('aria-hidden'), false)
+  assert.equal(rootEl.classList.contains('exam-shielded'), false)
+  assert.equal(calls.length, 0, 'quay lại không gửi RETURN_TAB')
 
-await scenario([acknowledged(3, { autoSubmitPending: true }), acknowledged(3, { autoSubmitted: true, submissionId: sessionId })], async ({ calls, listeners, modals, nodes }) => {
-  listeners.get('window:blur')()
-  await nextTick()
-  assert.equal(modals.at(-1).title, 'ĐANG XÁC MINH BÀI THI')
-  assert.equal(nodes.get('exam-violations-count').textContent, '3')
-  await modals.at(-1).onConfirm()
-  assert.equal(calls[0].eventId, calls[1].eventId)
-  assert.equal(modals.at(-1).title, 'ĐÌNH CHỈ BÀI THI DO VI PHẠM')
+  // (c) Lặp 10 lần không khoá, không nộp bài, không popup cảnh báo
+  for (let i = 0; i < 10; i++) {
+    document.hidden = true
+    listeners.get('visibilitychange')()
+    listeners.get('window:blur')()
+    await Promise.resolve()
+
+    assert.equal(shieldEl.hidden, false)
+    assert.equal(bodyEl.hasAttribute('inert'), true)
+
+    document.hidden = false
+    listeners.get('visibilitychange')()
+    listeners.get('window:focus')()
+    await Promise.resolve()
+
+    assert.equal(shieldEl.hidden, true)
+    assert.equal(bodyEl.hasAttribute('inert'), false)
+  }
+
+  assert.equal(calls.length, 0, 'sau 10 lần rời và quay lại, không có call log vi phạm')
+  assert.equal(submissions.length, 0, 'sau 10 lần không bị tự nộp bài')
+  assert.equal(modals.length, 1, 'không có popup cảnh báo vi phạm hay đình chỉ')
 })
 
 const serverEssay = [{ questionId: 'essay-1', givenAnswer: { type: 'ESSAY', value: 'Bản máy chủ' } }]
@@ -184,7 +262,7 @@ await scenario([], async ({ advance, nodes, submissions, modals }) => {
   advance(6000)
   await nextTick()
   assert.equal(submissions.length, 1)
-  assert.equal(modals.at(-1).title, 'BÀI THI ĐÃ HẾT HẠN')
+  assert.equal(modals.at(-1).title, 'PHIÊN THI ĐÃ HẾT GIỜ')
   assert.equal(nodes.get('exam-timer-display').textContent, '00:00')
   advance(6000)
   assert.equal(submissions.length, 1, 'EXAM_EXPIRED must not offer a retry')
@@ -200,7 +278,8 @@ await scenario([], async ({ advance, submissions, modals }) => {
 }, { remainingMs: 5000, submitError: 'network unavailable' })
 
 let finishAutosave
-await scenario([], async ({ advance, submissions }) => {
+await scenario([], async ({ advance, submissions, listeners }) => {
+  listeners.get('mock-opt-card:click')?.()
   advance(15000) // autosave started but not acknowledged
   await nextTick()
   advance(2000)

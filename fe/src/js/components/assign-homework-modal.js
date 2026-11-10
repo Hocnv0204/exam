@@ -198,20 +198,14 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
             </div>
           </div>
 
-          <!-- Thời gian, vi phạm & Lần làm tối đa (giống form tạo bài tập) -->
-          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+          <!-- Thời gian & Lần làm tối đa (giống form tạo bài tập) -->
+          <input type="hidden" id="assign-custom-violations" value="3">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div>
               <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
                 <i class="fa-regular fa-clock" style="color:#0284c7;"></i> Thời gian (Phút)
               </label>
               <input type="number" id="assign-custom-duration" class="form-input" value="${hwDuration}" min="5" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-            </div>
-
-            <div>
-              <label style="font-size:12px; font-weight:600; color:#334155; display:block; margin-bottom:4px;">
-                <i class="fa-solid fa-triangle-exclamation" style="color:#64748b;"></i> Giới hạn vi phạm
-              </label>
-              <input type="number" id="assign-custom-violations" class="form-input ${!isExam ? 'hw-config-locked' : ''}" value="${isExam ? 3 : ''}" min="1" max="10" placeholder="${!isExam ? 'Không áp dụng' : '3'}" style="padding:8px 10px; font-size:13px; width:100%; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;" ${!isExam ? 'disabled title="Bài luyện tập không áp dụng giới hạn vi phạm"' : ''}>
             </div>
 
             <div>
@@ -358,15 +352,8 @@ export async function openAssignHomeworkModal(homework, onSuccess = null) {
     }
   })
 
-  // Coupling giống form tạo bài tập: bài thi thì khóa lần làm, mở vi phạm và ngược lại
-  const assignViolationsInput = document.getElementById('assign-custom-violations')
+  // Coupling giống form tạo bài tập: bài thi thì khóa lần làm.
   const assignAttemptsInput = document.getElementById('assign-custom-attempts')
-  if (assignViolationsInput) {
-    assignViolationsInput.disabled = !isExam
-    assignViolationsInput.classList.toggle('hw-config-locked', !isExam)
-    assignViolationsInput.title = !isExam ? 'Bài luyện tập không áp dụng giới hạn vi phạm' : ''
-    if (!isExam) assignViolationsInput.value = ''
-  }
   if (assignAttemptsInput) {
     assignAttemptsInput.disabled = isExam
     assignAttemptsInput.classList.toggle('hw-config-locked', isExam)

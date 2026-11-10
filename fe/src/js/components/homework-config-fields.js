@@ -2,7 +2,7 @@
  * Partial dùng chung: cụm cấu hình bài tập giống hệt form tạo bài tập (create-hw.js).
  * - Thời gian (phút), mặc định 90
  * - Lần làm tối đa (0 = không giới hạn), mặc định 0
- * - Giới hạn vi phạm, mặc định 3
+ * - maxViolations được giữ bằng input ẩn, mặc định 3, để tương thích payload
  * - Hạn chót nộp bài: ngày + giờ + phút + nút xóa (không bắt buộc)
  * - Hiển thị đáp án & giải thích sau khi nộp (mặc định tắt)
  *
@@ -25,14 +25,11 @@ export function renderHomeworkConfigFields(prefix, opts = {}) {
   }).join('')
 
   return `
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+    <input type="hidden" id="${prefix}-violations" value="${maxViolations}">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <div>
         <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Thời gian (Phút)</label>
         <input type="number" id="${prefix}-duration" value="${duration}" min="5" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff;">
-      </div>
-      <div>
-        <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Giới hạn vi phạm</label>
-        <input type="number" id="${prefix}-violations" value="${maxViolations}" min="1" max="10" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 12px; font-size:13px; background:#ffffff;">
       </div>
       <div>
         <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Số lần làm (0 = không giới hạn)</label>
@@ -79,8 +76,8 @@ export function bindHomeworkConfigFields(prefix) {
 }
 
 /**
- * Coupling Loại bài tập <-> Số lần làm / Giới hạn vi phạm, giống create-hw.js:
- * EXAM => lần làm = 1 (khóa), mở vi phạm; PRACTICE => mở lần làm, khóa vi phạm.
+ * Coupling Loại bài tập <-> Số lần làm, giống create-hw.js.
+ * EXAM => lần làm = 1 (khóa); PRACTICE => mở lần làm.
  */
 export function bindHomeworkTypeCoupling(typeSelectId, attemptsInputId, violationsInputId) {
   const typeSelect = document.getElementById(typeSelectId)
@@ -101,7 +98,7 @@ export function bindHomeworkTypeCoupling(typeSelectId, attemptsInputId, violatio
     const isExam = typeSelect.value === 'EXAM'
     if (isExam) attemptsInput.value = 1
     setLocked(attemptsInput, isExam) // EXAM => đúng 1 lần làm (khóa)
-    if (violationsInput) setLocked(violationsInput, !isExam) // PRACTICE => khóa giới hạn vi phạm
+    if (violationsInput && violationsInput.type !== 'hidden') setLocked(violationsInput, !isExam)
   }
   typeSelect.addEventListener('change', handleTypeChange)
   handleTypeChange()

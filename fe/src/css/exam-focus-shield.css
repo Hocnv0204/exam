@@ -1,0 +1,261 @@
+/* Full-screen exam focus shield. Visibility is controlled by the exam room. */
+.exam-focus-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 24px;
+  overflow: auto;
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: center;
+}
+
+.exam-focus-shield[hidden] {
+  display: none !important;
+}
+
+.exam-focus-shield__banner {
+  position: relative;
+  width: min(100%, 440px);
+  box-sizing: border-box;
+  padding: 36px 32px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 20px 50px rgb(15 23 42 / 18%);
+  animation: exam-focus-shield-enter 220ms ease-out both;
+}
+
+.exam-focus-shield__illustration {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 124px;
+  height: 124px;
+  margin: 0 auto 20px;
+}
+
+.exam-focus-shield__illustration::before {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  content: '';
+  animation: exam-focus-shield-pulse 1.8s ease-in-out infinite;
+}
+
+.exam-focus-shield__mascot,
+.exam-focus-shield__icon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: exam-focus-shield-bob 1.8s ease-in-out infinite;
+}
+
+.exam-focus-shield__mascot .m-mascot {
+  display: block;
+  max-width: 120px;
+  height: auto;
+}
+
+.exam-focus-shield__icon {
+  width: 94px;
+  height: 94px;
+  border-radius: 50%;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 42px;
+}
+
+.exam-focus-shield__title {
+  margin: 0;
+  color: inherit;
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.exam-focus-shield__description {
+  margin: 12px 0 0;
+  color: #334155;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.exam-focus-shield__timer {
+  margin: 24px 0 0;
+  color: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.exam-focus-shield__timer strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: clamp(28px, 8vw, 32px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+  line-height: 1.15;
+}
+
+.exam-focus-shield__note {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Classic navy student skin. */
+.app-layout.navy-student .exam-focus-shield,
+.app-layout.dark .exam-focus-shield,
+.exam-room-layout.navy-student .exam-focus-shield,
+.exam-room-layout.dark .exam-focus-shield {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.app-layout.navy-student .exam-focus-shield__banner,
+.app-layout.dark .exam-focus-shield__banner,
+.exam-room-layout.navy-student .exam-focus-shield__banner,
+.exam-room-layout.dark .exam-focus-shield__banner {
+  border-color: #334155;
+  background: #1e293b;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 42%);
+}
+
+.app-layout.navy-student .exam-focus-shield__illustration::before,
+.app-layout.dark .exam-focus-shield__illustration::before,
+.exam-room-layout.navy-student .exam-focus-shield__illustration::before,
+.exam-room-layout.dark .exam-focus-shield__illustration::before {
+  background: #334155;
+}
+
+.app-layout.navy-student .exam-focus-shield__icon,
+.app-layout.dark .exam-focus-shield__icon,
+.exam-room-layout.navy-student .exam-focus-shield__icon,
+.exam-room-layout.dark .exam-focus-shield__icon {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.app-layout.navy-student .exam-focus-shield__description,
+.app-layout.dark .exam-focus-shield__description,
+.exam-room-layout.navy-student .exam-focus-shield__description,
+.exam-room-layout.dark .exam-focus-shield__description {
+  color: #cbd5e1;
+}
+
+.app-layout.navy-student .exam-focus-shield__timer strong,
+.app-layout.dark .exam-focus-shield__timer strong,
+.exam-room-layout.navy-student .exam-focus-shield__timer strong,
+.exam-room-layout.dark .exam-focus-shield__timer strong {
+  color: #f8fafc;
+}
+
+.app-layout.navy-student .exam-focus-shield__note,
+.app-layout.dark .exam-focus-shield__note,
+.exam-room-layout.navy-student .exam-focus-shield__note,
+.exam-room-layout.dark .exam-focus-shield__note {
+  color: #94a3b8;
+}
+
+/* Mochi student themes inherit their colours from the active --m-* tokens. */
+html[data-ui="mochi"] .exam-focus-shield {
+  background: var(--m-bg);
+  color: var(--m-ink);
+  font-family: var(--m-font-body, system-ui, sans-serif);
+}
+
+html[data-ui="mochi"] .exam-focus-shield__banner {
+  border: 2px solid var(--m-line);
+  border-radius: var(--m-radius-xl);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow-lg);
+}
+
+html[data-ui="mochi"] .exam-focus-shield__illustration::before {
+  background: var(--m-accent-soft);
+}
+
+html[data-ui="mochi"] .exam-focus-shield__title {
+  font-family: var(--m-font-heading, inherit);
+}
+
+html[data-ui="mochi"] .exam-focus-shield__description {
+  color: var(--m-muted);
+}
+
+html[data-ui="mochi"] .exam-focus-shield__timer strong {
+  color: var(--m-accent);
+  font-family: var(--m-font-heading, inherit);
+}
+
+html[data-ui="mochi"] .exam-focus-shield__note {
+  color: var(--m-muted);
+}
+
+body:has(.exam-shielded) {
+  overflow: hidden;
+}
+
+@keyframes exam-focus-shield-enter {
+  from { opacity: 0; transform: scale(.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes exam-focus-shield-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes exam-focus-shield-pulse {
+  0%, 100% { opacity: .65; transform: scale(.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@media (max-width: 400px) {
+  .exam-focus-shield {
+    padding: 16px;
+  }
+
+  .exam-focus-shield__banner {
+    padding: 28px 20px;
+  }
+
+  .exam-focus-shield__illustration {
+    width: 108px;
+    height: 108px;
+    margin-bottom: 16px;
+  }
+
+  .exam-focus-shield__description {
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exam-focus-shield__banner,
+  .exam-focus-shield__illustration::before,
+  .exam-focus-shield__mascot,
+  .exam-focus-shield__icon {
+    animation: none !important;
+  }
+}
+
+@media print {
+  .exam-room-layout,
+  .exam-room-body,
+  .split-homework-layout {
+    display: none !important;
+  }
+}

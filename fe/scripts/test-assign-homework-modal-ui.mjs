@@ -13,11 +13,12 @@ assert.doesNotMatch(jsSource, /assignViolationsInput\.style\.backgroundColor/, '
 assert.doesNotMatch(jsSource, /assignAttemptsInput\.style\.backgroundColor/, 'Không gán style.backgroundColor inline cho ô lần làm')
 
 // 2. Class hw-config-locked được toggle đúng cách
-assert.match(jsSource, /assignViolationsInput\.classList\.toggle\('hw-config-locked',\s*!isExam\)/, 'Toggle class hw-config-locked cho violations')
 assert.match(jsSource, /assignAttemptsInput\.classList\.toggle\('hw-config-locked',\s*isExam\)/, 'Toggle class hw-config-locked cho attempts')
 
 // 3. Markup ban đầu có class hw-config-locked và placeholder/title hợp lý
-assert.match(jsSource, /id="assign-custom-violations"[^>]*hw-config-locked/, 'Template violations có class hw-config-locked khi !isExam')
+// Spec 001: ô Giới hạn vi phạm đã bỏ khỏi UI, chỉ còn input ẩn giữ payload maxViolations.
+assert.match(jsSource, /<input type="hidden" id="assign-custom-violations" value="3">/, 'Violations là input ẩn')
+assert.doesNotMatch(jsSource, /Giới hạn vi phạm/, 'Không còn nhãn Giới hạn vi phạm')
 assert.match(jsSource, /id="assign-custom-attempts"[^>]*hw-config-locked/, 'Template attempts có class hw-config-locked khi isExam')
 assert.doesNotMatch(jsSource, /id="assign-deadline-clear-btn"[^>]*onmouseover/, 'Nút clear deadline không còn inline onmouseover')
 assert.doesNotMatch(jsSource, /id="assign-deadline-clear-btn"[^>]*onmouseout/, 'Nút clear deadline không còn inline onmouseout')

@@ -1,6 +1,9 @@
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/exam-room.css')
+  import('../../css/exam-focus-shield.css')
 }
+import { createFocusShield, applyShieldState } from '../utils/exam-focus-shield.js'
+import { renderExamFocusShield } from '../components/exam-focus-shield.js'
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
@@ -370,6 +373,7 @@ function renderInteractiveSolverView(hw, parsedQuestions, isTrial, isExpired, de
 
   return `
     <div class="app-layout">
+      ${hw?.type === 'EXAM' ? renderExamFocusShield({ mochi: false }) : ''}
       ${renderSidebar('homework-attempt')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -787,6 +791,7 @@ export function renderClassicHomeworkSolverView() {
   }
   return `
     <div class="app-layout">
+      ${hw?.type === 'EXAM' ? renderExamFocusShield({ mochi: false }) : ''}
       ${renderSidebar('homework-attempt')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -1107,6 +1112,7 @@ function renderMochiInteractiveSolverView(hw, parsedQuestions, isTrial, isExpire
 
   return `
     <div class="app-layout m-solver-layout">
+      ${hw?.type === 'EXAM' ? renderExamFocusShield({ mochi: true }) : ''}
       ${renderSidebar('homework-attempt')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -1257,6 +1263,7 @@ function renderMochiInteractiveSolverView(hw, parsedQuestions, isTrial, isExpire
 function renderMochiPdfSolverView(hw, isTrial, isExpired, deadline, mcQuestions, tfQuestions, saQuestions) {
   return `
     <div class="app-layout m-solver-layout">
+      ${hw?.type === 'EXAM' ? renderExamFocusShield({ mochi: true }) : ''}
       ${renderSidebar('homework-attempt')}
       <div class="main-content">
         ${renderNavbar('Nền tảng / Bảng điều khiển')}
@@ -1636,6 +1643,7 @@ export function bindHomeworkSolverEvents() {
   // Reset trạng thái nháp cho lượt mở bài này
   const isTrialMode = window.location.hash.includes('trial=true') || !state.token
   solverSubmitted = false
+  let examShield = null
   disposeHomeworkAutosave()
   draftSyncEnabled = Boolean(
     state.token && state.user?.role === 'STUDENT' && !isTrialMode && hw.type !== 'EXAM'
@@ -2192,6 +2200,7 @@ export function bindHomeworkSolverEvents() {
   const performSubmit = async (guestName = '', guestPhone = '') => {
     if (isSubmitting) return
     isSubmitting = true
+    if (examShield) examShield.sync()
 
     // Close any open modals immediately and prevent further edits
     closeModal()
@@ -2236,6 +2245,7 @@ export function bindHomeworkSolverEvents() {
       
       // Đánh dấu đã nộp để tắt cảnh báo thoát + không lưu nháp nữa
       solverSubmitted = true
+      if (examShield) examShield.sync()
       disposeHomeworkAutosave()
       // Clear local draft storage on successful submit
       clearDraftStorage(hw.id)
@@ -2288,6 +2298,7 @@ export function bindHomeworkSolverEvents() {
       }
     } catch (err) {
       isSubmitting = false
+      if (examShield) examShield.sync()
       console.error('[HomeworkSolver] Submit failed:', err)
       showToast(`Nộp bài thất bại: ${err.message}`, 'error')
 
@@ -2355,17 +2366,25 @@ export function bindHomeworkSolverEvents() {
   solverTimeLeft = timeLeftSeconds
 
   const updateTimerDisplay = () => {
-    const timerDisplay = document.getElementById('exam-timer-display')
-    if (!timerDisplay) return
     const safeSeconds = Math.max(0, timeLeftSeconds)
     const minutes = Math.floor(safeSeconds / 60)
     const seconds = safeSeconds % 60
-    timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-    if (safeSeconds <= 300) {
-      timerDisplay.style.color = '#ef4444'
-      timerDisplay.style.fontWeight = '700'
+    const timeText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+
+    const timerDisplay = document.getElementById('exam-timer-display')
+    if (timerDisplay) {
+      timerDisplay.textContent = timeText
+      if (safeSeconds <= 300) {
+        timerDisplay.style.color = '#ef4444'
+        timerDisplay.style.fontWeight = '700'
+      }
     }
+
+    document.querySelectorAll('[data-exam-shield-timer]').forEach(el => {
+      el.textContent = timeText
+    })
   }
+  updateTimerDisplay()
 
   const startTimer = () => {
     updateTimerDisplay()
@@ -2413,6 +2432,7 @@ export function bindHomeworkSolverEvents() {
     if (timerInterval) clearInterval(timerInterval)
     if (heartbeatInterval) clearInterval(heartbeatInterval)
     if (autosaveInterval) clearInterval(autosaveInterval)
+    if (examShield) examShield.detach()
     window.removeEventListener('hashchange', hashChangeListener)
   }
   window.addEventListener('hashchange', hashChangeListener)
@@ -2420,63 +2440,24 @@ export function bindHomeworkSolverEvents() {
   // EXAM MODE tracking & instructions popup (Only for enrolled students)
   if (hw.type === 'EXAM' && !isTrial) {
     let examStarted = false
-    let isLeavingOrFocusLost = false
-    let currentViolationsCount = 0
-    let maxViolationsAllowed = hw.maxViolations || hw.max_violations || 3
 
-    const handleVisibilityChange = async () => {
-      if (!examStarted) return
-      if (document.hidden) {
-        isLeavingOrFocusLost = true
-        logCheatAttempt('LEAVE_TAB')
-      } else {
-        if (isLeavingOrFocusLost) {
-          isLeavingOrFocusLost = false
-          await logCheatAttempt('RETURN_TAB')
-          openModal(
-            'CẢNH BÁO GIAN LẬN',
-            `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
-               <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
-               Hệ thống phát hiện bạn vừa chuyển thẻ (tab) hoặc thu nhỏ cửa sổ.<br>
-               Hành động này đã được ghi lại trong nhật ký giám sát.<br><br>
-               <span style="background:#fee2e2; border:1px solid #fecaca; padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700; color:#991b1b; display:inline-block;">
-                 Số lần vi phạm: <strong style="font-size:16px; color:#dc2626;">${currentViolationsCount}</strong> / ${maxViolationsAllowed} lần
-               </span>
-             </p>`,
-            () => true
-          )
-        }
-      }
-    }
-
-    const handleBlur = () => {
-      if (!examStarted) return
-      if (!isLeavingOrFocusLost) {
-        isLeavingOrFocusLost = true
-        logCheatAttempt('LEAVE_TAB')
-      }
-    }
-
-    const handleFocus = () => {
-      if (!examStarted) return
-      if (isLeavingOrFocusLost && !document.hidden) {
-        isLeavingOrFocusLost = false
-        logCheatAttempt('RETURN_TAB').then(() => {
-          openModal(
-            'CẢNH BÁO GIAN LẬN',
-            `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
-               <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
-               Hệ thống phát hiện bạn vừa rời khỏi màn hình làm bài (mở ứng dụng khác / thu nhỏ trình duyệt).<br>
-               Hành động này đã được ghi lại trong nhật ký giám sát.<br><br>
-               <span style="background:#fee2e2; border:1px solid #fecaca; padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700; color:#991b1b; display:inline-block;">
-                 Số lần vi phạm: <strong style="font-size:16px; color:#dc2626;">${currentViolationsCount}</strong> / ${maxViolationsAllowed} lần
-               </span>
-             </p>`,
-            () => true
-          )
+    examShield = createFocusShield({
+      win: window,
+      doc: document,
+      isActive: () => examStarted && !solverSubmitted && !isSubmitting && timeLeftSeconds > 0,
+      onChange: (shielded) => {
+        applyShieldState({
+          shielded,
+          shieldEl: document.getElementById('exam-focus-shield'),
+          contentEls: [
+            document.querySelector('.main-content'),
+            document.querySelector('.sidebar'),
+          ].filter(Boolean),
+          rootEl: document.querySelector('.app-layout'),
         })
-      }
-    }
+      },
+    })
+    examShield.attach()
 
     const handleBeforeUnload = (e) => {
       if (examStarted) {
@@ -2490,12 +2471,10 @@ export function bindHomeworkSolverEvents() {
       if (!examStarted) return
       e.preventDefault()
       showToast('Không được phép sao chép nội dung trong phòng thi!', 'error')
-      logCheatAttempt('COPY')
     }
 
     const handlePaste = () => {
       if (!examStarted) return
-      logCheatAttempt('PASTE')
     }
 
     const handleContextMenu = (e) => {
@@ -2516,12 +2495,12 @@ export function bindHomeworkSolverEvents() {
         'CẢNH BÁO RỜI PHÒNG THI',
         `<p style="font-size:14px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
            <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; margin-bottom:12px;"></i><br>
-           Bạn đang trong bài thi chính thức! Rời khỏi phòng thi lúc này sẽ <strong>ghi nhận 01 lần vi phạm (Rời phòng thi)</strong>.<br>
+           Bạn đang trong bài thi chính thức! Thời gian làm bài vẫn tiếp tục chạy nếu bạn rời đi.<br>
            Bạn có chắc chắn muốn thoát ra không?
          </p>`,
-        async () => {
+        () => {
           examStarted = false
-          await logCheatAttempt('LEAVE_EXAM')
+          if (examShield) examShield.sync()
           window.removeEventListener('beforeunload', handleBeforeUnload)
           window.location.hash = targetHash
           return true
@@ -2530,9 +2509,6 @@ export function bindHomeworkSolverEvents() {
     }
 
     // Bind event listeners
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('blur', handleBlur)
-    window.addEventListener('focus', handleFocus)
     window.addEventListener('beforeunload', handleBeforeUnload)
     document.addEventListener('copy', handleCopy)
     document.addEventListener('paste', handlePaste)
@@ -2545,9 +2521,7 @@ export function bindHomeworkSolverEvents() {
     })
 
     const cleanupTracking = () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('focus', handleFocus)
+      if (examShield) examShield.detach()
       window.removeEventListener('beforeunload', handleBeforeUnload)
       document.removeEventListener('copy', handleCopy)
       document.removeEventListener('paste', handlePaste)
@@ -2558,34 +2532,6 @@ export function bindHomeworkSolverEvents() {
       window.removeEventListener('hashchange', cleanupTracking)
     }
     window.addEventListener('hashchange', cleanupTracking)
-
-    const logCheatAttempt = async (actionText) => {
-      try {
-        const res = await api.submitExamLog({ homeworkId: hw.id, action: actionText })
-        if (res) {
-          if (res.currentViolations !== undefined) currentViolationsCount = res.currentViolations
-          if (res.maxViolations !== undefined) maxViolationsAllowed = res.maxViolations
-
-          if (res.autoSubmitted) {
-            if (timerInterval) clearInterval(timerInterval)
-            if (heartbeatInterval) clearInterval(heartbeatInterval)
-            if (autosaveInterval) clearInterval(autosaveInterval)
-            
-            openModal(
-              'ĐÌNH CHỈ THI',
-              `<p style="font-size:15px; color:#ef4444; line-height:1.6; margin:0; text-align:center;">
-                 <i class="fa-solid fa-ban" style="font-size:48px; margin-bottom:16px;"></i><br>
-                 Hệ thống đã tự động thu bài của bạn do <strong>vi phạm quy chế thi quá số lần cho phép (${currentViolationsCount}/${maxViolationsAllowed} lần)</strong>.
-               </p>`,
-              () => {
-                window.location.hash = '#assignment-review'
-                return true
-              }
-            )
-          }
-        }
-      } catch(e) {}
-    }
 
     const startHeartbeat = () => {
       heartbeatInterval = setInterval(async () => {
@@ -2609,25 +2555,24 @@ export function bindHomeworkSolverEvents() {
     }
 
     // Show initial Exam Rules Modal before starting
-    const maxVio = hw.maxViolations || hw.max_violations || 3
     const examRulesBody = `
       <div style="display:flex; flex-direction:column; gap:16px;">
         <div style="display:flex; align-items:center; gap:12px; background:#fef2f2; border:1px solid #fee2e2; padding:14px 16px; border-radius:12px; color:#991b1b;">
           <i class="fa-solid fa-shield-cat" style="font-size:32px; color:#ef4444; flex-shrink:0;"></i>
           <div style="font-size:13px; line-height:1.5;">
-            Đây là <strong>Bài thi chính thức</strong> được giám sát bằng hệ thống chống gian lận tự động. Vui lòng đọc kỹ các quy định dưới đây trước khi bắt đầu:
+            Đây là <strong>Bài thi chính thức</strong>. Vui lòng đọc kỹ các quy chế dưới đây trước khi bắt đầu:
           </div>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; color:#334155; background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0;">
           <div style="display:flex; align-items:flex-start; gap:10px;">
             <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
-            <div><strong>Cảnh báo rời khỏi màn hình thi:</strong> Không chuyển tab, không mở ứng dụng khác, không thu nhỏ trình duyệt. Vi phạm quá <strong>${maxVio} lần</strong> hệ thống sẽ <strong>tự động thu bài & đình chỉ thi</strong>.</div>
+            <div><strong>Luôn ở trong màn hình thi:</strong> Nếu chuyển tab, mở ứng dụng khác hoặc thu nhỏ trình duyệt, đề thi sẽ bị che lại cho tới khi bạn quay về. Đồng hồ vẫn tiếp tục chạy.</div>
           </div>
           
           <div style="display:flex; align-items:flex-start; gap:10px;">
             <i class="fa-solid fa-ban" style="color:#ef4444; margin-top:2px; font-size:16px; flex-shrink:0;"></i>
-            <div><strong>Cấm Sao chép & Dán (Copy / Paste):</strong> Thao tác copy, paste và chuột phải đều bị vô hiệu hóa và ghi lại nhật ký vi phạm.</div>
+            <div><strong>Cấm Sao chép & Dán (Copy/Paste):</strong> Thao tác copy, chuột phải và phím tắt đều bị khóa.</div>
           </div>
 
           <div style="display:flex; align-items:flex-start; gap:10px;">
@@ -2672,6 +2617,7 @@ export function bindHomeworkSolverEvents() {
         }
         
         examStarted = true
+        if (examShield) examShield.sync()
         startTimer()
         startHeartbeat()
         startAutosave()
