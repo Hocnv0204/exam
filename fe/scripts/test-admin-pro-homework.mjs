@@ -222,15 +222,15 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proCreate, /class="[^"]*ap-hw-breadcrumb[^"]*"/, 'Breadcrumb đường dẫn')
   assert.match(proCreate, /class="[^"]*ap-create-hw-hero[^"]*"/, 'Hero card tạo bài tập')
 
-  // Stepper 5 bước rõ ràng như prototype
-  assert.match(proCreate, /id="hw-stepper-bar"/, 'Thanh stepper 5 bước')
+  // Stepper 4 bước (đáp án & sơ đồ câu hỏi gộp vào bước 2)
+  assert.match(proCreate, /id="hw-stepper-bar"/, 'Thanh stepper 4 bước')
   assert.match(proCreate, /data-step="1"/, 'Nút bước 1')
   assert.match(proCreate, /data-step="2"/, 'Nút bước 2')
   assert.match(proCreate, /data-step="3"/, 'Nút bước 3')
   assert.match(proCreate, /data-step="4"/, 'Nút bước 4')
-  assert.match(proCreate, /data-step="5"/, 'Nút bước 5')
+  assert.doesNotMatch(proCreate, /data-step="5"/, 'Không còn bước 5')
 
-  // 5 Step Panels
+  // 4 Step Panels
   assert.match(proCreate, /data-step-panel="1"/, 'Panel Bước 1: Thông tin cơ bản')
   assert.match(proCreate, /id="hw-title"/, 'Input tên bài tập')
   assert.match(proCreate, /id="hw-type"/, 'Select loại bài')
@@ -245,8 +245,10 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proCreate, /id="hw-markdown-input"/, 'Textarea nhập Markdown')
   assert.match(proCreate, /id="interactive-preview-container"/, 'Khung xem trước câu hỏi tương tác')
 
-  assert.match(proCreate, /data-step-panel="3"/, 'Panel Bước 3: Ma trận đáp án & Điểm')
-  assert.match(proCreate, /id="hw-question-map"/, 'Sơ đồ câu hỏi')
+  // Đáp án & sơ đồ câu hỏi nằm trong panel bước 2
+  const step2Panel = proCreate.slice(proCreate.indexOf('data-step-panel="2"'), proCreate.indexOf('data-step-panel="3"'))
+  assert.match(step2Panel, /id="hw-question-map"/, 'Sơ đồ câu hỏi nằm trong bước 2')
+  assert.match(step2Panel, /id="answer-matrix-container"/, 'Ma trận đáp án nằm trong bước 2')
   assert.match(proCreate, /id="cfg-mc-count"/, 'Cấu hình số câu trắc nghiệm ABCD')
   assert.match(proCreate, /id="cfg-tf-count"/, 'Cấu hình số câu đúng sai')
   assert.match(proCreate, /id="cfg-sa-count"/, 'Cấu hình số câu trả lời ngắn')
@@ -256,7 +258,7 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proCreate, /id="import-answers-btn"/, 'Nút nhập đáp án JSON')
   assert.match(proCreate, /id="answer-matrix-container"/, 'Ma trận đáp án')
 
-  assert.match(proCreate, /data-step-panel="4"/, 'Panel Bước 4: Phòng thi & Deadline')
+  assert.match(proCreate, /data-step-panel="3"/, 'Panel Bước 3: Phòng thi & Deadline')
   assert.match(proCreate, /id="hw-duration"/, 'Input thời lượng thi')
   assert.match(proCreate, /id="hw-max-attempts"/, 'Input số lần làm bài')
   assert.match(proCreate, /id="hw-max-violations"/, 'Input giới hạn vi phạm')
@@ -266,7 +268,8 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proCreate, /id="hw-deadline-minute"/, 'Select phút hạn chót')
   assert.match(proCreate, /id="hw-deadline-clear-btn"/, 'Nút xóa hạn chót')
 
-  assert.match(proCreate, /data-step-panel="5"/, 'Panel Bước 5: Giao lớp & Hoàn tất')
+  assert.match(proCreate, /data-step-panel="4"/, 'Panel Bước 4: Giao lớp & Hoàn tất')
+  assert.doesNotMatch(proCreate, /data-step-panel="5"/, 'Không còn panel bước 5')
   assert.match(proCreate, /id="btn-assign-select-all"/, 'Nút chọn tất cả học sinh')
   assert.match(proCreate, /id="btn-assign-deselect-all"/, 'Nút bỏ chọn học sinh')
   assert.match(proCreate, /id="assign-selected-count"/, 'Badge số học sinh được chọn')

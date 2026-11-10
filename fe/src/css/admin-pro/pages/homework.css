@@ -509,7 +509,7 @@ html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-pagination-wrap {
 
 
 /* ==========================================================================
-   2. TẠO & SỬA BÀI TẬP (CreateHomework Pro - Quy trình 5 bước)
+   2. TẠO & SỬA BÀI TẬP (CreateHomework Pro - Quy trình 4 bước)
    ========================================================================== */
 
 html[data-admin-ui="pro"] .ap-create-homework .content-body.ap-create-hw-body {
@@ -624,10 +624,10 @@ html[data-admin-ui="pro"] .ap-create-homework .ap-btn-hero-cancel:hover {
   border-color: var(--ap-ink) !important;
 }
 
-/* --- Stepper 5 bước --- */
+/* --- Stepper 4 bước --- */
 html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1441,7 +1441,7 @@ html[data-admin-ui="pro"][data-theme="dark"] .ap-create-homework :is(code, .kate
   }
 
   html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   html[data-admin-ui="pro"] .ap-create-homework .ap-step4-grid {
@@ -1550,4 +1550,26 @@ html[data-admin-ui="pro"][data-theme="dark"] .ap-create-homework :is(code, .kate
     flex: 1 1 auto;
     justify-content: center;
   }
+}
+
+/* Tiêu đề phụ "Đáp án & Sơ đồ câu hỏi" trong bước 2 (gộp từ bước 3 cũ) */
+html[data-admin-ui="pro"] .ap-create-homework .ap-step-subheader {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 2px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-step-subheading {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ap-font-heading);
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-step-subheading i {
+  color: var(--ap-accent);
 }

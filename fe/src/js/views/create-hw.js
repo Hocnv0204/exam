@@ -1069,7 +1069,7 @@ export function renderProCreateHwView() {
           <section class="ap-create-hw-hero" aria-label="Tiêu đề khởi tạo bài tập">
             <div class="ap-create-hero-info">
               <div class="ap-create-hero-kicker">
-                <span class="ap-kicker-badge">Quy trình 5 bước</span>
+                <span class="ap-kicker-badge">Quy trình 4 bước</span>
                 <span class="ap-kicker-text">${isEdit ? 'Chế độ chỉnh sửa' : 'Soạn bài mới'}</span>
               </div>
               <h1 class="ap-create-hero-title">${isEdit ? 'Cập nhật bài tập & bài thi' : 'Khởi tạo bài tập & bài thi'}</h1>
@@ -1080,7 +1080,7 @@ export function renderProCreateHwView() {
             </div>
           </section>
 
-          <!-- Stepper 5 bước (Mochi Pro) -->
+          <!-- Stepper 4 bước (Mochi Pro) -->
           <nav aria-label="Các bước tạo bài tập" class="ap-hw-stepper" id="hw-stepper-bar">
             <button type="button" class="ap-step-btn active" data-step="1">
               <span class="ap-step-num">1</span>
@@ -1093,33 +1093,26 @@ export function renderProCreateHwView() {
               <span class="ap-step-num">2</span>
               <span class="ap-step-text">
                 <span class="ap-step-sub">Bước 2</span>
-                <strong class="ap-step-title">Đề bài Markdown / PDF</strong>
+                <strong class="ap-step-title">Đề bài & Đáp án</strong>
               </span>
             </button>
             <button type="button" class="ap-step-btn" data-step="3">
               <span class="ap-step-num">3</span>
               <span class="ap-step-text">
                 <span class="ap-step-sub">Bước 3</span>
-                <strong class="ap-step-title">Đáp án & Điểm</strong>
+                <strong class="ap-step-title">Phòng thi & Deadline</strong>
               </span>
             </button>
             <button type="button" class="ap-step-btn" data-step="4">
               <span class="ap-step-num">4</span>
               <span class="ap-step-text">
                 <span class="ap-step-sub">Bước 4</span>
-                <strong class="ap-step-title">Phòng thi & Deadline</strong>
-              </span>
-            </button>
-            <button type="button" class="ap-step-btn" data-step="5">
-              <span class="ap-step-num">5</span>
-              <span class="ap-step-text">
-                <span class="ap-step-sub">Bước 5</span>
                 <strong class="ap-step-title">Giao lớp & Xuất bản</strong>
               </span>
             </button>
           </nav>
 
-          <!-- Form container with 5 Step Panels -->
+          <!-- Form container with 4 Step Panels -->
           <div class="ap-step-panels-container">
 
             <!-- BƯỚC 1: THÔNG TIN CƠ BẢN -->
@@ -1170,19 +1163,17 @@ export function renderProCreateHwView() {
             <!-- BƯỚC 2: SOẠN THẢO ĐỀ BÀI -->
             <div class="ap-step-panel" data-step-panel="2">
               <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 2: Soạn thảo đề bài & Câu hỏi</h2>
-                <p class="ap-step-desc">Soạn thảo Markdown với công thức toán KaTeX hoặc bóc tách từ PDF</p>
+                <h2 class="ap-step-heading">Bước 2: Soạn đề bài & Đáp án</h2>
+                <p class="ap-step-desc">Soạn thảo Markdown với công thức toán KaTeX hoặc bóc tách từ PDF, rồi chọn đáp án đúng cho từng câu</p>
               </div>
 
               <div id="create-hw-left-pane" class="ap-create-hw-pane">
                 ${renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName)}
               </div>
-            </div>
 
-            <!-- BƯỚC 3: MA TRẬN ĐÁP ÁN & ĐIỂM SỐ -->
-            <div class="ap-step-panel" data-step-panel="3">
-              <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 3: Ma trận đáp án & Sơ đồ câu hỏi</h2>
+              <!-- Đáp án & Sơ đồ câu hỏi (gộp từ bước 3 cũ) -->
+              <div class="ap-step-subheader">
+                <h3 class="ap-step-subheading"><i class="fa-solid fa-list-check"></i> Đáp án & Sơ đồ câu hỏi</h3>
                 <p class="ap-step-desc">Chọn đáp án đúng cho từng câu hỏi và phân bổ điểm số theo mẫu đề thi</p>
               </div>
 
@@ -1245,9 +1236,9 @@ export function renderProCreateHwView() {
             </div>
 
             <!-- BƯỚC 4: CẤU HÌNH PHÒNG THI -->
-            <div class="ap-step-panel" data-step-panel="4">
+            <div class="ap-step-panel" data-step-panel="3">
               <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 4: Cấu hình phòng thi & Giám sát</h2>
+                <h2 class="ap-step-heading">Bước 3: Cấu hình phòng thi & Deadline</h2>
                 <p class="ap-step-desc">Thiết lập thời gian làm bài và quy định hiển thị lời giải</p>
               </div>
 
@@ -1306,9 +1297,9 @@ export function renderProCreateHwView() {
             </div>
 
             <!-- BƯỚC 5: GIAO LỚP & HOÀN TẤT -->
-            <div class="ap-step-panel" data-step-panel="5">
+            <div class="ap-step-panel" data-step-panel="4">
               <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 5: Giao cho học sinh & Xuất bản</h2>
+                <h2 class="ap-step-heading">Bước 4: Giao cho học sinh & Xuất bản</h2>
                 <p class="ap-step-desc">Kiểm tra thông tin lần cuối trước khi thông báo tới học sinh trong lớp</p>
               </div>
 
@@ -1340,7 +1331,7 @@ export function renderProCreateHwView() {
               </button>
             </div>
             <div class="ap-footer-center">
-              <span class="ap-step-indicator">Bước <strong id="current-step-display">1</strong> / 5</span>
+              <span class="ap-step-indicator">Bước <strong id="current-step-display">1</strong> / 4</span>
             </div>
             <div class="ap-footer-right">
               <button type="button" class="btn-primary ap-btn-footer-next" id="btn-hw-next-step">
@@ -3305,7 +3296,7 @@ function bindMatrixEvents() {
     })
   })
 
-  // Pro mode stepper navigation (5 bước rõ ràng như prototype)
+  // Pro mode stepper navigation (4 bước; đáp án & sơ đồ câu hỏi nằm trong bước 2)
   if (isAdminProUI()) {
     const stepperBar = document.getElementById('hw-stepper-bar')
     if (stepperBar) {
@@ -3317,7 +3308,7 @@ function bindMatrixEvents() {
       const stepDisplay = document.getElementById('current-step-display')
 
       const setStep = (newStep) => {
-        currentStep = Math.max(1, Math.min(5, newStep))
+        currentStep = Math.max(1, Math.min(4, newStep))
         if (stepDisplay) stepDisplay.textContent = String(currentStep)
 
         stepButtons.forEach(btn => {
@@ -3335,7 +3326,7 @@ function bindMatrixEvents() {
           prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible'
         }
         if (nextBtn) {
-          nextBtn.style.display = currentStep === 5 ? 'none' : 'inline-flex'
+          nextBtn.style.display = currentStep === 4 ? 'none' : 'inline-flex'
         }
 
         if (currentStep === 2) {
@@ -3343,10 +3334,7 @@ function bindMatrixEvents() {
           if (previewEl && typeof renderMath === 'function') {
             renderMath(previewEl)
           }
-        }
-
-        if (currentStep === 3) {
-          renderHwQuestionMap()
+          window.refreshHwQuestionMap?.()
         }
 
         if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
