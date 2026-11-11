@@ -492,7 +492,7 @@ async function loadData() {
     allClasses = (cls || []).map(c => ({
       id: c.id,
       name: c.name,
-      gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+      gradeBlock: c.gradeBlock || c.grade_block || '',
       studentsCount: c.studentsCount || 0,
       tuitionFee: c.tuitionFee || 0,
       progress: 0

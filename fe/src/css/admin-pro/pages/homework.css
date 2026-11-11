@@ -2296,6 +2296,11 @@ html[data-admin-ui="pro"] .ap-create-homework .ap-btn-upload-md:hover {
   color: var(--ap-accent) !important;
 }
 
+html[data-admin-ui="pro"] .ap-create-homework .ap-btn-upload-pdf.is-attached {
+  border-color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.08) !important;
+}
+
 /* 2 cột: trái = xem trước (cuộn riêng), phải = tổng quan + sơ đồ + cần xem lại + Markdown */
 html[data-admin-ui="pro"] .ap-create-homework .ap-q-workspace {
   scroll-margin-top: 84px;

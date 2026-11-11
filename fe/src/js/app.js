@@ -35,7 +35,7 @@ if (typeof window !== 'undefined') {
 }
 import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
-import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
+import { renderClassMgmtView, bindClassMgmtEvents, fetchGradeBlocks } from './views/class-mgmt.js'
 import { renderStudentMgmtView, bindStudentMgmtEvents } from './views/student-mgmt.js'
 import { renderHomeworkSolverView, bindHomeworkSolverEvents } from './views/homework-solver.js'
 // Các view lớn được nạp theo route ở dưới để giảm bundle khởi động.
@@ -379,6 +379,8 @@ async function router() {
       // Fetch Grade Blocks dynamically
       if (hash === 'grade-blocks') {
          await fetchGradeBlocksData()
+      } else if (hash === 'classes-admin' || hash === 'classes') {
+         await fetchGradeBlocks()
       }
 
       // 1. Fetch Classes & Chapters for My Classes and Admin pages
@@ -424,7 +426,7 @@ async function router() {
               state.classes = classesList.map(c => ({
                 id: c.id,
                 name: c.name,
-                gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+                gradeBlock: c.gradeBlock || c.grade_block || '',
                 studentsCount: c.studentsCount || 0,
                 tuitionFee: c.tuitionFee || 0,
                 progress: 0
@@ -587,7 +589,7 @@ async function router() {
             state.classes = (rawClasses || []).map(c => ({
               id: c.id,
               name: c.name,
-              gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+              gradeBlock: c.gradeBlock || c.grade_block || '',
               studentsCount: c.studentsCount || 0,
               tuitionFee: c.tuitionFee || 0,
               progress: 0

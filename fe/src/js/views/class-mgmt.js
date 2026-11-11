@@ -8,7 +8,7 @@ import { isAdminProUI } from '../ui-flag.js'
 
 if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
 
-export const DEFAULT_GRADE_BLOCKS = ['12-Toán', '12-Hóa', '11-Toán', '11-Hóa']
+export const DEFAULT_GRADE_BLOCKS = []
 
 let cachedGradeBlocks = []
 let currentFilterBlock = 'ALL'
@@ -52,7 +52,7 @@ export async function fetchGradeBlocks(forceRefresh = false) {
 
   if (!cachedGradeBlocks || cachedGradeBlocks.length === 0) {
     const custom = (state.classes || []).map(c => c.gradeBlock).filter(Boolean)
-    const unique = Array.from(new Set([...DEFAULT_GRADE_BLOCKS, ...custom]))
+    const unique = Array.from(new Set(custom))
     cachedGradeBlocks = unique.map((name, i) => ({ id: `default-${i}`, name, description: '' }))
   }
   return cachedGradeBlocks
@@ -134,15 +134,14 @@ function renderProClassMgmtView() {
     ? state.students.length
     : classes.reduce((sum, c) => sum + (Number(c.studentsCount) || 0), 0)
   const uniqueBlocks = Array.from(new Set(classes.map(c => c.gradeBlock).filter(Boolean)))
-  const totalBlocks = uniqueBlocks.length || (cachedGradeBlocks?.length || DEFAULT_GRADE_BLOCKS.length)
+  const totalBlocks = (cachedGradeBlocks && cachedGradeBlocks.length > 0) ? cachedGradeBlocks.length : uniqueBlocks.length
   const avgTuition = totalClasses > 0
     ? Math.round(classes.reduce((sum, c) => sum + (Number(c.tuitionFee) || 0), 0) / totalClasses)
     : 0
   const avgTuitionText = avgTuition > 0 ? `${avgTuition.toLocaleString('vi-VN')}đ` : '0đ'
 
-  // Block filters
+  // Block filters: chỉ lấy các khối từ DB hoặc khối thực tế của các lớp đang có
   const allBlocks = Array.from(new Set([
-    ...DEFAULT_GRADE_BLOCKS,
     ...(cachedGradeBlocks || []).map(b => b.name),
     ...uniqueBlocks
   ].filter(Boolean)))
@@ -304,9 +303,9 @@ function renderProClassCard(c) {
   const tuitionText = tuitionFee > 0 ? `${tuitionFee.toLocaleString('vi-VN')} VND` : '0 VND'
 
   return `
-    <article class="ap-class-card${isArchived ? ' is-archived' : ''}" id="row-class-${c.id}" data-id="${c.id}" data-block="${escapeHtml(c.gradeBlock || '12-Toán')}">
+    <article class="ap-class-card${isArchived ? ' is-archived' : ''}" id="row-class-${c.id}" data-id="${c.id}" data-block="${escapeHtml(c.gradeBlock || '')}">
       <div class="ap-card-top">
-        <span class="ap-badge-block"><i class="fa-solid fa-layer-group"></i> ${escapeHtml(c.gradeBlock || '12-Toán')}</span>
+        <span class="ap-badge-block"><i class="fa-solid fa-layer-group"></i> ${escapeHtml(c.gradeBlock || 'Chưa phân khối')}</span>
         <span class="ap-badge-status ${isArchived ? 'archived' : 'active'}">${isArchived ? 'Đã lưu trữ' : 'Đang mở'}</span>
       </div>
 
@@ -419,7 +418,8 @@ export async function showCreateClassModal() {
 
   openModal('Tạo Lớp Học Mới', modalHTML, async () => {
     const name = document.getElementById('modal-class-name')?.value.trim()
-    const gradeBlock = document.getElementById('modal-class-grade-block')?.value?.trim() || '12-Toán'
+    const defaultBlock = (blocks && blocks[0]) ? blocks[0].name : ''
+    const gradeBlock = document.getElementById('modal-class-grade-block')?.value?.trim() || defaultBlock
     const tuitionFee = parseFloat(document.getElementById('modal-class-tuition')?.value) || 0
 
     if (!name) {
@@ -527,7 +527,7 @@ export async function showEditClassModal(classId) {
           </button>
         </div>
         <select id="modal-class-grade-block" class="form-input" required>
-          ${blocks.map(b => `<option value="${b.name}" ${b.name === (currentClass.gradeBlock || '12-Toán') ? 'selected' : ''}>${b.name}${b.description ? ` (${b.description})` : ''}</option>`).join('')}
+          ${blocks.map(b => `<option value="${b.name}" ${b.name === (currentClass.gradeBlock || (blocks[0] ? blocks[0].name : '')) ? 'selected' : ''}>${b.name}${b.description ? ` (${b.description})` : ''}</option>`).join('')}
         </select>
 
         <!-- Inline quick block creator -->
@@ -554,7 +554,8 @@ export async function showEditClassModal(classId) {
 
   openModal('Chỉnh Sửa Lớp Học', modalHTML, async () => {
     const name = document.getElementById('modal-class-name')?.value.trim()
-    const gradeBlock = document.getElementById('modal-class-grade-block')?.value?.trim() || '12-Toán'
+    const defaultBlock = (blocks && blocks[0]) ? blocks[0].name : ''
+    const gradeBlock = document.getElementById('modal-class-grade-block')?.value?.trim() || defaultBlock
     const tuitionFee = parseFloat(document.getElementById('modal-class-tuition')?.value) || 0
 
     if (!name) {
@@ -644,7 +645,7 @@ export async function showGradeBlockManagementModal() {
 
   const renderBlocksTable = () => {
     return (cachedGradeBlocks || []).map(b => {
-      const count = (state.classes || []).filter(c => (c.gradeBlock || '12-Toán') === b.name).length
+      const count = (state.classes || []).filter(c => (c.gradeBlock || '') === b.name).length
       return `
         <tr id="row-block-${b.id || b.name}">
           <td style="padding:10px 14px;">

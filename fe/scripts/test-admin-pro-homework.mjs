@@ -249,7 +249,7 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   }
   // Bước 2: Markdown + phân tích + sơ đồ câu + tổng quan lỗi + xem trước
   const step2 = panel(2)
-  for (const id of ['create-hw-left-pane', 'btn-mode-interactive', 'btn-mode-pdf', 'hw-markdown-input', 'btn-import-md-file', 'hw-md-file-input', 'ap-md-source', 'btn-parse-markdown', 'ap-md-status', 'ap-q-summary', 'hw-question-map', 'ap-q-issues', 'interactive-preview-container']) {
+  for (const id of ['create-hw-left-pane', 'btn-mode-interactive', 'btn-mode-pdf', 'hw-markdown-input', 'btn-import-md-file', 'hw-md-file-input', 'btn-upload-pdf-file', 'btn-generate-exam-pdf', 'ap-md-source', 'btn-parse-markdown', 'ap-md-status', 'ap-q-summary', 'hw-question-map', 'ap-q-issues', 'interactive-preview-container']) {
     assert.match(step2, new RegExp(`id="${id}"`), `Bước 2 có ${id}`)
   }
   // Bài mới ở Pro bắt đầu với khung Markdown trống (không còn đề mẫu)

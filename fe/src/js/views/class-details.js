@@ -166,7 +166,7 @@ export function renderClassicClassDetailsView(currentClass, classStudents, short
                   <div class="class-banner-title-row">
                     <h1 class="page-title class-title-heading">${escapeHtml(currentClass.name)}</h1>
                     <span class="badge badge-class-grade">
-                      <i class="fa-solid fa-layer-group" style="font-size:11px;"></i> ${escapeHtml(currentClass.gradeBlock || '12-Toán')}
+                      <i class="fa-solid fa-layer-group" style="font-size:11px;"></i> ${escapeHtml(currentClass.gradeBlock || 'Chưa phân khối')}
                     </span>
                   </div>
                   <div class="class-banner-meta">
@@ -354,7 +354,7 @@ function renderProClassDetailsView(currentClass, classStudents, shortId) {
                   <div class="class-banner-title-row">
                     <h1 class="page-title class-title-heading">${escapeHtml(currentClass.name)}</h1>
                     <span class="badge badge-class-grade">
-                      <i class="fa-solid fa-layer-group" style="font-size:11px;"></i> ${escapeHtml(currentClass.gradeBlock || '12-Toán')}
+                      <i class="fa-solid fa-layer-group" style="font-size:11px;"></i> ${escapeHtml(currentClass.gradeBlock || 'Chưa phân khối')}
                     </span>
                   </div>
                   <div class="class-banner-meta">

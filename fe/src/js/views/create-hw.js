@@ -2,7 +2,8 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
 import { openModal, closeModal } from '../components/modal.js'
-import { exportExamPdf } from '../utils/exam-print.js'
+import { exportExamPdf, renderExamPdfBlob } from '../utils/exam-print.js'
+import { toSafeAsciiFileName } from '../utils/homework-auto-pdf.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
@@ -801,6 +802,10 @@ function renderProQuestionPane(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
     `
   }
   const mdLines = interactiveMarkdown ? interactiveMarkdown.split('\n').length : 0
+  const hasInteractivePdf = !!(interactivePdfFile || interactivePdfUrl)
+  const attachedPdfName = interactivePdfFile ? interactivePdfFile.name : (interactivePdfName || 'Tep_Dinh_Kem.pdf')
+  const shortPdfName = attachedPdfName.length > 18 ? attachedPdfName.slice(0, 15) + '...' : attachedPdfName
+
   return `
     <div class="ap-q-toolbar">
       ${modeSwitch}
@@ -809,6 +814,14 @@ function renderProQuestionPane(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
         <input type="file" id="hw-md-file-input" accept=".md,.markdown,.txt" hidden>
         <button type="button" class="ap-btn-upload-md" id="btn-import-md-file" title="Tải file .md soạn theo cú pháp — tự phân tích sau khi tải">
           <i class="fa-solid fa-file-arrow-up" aria-hidden="true"></i> Tải file .md
+        </button>
+        <input type="file" id="hw-pro-pdf-input" accept=".pdf" hidden>
+        <button type="button" class="ap-btn-upload-md ap-btn-upload-pdf ${hasInteractivePdf ? 'is-attached' : ''}" id="btn-upload-pdf-file" title="${hasInteractivePdf ? `Đã đính kèm: ${escapeHtml(attachedPdfName)} — Nhấp để xem/đổi/gỡ file` : 'Tải lên file PDF đề bài đính kèm cho bài tập'}">
+          <i class="fa-solid ${hasInteractivePdf ? 'fa-file-pdf' : 'fa-file-arrow-up'}" aria-hidden="true" style="${hasInteractivePdf ? 'color:#ef4444;' : ''}"></i>
+          <span id="btn-upload-pdf-label">${hasInteractivePdf ? `PDF: ${escapeHtml(shortPdfName)}` : 'Upload PDF'}</span>
+        </button>
+        <button type="button" class="ap-btn-upload-md ap-btn-gen-pdf" id="btn-generate-exam-pdf" title="Tạo PDF từ luồng đề bài đã có (in/lưu hoặc đính kèm vào bài)">
+          <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Tạo PDF
         </button>
         <button type="button" class="ap-btn-parse" id="btn-parse-markdown" title="Phân tích Markdown và cập nhật xem trước (Ctrl + Enter)">
           <i class="fa-solid fa-bolt" aria-hidden="true"></i> Phân tích & xem trước
@@ -2410,7 +2423,10 @@ export function bindCreateHwEvents() {
         syncCountsFromInteractive()
         renderHwQuestionMap()
         refreshProReview()
-        if (isAdminProUI()) bindMdFileImport()
+        if (isAdminProUI()) {
+          bindMdFileImport()
+          bindProPdfControls()
+        }
       } else {
         initPdfListeners()
         if (isAdminProUI()) bindPdfAnswerTools()
@@ -2619,6 +2635,9 @@ export function bindCreateHwEvents() {
     bindInteractiveCardEvents()
     bindInteractivePdfEvents()
     syncCountsFromInteractive()
+    if (isAdminProUI()) {
+      bindProPdfControls()
+    }
   }
 
   // Nhập 1 file .md soạn theo quy chuẩn: tự đổ vào khung soạn + phân tích ra câu hỏi/đáp án/hình
@@ -2687,6 +2706,219 @@ export function bindCreateHwEvents() {
   })
   }
   bindMdFileImport()
+
+  function updateProPdfButtonState() {
+    const btn = document.getElementById('btn-upload-pdf-file')
+    if (!btn) return
+    const hasPdf = !!(interactivePdfFile || interactivePdfUrl)
+    if (hasPdf) {
+      const name = interactivePdfFile ? interactivePdfFile.name : (interactivePdfName || 'PDF')
+      const shortName = name.length > 18 ? name.slice(0, 15) + '...' : name
+      btn.classList.add('is-attached')
+      btn.title = `Đã đính kèm: ${name} — Nhấp để xem trước, đổi hoặc gỡ file`
+      btn.innerHTML = `<i class="fa-solid fa-file-pdf" style="color:#ef4444;" aria-hidden="true"></i> <span id="btn-upload-pdf-label">PDF: ${escapeHtml(shortName)}</span>`
+    } else {
+      btn.classList.remove('is-attached')
+      btn.title = 'Tải lên file PDF đề bài đính kèm cho bài tập'
+      btn.innerHTML = `<i class="fa-solid fa-file-arrow-up" aria-hidden="true"></i> <span id="btn-upload-pdf-label">Upload PDF</span>`
+    }
+  }
+
+  function bindProPdfControls() {
+    const uploadBtn = document.getElementById('btn-upload-pdf-file')
+    const pdfInput = document.getElementById('hw-pro-pdf-input')
+    const genBtn = document.getElementById('btn-generate-exam-pdf')
+
+    uploadBtn?.addEventListener('click', () => {
+      const hasPdf = !!(interactivePdfFile || interactivePdfUrl)
+      if (!hasPdf) {
+        pdfInput?.click()
+        return
+      }
+
+      const currentName = interactivePdfFile ? interactivePdfFile.name : (interactivePdfName || 'Tep_Dinh_Kem.pdf')
+      const fileSize = interactivePdfFile ? ` (${(interactivePdfFile.size / 1024).toFixed(0)} KB)` : ''
+
+      openModal('Quản lý file PDF đính kèm', `
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div style="display:flex; align-items:center; gap:14px; padding:14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px;">
+            <div style="width:42px; height:42px; border-radius:10px; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
+              <i class="fa-solid fa-file-pdf"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:14px; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(currentName)}">
+                ${escapeHtml(currentName)}<span style="font-size:12px; font-weight:normal; color:#64748b;">${fileSize}</span>
+              </div>
+              <div style="font-size:12px; color:#059669; display:flex; align-items:center; gap:5px; margin-top:3px;">
+                <i class="fa-solid fa-circle-check"></i> ${interactivePdfFile ? 'Đã chọn file từ máy (sẽ upload khi lưu bài tập)' : 'File PDF đính kèm của bài tập'}
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+            <button type="button" class="btn-secondary" id="modal-manage-pdf-preview" style="width:auto; padding:8px 16px; cursor:pointer;">
+              <i class="fa-solid fa-eye"></i> Xem trước
+            </button>
+            <button type="button" class="btn-secondary" id="modal-manage-pdf-change" style="width:auto; padding:8px 16px; cursor:pointer;">
+              <i class="fa-solid fa-arrow-rotate-right"></i> Chọn file khác
+            </button>
+            <button type="button" class="btn-secondary" id="modal-manage-pdf-remove" style="width:auto; padding:8px 16px; cursor:pointer; color:#ef4444; border-color:#fca5a5; background:#fff1f2;">
+              <i class="fa-solid fa-trash"></i> Gỡ bỏ file
+            </button>
+          </div>
+        </div>
+      `, null, { cancelLabel: 'Đóng' })
+
+      document.getElementById('modal-manage-pdf-preview')?.addEventListener('click', () => {
+        closeModal()
+        if (interactivePdfUrl) {
+          openPdfPreviewModal(interactivePdfUrl, currentName)
+        } else {
+          showToast('Chưa có file PDF để xem trước!', 'warning')
+        }
+      })
+
+      document.getElementById('modal-manage-pdf-change')?.addEventListener('click', () => {
+        closeModal()
+        pdfInput?.click()
+      })
+
+      document.getElementById('modal-manage-pdf-remove')?.addEventListener('click', () => {
+        closeModal()
+        if (interactivePdfUrl && interactivePdfUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(interactivePdfUrl)
+        }
+        interactivePdfFile = null
+        interactivePdfUrl = ''
+        interactivePdfName = ''
+        isInteractivePdfRemoved = true
+        if (pdfInput) pdfInput.value = ''
+        updateProPdfButtonState()
+        showToast('Đã gỡ bỏ file PDF đính kèm!', 'info')
+      })
+    })
+
+    pdfInput?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0]
+      if (file && file.type === 'application/pdf') {
+        interactivePdfFile = file
+        interactivePdfName = file.name
+        isInteractivePdfRemoved = false
+        if (interactivePdfUrl && interactivePdfUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(interactivePdfUrl)
+        }
+        interactivePdfUrl = URL.createObjectURL(file)
+        updateProPdfButtonState()
+        showToast(`Đã chọn file PDF: ${file.name}`, 'success')
+      }
+    })
+
+    genBtn?.addEventListener('click', () => {
+      openModal('Tạo & Xuất PDF đề bài', `
+        <p style="margin:0 0 14px; font-size:13px; color:#475569;">Chọn hình thức tạo hoặc xuất PDF từ nội dung câu hỏi hiện tại:</p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn-secondary" id="pro-btn-export-pdf-student" style="flex:1; min-width:140px; padding:10px 16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+              <i class="fa-regular fa-file-lines" style="color:#0284c7;"></i> Xuất đề trắng (In/PDF)
+            </button>
+            <button type="button" class="btn-secondary" id="pro-btn-export-pdf-answer" style="flex:1; min-width:140px; padding:10px 16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+              <i class="fa-solid fa-file-circle-check" style="color:#10b981;"></i> Đề kèm đáp án & giải
+            </button>
+          </div>
+          <button type="button" class="btn-primary" id="pro-btn-export-pdf-attach" style="width:100%; padding:10px 16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+            <i class="fa-solid fa-file-arrow-up"></i> Tự động tạo & đính kèm file PDF vào bài tập
+          </button>
+        </div>
+      `, null, { cancelLabel: 'Đóng' })
+
+      const getParsedQuestions = () => {
+        const text = document.getElementById('hw-markdown-input')?.value || ''
+        if (!text.trim()) {
+          showToast('Nội dung đề đang trống, chưa thể tạo PDF.', 'warning')
+          return null
+        }
+        const parsed = parseExamMarkdown(text)
+        const questions = parsed.questions || []
+        if (!questions.length) {
+          showToast(parsed.error || 'Không tìm thấy câu hỏi hợp lệ để tạo PDF!', 'error')
+          return null
+        }
+        questions.forEach((q, idx) => { q.questionNumber = idx + 1 })
+        questions.forEach((newQ, idx) => {
+          let oldQ = interactiveQuestions[idx]
+          if (!oldQ || oldQ.questionType !== newQ.questionType || oldQ.questionNumber !== newQ.questionNumber) {
+            oldQ = interactiveQuestions.find(x => x.questionType === newQ.questionType && x.questionNumber === newQ.questionNumber)
+          }
+          if (oldQ && oldQ.imageUrl && !newQ.imageUrl) newQ.imageUrl = oldQ.imageUrl
+        })
+        return questions
+      }
+
+      document.getElementById('pro-btn-export-pdf-student')?.addEventListener('click', async () => {
+        closeModal()
+        const questions = getParsedQuestions()
+        if (!questions) return
+        const hwType = document.getElementById('hw-type')?.value || 'PRACTICE'
+        const duration = parseInt(document.getElementById('hw-duration')?.value || '', 10)
+        await exportExamPdf({
+          title: document.getElementById('hw-title')?.value.trim() || 'De_bai',
+          meta: { durationMinutes: Number.isFinite(duration) ? duration : null },
+          questions,
+          mode: 'student',
+          role: state.user?.role,
+          homework: { type: hwType }
+        })
+      })
+
+      document.getElementById('pro-btn-export-pdf-answer')?.addEventListener('click', async () => {
+        closeModal()
+        const questions = getParsedQuestions()
+        if (!questions) return
+        const hwType = document.getElementById('hw-type')?.value || 'PRACTICE'
+        const duration = parseInt(document.getElementById('hw-duration')?.value || '', 10)
+        await exportExamPdf({
+          title: document.getElementById('hw-title')?.value.trim() || 'De_bai',
+          meta: { durationMinutes: Number.isFinite(duration) ? duration : null },
+          questions,
+          mode: 'answer',
+          role: state.user?.role,
+          homework: { type: hwType }
+        })
+      })
+
+      document.getElementById('pro-btn-export-pdf-attach')?.addEventListener('click', async () => {
+        closeModal()
+        const questions = getParsedQuestions()
+        if (!questions) return
+        const hwTitle = document.getElementById('hw-title')?.value.trim() || 'De_bai'
+        const duration = parseInt(document.getElementById('hw-duration')?.value || '', 10)
+        showToast('Đang tạo file PDF từ nội dung đề...', 'info')
+        try {
+          const blob = await renderExamPdfBlob({
+            title: hwTitle,
+            meta: { durationMinutes: Number.isFinite(duration) ? duration : null },
+            questions,
+            mode: 'student'
+          })
+          const safeName = toSafeAsciiFileName(hwTitle)
+          interactivePdfFile = new File([blob], safeName, { type: 'application/pdf' })
+          interactivePdfName = safeName
+          isInteractivePdfRemoved = false
+          if (interactivePdfUrl && interactivePdfUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(interactivePdfUrl)
+          }
+          interactivePdfUrl = URL.createObjectURL(blob)
+          updateProPdfButtonState()
+          showToast(`Đã tạo thành công file PDF (${(blob.size / 1024).toFixed(0)} KB) và đính kèm vào bài tập!`, 'success')
+        } catch (err) {
+          console.error('[create-hw] Lỗi sinh PDF đính kèm:', err)
+          showToast('Tạo file PDF thất bại: ' + (err.message || 'Lỗi không xác định'), 'error')
+        }
+      })
+    })
+  }
+  if (isAdminProUI() && currentMode === 'INTERACTIVE') {
+    bindProPdfControls()
+  }
 
   const initPdfListeners = () => {
     if (isEditMode && hwData?.homework?.pdfUrl) {
@@ -3006,7 +3238,7 @@ export function bindCreateHwEvents() {
         state.classes = (classesRes || []).map(c => ({
           id: c.id,
           name: c.name,
-          gradeBlock: c.gradeBlock || c.grade_block || '12-Toán',
+          gradeBlock: c.gradeBlock || c.grade_block || '',
           studentsCount: c.studentsCount || 0,
           tuitionFee: c.tuitionFee || 0,
           progress: 0
