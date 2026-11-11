@@ -24,7 +24,11 @@ assert.deepEqual(counts.get('empty'), { submittedCount: 0, assignedCount: 2 })
 
 // Mock PostgREST: nhiều hơn 1000 dòng, nộp lặp nhiều lần, chỉ SUBMITTED được tính.
 const tables = {
-  student_classes: Array.from({ length: 1101 }, (_, i) => ({ class_id: 'class-a', student_id: `student-${i}` })),
+  student_classes: Array.from({ length: 1101 }, (_, i) => ({
+    class_id: 'class-a',
+    student_id: `student-${i}`,
+    profiles: { is_locked: i === 1100 },
+  })),
   homework_targets: [{ homework_id: 'hw', student_id: 'student-0' }],
   submissions: [
     ...Array.from({ length: 1100 }, (_, i) => ({ id: `sub-${String(i).padStart(5, '0')}`, homework_id: 'hw', student_id: 'student-0', status: 'SUBMITTED' })),
@@ -39,7 +43,10 @@ function mockClient(failTable = '') {
       const orders = []
       const query = {
         select() { return query },
-        eq(field, value) { conditions.push(row => row[field] === value); return query },
+        eq(field, value) {
+          conditions.push(row => field === 'profiles.is_locked' ? row.profiles?.is_locked === value : row[field] === value)
+          return query
+        },
         not(field, op, value) { assert.equal(op, 'is'); conditions.push(row => row[field] !== value); return query },
         in(field, values) { conditions.push(row => values.includes(row[field])); return query },
         order(field) { orders.push(field); return query },
@@ -64,7 +71,7 @@ const paged = await loadClassHomeworkProgress(mockClient(), 'class-a', ['hw', 'p
 assert.deepEqual(paged.get('hw'), {
   submittedCount: 1, assignedCount: 1,
 })
-assert.deepEqual(paged.get('public-hw'), { submittedCount: 1, assignedCount: 1101 })
+assert.deepEqual(paged.get('public-hw'), { submittedCount: 1, assignedCount: 1100 })
 await assert.rejects(loadClassHomeworkProgress(mockClient('submissions'), 'class-a', ['hw']), /DB unavailable/)
 const backend = readFileSync(new URL('../functions/create-homework/index.ts', import.meta.url), 'utf8')
 assert.match(backend, /includeProgress && \(!classId \|\| user\.role !== 'ADMIN'\)/)

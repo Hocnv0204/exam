@@ -34,7 +34,11 @@ async function readAll(query: any, label: string): Promise<any[]> {
 
 export async function loadClassHomeworkProgress(client: any, classId: string, homeworkIds: string[]) {
   const enrollment = await readAll(
-    client.from('student_classes').select('student_id').eq('class_id', classId).order('student_id'),
+    client.from('student_classes')
+      .select('student_id, profiles:student_id!inner(is_locked)')
+      .eq('class_id', classId)
+      .eq('profiles.is_locked', false)
+      .order('student_id'),
     'Không đọc được học sinh của lớp'
   )
   const targets: Array<{ homework_id: string; student_id: string }> = []

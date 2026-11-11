@@ -408,9 +408,11 @@ serve(async (req: Request) => {
           .select(`
             *,
             student_classes (
-              student_id
+              student_id,
+              profiles:student_id!inner(is_locked)
             )
           `)
+          .eq('student_classes.profiles.is_locked', false)
           .order('created_at', { ascending: false })
 
         if (error) return errorResponse(error.message, 500)
@@ -437,9 +439,11 @@ serve(async (req: Request) => {
           .select(`
             *,
             student_classes (
-              student_id
+              student_id,
+              profiles:student_id!inner(is_locked)
             )
           `)
+          .eq('student_classes.profiles.is_locked', false)
           .in('id', enrolledClassIds)
 
         if (error) return jsonResponse([])
@@ -1691,16 +1695,17 @@ async function loadClassDebtStudents(
     fetchAllRows(() =>
       serviceRoleClient
         .from('student_classes')
-        .select('student_id, status, profiles:student_id(id, role)')
+        .select('student_id, status, profiles:student_id(id, role, is_locked)')
         .eq('class_id', classId)
         .order('student_id')
     ),
     fetchAllRows(() =>
       serviceRoleClient
         .from('profiles')
-        .select('id, role')
+        .select('id, role, is_locked')
         .eq('class_id', classId)
         .eq('role', 'STUDENT')
+        .eq('is_locked', false)
         .order('id')
     ),
     fetchAllRows(() =>
@@ -1736,7 +1741,7 @@ async function loadClassDebtStudents(
   const studentIds = new Set<string>()
   for (const sc of scData) {
     const prof = (sc as any).profiles
-    if (prof?.role === 'STUDENT' && prof.id) studentIds.add(String(prof.id))
+    if (prof?.role === 'STUDENT' && prof.id && prof.is_locked !== true) studentIds.add(String(prof.id))
   }
   for (const ls of legacyData) {
     if ((ls as any).id) studentIds.add(String((ls as any).id))

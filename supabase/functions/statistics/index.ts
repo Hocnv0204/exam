@@ -27,8 +27,9 @@ serve(async (req: Request) => {
           .single(),
         serviceRoleClient
           .from('submissions')
-          .select('id, total_score, student_id')
+          .select('id, total_score, student_id, profiles!inner(is_locked)')
           .eq('homework_id', homeworkId)
+          .eq('profiles.is_locked', false)
       ])
 
       if (hwRes.error || !hwRes.data) return errorResponse('Homework not found', 404)
@@ -96,6 +97,7 @@ serve(async (req: Request) => {
           .select('id, username, full_name, student_classes!inner(class_id)')
           .eq('student_classes.class_id', classId)
           .eq('role', 'STUDENT')
+          .eq('is_locked', false)
       ])
 
       if (classRes.error || !classRes.data) return errorResponse('Class not found', 404)
@@ -209,8 +211,9 @@ serve(async (req: Request) => {
         title,
         pass_score,
         max_score,
-        submissions (student_id, total_score)
+        submissions (student_id, total_score, profiles!inner(is_locked))
       `)
+      .eq('submissions.profiles.is_locked', false)
 
     if (hAllErr) return errorResponse(hAllErr.message, 500)
 

@@ -167,6 +167,12 @@ await db.exec(`
 const migrationPath = new URL('../migrations/20261107002000_debt_and_dashboard_rpc.sql', import.meta.url)
 const migrationSql = readFileSync(migrationPath, 'utf8')
 await db.exec(migrationSql)
+const lockedAggregateMigration = readFileSync(
+  new URL('../migrations/20261111000000_exclude_locked_students_from_aggregates.sql', import.meta.url),
+  'utf8'
+)
+await db.exec(lockedAggregateMigration)
+await db.exec(lockedAggregateMigration) // Idempotency: CREATE OR REPLACE + permission statements
 
 // Assert comparator helpers
 function assertMoney(actual, expected, message) {
@@ -306,6 +312,8 @@ const globalStudentClasses = []
 const globalClassSessions = []
 const globalStudentSessions = []
 const globalLockIntervals = []
+const currentlyLockedIds = new Set()
+const closedIntervalStudentIds = new Set()
 
 // Fixed Edge Cases & Random Datasets Generator
 const TOTAL_DATASETS = 210
@@ -417,7 +425,8 @@ for (let dsIndex = 0; dsIndex < TOTAL_DATASETS; dsIndex++) {
       `insert into public.profiles(id, username, full_name, role, class_id, balance) values ($1, $2, $3, 'STUDENT', $4, $5)`,
       [studentId, username, fullName, classIdForProfile, balance]
     )
-    globalStudents.push({ id: studentId, username, full_name: fullName, class_id: classIdForProfile })
+    const globalStudent = { id: studentId, username, full_name: fullName, class_id: classIdForProfile, is_locked: false }
+    globalStudents.push(globalStudent)
 
     if (!isLegacyOnly) {
       await db.query(
@@ -433,7 +442,8 @@ for (let dsIndex = 0; dsIndex < TOTAL_DATASETS; dsIndex++) {
       fullName,
       status: isLegacyOnly ? 'ACTIVE' : status,
       balance,
-      isLegacyOnly
+      isLegacyOnly,
+      isLocked: false
     })
 
     // Lock intervals
@@ -446,6 +456,10 @@ for (let dsIndex = 0; dsIndex < TOTAL_DATASETS; dsIndex++) {
       const lockObj = { student_id: studentId, start_date: '2026-10-01', end_date: null }
       dsLockIntervals.push(lockObj)
       globalLockIntervals.push(lockObj)
+      dsStudents[dsStudents.length - 1].isLocked = true
+      globalStudent.is_locked = true
+      currentlyLockedIds.add(studentId)
+      await db.query(`update public.profiles set is_locked = true where id = $1`, [studentId])
     } else if (dsIndex === 3 && sIdx === 0) {
       // Closed interval
       await db.query(
@@ -455,6 +469,7 @@ for (let dsIndex = 0; dsIndex < TOTAL_DATASETS; dsIndex++) {
       const lockObj = { student_id: studentId, start_date: '2026-10-10', end_date: '2026-10-20' }
       dsLockIntervals.push(lockObj)
       globalLockIntervals.push(lockObj)
+      closedIntervalStudentIds.add(studentId)
     } else if (!isEdgeCase && randInt(1, 5) === 1) {
       const startDay = randInt(5, 15)
       const isEndNull = randInt(1, 3) === 1
@@ -467,6 +482,14 @@ for (let dsIndex = 0; dsIndex < TOTAL_DATASETS; dsIndex++) {
       const lockObj = { student_id: studentId, start_date: startDate, end_date: endDate }
       dsLockIntervals.push(lockObj)
       globalLockIntervals.push(lockObj)
+      if (isEndNull) {
+        dsStudents[dsStudents.length - 1].isLocked = true
+        globalStudent.is_locked = true
+        currentlyLockedIds.add(studentId)
+        await db.query(`update public.profiles set is_locked = true where id = $1`, [studentId])
+      } else {
+        closedIntervalStudentIds.add(studentId)
+      }
     }
   }
 
@@ -650,11 +673,22 @@ for (let dsIndex = 0; dsIndex < TOTAL_DATASETS; dsIndex++) {
     [classId]
   )
   const rpcDebt = rpcDebtRes.rows[0].data
+  for (const student of orderedStudents) {
+    if (student.isLocked) {
+      assert.ok(!rpcDebt.some((row) => row.studentId === student.id), 'Currently locked student must not appear in debt summary')
+    }
+  }
+  if (dsIndex === 3) {
+    assert.ok(
+      rpcDebt.some((row) => row.studentId === orderedStudents[0].id),
+      'Student with a closed lock interval and is_locked=false must remain in debt summary'
+    )
+  }
 
   const oracleDebt = calcClassDebtSummary({
     classId,
     tuitionFee,
-    students: orderedStudents,
+    students: orderedStudents.filter((student) => !student.isLocked),
     lockIntervals: dsLockIntervals,
     studentSessions: dsStudentSessions,
     attendanceRecords: dsAttendanceRecords
@@ -727,7 +761,7 @@ for (let dsIndex = 0; dsIndex < TOTAL_DATASETS; dsIndex++) {
   const oracleKpi = calcClassKpiStats({
     classId,
     tuitionFee,
-    students: orderedStudents,
+    students: orderedStudents.filter((student) => !student.isLocked),
     lockIntervals: dsLockIntervals,
     attendanceSessions: dsAttendanceSessions,
     studentSessions: dsStudentSessions,
@@ -780,6 +814,37 @@ const oracleDash = calcDashboardFinancial({
   studentSessions: globalStudentSessions,
   lockIntervals: globalLockIntervals
 })
+
+// Oracle độc lập cho ngữ nghĩa mới: số liệu lịch sử phát sinh/đã thu giữ nguyên,
+// còn roster và công nợ hiện hành loại profile đang khóa.
+const unlockedIds = new Set(globalStudents.filter((student) => !student.is_locked).map((student) => student.id))
+const classFee = new Map(globalClasses.map((cls) => [cls.id, Number(cls.tuition_fee || 0)]))
+const intervalsByStudent = new Map()
+for (const interval of globalLockIntervals) {
+  const list = intervalsByStudent.get(interval.student_id) || []
+  list.push(interval)
+  intervalsByStudent.set(interval.student_id, list)
+}
+const isLockedOnDate = (studentId, date) => (intervalsByStudent.get(studentId) || []).some(
+  (interval) => interval.start_date <= date && (interval.end_date == null || date < interval.end_date)
+)
+const expectedDebtByMonth = new Map()
+let expectedCurrentDebt = 0
+for (const session of globalStudentSessions) {
+  if (!unlockedIds.has(session.student_id) || isLockedOnDate(session.student_id, session.session_date)) continue
+  const isPaid = session.is_paid === true || session.is_paid === 'true' || session.is_paid === 1
+  if (isPaid) continue
+  const fee = classFee.get(session.class_id) || 0
+  expectedCurrentDebt += fee
+  const month = session.session_date.slice(0, 7)
+  expectedDebtByMonth.set(month, (expectedDebtByMonth.get(month) || 0) + fee)
+}
+oracleDash.totalStudents = unlockedIds.size
+oracleDash.totalUnpaidTuitionFee = expectedCurrentDebt
+oracleDash.studentAttendanceStats = oracleDash.studentAttendanceStats.filter((row) => unlockedIds.has(row.studentId))
+for (const month of oracleDash.monthlyStats) {
+  month.unpaidTuitionFee = expectedDebtByMonth.get(month.month) || 0
+}
 
 // Same locale-aware tie-break applied by dashboard/index.ts after the RPC.
 rpcDash.studentAttendanceStats.sort((a, b) => {
@@ -846,6 +911,12 @@ for (let i = 0; i < rpcDash.studentAttendanceStats.length; i++) {
   }
 }
 assertDeepBusinessEqual(rpcDash, oracleDash, 'Dashboard financial full deep equality')
+for (const lockedId of currentlyLockedIds) {
+  assert.ok(!rpcDash.studentAttendanceStats.some((row) => row.studentId === lockedId), 'Locked student must not appear in studentAttendanceStats')
+}
+for (const unlockedId of closedIntervalStudentIds) {
+  assert.ok(rpcDash.studentAttendanceStats.some((row) => row.studentId === unlockedId), 'Unlocked student with a closed interval must remain in studentAttendanceStats')
+}
 console.log('✓ Dashboard Financial RPC matches pure Oracle deep assertion.')
 
 // Fail closed: aggregate RPCs are service-role only.

@@ -5,7 +5,7 @@
  * (không cần mạng / không cần deploy Edge Function)
  *
  * Kiểm tra:
- * - Điều kiện CHÍNH XÁC balance = 0 (loại số dư âm và NULL).
+ * - Điều kiện CHÍNH XÁC balance = 0 và is_locked = false (loại số dư âm, NULL, học sinh khóa).
  * - Đếm exact 1 lần / học sinh (kể cả học sinh thuộc nhiều lớp).
  * - Phân trang server-side (range) không trùng / không bỏ sót.
  * - Lọc lớp: gộp student_classes + profiles.class_id (legacy), khử trùng id.
@@ -60,6 +60,7 @@ function createMockClient({ profiles = [], studentClasses = [], classes = [], er
     for (const [col, val] of Object.entries(q.filters)) {
       if (col === 'role') rows = rows.filter((r) => r.role === val)
       else if (col === 'balance') rows = rows.filter((r) => r.balance === val) // chính xác, NULL bị loại
+      else if (col === 'is_locked') rows = rows.filter((r) => r.is_locked === val)
       else if (col === 'class_id') rows = rows.filter((r) => r.class_id === val)
       else if (col === 'id') rows = rows.filter((r) => r.id === val)
       else if (col === 'student_id') rows = rows.filter((r) => r.student_id === val)
@@ -171,12 +172,13 @@ console.log('\n== Backend: đếm học sinh có số dư 0 đ ==')
   const res = await handleZeroBalanceAction(client, url('action=zero-balance-count'), 'zero-balance-count')
   const json = await body(res)
   eq('HTTP 200', res.status, 200)
-  eq('count = 4 (chỉ balance 0, loại âm/NULL/ADMIN)', json.data.count, 4)
+  eq('count = 3 (chỉ balance 0, loại khóa/âm/NULL/ADMIN)', json.data.count, 3)
 
   const countQuery = client.queries.find((q) => q.table === 'profiles' && q.selectOpts?.head)
   check('dùng count exact + head (không tải danh sách)', !!countQuery && countQuery.selectOpts.count === 'exact' && countQuery.selectOpts.head === true)
   check('filter role = STUDENT', countQuery?.filters.role === 'STUDENT')
   check('filter balance = 0 (chính xác)', countQuery?.filters.balance === 0)
+  check('filter is_locked = false', countQuery?.filters.is_locked === false)
 }
 
 // 2. List + phân trang
@@ -186,7 +188,7 @@ console.log('\n== Backend: đếm học sinh có số dư 0 đ ==')
   const json = await body(res)
   eq('HTTP 200', res.status, 200)
   eq('items = 2', json.data.items.length, 2)
-  eq('total = 4', json.data.total, 4)
+  eq('total = 3', json.data.total, 3)
   eq('page = 1', json.data.page, 1)
   eq('pageSize = 2', json.data.pageSize, 2)
   eq('sắp xếp theo full_name', json.data.items.map((i) => i.fullName), ['An', 'Bình'])
@@ -206,8 +208,9 @@ console.log('\n== Backend: đếm học sinh có số dư 0 đ ==')
     const json = await body(res)
     seen.push(...json.data.items.map((i) => i.id))
   }
-  eq('4 học sinh, không trùng id giữa các trang', seen, ['u1', 'u2', 'u3', 'u4'])
-  eq('không bỏ sót học sinh', new Set(seen).size, 4)
+  eq('3 học sinh mở khóa, không trùng id giữa các trang', seen, ['u1', 'u2', 'u4'])
+  eq('không bỏ sót học sinh mở khóa', new Set(seen).size, 3)
+  check('học sinh đang khóa bị loại khỏi list', !seen.includes('u3'))
 }
 
 // 4. Học sinh nhiều lớp chỉ xuất hiện 1 lần + tên lớp gộp
@@ -219,8 +222,7 @@ console.log('\n== Backend: đếm học sinh có số dư 0 đ ==')
   eq('học sinh 2 lớp chỉ 1 dòng', json.data.items.filter((i) => i.username === 'binh').length, 1)
   eq('classIds gom đủ', binh.classIds, ['c1', 'c2'])
   eq('className gom tên lớp', binh.className, 'Lớp 1, Lớp 2')
-  eq('trạng thái tạm khóa', json.data.items.find((i) => i.username === 'chi').status, 'Tạm khóa')
-  eq('số dư = 0', json.data.items.find((i) => i.username === 'chi').balance, 0)
+  check('học sinh tạm khóa không xuất hiện', !json.data.items.some((i) => i.username === 'chi'))
 }
 
 // 5. Lọc lớp: gộp student_classes + legacy profiles.class_id, khử trùng

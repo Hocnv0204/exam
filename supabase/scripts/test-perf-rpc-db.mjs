@@ -15,7 +15,7 @@ console.log('--- 1. Thiết lập schema cơ sở trong PGlite ---')
 await db.exec(`
   create role anon; create role authenticated; create role service_role bypassrls;
   create table public.classes(id uuid primary key, name text, grade_block text);
-  create table public.profiles(id uuid primary key, full_name text, username text, role text);
+  create table public.profiles(id uuid primary key, full_name text, username text, role text, is_locked boolean not null default false);
   create table public.chapters(id uuid primary key, class_id uuid references public.classes, title text);
   create table public.lessons(id uuid primary key, chapter_id uuid references public.chapters, title text, is_trial boolean default false);
   create table public.homeworks(id uuid primary key, lesson_id uuid references public.lessons, title text, is_published boolean default true, deadline timestamptz);
@@ -495,6 +495,21 @@ await db.query(`
     ('${id('cccc', 11)}', '${subTrialLesson}', '${qTrial}', false)
 `)
 
+// Áp đúng phần fn_weak_topics của migration mới (test này không dựng schema tài chính).
+const lockedMigrationSql = readFileSync(
+  new URL('../migrations/20261111000000_exclude_locked_students_from_aggregates.sql', import.meta.url),
+  'utf8'
+)
+const weakFunctionSql = lockedMigrationSql.match(
+  /CREATE OR REPLACE FUNCTION public\.fn_weak_topics\([\s\S]*?\n\$\$;/
+)?.[0]
+assert.ok(weakFunctionSql, 'Migration mới phải chứa fn_weak_topics')
+await db.exec(`${weakFunctionSql}
+  REVOKE ALL ON FUNCTION public.fn_weak_topics(UUID, UUID, INT, INT) FROM PUBLIC, anon, authenticated;
+  GRANT EXECUTE ON FUNCTION public.fn_weak_topics(UUID, UUID, INT, INT) TO service_role;
+`)
+await db.query(`update public.profiles set is_locked = true where id = $1`, [student2])
+
 await db.exec('set role service_role')
 
 // Kiểm thử Single Student Mode
@@ -520,23 +535,24 @@ const classRes = (await db.query(`
 `, [classA])).rows[0].res
 
 assert.equal(classRes.classId, classA)
-// Tổng hợp cả lớp chA1 (logic cũ: mọi submission có hồ sơ HS của bài trong lớp):
-// student1 (6 làm, 5 sai) + student2 (4 làm, 1 sai) = 10 làm, 6 sai -> 60.0%; khách (student_id null) bị loại.
+// Tổng hợp lớp loại student2 đang khóa; student1 vẫn giữ toàn bộ lịch sử đã nộp.
 assert.equal(classRes.chapters.length, 1)
 assert.equal(classRes.chapters[0].chapterId, chA1)
-assert.equal(classRes.chapters[0].answered, 10)
-assert.equal(classRes.chapters[0].wrong, 6)
-assert.equal(classRes.chapters[0].wrongRate, weakRate(10, 6)) // 60.0
+assert.equal(classRes.chapters[0].answered, 6)
+assert.equal(classRes.chapters[0].wrong, 5)
+assert.equal(classRes.chapters[0].wrongRate, weakRate(6, 5))
 
-// Danh sách học sinh: student1 (75.0%) đứng trước student2 (25.0%)
-assert.equal(classRes.students.length, 2)
+assert.equal(classRes.students.length, 1)
 assert.equal(classRes.students[0].studentId, student1)
 assert.equal(classRes.students[0].wrongRate, weakRate(6, 5))
 assert.equal(classRes.students[0].top[0].chapterId, chA1)
-assert.equal(classRes.students[1].studentId, student2)
-assert.equal(classRes.students[1].wrongRate, 25.0)
-assert.equal(classRes.students[1].top[0].chapterId, chA1)
-console.log('  ✓ Class Overview Mode: gom cả lớp (chA1 60%), xếp hạng học sinh (student1 83.3% > student2 25%) khớp logic cũ')
+assert.ok(!classRes.students.some((student) => student.studentId === student2))
+
+const lockedSingleRes = (await db.query(`
+  select public.fn_weak_topics(p_student_id := $1, p_class_id := $2, p_min_answered := 3, p_limit := 10) as res
+`, [student2, classA])).rows[0].res
+assert.equal(lockedSingleRes.totalAnswered, 4, 'Single-student history remains available for a locked student')
+console.log('  ✓ Class Overview Mode loại học sinh khóa; Single Student Mode vẫn giữ lịch sử đã nộp')
 
 await db.exec('reset role')
 

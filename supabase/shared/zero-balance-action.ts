@@ -63,7 +63,7 @@ export async function resolveStudentIdsInClass(client: ZeroBalanceQueryClient, c
 
 /**
  * Xử lý 2 action thống kê học sinh có số dư bằng 0.
- * Điều kiện chính xác: role = 'STUDENT' AND balance = 0.
+ * Điều kiện chính xác: role = 'STUDENT' AND balance = 0 AND is_locked = false.
  */
 export async function handleZeroBalanceAction(
   client: ZeroBalanceQueryClient,
@@ -121,6 +121,7 @@ export async function handleZeroBalanceAction(
       .select('id', { count: 'exact', head: true })
       .eq('role', 'STUDENT')
       .eq('balance', 0)
+      .eq('is_locked', false)
 
     if (studentIdsInClass) countQuery = countQuery.in('id', studentIdsInClass)
     if (searchFilter) countQuery = countQuery.or(searchFilter)
@@ -155,6 +156,7 @@ export async function handleZeroBalanceAction(
     )
     .eq('role', 'STUDENT')
     .eq('balance', 0)
+    .eq('is_locked', false)
     // Sắp xếp ổn định để phân trang không trùng / bỏ sót khi dữ liệu đứng yên
     .order('full_name', { ascending: true })
     .order('id', { ascending: true })

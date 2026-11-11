@@ -17,6 +17,7 @@
  * - Summary dùng best score mỗi homework (scoreTrend vẫn giữ từng lượt).
  * - completionRate = (bài nộp thuộc được giao) / (được giao), chặn trần 100%.
  * - Topic breakdown chỉ nhóm theo chapter có metadata thật, không tạo nhóm "unknown".
+ * - Popup bài tập loại học sinh khóa khỏi roster/mẫu số/chưa nộp nhưng giữ lịch sử đã nộp.
  */
 
 let passed = 0
@@ -331,6 +332,34 @@ console.log('--- 5. STUDENT nhiều lớp chọn một lớp (classId) ---')
   eq('ADMIN + classId -> chỉ lớp đó', adminOne.classIds, ['lopB'])
   const adminAll = resolveScope({ role: 'ADMIN', requested: null, enrolledIds: [], adminClasses: ['lopA', 'lopB'] })
   eq('ADMIN không classId -> mọi lớp của học sinh', adminAll.classIds, ['lopA', 'lopB'])
+}
+
+/* -----------------------------------------------------------------------
+ * 6. Học sinh khóa trong popup tiến độ bài tập
+ * -------------------------------------------------------------------- */
+console.log('--- 6. Popup loại học sinh khóa, giữ lịch sử đã nộp ---')
+{
+  const enrollment = [
+    { student_id: 'open-submitted', profiles: { is_locked: false } },
+    { student_id: 'open-pending', profiles: { is_locked: false } },
+    { student_id: 'locked-submitted', profiles: { is_locked: true } },
+    { student_id: 'locked-pending', profiles: { is_locked: true } },
+  ]
+  const history = [
+    { studentId: 'open-submitted', score: 8 },
+    { studentId: 'locked-submitted', score: 9 },
+  ]
+  const activeIds = new Set(enrollment.filter((row) => row.profiles.is_locked !== true).map((row) => row.student_id))
+  const activeHistory = history.filter((row) => activeIds.has(row.studentId))
+  const submittedIds = new Set(activeHistory.map((row) => row.studentId))
+  const unsubmitted = enrollment
+    .filter((row) => row.profiles.is_locked !== true)
+    .filter((row) => !submittedIds.has(row.student_id))
+
+  eq('mẫu số chỉ gồm học sinh mở khóa', activeIds.size, 2)
+  eq('chưa nộp loại học sinh khóa', unsubmitted.map((row) => row.student_id), ['open-pending'])
+  eq('submittedCount chỉ tính học sinh mở khóa', submittedIds.size, 1)
+  check('lịch sử đã nộp của học sinh khóa vẫn được giữ', history.some((row) => row.studentId === 'locked-submitted'))
 }
 
 console.log(`\nKết quả: ${passed} PASS, ${failed} FAIL`)

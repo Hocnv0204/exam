@@ -1223,7 +1223,7 @@ serve(async (req: Request) => {
             .from('student_classes')
             .select(`
               student_id,
-              profiles (id, username, full_name)
+              profiles (id, username, full_name, is_locked)
             `)
             .eq('class_id', classId)
         : Promise.resolve({ data: null, error: null })
@@ -1253,10 +1253,17 @@ serve(async (req: Request) => {
         if (targetsResult.error) return errorResponse('Không đọc được danh sách học sinh được giao bài', 500)
         const targets = targetsResult.data
         const enrolledIds = new Set((prefetchedEnrolledStudents || []).map((row: any) => row.student_id))
-        popupEligibleStudentIds = (targets || []).length
+        const unlockedEnrolledIds = new Set(
+          (prefetchedEnrolledStudents || [])
+            .filter((row: any) => row.profiles?.is_locked !== true)
+            .map((row: any) => row.student_id)
+        )
+        const targetIds = (targets || []).length
           ? new Set((targets || []).map((row: any) => row.student_id).filter((id: string) => enrolledIds.has(id)))
           : enrolledIds
-        rawSubmissions = rawSubmissions.filter((row: any) => popupEligibleStudentIds!.has(row.student_id))
+        popupEligibleStudentIds = new Set([...targetIds].filter((id: string) => unlockedEnrolledIds.has(id)))
+        // Lịch sử bài đã nộp vẫn giữ học sinh khóa; chỉ roster/mẫu số hiện hành loại họ.
+        rawSubmissions = rawSubmissions.filter((row: any) => targetIds.has(row.student_id))
       }
 
       if (classId && classId !== 'TRIAL') {
@@ -1710,16 +1717,25 @@ serve(async (req: Request) => {
             .from('student_classes')
             .select(`
               student_id,
-              profiles (id, username, full_name)
+              profiles (id, username, full_name, is_locked)
             `)
             .eq('class_id', classId)
           enrolledStudents = esData || []
         }
 
-        const submittedStudentIds = new Set(history.map((s: any) => s.studentId).filter(Boolean))
+        const unlockedEnrolledIds = new Set(
+          (enrolledStudents || [])
+            .filter((es: any) => es.profiles?.is_locked !== true)
+            .map((es: any) => es.student_id)
+        )
+        const activeHistory = history.filter((s: any) =>
+          (popupEligibleStudentIds || unlockedEnrolledIds).has(s.studentId)
+        )
+        const submittedStudentIds = new Set(activeHistory.map((s: any) => s.studentId).filter(Boolean))
         const isHwOverdue = targetHw.deadline ? new Date() > new Date(targetHw.deadline) : false
 
         unsubmittedStudents = (enrolledStudents || [])
+          .filter((es: any) => es.profiles?.is_locked !== true)
           .filter((es: any) => !popupEligibleStudentIds || popupEligibleStudentIds.has(es.student_id))
           .filter((es: any) => !submittedStudentIds.has(es.student_id))
           .map((es: any) => ({
@@ -1733,10 +1749,10 @@ serve(async (req: Request) => {
             deadline: targetHw.deadline || null
           }))
 
-        const totalClassStudents = popupEligibleStudentIds ? popupEligibleStudentIds.size : (enrolledStudents || []).length
-        const submittedCount = popupEligibleStudentIds ? submittedStudentIds.size : history.length
-        const avgScore = history.length > 0 ? Math.round((history.reduce((a: number, s: any) => a + (s.score || 0), 0) / history.length) * 10) / 10 : 0
-        const passCount = history.filter((s: any) => s.isPassed).length
+        const totalClassStudents = popupEligibleStudentIds ? popupEligibleStudentIds.size : unlockedEnrolledIds.size
+        const submittedCount = popupEligibleStudentIds ? submittedStudentIds.size : activeHistory.length
+        const avgScore = activeHistory.length > 0 ? Math.round((activeHistory.reduce((a: number, s: any) => a + (s.score || 0), 0) / activeHistory.length) * 10) / 10 : 0
+        const passCount = activeHistory.filter((s: any) => s.isPassed).length
 
         submissionStats = {
           totalStudents: totalClassStudents,
@@ -1746,7 +1762,7 @@ serve(async (req: Request) => {
           submissionRate: totalClassStudents > 0 ? Math.round((submittedCount / totalClassStudents) * 100) : 0,
           averageScore: avgScore,
           passCount,
-          passRate: history.length > 0 ? Math.round((passCount / history.length) * 100) : 0,
+          passRate: activeHistory.length > 0 ? Math.round((passCount / activeHistory.length) * 100) : 0,
           isOverdue: isHwOverdue,
           deadline: targetHw.deadline || null,
           homeworkTitle: targetHw.title || history[0]?.homeworkTitle || 'Bài tập',
