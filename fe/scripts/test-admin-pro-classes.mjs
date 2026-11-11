@@ -282,23 +282,23 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   // Superset hook check for details
   assertSuperset(functionalHooks(proDetails), functionalHooks(classicDetails), 'ClassDetails Pro')
 
-  // 3. Tab Điểm danh (2 cột theo Prototype Attendance / PhoneAttendance)
+  // 3. Tab Điểm danh: 2 chức năng — điểm danh 1 buổi (popup) & xem lại lịch sử. Không còn danh sách lớp inline.
   window.location.hash = '#class-details?classId=class-1&tab=attendance'
   const proAttendance = renderClassDetailsView()
-  assert.match(proAttendance, /class="ap-attendance-grid"/, 'Grid điểm danh 2 cột')
-  assert.match(proAttendance, /class="[^"]*ap-att-left-col[^"]*"/, 'Cột trái cấu hình & lịch sử')
-  assert.match(proAttendance, /class="[^"]*ap-att-right-col[^"]*"/, 'Cột phải danh sách học sinh')
-  assert.match(proAttendance, /id="attendance-session-date-input"/, 'Input ngày điểm danh')
-  assert.match(proAttendance, /id="attendance-session-note"/, 'Input nội dung bài dạy')
-  assert.match(proAttendance, /id="cb-send-telegram-recap"/, 'Checkbox gửi Telegram recap')
-  assert.match(proAttendance, /id="attendance-mode-badge"/, 'Badge trạng thái buổi')
-  assert.match(proAttendance, /id="btn-open-attendance-modal"/, 'Nút mở modal điểm danh nâng cao')
-  assert.match(proAttendance, /id="attendance-history-tbody"/, 'Lịch sử buổi học gần đây')
-  assert.match(proAttendance, /id="attendance-roster-list"/, 'Danh sách điểm danh nhanh')
-  assert.match(proAttendance, /class="ap-roster-touch-target"/, 'Vùng bấm cảm ứng lớn')
-  assert.match(proAttendance, /id="btn-att-select-all"/, 'Nút tất cả có mặt')
-  assert.match(proAttendance, /id="btn-att-deselect-all"/, 'Nút tất cả vắng')
-  assert.match(proAttendance, /id="btn-save-attendance-inline"/, 'Nút lưu điểm danh dính đáy')
+  assert.match(proAttendance, /class="ap-att-layout"/, 'Bố cục điểm danh 1 cột')
+  assert.match(proAttendance, /class="card ap-att-take-card"/, 'Thẻ điểm danh buổi học')
+  assert.match(proAttendance, /id="attendance-quick-date"/, 'Ô chọn ngày điểm danh của tab')
+  assert.match(proAttendance, /data-att-quick-date=/, 'Chọn nhanh Hôm nay / Hôm qua')
+  assert.match(proAttendance, /id="attendance-day-status"/, 'Trạng thái ngày đã chọn')
+  assert.match(proAttendance, /id="btn-open-attendance-modal"/, 'Nút mở popup điểm danh')
+  assert.match(proAttendance, /class="card ap-att-history-card"/, 'Thẻ lịch sử điểm danh')
+  assert.match(proAttendance, /id="attendance-history-tbody"/, 'Danh sách lịch sử buổi học')
+  assert.match(proAttendance, /id="attendance-pagination"/, 'Phân trang lịch sử')
+  // Popup dùng các id này — tab không được trùng id (tránh popup đọc nhầm ngày/ghi chú/checkbox của tab)
+  for (const id of ['attendance-session-date-input', 'attendance-session-note', 'cb-send-telegram-recap', 'attendance-roster-list', 'btn-att-select-all', 'btn-att-deselect-all', 'btn-save-attendance-inline']) {
+    assert.doesNotMatch(proAttendance, new RegExp(`id="${id}"`), `Tab không còn #${id}`)
+  }
+  assert.doesNotMatch(proAttendance, /attendance-check-box/, 'Tab không còn checkbox danh sách lớp')
 
   // 4. Tab Học phí (3 KPI, công nợ, nút thu)
   window.location.hash = '#class-details?classId=class-1&tab=tuition'

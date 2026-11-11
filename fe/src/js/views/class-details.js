@@ -61,6 +61,8 @@ export function renderClassDetailsView() {
     attendanceTotal = 0
     attendanceTotalPages = 1
     attendanceMonths = []
+    quickAttendanceDate = ''
+    attendanceDayCache.clear()
     cachedHomeworks = null
     homeworkLoadError = ''
     homeworkLoadRequest++
@@ -629,202 +631,201 @@ function renderProStudentsTabHTML(currentClass, classStudents) {
   `
 }
 
+// ---- Điểm danh (Pro): 2 chức năng chính — điểm danh 1 buổi & xem lại lịch sử ----
+// Ngày theo giờ Việt Nam (tránh lệch 1 ngày khi dùng UTC lúc 0h–7h sáng).
+function vnTodayISO() {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const get = type => parts.find(p => p.type === type)?.value || ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+function shiftISODate(date, days) {
+  const d = new Date(`${date}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+const VN_WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+function formatAttendanceDateLong(date) {
+  const d = new Date(`${date}T12:00:00Z`)
+  if (!date || Number.isNaN(d.getTime())) return escapeHtml(date || '—')
+  return `${VN_WEEKDAYS[d.getUTCDay()]}, ${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`
+}
+
+// Cache kết quả get-attendance theo `${classId}:${date}` (dùng cho trạng thái ngày & chi tiết buổi).
+// Xoá sau khi lưu/xoá điểm danh để không hiển thị dữ liệu cũ.
+const attendanceDayCache = new Map()
+let quickAttendanceDate = ''
+
+function fetchAttendanceDay(classId, date, force = false) {
+  const key = `${classId}:${date}`
+  if (!force && attendanceDayCache.has(key)) return attendanceDayCache.get(key)
+  const p = api.getAttendance(classId, date)
+  attendanceDayCache.set(key, p)
+  p.catch(() => { if (attendanceDayCache.get(key) === p) attendanceDayCache.delete(key) })
+  return p
+}
+
+function splitAttendanceStudents(data) {
+  const students = Array.isArray(data?.students) ? data.students : []
+  const present = students.filter(s => s.isPresent)
+  const absent = students.filter(s => !s.isPresent && s.recordId)
+  return { present, absent }
+}
+
+function renderAttendanceDetailHTML(data) {
+  const { present, absent } = splitAttendanceStudents(data)
+  if (!present.length && !absent.length) {
+    return '<p class="ap-att-detail-empty">Không có dữ liệu học sinh cho buổi này.</p>'
+  }
+  const chips = (list, cls) => list.map(s => `<span class="ap-att-name ${cls}" title="${escapeHtml(s.username || '')}">${escapeHtml(s.fullName || s.username || 'Học sinh')}</span>`).join('')
+  return `
+    <div class="ap-att-detail-group is-absent">
+      <h4><i class="fa-solid fa-user-xmark" aria-hidden="true"></i> Vắng <span>${absent.length}</span></h4>
+      <div class="ap-att-names">${absent.length ? chips(absent, 'is-absent') : '<span class="ap-att-detail-none">Không ai vắng</span>'}</div>
+    </div>
+    <div class="ap-att-detail-group is-present">
+      <h4><i class="fa-solid fa-user-check" aria-hidden="true"></i> Có mặt <span>${present.length}</span></h4>
+      <div class="ap-att-names">${present.length ? chips(present, 'is-present') : '<span class="ap-att-detail-none">Không ai có mặt</span>'}</div>
+    </div>
+  `
+}
+
+function renderProAttendanceSessionHTML(h, classId) {
+  const date = h.sessionDate || ''
+  const [y, m, d] = date.split('-')
+  const formattedDate = d && m && y ? `${d}/${m}/${y}` : date
+  const present = Number(h.presentCount || 0)
+  const total = Number(h.totalCount || 0)
+  const absent = Math.max(0, total - present)
+  const rate = h.attendanceRate !== undefined ? Number(h.attendanceRate) || 0 : (total > 0 ? Math.round((present / total) * 100) : 0)
+  const fee = Number(h.totalFee || (present * (h.feePerSession || 0)))
+  const sid = escapeHtml(String(h.id || date))
+  return `
+    <div class="attendance-row ap-att-session" id="session-row-${sid}" data-month="${escapeHtml(date.substring(0, 7))}">
+      <div class="ap-att-session-main">
+        <div class="ap-att-date-tile" aria-hidden="true"><strong>${escapeHtml(d || '—')}</strong><span>Th${Number(m) || ''}</span></div>
+        <div class="ap-att-session-info">
+          <strong class="ap-att-session-date">${formatAttendanceDateLong(date)}</strong>
+          <span class="ap-att-session-note ${h.note ? '' : 'is-empty'}">${h.note ? escapeHtml(h.note) : 'Không ghi nội dung'}</span>
+        </div>
+        <div class="ap-att-session-stats">
+          <div class="ap-att-rate-line"><span><strong>${present}/${total}</strong> có mặt</span><span class="ap-att-rate-pct">${rate}%</span></div>
+          <div class="ap-att-rate-track" aria-hidden="true"><i style="width:${Math.min(100, Math.max(0, rate))}%"></i></div>
+        </div>
+        <div class="ap-att-session-badges">
+          ${absent > 0 ? `<span class="ap-att-chip is-absent">${absent} vắng</span>` : '<span class="ap-att-chip is-full">Đủ lớp</span>'}
+          <span class="ap-att-fee" title="Học phí ghi nhận cho buổi này">${fee.toLocaleString('vi-VN')}đ</span>
+        </div>
+        <div class="ap-att-session-actions">
+          <button type="button" class="ap-att-detail-toggle" data-date="${escapeHtml(date)}" aria-expanded="false" aria-controls="att-detail-${sid}" title="Xem ai có mặt / vắng">
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i><span>Chi tiết</span>
+          </button>
+          <button type="button" class="btn-edit-attendance btn-secondary" data-date="${escapeHtml(date)}" title="Sửa buổi điểm danh" aria-label="Sửa buổi ${formattedDate}">
+            <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span>Sửa</span>
+          </button>
+          <button type="button" class="btn-delete-attendance" data-session-id="${escapeHtml(String(h.id || ''))}" data-class-id="${escapeHtml(String(classId))}" data-session-date="${escapeHtml(date)}" data-date="${formattedDate}" title="Xóa buổi điểm danh" aria-label="Xóa buổi ${formattedDate}">
+            <i class="fa-solid fa-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div class="ap-att-session-detail" id="att-detail-${sid}" hidden></div>
+    </div>
+  `
+}
+
 function renderProAttendanceTabHTML(currentClass) {
   const history = cachedAttendanceHistory || []
   const uniqueMonths = (attendanceMonths.length > 0 ? attendanceMonths : [...new Set(history.map(h => (h.sessionDate || '').substring(0, 7)))].filter(Boolean)).sort().reverse()
-  const today = new Date().toISOString().split('T')[0]
-  const formatMonth = (m) => {
-    const [year, month] = m.split('-')
-    return `Tháng ${month}/${year}`
+  const today = vnTodayISO()
+  const yesterday = shiftISODate(today, -1)
+  if (!quickAttendanceDate || quickAttendanceDate > today) quickAttendanceDate = today
+  const selectedDate = quickAttendanceDate
+  const formatMonth = (mo) => {
+    const [year, month] = mo.split('-')
+    return `Tháng ${Number(month)}/${year}`
   }
+  const fee = Number(currentClass.tuitionFee || 0)
 
-  const studentsList = cachedClassStudents.length > 0 ? cachedClassStudents : (state.students || []).filter(s => s.classIds ? s.classIds.includes(currentClass.id) : (s.classId === currentClass.id))
-  const activeStudents = studentsList.filter(s => s.status !== 'PAUSED' && s.status !== 'LOCKED')
+  // Nhóm theo tháng (trong trang hiện tại) để dễ quét lại lịch sử.
+  const groups = []
+  history.forEach(h => {
+    const key = (h.sessionDate || '').substring(0, 7)
+    const last = groups[groups.length - 1]
+    if (last && last.key === key) last.items.push(h)
+    else groups.push({ key, items: [h] })
+  })
 
   return `
-    <div class="ap-attendance-grid">
-      <!-- Cột Trái: Chọn buổi điểm danh & Lịch sử -->
-      <div class="ap-att-left-col">
-        <!-- Card 1: Buổi điểm danh -->
-        <article class="card ap-att-session-card">
-          <h2 class="ap-card-section-title">
-            <i class="fa-solid fa-calendar-check" style="color:var(--ap-accent);"></i> Buổi điểm danh
-          </h2>
-
-          <div class="ap-att-form-fields">
-            <label class="ap-field-label">
-              <span>Ngày học <strong style="color:var(--ap-accent2);">*</strong></span>
-              <input type="date" id="attendance-session-date-input" class="form-input" value="${today}" max="${today}">
-            </label>
-
-            <label class="ap-field-label">
-              <span>Nội dung buổi học</span>
-              <input type="text" id="attendance-session-note" class="form-input" placeholder="Ví dụ: Ôn tập cực trị hàm số, đề 15 phút...">
-            </label>
-
-            <label class="ap-field-label">
-              <span>Học phí buổi này</span>
-              <input type="text" class="form-input" readonly value="${(Number(currentClass.tuitionFee || 0)).toLocaleString('vi-VN')} VND" style="cursor:default; font-weight:700;">
-            </label>
+    <div class="ap-att-layout">
+      <article class="card ap-att-take-card" aria-labelledby="att-take-title">
+        <div class="ap-att-take-head">
+          <span class="ap-att-take-icon" aria-hidden="true"><i class="fa-solid fa-clipboard-user"></i></span>
+          <div>
+            <h2 class="ap-card-section-title" id="att-take-title">Điểm danh buổi học</h2>
+            <p class="ap-att-sub">Chọn ngày rồi bấm điểm danh. Mặc định cả lớp có mặt — chỉ cần chạm vào học sinh vắng.</p>
           </div>
+        </div>
 
-          <p class="ap-info-tip">
-            <i class="fa-solid fa-circle-info"></i> Học sinh vắng không bị trừ học phí. Học sinh tạm nghỉ hoặc đang bị khoá không được tính.
-          </p>
-
-          <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-            <div id="attendance-mode-badge">
-              <span class="badge badge-paid">
-                <i class="fa-solid fa-plus"></i> Chế độ: Điểm danh mới
-              </span>
-            </div>
-            <label class="ap-checkbox-inline" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--ap-muted); cursor:pointer;">
-              <input type="checkbox" id="cb-send-telegram-recap" style="width:16px; height:16px; accent-color:var(--ap-accent); cursor:pointer;" checked>
-              <span>Gửi tóm tắt vào nhóm Telegram lớp</span>
-            </label>
-          </div>
-
-          <div style="margin-top:10px;">
-            <button type="button" id="btn-open-attendance-modal" class="btn-primary ap-btn-open-modal" style="width:100%; justify-content:center;">
-              <i class="fa-solid fa-clipboard-user"></i> Mở popup điểm danh chi tiết
-            </button>
-          </div>
-        </article>
-
-        <!-- Card 2: Các buổi gần đây -->
-        <article class="card ap-att-history-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-            <h2 class="ap-card-section-title" style="margin:0;">
-              <i class="fa-solid fa-clock-rotate-left" style="color:var(--ap-blue);"></i> Các buổi gần đây
-            </h2>
-            ${uniqueMonths.length > 0 ? `
-              <select id="attendance-month-filter" class="form-input" style="width:auto; font-size:13px; font-weight:700; padding:6px 12px; border-radius:10px;">
-                <option value="all">Tất cả các tháng</option>
-                ${uniqueMonths.map(m => `<option value="${m}" ${m === attendanceMonth ? 'selected' : ''}>${formatMonth(m)}</option>`).join('')}
-              </select>
-            ` : ''}
-          </div>
-
-          <div class="table-responsive ap-att-history-table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Ngày học</th>
-                  <th scope="col">Sĩ số</th>
-                  <th scope="col">Học phí</th>
-                  <th scope="col" style="text-align:right;">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody id="attendance-history-tbody">
-                ${history.length === 0 ? `
-                  <tr>
-                    <td colspan="4" style="text-align:center; padding:32px 14px; color:var(--ap-muted);">
-                      <i class="fa-solid fa-calendar-xmark" style="font-size:32px; color:var(--ap-line); display:block; margin-bottom:8px;"></i>
-                      Chưa có buổi điểm danh nào.
-                    </td>
-                  </tr>
-                ` : history.map(h => {
-                  const [y, m, d] = (h.sessionDate || '').split('-')
-                  const formattedDate = d && m && y ? `${d}/${m}/${y}` : h.sessionDate
-                  const rate = h.attendanceRate !== undefined ? h.attendanceRate : (h.totalCount > 0 ? Math.round((h.presentCount / h.totalCount) * 100) : 0)
-                  return `
-                    <tr id="session-row-${h.id}" class="attendance-row" data-month="${(h.sessionDate || '').substring(0, 7)}">
-                      <td>
-                        <strong style="color:var(--ap-ink); display:block; font-size:14px;">${formattedDate}</strong>
-                        <span style="font-size:12px; color:var(--ap-muted);">${h.note ? escapeHtml(h.note) : 'Không ghi chú'}</span>
-                      </td>
-                      <td>
-                        <span class="badge ${h.presentCount > 0 ? 'badge-present' : 'badge-absent'}">
-                          ${h.presentCount}/${h.totalCount}
-                        </span>
-                        <div style="font-size:11px; font-weight:700; color:var(--ap-muted); margin-top:2px;">${rate}%</div>
-                      </td>
-                      <td>
-                        <strong style="color:var(--ap-ok); font-size:13px;">
-                          ${(Number(h.totalFee || (h.presentCount * (h.feePerSession || 0)))).toLocaleString('vi-VN')}đ
-                        </strong>
-                      </td>
-                      <td style="text-align:right;">
-                        <div style="display:inline-flex; align-items:center; gap:6px;">
-                          <button type="button" class="btn-edit-attendance btn-secondary" data-date="${h.sessionDate}" title="Xem và sửa buổi điểm danh" aria-label="Xem sửa buổi ${formattedDate}" style="padding:6px 10px; font-size:12px; border-radius:8px;">
-                            <i class="fa-solid fa-pen-to-square"></i>
-                          </button>
-                          <button type="button" class="btn-delete-attendance" data-session-id="${h.id}" data-class-id="${currentClass.id}" data-session-date="${h.sessionDate}" data-date="${formattedDate}" title="Xóa buổi điểm danh" aria-label="Xóa buổi ${formattedDate}" style="padding:6px 8px; font-size:12px; border-radius:8px; cursor:pointer; background:var(--ap-warn-soft); border:1px solid var(--ap-warn); color:var(--ap-warn);">
-                            <i class="fa-solid fa-trash"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  `
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Pagination -->
-          <div id="attendance-pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; flex-wrap:wrap; gap:10px;">
-          </div>
-        </article>
-      </div>
-
-      <!-- Cột Phải: Danh sách học sinh điểm danh -->
-      <div class="ap-att-right-col">
-        <article class="card ap-att-roster-card">
-          <!-- Roster Header -->
-          <div class="ap-roster-header">
-            <div>
-              <h2 class="ap-card-section-title" style="margin:0 0 4px 0;">
-                <i class="fa-solid fa-users" style="color:var(--ap-accent);"></i> Danh sách lớp
-              </h2>
-              <span id="attendance-realtime-counter" class="badge badge-present">
-                Có mặt <strong id="att-present-num">${activeStudents.length}</strong> / ${activeStudents.length}
-              </span>
-            </div>
-            <div class="ap-roster-tools">
-              <button type="button" id="btn-att-select-all" class="btn-secondary ap-btn-pill-ok">
-                <i class="fa-solid fa-check-double"></i> Tất cả có mặt
-              </button>
-              <button type="button" id="btn-att-deselect-all" class="btn-secondary">
-                <i class="fa-solid fa-xmark"></i> Bỏ chọn
-              </button>
-            </div>
-          </div>
-
-          <!-- Roster Checklist List -->
-          <div id="attendance-roster-list" class="ap-roster-checklist">
-            ${activeStudents.length === 0 ? `
-              <div style="text-align:center; padding:48px 20px; color:var(--ap-muted);">
-                <i class="fa-solid fa-users-slash" style="font-size:36px; color:var(--ap-line); display:block; margin-bottom:12px;"></i>
-                Chưa có học sinh nào đang hoạt động trong lớp học này.
+        <div class="ap-att-take-row">
+          <div class="ap-att-date-block">
+            <label class="ap-att-date-label" for="attendance-quick-date">Ngày học</label>
+            <div class="ap-att-date-controls">
+              <input type="date" id="attendance-quick-date" class="form-input" value="${selectedDate}" max="${today}">
+              <div class="ap-att-quick-dates" role="group" aria-label="Chọn nhanh ngày">
+                <button type="button" class="ap-att-quick-date" data-att-quick-date="${today}" aria-pressed="${selectedDate === today}">Hôm nay</button>
+                <button type="button" class="ap-att-quick-date" data-att-quick-date="${yesterday}" aria-pressed="${selectedDate === yesterday}">Hôm qua</button>
               </div>
-            ` : activeStudents.map(s => {
-              const sid = s.id || s.studentId
-              const initials = s.fullName ? s.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
-              return `
-                <div class="attendance-roster-item present" id="att-item-${sid}">
-                  <label class="ap-roster-touch-target">
-                    <input type="checkbox" class="attendance-check-box" data-student-id="${sid}" data-is-paid="false" checked>
-                    <span class="avatar-circle">${initials}</span>
-                    <span class="ap-student-details">
-                      <strong class="attendance-student-name">${escapeHtml(s.fullName)}</strong>
-                      <span class="attendance-student-sub">${escapeHtml(s.username || s.studentCode || '')}</span>
-                    </span>
-                    <span class="att-status-pill badge badge-present">Có mặt</span>
-                  </label>
-                </div>
-              `
-            }).join('')}
+            </div>
           </div>
+          <div class="ap-att-day-status is-loading" id="attendance-day-status" aria-live="polite">
+            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>Đang kiểm tra ngày ${formatAttendanceDateLong(selectedDate)}…</span>
+          </div>
+          <button type="button" id="btn-open-attendance-modal" class="btn-primary ap-att-take-btn">
+            <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i><span id="attendance-take-label">Điểm danh</span>
+          </button>
+        </div>
 
-          <!-- Sticky Bottom Save Bar -->
-          <div class="ap-attendance-sticky-bar">
-            <span class="ap-sticky-hint">Chạm vào học sinh để đổi trạng thái Có mặt / Vắng</span>
-            <button type="button" id="btn-save-attendance-inline" class="btn-primary ap-save-attendance-btn">
-              <i class="fa-solid fa-floppy-disk"></i> Lưu điểm danh
-            </button>
+        <div class="ap-att-take-meta">
+          <span class="ap-att-meta-chip"><i class="fa-solid fa-coins" aria-hidden="true"></i> Học phí/buổi: <strong>${fee.toLocaleString('vi-VN')}đ</strong></span>
+          <span class="ap-att-meta-chip"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Vắng không bị trừ học phí · HS tạm nghỉ/bị khoá không được tính</span>
+        </div>
+      </article>
+
+      <article class="card ap-att-history-card" aria-labelledby="att-history-title">
+        <div class="ap-att-history-head">
+          <div>
+            <h2 class="ap-card-section-title" id="att-history-title">Lịch sử điểm danh</h2>
+            <p class="ap-att-sub">${attendanceTotal || 0} buổi${attendanceMonth !== 'all' ? ` trong ${formatMonth(attendanceMonth)}` : ''} · bấm “Chi tiết” để xem ai vắng</p>
           </div>
-        </article>
-      </div>
+          ${uniqueMonths.length > 0 ? `
+            <label class="ap-att-month-label">
+              <span class="ap-sr-only">Lọc theo tháng</span>
+              <select id="attendance-month-filter" class="form-input">
+                <option value="all">Tất cả các tháng</option>
+                ${uniqueMonths.map(mo => `<option value="${escapeHtml(mo)}" ${mo === attendanceMonth ? 'selected' : ''}>${formatMonth(mo)}</option>`).join('')}
+              </select>
+            </label>
+          ` : ''}
+        </div>
+
+        <div id="attendance-history-tbody" class="ap-att-history-list">
+          ${history.length === 0 ? `
+            <div id="attendance-empty-row" class="ap-att-empty">
+              <i class="fa-solid fa-calendar-xmark" aria-hidden="true"></i>
+              <strong>Chưa có buổi điểm danh nào${attendanceMonth !== 'all' ? ' trong tháng này' : ''}</strong>
+              <span>Buổi đầu tiên sẽ xuất hiện ở đây sau khi bạn lưu điểm danh.</span>
+            </div>
+          ` : groups.map(g => `
+            <section class="ap-att-month-group" aria-label="${g.key ? formatMonth(g.key) : 'Không rõ tháng'}">
+              <h3 class="ap-att-month-title">${g.key ? formatMonth(g.key) : 'Không rõ tháng'}</h3>
+              ${g.items.map(h => renderProAttendanceSessionHTML(h, currentClass.id)).join('')}
+            </section>
+          `).join('')}
+        </div>
+
+        <div id="attendance-pagination" class="ap-att-pager"></div>
+      </article>
     </div>
   `
 }
@@ -2521,7 +2522,7 @@ function updateAttendancePager() {
   }
 
   if (rows.length === 0 || attendanceTotalPages <= 1) {
-    pager.innerHTML = rows.length === 0 ? '' : `<div style="font-size:13px; color:#64748b;">Tổng ${attendanceTotal} buổi</div>`
+    pager.innerHTML = rows.length === 0 ? '' : (isAdminProUI() ? `<div class="ap-att-pager-info">Tổng ${attendanceTotal} buổi</div>` : `<div style="font-size:13px; color:#64748b;">Tổng ${attendanceTotal} buổi</div>`)
     return
   }
   const from = (attendancePage - 1) * ATTENDANCE_PAGE_SIZE + 1
@@ -2529,6 +2530,19 @@ function updateAttendancePager() {
   let nums = ''
   const startP = Math.max(1, Math.min(attendancePage - 2, attendanceTotalPages - 4))
   const endP = Math.min(attendanceTotalPages, startP + 4)
+  if (isAdminProUI()) {
+    for (let p = startP; p <= endP; p++) {
+      nums += `<button type="button" class="ap-att-page-btn" data-att-page="${p}" ${p === attendancePage ? 'aria-current="page"' : ''}>${p}</button>`
+    }
+    pager.innerHTML = `
+      <div class="ap-att-pager-info">Hiển thị ${from}–${to} / ${attendanceTotal} buổi</div>
+      <div class="ap-att-pager-btns">
+        <button type="button" class="ap-att-page-btn" data-att-page="prev" ${attendancePage <= 1 ? 'disabled' : ''} aria-label="Trang trước"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+        ${nums}
+        <button type="button" class="ap-att-page-btn" data-att-page="next" ${attendancePage >= attendanceTotalPages ? 'disabled' : ''} aria-label="Trang sau"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+      </div>
+    `
+  } else {
   for (let p = startP; p <= endP; p++) {
     nums += `<button data-att-page="${p}" style="min-width:32px; height:32px; border-radius:8px; border:1px solid ${p === attendancePage ? '#0066cc' : '#cbd5e1'}; background:${p === attendancePage ? '#0066cc' : '#ffffff'}; color:${p === attendancePage ? '#ffffff' : '#334155'}; font-weight:700; font-size:13px; cursor:pointer;">${p}</button>`
   }
@@ -2540,6 +2554,7 @@ function updateAttendancePager() {
       <button data-att-page="next" ${attendancePage >= attendanceTotalPages ? 'disabled' : ''} style="height:32px; padding:0 12px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; opacity:${attendancePage >= attendanceTotalPages ? '0.4' : '1'};">Sau ›</button>
     </div>
   `
+  }
   pager.querySelectorAll('[data-att-page]').forEach(btn => {
     btn.onclick = () => {
       const v = btn.getAttribute('data-att-page')
@@ -2568,11 +2583,14 @@ function bindAttendanceTabEvents(classId, currentClass) {
   }
   updateAttendancePager()
 
-  // Nút Điểm danh hôm nay
+  // Nút Điểm danh: Pro lấy ngày từ ô chọn ngày của tab, classic mở ngày hôm nay
   const openModalBtn = document.getElementById('btn-open-attendance-modal')
   if (openModalBtn) {
     const today = new Date().toISOString().split('T')[0]
-    openModalBtn.onclick = () => showAttendanceModal(classId, currentClass, today)
+    openModalBtn.onclick = () => {
+      const quickDate = document.getElementById('attendance-quick-date')?.value
+      showAttendanceModal(classId, currentClass, quickDate || today)
+    }
   }
 
   // Nút Xem / Sửa buổi điểm danh
@@ -2591,11 +2609,15 @@ function bindAttendanceTabEvents(classId, currentClass) {
       const sessionDate = btn.getAttribute('data-session-date')
       const date = btn.getAttribute('data-date')
       if (!confirm(`Bạn có chắc chắn muốn xóa buổi điểm danh ngày ${date}? Toàn bộ dữ liệu điểm danh và khoản phí liên quan sẽ được gỡ bỏ.`)) return
+      if (btn.dataset.deleting === 'true') return
+      btn.dataset.deleting = 'true'
+      btn.disabled = true
 
       showToast('Đang xóa buổi điểm danh...', 'info')
       try {
         await api.deleteAttendanceSession(sessionId, classIdAttr, sessionDate)
         showToast('Đã xóa buổi điểm danh', 'success')
+        attendanceDayCache.clear()
 
         // Reload attendance + học phí liên quan + KPI (không quét các tab khác)
         await Promise.all([
@@ -2605,154 +2627,172 @@ function bindAttendanceTabEvents(classId, currentClass) {
         ])
       } catch (err) {
         showToast(`Xóa thất bại: ${err.message}`, 'error')
-      }
-    }
-  })
-
-  // Inline attendance handlers (Pro mode tab)
-  const saveInlineBtn = document.getElementById('btn-save-attendance-inline')
-  if (saveInlineBtn) {
-    saveInlineBtn.onclick = async () => {
-      const dateInput = document.getElementById('attendance-session-date-input')
-      const noteInput = document.getElementById('attendance-session-note')
-      const tgCheckbox = document.getElementById('cb-send-telegram-recap')
-
-      const today = new Date().toISOString().split('T')[0]
-      const sessionDate = dateInput?.value || today
-      const note = noteInput?.value?.trim() || ''
-      const sendTelegram = tgCheckbox?.checked ?? true
-
-      const checkboxes = document.querySelectorAll('#attendance-roster-list .attendance-check-box')
-      const records = Array.from(checkboxes).map(cb => ({
-        studentId: cb.getAttribute('data-student-id'),
-        isPresent: cb.checked
-      }))
-
-      let hasUncheckedPaid = false
-      checkboxes.forEach(cb => {
-        if (cb.getAttribute('data-is-paid') === 'true' && !cb.checked) {
-          hasUncheckedPaid = true
-        }
-      })
-      if (hasUncheckedPaid) {
-        if (!confirm('Cảnh báo: Có học sinh đã ĐÓNG HỌC PHÍ bị đánh dấu vắng mặt. Bạn có chắc chắn muốn bỏ tích học sinh này không?')) return
-      }
-
-      // Chống bấm lưu nhiều lần: lưu điểm danh kéo theo trừ học phí, không gửi lại khi request trước chưa xong.
-      if (saveInlineBtn.dataset.saving === 'true') return
-      saveInlineBtn.dataset.saving = 'true'
-      saveInlineBtn.disabled = true
-      saveInlineBtn.setAttribute('aria-busy', 'true')
-      showToast('Đang lưu dữ liệu điểm danh...', 'info')
-      try {
-        await api.saveAttendance({
-          classId,
-          sessionDate,
-          note,
-          records,
-          sendTelegram
-        })
-        showToast('Điểm danh thành công!', 'success')
-        await Promise.all([
-          loadAttendanceScope(classId, currentClass, true),
-          loadStudentsScope(classId, currentClass, true),
-          loadKpiStats(classId, true),
-        ])
-      } catch (err) {
-        showToast(`Lưu điểm danh thất bại: ${err.message}`, 'error')
       } finally {
-        delete saveInlineBtn.dataset.saving
-        saveInlineBtn.disabled = false
-        saveInlineBtn.removeAttribute('aria-busy')
+        delete btn.dataset.deleting
+        btn.disabled = false
       }
     }
-  }
-
-  const updateInlineCounter = () => {
-    const checkboxes = document.querySelectorAll('#attendance-roster-list .attendance-check-box')
-    let presentCount = 0
-    checkboxes.forEach(cb => {
-      const item = cb.closest('.attendance-roster-item')
-      const pill = item?.querySelector('.att-status-pill')
-      if (cb.checked) {
-        presentCount++
-        item?.classList.add('present')
-        if (pill) {
-          pill.className = 'att-status-pill badge badge-present'
-          pill.textContent = 'Có mặt'
-        }
-      } else {
-        item?.classList.remove('present')
-        if (pill) {
-          pill.className = 'att-status-pill badge badge-absent'
-          pill.textContent = 'Vắng'
-        }
-      }
-    })
-    const numEl = document.getElementById('att-present-num')
-    if (numEl) numEl.textContent = presentCount
-  }
-
-  document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => {
-    cb.addEventListener('change', updateInlineCounter)
   })
 
-  const selectAllBtn = document.getElementById('btn-att-select-all')
-  if (selectAllBtn) {
-    selectAllBtn.onclick = () => {
-      document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => { cb.checked = true })
-      updateInlineCounter()
+  if (isAdminProUI()) bindProAttendanceExtras(classId)
+}
+
+// Pro: trạng thái ngày đã chọn + chọn nhanh ngày + mở rộng chi tiết từng buổi
+let attendanceDayStatusRequest = 0
+function bindProAttendanceExtras(classId) {
+  const dateInput = document.getElementById('attendance-quick-date')
+  const statusEl = document.getElementById('attendance-day-status')
+  const takeLabel = document.getElementById('attendance-take-label')
+
+  const refreshDayStatus = async () => {
+    if (!dateInput || !statusEl) return
+    const date = dateInput.value
+    const reqId = ++attendanceDayStatusRequest
+    document.querySelectorAll('[data-att-quick-date]').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-att-quick-date') === date)))
+    if (!date) {
+      statusEl.className = 'ap-att-day-status is-error'
+      statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>Vui lòng chọn ngày học.</span>'
+      return
+    }
+    statusEl.className = 'ap-att-day-status is-loading'
+    statusEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>Đang kiểm tra ${formatAttendanceDateLong(date)}…</span>`
+    try {
+      const data = await fetchAttendanceDay(classId, date)
+      if (reqId !== attendanceDayStatusRequest || !statusEl.isConnected) return
+      if (data?.session) {
+        const { present, absent } = splitAttendanceStudents(data)
+        const total = present.length + absent.length
+        statusEl.className = 'ap-att-day-status is-done'
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-check" aria-hidden="true"></i><span><strong>Đã điểm danh</strong> ${formatAttendanceDateLong(date)} · ${present.length}/${total} có mặt${absent.length ? ` · ${absent.length} vắng` : ''}</span>`
+        if (takeLabel) takeLabel.textContent = 'Xem / sửa điểm danh'
+      } else {
+        const students = Array.isArray(data?.students) ? data.students.filter(s => s.status === 'ACTIVE') : []
+        statusEl.className = 'ap-att-day-status is-new'
+        statusEl.innerHTML = `<i class="fa-regular fa-circle" aria-hidden="true"></i><span><strong>Chưa điểm danh</strong> ${formatAttendanceDateLong(date)}${students.length ? ` · ${students.length} học sinh đang học` : ''}</span>`
+        if (takeLabel) takeLabel.textContent = 'Điểm danh'
+      }
+    } catch (err) {
+      if (reqId !== attendanceDayStatusRequest || !statusEl.isConnected) return
+      statusEl.className = 'ap-att-day-status is-error'
+      statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>Không kiểm tra được ngày này — vẫn có thể mở điểm danh.</span>'
+      if (takeLabel) takeLabel.textContent = 'Điểm danh'
     }
   }
 
-  const deselectAllBtn = document.getElementById('btn-att-deselect-all')
-  if (deselectAllBtn) {
-    deselectAllBtn.onclick = () => {
-      document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => { cb.checked = false })
-      updateInlineCounter()
-    }
-  }
-
-  const sessionDateInput = document.getElementById('attendance-session-date-input')
-  if (sessionDateInput) {
-    sessionDateInput.addEventListener('change', async () => {
-      const targetDate = sessionDateInput.value
-      if (!targetDate) return
-      try {
-        const attData = await api.getAttendance(classId, targetDate)
-        const isEdit = !!attData?.session
-        const badgeEl = document.getElementById('attendance-mode-badge')
-        if (badgeEl) {
-          badgeEl.innerHTML = isEdit
-            ? `<span class="badge" style="background:var(--ap-blue-soft); color:var(--ap-blue); border:1px solid var(--ap-blue);"><i class="fa-solid fa-pen-to-square"></i> Chế độ: Sửa điểm danh</span>`
-            : `<span class="badge badge-paid"><i class="fa-solid fa-plus"></i> Chế độ: Điểm danh mới</span>`
-        }
-        const noteInput = document.getElementById('attendance-session-note')
-        if (noteInput && attData?.session?.note !== undefined) {
-          noteInput.value = attData.session.note || ''
-        }
-        if (attData?.students && attData.students.length > 0) {
-          const map = new Map(attData.students.map(s => [s.studentId, s]))
-          document.querySelectorAll('#attendance-roster-list .attendance-check-box').forEach(cb => {
-            const sid = cb.getAttribute('data-student-id')
-            const st = map.get(sid)
-            if (st) {
-              cb.checked = !!st.isPresent
-              cb.setAttribute('data-is-paid', st.paymentStatus === 'paid' ? 'true' : 'false')
-            }
-          })
-          updateInlineCounter()
-        }
-      } catch (err) {
-        console.warn('Failed to load date attendance:', err)
+  if (dateInput) {
+    dateInput.addEventListener('change', () => {
+      quickAttendanceDate = dateInput.value
+      refreshDayStatus()
+    })
+    document.querySelectorAll('[data-att-quick-date]').forEach(btn => {
+      btn.onclick = () => {
+        dateInput.value = btn.getAttribute('data-att-quick-date')
+        quickAttendanceDate = dateInput.value
+        refreshDayStatus()
       }
     })
+    refreshDayStatus()
   }
+
+  document.querySelectorAll('.ap-att-detail-toggle').forEach(btn => {
+    btn.onclick = async () => {
+      const panel = document.getElementById(btn.getAttribute('aria-controls'))
+      const date = btn.getAttribute('data-date')
+      if (!panel || !date) return
+      const expanded = btn.getAttribute('aria-expanded') === 'true'
+      btn.setAttribute('aria-expanded', String(!expanded))
+      btn.closest('.ap-att-session')?.classList.toggle('is-open', !expanded)
+      if (expanded) {
+        panel.hidden = true
+        return
+      }
+      panel.hidden = false
+      if (panel.dataset.loaded === 'true') return
+      panel.innerHTML = '<p class="ap-att-detail-loading"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Đang tải danh sách…</p>'
+      try {
+        const data = await fetchAttendanceDay(classId, date)
+        if (!panel.isConnected) return
+        panel.innerHTML = renderAttendanceDetailHTML(data)
+        panel.dataset.loaded = 'true'
+      } catch (err) {
+        if (!panel.isConnected) return
+        panel.innerHTML = `<p class="ap-att-detail-error">Không tải được chi tiết: ${escapeHtml(err?.message || 'lỗi không xác định')}</p>`
+      }
+    }
+  })
+}
+
+// Thân popup điểm danh cho giao diện Pro: giữ nguyên id/class mà handler của modal dùng.
+function renderProAttendanceModalBody({ currentClass, attendanceData, activeStudents, hasPreRecorded, initialPresentCount, percent, targetDate, today, isEditMode }) {
+  const fee = Number(currentClass.tuitionFee || 0)
+  return `
+    <div class="ap-att-modal">
+      <div class="ap-att-modal-top">
+        <label class="ap-att-modal-date">
+          <span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Ngày học</span>
+          <input type="date" id="attendance-session-date-input" value="${escapeHtml(targetDate)}" max="${today}">
+        </label>
+        <div id="attendance-mode-badge">
+          ${isEditMode
+            ? '<span class="ap-att-mode is-edit"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Sửa buổi đã điểm danh</span>'
+            : '<span class="ap-att-mode is-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> Buổi mới</span>'}
+        </div>
+      </div>
+      ${isEditMode ? '<p class="ap-att-modal-hint">Ngày này đã có điểm danh. Lưu lại sẽ cập nhật trạng thái và học phí theo thay đổi.</p>' : ''}
+
+      <div class="ap-att-modal-toolbar">
+        <span id="attendance-realtime-counter" class="badge badge-present">
+          Có mặt <strong id="att-present-num">${initialPresentCount}</strong> / ${activeStudents.length} (${percent}%)
+        </span>
+        <div class="ap-att-modal-tools">
+          <button type="button" id="btn-att-select-all" class="btn-secondary"><i class="fa-solid fa-check-double" aria-hidden="true"></i> Tất cả có mặt</button>
+          <button type="button" id="btn-att-deselect-all" class="btn-secondary"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Tất cả vắng</button>
+        </div>
+      </div>
+      <p class="ap-att-modal-tip">Chạm vào học sinh để chuyển <strong>Có mặt</strong> ↔ <strong>Vắng</strong>.</p>
+
+      <div id="attendance-roster-list" class="ap-att-modal-roster">
+        ${activeStudents.length === 0 ? `
+          <div class="ap-att-empty"><i class="fa-solid fa-users-slash" aria-hidden="true"></i><strong>Không có học sinh đang học trong lớp này.</strong></div>
+        ` : activeStudents.map(s => {
+          const isChecked = hasPreRecorded ? s.isPresent : true
+          const initials = s.fullName ? s.fullName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'HS'
+          const isPaid = s.paymentStatus === 'paid'
+          const sid = escapeHtml(String(s.studentId || ''))
+          return `
+            <label class="attendance-roster-item ${isChecked ? 'present' : ''}" id="att-item-${sid}">
+              <input type="checkbox" class="attendance-check-box" data-student-id="${sid}" data-is-paid="${isPaid}" ${isChecked ? 'checked' : ''}>
+              <span class="avatar-circle" aria-hidden="true">${escapeHtml(initials)}</span>
+              <span class="ap-student-details">
+                <span class="attendance-student-name">${escapeHtml(s.fullName)}</span>
+                <span class="attendance-student-sub">${escapeHtml(s.username)}</span>
+              </span>
+              ${isPaid ? '<span class="ap-att-paid" title="Học sinh đã đóng học phí cho buổi này"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span class="ap-att-paid-text"> Đã đóng</span></span>' : ''}
+              <span class="att-status-pill badge ${isChecked ? 'badge-present' : 'badge-absent'}">${isChecked ? 'Có mặt' : 'Vắng'}</span>
+            </label>
+          `
+        }).join('')}
+      </div>
+
+      <label class="ap-att-modal-field">
+        <span>Nội dung buổi học <em>(tuỳ chọn)</em></span>
+        <input type="text" id="attendance-session-note" class="form-input" placeholder="Ví dụ: Ôn tập cực trị hàm số, đề 15 phút..." value="${escapeHtml(attendanceData?.session?.note || '')}">
+      </label>
+
+      <div class="ap-att-modal-foot">
+        <label class="ap-att-modal-tg">
+          <input type="checkbox" id="cb-send-telegram-recap" checked>
+          <span>Gửi tóm tắt vào nhóm Telegram lớp</span>
+        </label>
+        <span class="ap-att-modal-fee"><i class="fa-solid fa-coins" aria-hidden="true"></i> ${fee.toLocaleString('vi-VN')}đ/buổi · vắng không tính phí</span>
+      </div>
+    </div>
+  `
 }
 
 // MODAL ĐIỂM DANH CHUẨN ĐẶC TẢ
 async function showAttendanceModal(classId, currentClass, initialDate) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = isAdminProUI() ? vnTodayISO() : new Date().toISOString().split('T')[0]
   const targetDate = initialDate || today
 
   // Load existing session for this date
@@ -2779,7 +2819,7 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
 
   const percent = activeStudents.length > 0 ? Math.round((initialPresentCount / activeStudents.length) * 100) : 0
 
-  const bodyHTML = `
+  const bodyHTML = isAdminProUI() ? renderProAttendanceModalBody({ currentClass, attendanceData, activeStudents, hasPreRecorded, initialPresentCount, percent, targetDate, today, isEditMode }) : `
     <div style="display:flex; flex-direction:column; gap:16px;">
       <!-- Date Picker & Mode Banner -->
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; background:#f8fafc; padding:14px 16px; border-radius:12px; border:1px solid #e2e8f0;">
@@ -2886,7 +2926,7 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
       const sendTelegram = tgCheckbox?.checked ?? true
 
       // Collect records
-      const checkboxes = document.querySelectorAll('.attendance-check-box')
+      const checkboxes = document.querySelectorAll('#modal-container .attendance-check-box')
       const records = Array.from(checkboxes).map(cb => ({
         studentId: cb.getAttribute('data-student-id'),
         isPresent: cb.checked
@@ -2918,6 +2958,7 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
         })
 
         showToast('Điểm danh thành công!', 'success')
+        attendanceDayCache.clear()
 
         // Refresh attendance + học phí liên quan + KPI (không quét các tab khác)
         await Promise.all([
@@ -2930,7 +2971,8 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
         showToast(`Lưu điểm danh thất bại: ${err.message}`, 'error')
         return false
       }
-    }
+    },
+    isAdminProUI() ? { confirmLabel: '<i class="fa-solid fa-floppy-disk"></i> Lưu điểm danh', contentClass: 'ap-att-modal-shell', shellFlex: true, contentStyle: 'display:flex; flex-direction:column; max-height:min(92vh, 860px);', bodyStyle: 'flex:1 1 auto; min-height:0; overflow-y:auto; margin-bottom:12px; padding-right:4px;' } : {}
   )
 
   // Attach real-time event handlers inside modal
@@ -2951,7 +2993,7 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
 
     // 2. Real-time counter updater
     const updateRealtimeCounter = () => {
-      const cbs = document.querySelectorAll('.attendance-check-box')
+      const cbs = document.querySelectorAll('#modal-container .attendance-check-box')
       const checked = Array.from(cbs).filter(c => c.checked).length
       const total = cbs.length
       const pct = total > 0 ? Math.round((checked / total) * 100) : 0
@@ -2965,7 +3007,7 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
     }
 
     // 3. Checkbox toggles
-    document.querySelectorAll('.attendance-check-box').forEach(cb => {
+    document.querySelectorAll('#modal-container .attendance-check-box').forEach(cb => {
       cb.onchange = () => {
         const parentItem = cb.closest('.attendance-roster-item')
         const pill = parentItem?.querySelector('.att-status-pill')
@@ -2991,7 +3033,7 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
     const selectAllBtn = document.getElementById('btn-att-select-all')
     if (selectAllBtn) {
       selectAllBtn.onclick = () => {
-        document.querySelectorAll('.attendance-check-box').forEach(cb => {
+        document.querySelectorAll('#modal-container .attendance-check-box').forEach(cb => {
           cb.checked = true
           const parentItem = cb.closest('.attendance-roster-item')
           const pill = parentItem?.querySelector('.att-status-pill')
@@ -3009,7 +3051,7 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
     const deselectAllBtn = document.getElementById('btn-att-deselect-all')
     if (deselectAllBtn) {
       deselectAllBtn.onclick = () => {
-        document.querySelectorAll('.attendance-check-box').forEach(cb => {
+        document.querySelectorAll('#modal-container .attendance-check-box').forEach(cb => {
           cb.checked = false
           const parentItem = cb.closest('.attendance-roster-item')
           const pill = parentItem?.querySelector('.att-status-pill')
