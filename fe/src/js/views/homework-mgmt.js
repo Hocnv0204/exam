@@ -437,18 +437,17 @@ export function renderProHomeworkMgmtView() {
               <table class="ap-hw-table">
                 <thead>
                   <tr>
-                    <th scope="col" style="width:48px; text-align:center;">#</th>
-                    <th scope="col" style="min-width:240px;">Bài tập / Bài thi</th>
-                    <th scope="col" style="min-width:180px;">Lớp / Bài học</th>
-                    <th scope="col" style="min-width:170px;">Cấu hình phòng thi</th>
-                    <th scope="col" style="min-width:140px;">Hạn chót</th>
-                    <th scope="col" style="min-width:120px;">Ngày tạo</th>
-                    <th scope="col" style="min-width:240px; text-align:center;">Thao tác</th>
+                    <th scope="col" class="ap-hw-col-index">#</th>
+                    <th scope="col" class="ap-hw-col-title">Bài tập / Bài thi</th>
+                    <th scope="col" class="ap-hw-col-class">Lớp / Bài học</th>
+                    <th scope="col" class="ap-hw-col-config">Cấu hình</th>
+                    <th scope="col" class="ap-hw-col-deadline">Hạn chót</th>
+                    <th scope="col" class="ap-hw-col-actions">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody id="hw-table-body">
                   <tr>
-                    <td colspan="7" class="ap-hw-loading-cell">
+                    <td colspan="6" class="ap-hw-loading-cell">
                       <i class="fa-solid fa-spinner fa-spin"></i>
                       <span>Đang tải danh sách bài tập...</span>
                     </td>
@@ -812,7 +811,189 @@ function getDeadlineStatus(deadlineStr) {
   return { text: `Còn ${diffDays} ngày`, badgeClass: 'ap-deadline-upcoming' }
 }
 
+function hasRealPdf(pdfPath) {
+  return !!pdfPath && pdfPath !== 'Homework_Attachment.pdf' && pdfPath !== 'INTERACTIVE'
+}
+
+function formatProDeadline(deadlineStr) {
+  const d = deadlineStr ? new Date(deadlineStr) : null
+  if (!d || isNaN(d.getTime())) return null
+  return {
+    date: d.toLocaleDateString('vi-VN'),
+    time: d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  }
+}
+
+/**
+ * Hàng bảng giao diện Mochi Pro: không còn thao tác Giám sát / Kết quả & lịch sử,
+ * bổ sung nút "Xem trước" đề bài. Nhánh classic dùng renderHomeworkTableRows gốc.
+ */
+function renderProHomeworkTableRows(list, tableBody, fromIndex) {
+  tableBody.innerHTML = list.map((hw, index) => {
+    const isExam = hw.type === 'EXAM'
+    const title = escapeAttr(hw.title || 'Bài tập')
+    const pdfName = hasRealPdf(hw.pdfPath) ? escapeAttr(String(hw.pdfPath).split('/').pop()) : ''
+    const isInteractive = hw.pdfPath === 'INTERACTIVE'
+    const chapter = hw.chapterTitle && hw.chapterTitle !== '-' ? escapeAttr(hw.chapterTitle) : ''
+    const lesson = hw.lessonTitle && hw.lessonTitle !== '-' ? escapeAttr(hw.lessonTitle) : ''
+    const deadline = formatProDeadline(hw.deadline)
+    const deadlineObj = hw.deadline ? getDeadlineStatus(hw.deadline) : null
+    const createdAtText = hw.createdAt ? new Date(hw.createdAt).toLocaleDateString('vi-VN') : ''
+    const attemptsText = isExam ? '1 lần' : (hw.maxAttempts ? `Tối đa ${escapeAttr(hw.maxAttempts)} lần` : 'Không giới hạn')
+    const id = escapeAttr(hw.id)
+
+    return `
+      <tr class="ap-hw-row">
+        <td class="ap-hw-col-index">${fromIndex + index + 1}</td>
+        <td class="ap-hw-col-title" data-label="Bài tập">
+          <div class="ap-hw-title-cell">
+            <strong class="ap-hw-title" title="${title}">${title}</strong>
+            <div class="ap-hw-chips">
+              ${isExam
+                ? '<span class="ap-hw-chip is-exam"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Bài thi</span>'
+                : '<span class="ap-hw-chip is-practice"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Luyện tập</span>'}
+              ${(hw.targetCount || 0) > 0 ? `<span class="ap-hw-chip is-target" title="Bài giao riêng cho học sinh được chọn"><i class="fa-solid fa-user-check" aria-hidden="true"></i> Riêng ${escapeAttr(hw.targetCount)} HS</span>` : ''}
+              ${hw.sourceHomeworkId ? '<span class="ap-hw-chip is-copy" title="Bài tập được gán/sao chép từ lớp khác"><i class="fa-solid fa-copy" aria-hidden="true"></i> Bản sao</span>' : ''}
+              ${isInteractive ? '<span class="ap-hw-chip is-muted"><i class="fa-solid fa-list-check" aria-hidden="true"></i> Đề tương tác</span>' : ''}
+            </div>
+            ${pdfName ? `<span class="ap-hw-file" title="${pdfName}"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i><span>${pdfName}</span></span>` : ''}
+          </div>
+        </td>
+        <td class="ap-hw-col-class" data-label="Lớp / Bài học">
+          <div class="ap-hw-meta">
+            <strong>${escapeAttr(hw.className || 'Chưa gán lớp')}</strong>
+            ${chapter ? `<span title="Chương: ${chapter}"><i class="fa-solid fa-book-open" aria-hidden="true"></i> ${chapter}</span>` : ''}
+            ${lesson ? `<span title="Bài: ${lesson}"><i class="fa-solid fa-file-lines" aria-hidden="true"></i> ${lesson}</span>` : ''}
+          </div>
+        </td>
+        <td class="ap-hw-col-config" data-label="Cấu hình">
+          <div class="ap-hw-meta">
+            <span><i class="fa-regular fa-clock" aria-hidden="true"></i> <strong>${escapeAttr(hw.durationMinutes || 45)} phút</strong></span>
+            <span><i class="fa-solid fa-rotate" aria-hidden="true"></i> ${attemptsText}</span>
+          </div>
+        </td>
+        <td class="ap-hw-col-deadline" data-label="Hạn chót">
+          <div class="ap-hw-meta">
+            ${deadline
+              ? `<strong>${deadline.date}</strong><span>${deadline.time}</span>`
+              : '<span class="ap-hw-none">Không giới hạn</span>'}
+            ${deadlineObj ? `<span class="ap-deadline-chip ${deadlineObj.badgeClass}">${deadlineObj.text}</span>` : ''}
+            ${createdAtText ? `<small>Tạo ${createdAtText}</small>` : ''}
+          </div>
+        </td>
+        <td class="ap-hw-col-actions" data-label="Thao tác">
+          <div class="ap-hw-actions">
+            <button type="button" class="ap-hw-preview-btn btn-preview-hw" data-id="${id}" aria-label="Xem trước đề: ${title}" title="Xem trước nội dung đề">
+              <i class="fa-solid fa-eye" aria-hidden="true"></i><span>Xem trước</span>
+            </button>
+            <button type="button" class="ap-hw-icon-btn is-accent btn-copy-link-hw" data-id="${id}" data-type="${escapeAttr(hw.type || 'PRACTICE')}" title="Sao chép link làm bài" aria-label="Sao chép link làm bài: ${title}">
+              <i class="fa-solid fa-link" aria-hidden="true"></i>
+            </button>
+            ${pdfName ? `<button type="button" class="ap-hw-icon-btn is-blue btn-pdf-hw" data-id="${id}" title="Mở file PDF đề bài" aria-label="Mở file PDF đề bài: ${title}"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i></button>` : ''}
+            <button type="button" class="ap-hw-icon-btn is-ok btn-assign-hw" data-id="${id}" title="Gán cho lớp khác" aria-label="Gán bài tập cho lớp khác: ${title}">
+              <i class="fa-solid fa-share-nodes" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="ap-hw-icon-btn is-accent btn-edit-hw" data-id="${id}" title="Sửa bài tập" aria-label="Sửa bài tập: ${title}">
+              <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="ap-hw-icon-btn is-danger btn-delete-hw" data-id="${id}" data-title="${title}" title="Xóa bài tập" aria-label="Xóa bài tập: ${title}">
+              <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `
+  }).join('')
+}
+
+let previewRequestId = 0
+
+/**
+ * Render đề cho popup Xem trước (Pro) bằng class riêng `ap-hw-pq-*`: không dùng
+ * `.interactive-q-prompt` vì class đó bị nhiều theme cũ (navy, Mochi học sinh, editor) ép màu chữ.
+ */
+function renderProPreviewQuestions(questions, { parsePrompt, safeImage }, renderMarkdown) {
+  if (!questions.length) return '<p class="ap-hw-preview-state">Đề bài này chưa có nội dung để xem trước.</p>'
+  return questions.map((q, index) => {
+    const prompt = parsePrompt(q.prompt, q.content)
+    const type = q.question_type || q.questionType
+    const isTrueFalse = type === 'TRUE_FALSE'
+    const options = isTrueFalse
+      ? (Array.isArray(q.statements) && q.statements.length ? q.statements : (Array.isArray(prompt.statements) && prompt.statements.length ? prompt.statements : prompt.options))
+      : (Array.isArray(prompt.options) && prompt.options.length ? prompt.options : q.options)
+    const image = safeImage(prompt.imageUrl)
+    const part = q.part_title || prompt.partTitle
+    const text = renderMarkdown(prompt.text || '')
+    const optionList = Array.isArray(options) ? options : []
+    const optionsHtml = optionList.length ? `<div class="ap-hw-pq-options ${isTrueFalse ? 'is-statements' : ''}">${optionList.map((opt, i) => {
+      const optText = typeof opt === 'string' ? opt : (opt?.text || '')
+      const rawLabel = typeof opt === 'object' && opt !== null ? (opt.id || opt.key || String.fromCharCode(65 + i)) : String.fromCharCode(65 + i)
+      const label = isTrueFalse ? `${String(rawLabel).toLowerCase()})` : String(rawLabel)
+      return `<div class="ap-hw-pq-opt"><span class="ap-hw-pq-badge">${escapeAttr(label)}</span><div class="ap-hw-pq-opt-text">${renderMarkdown(optText)}</div></div>`
+    }).join('')}</div>` : ''
+    return `<article class="ap-hw-pq">
+      <header class="ap-hw-pq-head">
+        ${part ? `<span class="ap-hw-pq-part">${escapeAttr(part)}</span>` : ''}
+        <span class="ap-hw-pq-num">Câu ${escapeAttr(q.question_number || index + 1)}</span>
+      </header>
+      <div class="ap-hw-pq-text">${text || '<em>Chưa có nội dung câu hỏi.</em>'}</div>
+      ${image ? `<img class="ap-hw-pq-img" src="${image}" alt="Hình minh họa câu ${index + 1}">` : ''}
+      ${optionsHtml}
+    </article>`
+  }).join('')
+}
+
+/**
+ * Modal xem trước đề (chỉ đọc) — dùng lại api.getHomeworkDetail như tab Bài tập ở Chi tiết lớp.
+ */
+async function openHomeworkPreview(hw, button) {
+  if (!hw || button?.disabled) return
+  const requestId = ++previewRequestId
+  if (button) button.disabled = true
+  const title = escapeAttr(hw.title || 'Bài tập')
+  openModal(`Xem trước: ${title}`, '<div id="hw-preview-body" class="ap-hw-preview-state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Đang tải nội dung đề bài...</div>', null, {
+    cancelLabel: 'Đóng',
+    contentClass: 'ap-hw-preview-modal',
+    contentStyle: 'max-width:900px;'
+  })
+  try {
+    const [detail, previewUtils, { renderMath, renderMarkdown }] = await Promise.all([
+      api.getHomeworkDetail(hw.id),
+      import('../utils/homework-markdown-preview.js'),
+      import('../utils/exam-parser.js')
+    ])
+    const body = document.getElementById('hw-preview-body')
+    if (requestId !== previewRequestId || !body?.isConnected) return
+    if (detail?.homework?.id && detail.homework.id !== hw.id) throw new Error('Dữ liệu bài tập không hợp lệ.')
+    const questions = Array.isArray(detail?.questions) ? detail.questions : []
+    const info = detail?.homework || hw
+    const pdfOnly = hasRealPdf(info.pdfPath || hw.pdfPath)
+    body.className = 'ap-hw-preview'
+    body.innerHTML = `
+      <div class="ap-hw-preview-summary">
+        <span class="ap-hw-chip ${hw.type === 'EXAM' ? 'is-exam' : 'is-practice'}">${hw.type === 'EXAM' ? 'Bài thi' : 'Luyện tập'}</span>
+        <span><i class="fa-regular fa-clock" aria-hidden="true"></i> ${escapeAttr(info.durationMinutes || hw.durationMinutes || 45)} phút</span>
+        <span><i class="fa-solid fa-list-ol" aria-hidden="true"></i> ${questions.length} câu</span>
+        ${pdfOnly ? `<button type="button" class="ap-hw-preview-pdf" data-id="${escapeAttr(hw.id)}"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Mở file PDF</button>` : ''}
+      </div>
+      ${questions.length || !pdfOnly
+        ? `<div class="ap-hw-preview-questions">${renderProPreviewQuestions(questions, previewUtils, renderMarkdown)}</div>`
+        : '<p class="ap-hw-preview-state">Đề bài dạng PDF — bấm "Mở file PDF" để xem nội dung.</p>'}
+    `
+    body.querySelector('.ap-hw-preview-pdf')?.addEventListener('click', () => window.openHomeworkPdf?.(hw.id))
+    renderMath(body)
+  } catch (err) {
+    const body = document.getElementById('hw-preview-body')
+    if (requestId !== previewRequestId || !body?.isConnected) return
+    body.className = 'ap-hw-preview-state is-error'
+    body.innerHTML = `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Không tải được đề bài: ${escapeAttr(err?.message || 'Lỗi không xác định')}`
+  } finally {
+    if (button) button.disabled = false
+  }
+}
+
 function renderHomeworkTableRows(list, tableBody, fromIndex) {
+  if (isAdminProUI()) return renderProHomeworkTableRows(list, tableBody, fromIndex)
   let html = ''
   const isPro = isAdminProUI()
   list.forEach((hw, index) => {
@@ -923,6 +1104,14 @@ function attachRowActions(tableBody) {
     })
   })
 
+  // Attach Preview buttons (Mochi Pro) -> modal xem trước đề
+  tableBody.querySelectorAll('.btn-preview-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hwId = btn.getAttribute('data-id')
+      openHomeworkPreview(currentHomeworks.find(h => h.id === hwId), btn)
+    })
+  })
+
   // Attach PDF buttons -> open homework PDF in new tab
   tableBody.querySelectorAll('.btn-pdf-hw').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -983,7 +1172,7 @@ function attachRowActions(tableBody) {
       openModal(
         'Xác nhận xóa bài tập',
         `<p style="font-size:14px; color:#475569; margin:0; line-height:1.5;">
-           Bạn có chắc chắn muốn xóa bài tập <strong>"${hwTitle}"</strong>?<br>
+           Bạn có chắc chắn muốn xóa bài tập <strong>"${escapeAttr(hwTitle)}"</strong>?<br>
            <span style="color:#ef4444; font-size:12px;">Cảnh báo: Tất cả câu hỏi và bài làm liên quan của học sinh cũng sẽ bị xóa.</span>
          </p>`,
         async () => {

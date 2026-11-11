@@ -1,7 +1,8 @@
 // Site-wide admin/public preference. Student colours are stored independently.
 const STORAGE_KEY = 'eduportal-theme'
 const STUDENT_STORAGE_KEY = 'eduportal-student-theme'
-const DEFAULT_THEME = 'dark'
+// Admin/public mặc định nền sáng khi chưa từng chọn (lựa chọn đã lưu vẫn được giữ).
+const DEFAULT_THEME = 'light'
 export const STUDENT_THEMES = ['light', 'dark', 'sakura', 'mint']
 const CHANGE_EVENT = 'eduportal:themechange'
 let currentTheme

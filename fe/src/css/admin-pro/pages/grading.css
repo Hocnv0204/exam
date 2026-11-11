@@ -591,6 +591,163 @@ html[data-admin-ui="pro"] .ap-grade-actions .reopen-sub-btn:hover {
   transform: translateY(-1px);
 }
 
+/* 10b. Ô trong bảng lượt nộp (Pro) */
+html[data-admin-ui="pro"] #admin-history .row-student-name {
+  min-width: 150px;
+}
+
+html[data-admin-ui="pro"] #admin-history .row-hw-title {
+  min-width: 200px;
+  max-width: 280px;
+}
+
+html[data-admin-ui="pro"] .ap-grade-hw {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-grade-hw-title {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--ap-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] .ap-grade-hw-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-grade-hw-meta .redirect-edit-hw-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--ap-line);
+  background: transparent;
+  color: var(--ap-blue);
+  font-family: var(--ap-font);
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+html[data-admin-ui="pro"] .ap-grade-hw-meta .redirect-edit-hw-btn:hover {
+  border-color: var(--ap-blue);
+  background: var(--ap-blue-soft);
+}
+
+html[data-admin-ui="pro"] .ap-grade-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+html[data-admin-ui="pro"] .ap-grade-stack > small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ap-muted);
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-grade-score-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-grade-score-line small {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-grade-nowrap {
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-grade-wrong-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ap-warn);
+  background: var(--ap-warn-soft);
+  color: var(--ap-warn);
+  font-family: var(--ap-font);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: none;
+  transition: transform 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-grade-wrong-btn.is-ok {
+  border-color: var(--ap-ok);
+  background: var(--ap-ok-soft);
+  color: var(--ap-ok);
+}
+
+html[data-admin-ui="pro"] .ap-grade-wrong-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Thao tác: "Chi tiết" ở tầng trên, nút icon ở tầng dưới để bảng không tràn ngang */
+html[data-admin-ui="pro"] .ap-grade-row-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(44px, 1fr));
+  gap: 6px;
+  width: max-content;
+  min-width: 100px;
+}
+
+html[data-admin-ui="pro"] .ap-grade-row-actions .view-detail-btn {
+  grid-column: 1 / -1;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-grade-row-actions .ap-grade-icon-btn {
+  padding: 0;
+  justify-content: center;
+}
+
+@media (min-width: 1025px) {
+  html[data-admin-ui="pro"] #admin-history .ap-grade-hw-meta .redirect-edit-hw-btn,
+  html[data-admin-ui="pro"] #admin-history .ap-grade-wrong-btn {
+    min-height: 32px;
+  }
+
+  html[data-admin-ui="pro"] #admin-history .ap-grade-row-actions button {
+    min-height: 36px;
+  }
+}
+
+html[data-admin-ui="pro"] :is(.ap-grade-hw-meta .redirect-edit-hw-btn, .ap-grade-wrong-btn, .ap-grade-row-actions button):focus-visible {
+  outline: 3px solid var(--ap-blue);
+  outline-offset: 2px;
+}
+
 html[data-admin-ui="pro"] .ap-grade-pager {
   display: flex;
   align-items: center;
@@ -1128,6 +1285,11 @@ html[data-admin-ui="pro"] :is(
     #exam-proctoring
   ) :is(button, .btn-primary, .btn-secondary, input[type="search"], select) {
     min-height: 44px;
+  }
+
+  html[data-admin-ui="pro"] .ap-grade-row-actions .ap-grade-icon-btn {
+    width: 44px;
+    min-width: 44px;
   }
 
   html[data-admin-ui="pro"] .ap-grade-filters {

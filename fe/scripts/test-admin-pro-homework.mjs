@@ -84,6 +84,17 @@ function functionalHooks(markup) {
   return hooks
 }
 
+// Hook của giao diện cũ mà luồng tạo bài Pro 3 bước chủ động bỏ (đề mẫu, nhập file .md, đính kèm/xuất PDF,
+// JSON đáp án; ma trận & số lượng câu chỉ còn ở chế độ đề PDF).
+const PRO_CREATE_REMOVED_HOOKS = [
+  'id:btn-load-math-tpl', 'id:btn-load-chem-tpl', 'id:btn-import-md-file', 'id:hw-md-file-input', 'id:btn-export-exam-pdf',
+  'id:interactive-pdf-attachment-container', 'id:hw-interactive-pdf-input', 'id:btn-select-interactive-pdf',
+  'id:copy-sample-btn', 'id:copy-answers-btn', 'id:import-answers-btn',
+  'id:cfg-mc-count', 'id:cfg-tf-count', 'id:cfg-sa-count', 'id:update-config-btn', 'id:answer-matrix-container',
+  'data-option', 'data-index', 'data-sub', 'data-val'
+]
+const CARD_HOOKS = ['id:raw-max-points-badge', 'data-preset', 'data-qindex', 'data-qnum', 'data-optid', 'data-subid']
+
 function assertSuperset(actual, expected, label) {
   for (const hook of expected) {
     assert.ok(actual.has(hook), `${label} phải giữ hook ${hook}`)
@@ -222,58 +233,40 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proCreate, /class="[^"]*ap-hw-breadcrumb[^"]*"/, 'Breadcrumb đường dẫn')
   assert.match(proCreate, /class="[^"]*ap-create-hw-hero[^"]*"/, 'Hero card tạo bài tập')
 
-  // Stepper 4 bước (đáp án & sơ đồ câu hỏi gộp vào bước 2)
-  assert.match(proCreate, /id="hw-stepper-bar"/, 'Thanh stepper 4 bước')
+  // Stepper 3 bước: Thông tin → Đề bài & kiểm tra → Cấu hình & giao bài
+  assert.match(proCreate, /id="hw-stepper-bar"/, 'Thanh stepper')
   assert.match(proCreate, /data-step="1"/, 'Nút bước 1')
   assert.match(proCreate, /data-step="2"/, 'Nút bước 2')
   assert.match(proCreate, /data-step="3"/, 'Nút bước 3')
-  assert.match(proCreate, /data-step="4"/, 'Nút bước 4')
-  assert.doesNotMatch(proCreate, /data-step="5"/, 'Không còn bước 5')
+  assert.doesNotMatch(proCreate, /data-step="4"/, 'Không còn bước 4')
+  assert.match(proCreate, /Bước <strong id="current-step-display">1<\/strong> \/ 3/, 'Chỉ báo bước x / 3')
 
-  // 4 Step Panels
-  assert.match(proCreate, /data-step-panel="1"/, 'Panel Bước 1: Thông tin cơ bản')
-  assert.match(proCreate, /id="hw-title"/, 'Input tên bài tập')
-  assert.match(proCreate, /id="hw-type"/, 'Select loại bài')
-  assert.match(proCreate, /id="hw-class-select"/, 'Select lớp học')
-  assert.match(proCreate, /id="hw-chapter-select"/, 'Select chương')
-  assert.match(proCreate, /id="hw-lesson-select"/, 'Select bài học')
-
-  assert.match(proCreate, /data-step-panel="2"/, 'Panel Bước 2: Đề bài Markdown / PDF')
-  assert.match(proCreate, /id="create-hw-left-pane"/, 'Khung soạn thảo đề bài')
-  assert.match(proCreate, /id="btn-mode-interactive"/, 'Nút đề tương tác')
-  assert.match(proCreate, /id="btn-mode-pdf"/, 'Nút đề PDF')
-  assert.match(proCreate, /id="hw-markdown-input"/, 'Textarea nhập Markdown')
-  assert.match(proCreate, /id="interactive-preview-container"/, 'Khung xem trước câu hỏi tương tác')
-
-  // Đáp án & sơ đồ câu hỏi nằm trong panel bước 2
-  const step2Panel = proCreate.slice(proCreate.indexOf('data-step-panel="2"'), proCreate.indexOf('data-step-panel="3"'))
-  assert.match(step2Panel, /id="hw-question-map"/, 'Sơ đồ câu hỏi nằm trong bước 2')
-  assert.match(step2Panel, /id="answer-matrix-container"/, 'Ma trận đáp án nằm trong bước 2')
-  assert.match(proCreate, /id="cfg-mc-count"/, 'Cấu hình số câu trắc nghiệm ABCD')
-  assert.match(proCreate, /id="cfg-tf-count"/, 'Cấu hình số câu đúng sai')
-  assert.match(proCreate, /id="cfg-sa-count"/, 'Cấu hình số câu trả lời ngắn')
-  assert.match(proCreate, /id="update-config-btn"/, 'Nút cập nhật số lượng câu')
-  assert.match(proCreate, /id="copy-sample-btn"/, 'Nút sao chép JSON mẫu')
-  assert.match(proCreate, /id="copy-answers-btn"/, 'Nút sao chép đáp án JSON')
-  assert.match(proCreate, /id="import-answers-btn"/, 'Nút nhập đáp án JSON')
-  assert.match(proCreate, /id="answer-matrix-container"/, 'Ma trận đáp án')
-
-  assert.match(proCreate, /data-step-panel="3"/, 'Panel Bước 3: Phòng thi & Deadline')
-  assert.match(proCreate, /id="hw-duration"/, 'Input thời lượng thi')
-  assert.match(proCreate, /id="hw-max-attempts"/, 'Input số lần làm bài')
-  assert.match(proCreate, /id="hw-max-violations"/, 'Input giới hạn vi phạm')
-  assert.match(proCreate, /id="hw-show-solutions"/, 'Checkbox hiển thị lời giải')
-  assert.match(proCreate, /id="hw-deadline-date"/, 'Input ngày hạn chót')
-  assert.match(proCreate, /id="hw-deadline-hour"/, 'Select giờ hạn chót')
-  assert.match(proCreate, /id="hw-deadline-minute"/, 'Select phút hạn chót')
-  assert.match(proCreate, /id="hw-deadline-clear-btn"/, 'Nút xóa hạn chót')
-
-  assert.match(proCreate, /data-step-panel="4"/, 'Panel Bước 4: Giao lớp & Hoàn tất')
-  assert.doesNotMatch(proCreate, /data-step-panel="5"/, 'Không còn panel bước 5')
-  assert.match(proCreate, /id="btn-assign-select-all"/, 'Nút chọn tất cả học sinh')
-  assert.match(proCreate, /id="btn-assign-deselect-all"/, 'Nút bỏ chọn học sinh')
-  assert.match(proCreate, /id="assign-selected-count"/, 'Badge số học sinh được chọn')
-  assert.match(proCreate, /id="assign-students-list"/, 'Danh sách học sinh giao bài')
+  const panel = (n) => proCreate.slice(proCreate.indexOf(`data-step-panel="${n}"`), n < 3 ? proCreate.indexOf(`data-step-panel="${n + 1}"`) : proCreate.indexOf('ap-hw-sticky-footer'))
+  // Bước 1: tên, phân loại, lớp, chương, bài học
+  const step1 = panel(1)
+  for (const id of ['hw-title', 'hw-type', 'hw-class-select', 'hw-chapter-select', 'hw-lesson-select']) {
+    assert.match(step1, new RegExp(`id="${id}"`), `Bước 1 có ${id}`)
+  }
+  // Bước 2: Markdown + phân tích + sơ đồ câu + tổng quan lỗi + xem trước
+  const step2 = panel(2)
+  for (const id of ['create-hw-left-pane', 'btn-mode-interactive', 'btn-mode-pdf', 'hw-markdown-input', 'btn-parse-markdown', 'ap-md-status', 'ap-q-summary', 'hw-question-map', 'ap-q-issues', 'interactive-preview-container']) {
+    assert.match(step2, new RegExp(`id="${id}"`), `Bước 2 có ${id}`)
+  }
+  // Bài mới ở Pro bắt đầu với khung Markdown trống (không còn đề mẫu)
+  assert.match(step2, /<textarea id="hw-markdown-input"[^>]*><\/textarea>/, 'Textarea Markdown trống khi tạo mới')
+  // Các tính năng đã bỏ ở Pro
+  for (const id of ['btn-load-math-tpl', 'btn-load-chem-tpl', 'btn-import-md-file', 'btn-export-exam-pdf', 'interactive-pdf-attachment-container', 'copy-sample-btn', 'copy-answers-btn', 'import-answers-btn']) {
+    assert.doesNotMatch(proCreate, new RegExp(`id="${id}"`), `Pro đã bỏ ${id}`)
+  }
+  // Ma trận đáp án chỉ còn ở chế độ đề PDF
+  assert.doesNotMatch(step2, /id="answer-matrix-container"/, 'Đề Markdown không còn ma trận đáp án')
+  // Bước 3: thời gian, số lần làm, lời giải, hạn nộp, giao riêng
+  const step3 = panel(3)
+  for (const id of ['hw-duration', 'hw-max-attempts', 'hw-max-violations', 'hw-show-solutions', 'hw-deadline-date', 'hw-deadline-hour', 'hw-deadline-minute', 'hw-deadline-clear-btn', 'assign-mode-class', 'assign-mode-select', 'assign-student-search', 'btn-assign-select-all', 'btn-assign-deselect-all', 'assign-selected-count', 'assign-students-list', 'ap-hw-review-summary']) {
+    assert.match(step3, new RegExp(`id="${id}"`), `Bước 3 có ${id}`)
+  }
+  assert.match(step3, /data-deadline-days="7"/, 'Chọn nhanh hạn nộp')
+  assert.match(step3, /id="assign-mode-class"[^>]*checked/, 'Mặc định giao cả lớp')
 
   // Sticky footer
   assert.match(proCreate, /class="[^"]*ap-hw-sticky-footer[^"]*"/, 'Thanh footer dính đáy')
@@ -282,8 +275,57 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proCreate, /id="current-step-display"/, 'Hiển thị bước hiện tại')
   assert.match(proCreate, /id="save-homework-btn"/, 'Nút lưu bài tập')
 
-  // Superset hook check for CreateHomework
-  assertSuperset(functionalHooks(proCreate), functionalHooks(classicCreate), 'CreateHomework Pro')
+  // Superset hook check for CreateHomework — trừ các tính năng đã chủ động bỏ ở Pro
+  // và hook thẻ câu hỏi (bài mới ở Pro không còn nạp sẵn đề mẫu).
+  const removed = new Set(PRO_CREATE_REMOVED_HOOKS)
+  const classicHooks = new Set([...functionalHooks(classicCreate)].filter(h => !removed.has(h) && !CARD_HOOKS.includes(h)))
+  assertSuperset(functionalHooks(proCreate), classicHooks, 'CreateHomework Pro')
+})
+
+function editFixture(id, interactive) {
+  fixture()
+  const prompt = (obj) => JSON.stringify({ isInteractive: true, ...obj })
+  state.editHomeworkData = {
+    homework: { id, title: 'Đại số - Đề ôn', type: 'PRACTICE', classId: 'class-1', lessonTitle: 'Đại số', durationMinutes: 45, maxAttempts: 2, pdfPath: interactive ? 'INTERACTIVE' : 'de.pdf', assignedStudentIds: ['stu-1'] },
+    questions: interactive ? [
+      { question_number: 1, question_type: 'MULTIPLE_CHOICE', prompt: prompt({ text: 'Tính $1+1$', options: [{ id: 'A', text: '1' }, { id: 'B', text: '2' }, { id: 'C', text: '3' }, { id: 'D', text: '4' }] }), answerKey: { mc_answer: 'B' } },
+      { question_number: 2, question_type: 'TRUE_FALSE', prompt: prompt({ text: 'Xét đúng sai', statements: [{ id: 'a', text: 'x' }, { id: 'b', text: 'y' }, { id: 'c', text: 'z' }, { id: 'd', text: 't' }] }), answerKey: { tf_answers: { a: true, b: false, c: true, d: false } } }
+    ] : [
+      { question_number: 1, question_type: 'MULTIPLE_CHOICE', prompt: 'Câu hỏi số 1', answerKey: { mc_answer: 'C' } }
+    ]
+  }
+}
+
+test('(b2) sửa bài Markdown ở Pro: nạp đề vào textarea + thẻ xem trước; giao riêng được tick sẵn', () => {
+  setUI('mochi')
+  editFixture('hw-edit-md', true)
+  window.location.hash = '#create-homework?homeworkId=hw-edit-md'
+  const pro = renderCreateHwView()
+  assert.match(pro, /<textarea id="hw-markdown-input"[^>]*>[^<]*Tính \$1\+1\$/, 'Markdown của đề được nạp vào textarea')
+  assert.match(pro, /class="interactive-q-card" data-qindex="0"/, 'Có thẻ xem trước câu 1')
+  assert.match(pro, /data-optid="B"/, 'Có phương án để bấm chọn đáp án')
+  assert.match(pro, /id="assign-mode-select"[^>]*checked/, 'Bài đã giao riêng → chọn sẵn "Giao riêng"')
+  assert.doesNotMatch(pro, /id="assign-select-wrap"[^>]*hidden/, 'Danh sách học sinh hiện khi giao riêng')
+  assert.match(pro, /Cập nhật bài tập/, 'Nút lưu ở chế độ sửa')
+  setUI('classic')
+  const classic = renderCreateHwView()
+  const removed = new Set(PRO_CREATE_REMOVED_HOOKS)
+  setUI('mochi')
+  const proAgain = renderCreateHwView()
+  assertSuperset(functionalHooks(proAgain), new Set([...functionalHooks(classic)].filter(h => !removed.has(h))), 'CreateHomework Pro (sửa bài)')
+})
+
+test('(b3) sửa bài đề PDF ở Pro: vẫn có số lượng câu + ma trận đáp án', () => {
+  setUI('mochi')
+  editFixture('hw-edit-pdf', false)
+  window.location.hash = '#create-homework?homeworkId=hw-edit-pdf'
+  const pro = renderCreateHwView()
+  const step2 = pro.slice(pro.indexOf('data-step-panel="2"'), pro.indexOf('data-step-panel="3"'))
+  for (const id of ['pdf-preview-container', 'cfg-mc-count', 'cfg-tf-count', 'cfg-sa-count', 'update-config-btn', 'answer-matrix-container']) {
+    assert.match(step2, new RegExp(`id="${id}"`), `Đề PDF có ${id}`)
+  }
+  assert.doesNotMatch(step2, /id="hw-markdown-input"/, 'Đề PDF không có khung Markdown')
+  assert.match(step2, /data-option="C"/, 'Ma trận giữ đáp án đã lưu')
 })
 
 test('(c) gọi hàm bind trên DOM Pro giả lập không ném lỗi', () => {
@@ -430,4 +472,22 @@ test('nút thao tác icon của bảng có aria-label ở nhánh Pro mà không 
     const line = source.split('\n').find(item => item.includes(`class="btn-secondary ${className}"`)) || ''
     assert.match(line, /isPro \? 'aria-label=/, `${className} phải có aria-label chỉ ở Pro`)
   }
+})
+
+test('hàng bảng Pro: có nút Xem trước, bỏ Giám sát & Kết quả/lịch sử; classic giữ nguyên', () => {
+  const source = readFileSync(new URL('../src/js/views/homework-mgmt.js', import.meta.url), 'utf8')
+  const start = source.indexOf('function renderProHomeworkTableRows(')
+  const end = source.indexOf('let previewRequestId')
+  assert.ok(start > 0 && end > start, 'phải có renderer hàng riêng cho Pro')
+  const proRows = source.slice(start, end)
+  assert.match(proRows, /btn-preview-hw/, 'Pro phải có nút Xem trước')
+  assert.doesNotMatch(proRows, /btn-proctor-hw|btn-history-hw/, 'Pro không còn Giám sát / Kết quả & lịch sử')
+  for (const cls of ['btn-copy-link-hw', 'btn-pdf-hw', 'btn-assign-hw', 'btn-edit-hw', 'btn-delete-hw']) {
+    assert.match(proRows, new RegExp(cls), `Pro vẫn giữ ${cls}`)
+  }
+  assert.match(source, /if \(isAdminProUI\(\)\) return renderProHomeworkTableRows/, 'chỉ nhánh Pro dùng renderer mới')
+  assert.match(source, /class="btn-secondary btn-proctor-hw"/, 'classic giữ nút Giám sát')
+  assert.match(source, /class="btn-secondary btn-history-hw"/, 'classic giữ nút Lịch sử')
+  assert.match(source, /api\.getHomeworkDetail\(hw\.id\)/, 'Xem trước dùng API sẵn có')
+  assert.match(homeworkCss, /\.ap-hw-preview-btn/, 'CSS cho nút Xem trước')
 })

@@ -974,28 +974,36 @@ function historyDuration(seconds) {
 }
 
 function renderProHistoryActions(sub) {
-  return `<div class="ap-grade-actions">
-    <button class="btn-secondary view-detail-btn" data-id="${escapeHtmlAttr(sub.submissionId)}" title="Xem toàn bộ bài làm"><i class="fa-solid fa-eye"></i> Chi tiết</button>
-    ${currentMode === 'trial' ? '' : `<button class="btn-secondary bonus-btn" data-hwid="${escapeHtmlAttr(sub.homeworkId)}" data-stuid="${escapeHtmlAttr(sub.studentId)}" data-name="${escapeHtmlAttr(sub.studentName)}" data-bonus="${escapeHtmlAttr(sub.bonusScore || 0)}" title="Cộng điểm vào bài làm này"><i class="fa-solid fa-plus"></i> Cộng điểm</button>
-    <button class="btn-secondary reopen-sub-btn" data-hwid="${escapeHtmlAttr(sub.homeworkId)}" data-stuid="${escapeHtmlAttr(sub.studentId)}" data-name="${escapeHtmlAttr(sub.studentName)}" title="Cho phép học sinh làm lại"><i class="fa-solid fa-rotate-left"></i> Khôi phục</button>`}
+  const name = escapeHtmlAttr(sub.studentName)
+  return `<div class="ap-grade-actions ap-grade-row-actions">
+    <button type="button" class="btn-secondary view-detail-btn" data-id="${escapeHtmlAttr(sub.submissionId)}" title="Xem toàn bộ bài làm"><i class="fa-solid fa-eye" aria-hidden="true"></i> Chi tiết</button>
+    ${currentMode === 'trial' ? '' : `<button type="button" class="btn-secondary bonus-btn ap-grade-icon-btn" data-hwid="${escapeHtmlAttr(sub.homeworkId)}" data-stuid="${escapeHtmlAttr(sub.studentId)}" data-name="${name}" data-bonus="${escapeHtmlAttr(sub.bonusScore || 0)}" title="Cộng điểm vào bài làm này" aria-label="Cộng điểm cho ${name}"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+    <button type="button" class="btn-secondary reopen-sub-btn ap-grade-icon-btn" data-hwid="${escapeHtmlAttr(sub.homeworkId)}" data-stuid="${escapeHtmlAttr(sub.studentId)}" data-name="${name}" title="Khôi phục — cho phép học sinh làm lại" aria-label="Khôi phục bài làm của ${name}"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>`}
   </div>`
 }
 
+function formatHistoryDateTime(value) {
+  const d = value ? new Date(value) : null
+  if (!d || isNaN(d.getTime())) return '—'
+  return `${d.toLocaleDateString('vi-VN')} ${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+}
+
 function renderProSubmissionRows(isTrialMode) {
-  if (lastLoadError) return `<tr><td colspan="8"><div class="ap-grade-state is-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><strong>Không tải được lượt nộp</strong><span>${escapeHtmlAttr(lastLoadError)}</span><button type="button" class="btn-primary btn-retry-history"><i class="fa-solid fa-rotate-right"></i> Thử lại</button></div></td></tr>`
-  if (!submissions.length) return `<tr><td colspan="8"><div class="ap-grade-state"><i class="fa-regular fa-folder-open"></i><strong>Chưa có lượt nộp phù hợp</strong><span>Hãy thay đổi lớp, bài tập hoặc từ khóa tìm kiếm.</span></div></td></tr>`
+  if (lastLoadError) return `<tr><td colspan="7"><div class="ap-grade-state is-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><strong>Không tải được lượt nộp</strong><span>${escapeHtmlAttr(lastLoadError)}</span><button type="button" class="btn-primary btn-retry-history"><i class="fa-solid fa-rotate-right"></i> Thử lại</button></div></td></tr>`
+  if (!submissions.length) return `<tr><td colspan="7"><div class="ap-grade-state"><i class="fa-regular fa-folder-open"></i><strong>Chưa có lượt nộp phù hợp</strong><span>Hãy thay đổi lớp, bài tập hoặc từ khóa tìm kiếm.</span></div></td></tr>`
   return submissions.map(sub => {
     const wrong = Array.isArray(sub.wrongAnswers) ? sub.wrongAnswers : []
     const attempts = sub.attemptNo ?? sub.attempt_no ?? 1
     const grading = sub.gradingStatus || sub.grading_status
+    const hwTitle = escapeHtmlAttr(sub.homeworkTitle || 'Bài tập')
+    const late = sub.isLate || sub.is_late
     return `<tr class="history-row">
       <td class="row-student-name"><div class="ap-grade-person"><span class="ap-grade-avatar">${escapeHtmlAttr(String(sub.studentName || '?').trim().charAt(0).toUpperCase())}</span><div><strong>${escapeHtmlAttr(sub.studentName || 'Học sinh')}</strong><small>${isTrialMode ? escapeHtmlAttr(sub.guestPhone || 'Không để lại SĐT') : (sub.username ? `@${escapeHtmlAttr(sub.username)}` : escapeHtmlAttr(sub.className || ''))}</small></div></div></td>
-      <td class="row-hw-title"><strong>${escapeHtmlAttr(sub.homeworkTitle || 'Bài tập')}</strong><small>${escapeHtmlAttr(sub.className || '')}</small>${sub.homeworkId ? `<button class="redirect-edit-hw-btn" data-hwid="${escapeHtmlAttr(sub.homeworkId)}"><i class="fa-solid fa-pen"></i> Sửa</button>` : ''}</td>
-      <td><strong class="ap-grade-score">${formatScore(sub.score)}</strong><small>/ ${formatScore(sub.maxScore || 10)}</small>${Number(sub.bonusScore) > 0 ? `<span class="ap-grade-chip is-accent">+${formatScore(sub.bonusScore)} điểm</span>` : ''}${buildAwardLogBadgeHtml(sub.questionAwardLogs, { targetId: sub.submissionId })}</td>
-      <td>${sub.isLate || sub.is_late ? '<span class="ap-grade-chip is-warn"><i class="fa-solid fa-clock"></i> Nộp muộn</span>' : '<span class="ap-grade-chip is-ok">Đúng hạn</span>'}<small>${sub.submittedAt ? new Date(sub.submittedAt).toLocaleString('vi-VN') : '—'}</small></td>
-      <td><strong>Lần ${escapeHtmlAttr(attempts)}</strong></td>
-      <td>${grading ? `<span class="ap-grade-chip ${grading === 'PENDING' ? 'is-warn' : 'is-ok'}">${grading === 'PENDING' ? 'Chờ chấm' : 'Đã chấm'}</span>` : `<button class="view-wrong-modal-btn" data-subid="${escapeHtmlAttr(sub.submissionId)}" data-stuname="${escapeHtmlAttr(sub.studentName)}" data-hwtitle="${escapeHtmlAttr(sub.homeworkTitle)}">${wrong.length ? `${wrong.length} câu sai` : 'Đã chấm'}</button>`}</td>
-      <td><strong>${historyDuration(sub.durationSecondsTaken)}</strong></td>
+      <td class="row-hw-title"><div class="ap-grade-hw"><strong class="ap-grade-hw-title" title="${hwTitle}">${hwTitle}</strong><div class="ap-grade-hw-meta">${sub.className ? `<span>${escapeHtmlAttr(sub.className)}</span>` : ''}${sub.homeworkId ? `<button type="button" class="redirect-edit-hw-btn" data-hwid="${escapeHtmlAttr(sub.homeworkId)}" title="Chỉnh sửa bài tập này" aria-label="Sửa bài tập ${hwTitle}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Sửa</button>` : ''}</div></div></td>
+      <td><div class="ap-grade-stack"><span class="ap-grade-score-line"><strong class="ap-grade-score">${formatScore(sub.score)}</strong><small>/ ${formatScore(sub.maxScore || 10)}</small></span>${Number(sub.bonusScore) > 0 ? `<span class="ap-grade-chip is-accent">+${formatScore(sub.bonusScore)} điểm</span>` : ''}${buildAwardLogBadgeHtml(sub.questionAwardLogs, { targetId: sub.submissionId })}</div></td>
+      <td><div class="ap-grade-stack">${late ? '<span class="ap-grade-chip is-warn"><i class="fa-solid fa-clock" aria-hidden="true"></i> Nộp muộn</span>' : '<span class="ap-grade-chip is-ok"><i class="fa-solid fa-check" aria-hidden="true"></i> Đúng hạn</span>'}<small>${formatHistoryDateTime(sub.submittedAt)}</small></div></td>
+      <td>${grading ? `<span class="ap-grade-chip ${grading === 'PENDING' ? 'is-warn' : 'is-ok'}">${grading === 'PENDING' ? 'Chờ chấm' : 'Đã chấm'}</span>` : `<button type="button" class="view-wrong-modal-btn ap-grade-wrong-btn ${wrong.length ? '' : 'is-ok'}" data-subid="${escapeHtmlAttr(sub.submissionId)}" data-stuname="${escapeHtmlAttr(sub.studentName)}" data-hwtitle="${hwTitle}">${wrong.length ? `<i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> ${wrong.length} câu sai` : '<i class="fa-solid fa-circle-check" aria-hidden="true"></i> Đã chấm'}</button>`}</td>
+      <td><div class="ap-grade-stack"><strong class="ap-grade-nowrap">Lần ${escapeHtmlAttr(attempts)}</strong><small><i class="fa-regular fa-clock" aria-hidden="true"></i> ${historyDuration(sub.durationSecondsTaken)}</small></div></td>
       <td>${renderProHistoryActions(sub)}</td>
     </tr>`
   }).join('')
@@ -1031,7 +1039,7 @@ function renderProHistoryMainContent(isTrialMode, classNameText, hwNameText) {
     </section>
     ${selectedHomeworkId && currentSubTab === 'wrong-questions' && !isTrialMode ? `<section class="ap-grade-panel"><h2>Phân tích câu sai</h2>${wrongQuestionsSummary.length ? `<div class="ap-grade-wrong-grid">${wrongQuestionsSummary.map(q => `<article><span class="ap-grade-chip is-warn">Câu ${escapeHtmlAttr(q.questionNumber)}</span><strong>${escapeHtmlAttr(q.wrongCount || 0)} lượt sai · ${escapeHtmlAttr(q.unansweredCount || 0)} bỏ trống</strong>${renderQuestionPromptHtml(q.prompt, q.questionType)}<small>Đáp án đúng: ${formatCorrectAnswer(q.correctAnswer, q.questionType)}</small></article>`).join('')}</div>` : '<div class="ap-grade-state"><strong>Chưa ghi nhận câu sai nào.</strong></div>'}</section>` : ''}
     ${selectedHomeworkId && currentSubTab === 'unsubmitted' && !isTrialMode ? `<section class="ap-grade-panel"><div class="ap-grade-panel-head"><h2>Học sinh chưa làm bài</h2><div><button id="btn-copy-reminder">Sao chép nhắc nhở</button><button id="btn-export-unsubmitted-csv">Xuất CSV</button></div></div><div class="table-responsive"><table class="data-table"><thead><tr><th>Học sinh</th><th>Tài khoản</th><th>Trạng thái</th><th>Hạn nộp</th></tr></thead><tbody>${unsubmittedStudents.length ? unsubmittedStudents.map(st => `<tr><td><strong>${escapeHtmlAttr(st.fullName || st.studentName)}</strong></td><td>@${escapeHtmlAttr(st.username)}</td><td><span class="ap-grade-chip is-warn">${st.status === 'IN_PROGRESS' ? 'Đang làm' : 'Chưa bắt đầu'}</span></td><td>${st.deadline ? new Date(st.deadline).toLocaleString('vi-VN') : 'Không giới hạn'}</td></tr>`).join('') : '<tr><td colspan="4"><div class="ap-grade-state"><strong>Tất cả học sinh đã hoàn thành.</strong></div></td></tr>'}</tbody></table></div></section>` : ''}
-    ${(!selectedHomeworkId || currentSubTab === 'submitted' || isTrialMode) ? `<section class="ap-grade-table-card"><div class="ap-grade-panel-head"><div><h2>Danh sách lượt nộp</h2><span>${submissions.length} lượt trên trang hiện tại</span></div></div><div class="table-responsive"><table class="data-table"><thead><tr><th>Học sinh</th><th>Bài tập / Lớp</th><th>Điểm</th><th>Thời hạn</th><th>Lần làm</th><th>Trạng thái chấm</th><th>Thời gian</th><th>Thao tác</th></tr></thead><tbody id="admin-history-table-body">${renderProSubmissionRows(isTrialMode)}</tbody></table></div><div id="admin-history-pager"></div></section>` : ''}
+    ${(!selectedHomeworkId || currentSubTab === 'submitted' || isTrialMode) ? `<section class="ap-grade-table-card"><div class="ap-grade-panel-head"><div><h2>Danh sách lượt nộp</h2><span>${submissions.length} lượt trên trang hiện tại</span></div></div><div class="table-responsive"><table class="data-table"><thead><tr><th>Học sinh</th><th>Bài tập / Lớp</th><th>Điểm</th><th>Thời hạn</th><th>Trạng thái chấm</th><th>Lần làm / Thời gian</th><th>Thao tác</th></tr></thead><tbody id="admin-history-table-body">${renderProSubmissionRows(isTrialMode)}</tbody></table></div><div id="admin-history-pager"></div></section>` : ''}
   </div>`
 }
 

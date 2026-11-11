@@ -241,7 +241,7 @@ function renderInteractiveCardsHtml() {
       <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:10px; padding:30px; text-align:center; color:#64748b;">
         <i class="fa-solid fa-file-lines" style="font-size:36px; color:#cbd5e1; margin-bottom:10px; display:block;"></i>
         <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Chưa có câu hỏi nào được bóc tách</div>
-        <div style="font-size:12px;">Nhập nội dung vào khung soạn thảo ở trên và bấm "Phân tích & Xem trước", hoặc bấm "Mẫu Toán" / "Mẫu Hóa".</div>
+        <div style="font-size:12px;">${isAdminProUI() ? 'Dán đề Markdown vào khung bên trái rồi bấm "Phân tích & xem trước" (Ctrl + Enter).' : 'Nhập nội dung vào khung soạn thảo ở trên và bấm "Phân tích & Xem trước", hoặc bấm "Mẫu Toán" / "Mẫu Hóa".'}</div>
       </div>
     `
   }
@@ -554,6 +554,41 @@ function bindInteractivePdfEvents() {
   })
 }
 
+/** Khối xem/tải file PDF đề bài (dùng chung cho giao diện cũ và Pro). */
+function renderPdfViewerBlock(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
+  return `
+      <!-- PDF VIEWER CONTAINER (ORIGINAL) -->
+      <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
+        <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:10px; margin-bottom:12px; padding:8px 14px; box-sizing:border-box;">
+          <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden;">
+            <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
+            <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath ? (hw.pdfPath.split('/').pop() || hw.pdfPath) : 'Chưa chọn file PDF'}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
+            <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
+            <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
+            <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; line-height:1; display:inline-flex; align-items:center; gap:5px; cursor:pointer; box-shadow:none; border-radius:6px;">
+              <i class="fa-solid fa-upload"></i> Chọn file PDF
+            </button>
+            <a id="download-hw-pdf-btn" href="${pdfDownloadUrl || '#'}" download="${pdfDownloadName}" target="_blank" rel="noopener noreferrer" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; box-sizing:border-box; line-height:1; display:inline-flex; align-items:center; gap:5px; text-decoration:none; ${pdfDownloadUrl ? 'background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer;' : 'background:#f8fafc; color:#94a3b8; border:1px solid #e2e8f0; cursor:not-allowed; opacity:0.7;'} border-radius:6px; font-weight:600; transition:all 0.2s;" title="${pdfDownloadUrl ? `Tải file PDF: ${pdfDownloadName}` : 'Chưa có file PDF để tải xuống'}">
+              <i class="fa-solid fa-download"></i> Tải file PDF
+            </a>
+          </div>
+        </div>
+
+        <div id="pdf-preview-container" class="pdf-iframe-wrapper" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; position:relative;">
+          <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; min-height:100%; border:none; background:#f8fafc; -webkit-overflow-scrolling:touch; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
+          ${!(isEdit && hw?.pdfUrl) ? `
+            <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
+              <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
+              <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `
+}
+
 function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
   return `
     <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -615,37 +650,192 @@ function renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
           ${renderInteractiveCardsHtml()}
         </div>
       </div>
-    ` : `
-      <!-- PDF VIEWER CONTAINER (ORIGINAL) -->
-      <div class="pdf-viewer-container" style="box-shadow: 0 4px 12px rgba(0,0,0,0.05); border:1px solid #cbd5e1; display:flex; flex-direction:column; overflow:hidden;">
-        <div class="pdf-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:10px; margin-bottom:12px; padding:8px 14px; box-sizing:border-box;">
-          <div style="font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden;">
-            <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:18px; flex-shrink:0;"></i>
-            <span id="pdf-viewer-title" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;" title="${hw?.pdfPath || 'Chưa chọn file PDF'}">${hw?.pdfPath ? (hw.pdfPath.split('/').pop() || hw.pdfPath) : 'Chưa chọn file PDF'}</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:nowrap;">
-            <div class="pdf-controls-slot" style="display:flex; align-items:center; flex-shrink:0;"></div>
-            <input type="file" id="hw-pdf-file" accept=".pdf" style="display:none;">
-            <button class="btn-primary" type="button" onclick="document.getElementById('hw-pdf-file').click()" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; line-height:1; display:inline-flex; align-items:center; gap:5px; cursor:pointer; box-shadow:none; border-radius:6px;">
-              <i class="fa-solid fa-upload"></i> Chọn file PDF
-            </button>
-            <a id="download-hw-pdf-btn" href="${pdfDownloadUrl || '#'}" download="${pdfDownloadName}" target="_blank" rel="noopener noreferrer" style="width:auto !important; white-space:nowrap; flex-shrink:0; padding:6px 12px; font-size:12px; height:32px; box-sizing:border-box; line-height:1; display:inline-flex; align-items:center; gap:5px; text-decoration:none; ${pdfDownloadUrl ? 'background:#eff6ff; color:#0066cc; border:1px solid #bfdbfe; cursor:pointer;' : 'background:#f8fafc; color:#94a3b8; border:1px solid #e2e8f0; cursor:not-allowed; opacity:0.7;'} border-radius:6px; font-weight:600; transition:all 0.2s;" title="${pdfDownloadUrl ? `Tải file PDF: ${pdfDownloadName}` : 'Chưa có file PDF để tải xuống'}">
-              <i class="fa-solid fa-download"></i> Tải file PDF
-            </a>
-          </div>
-        </div>
+    ` : renderPdfViewerBlock(hw, isEdit, pdfDownloadUrl, pdfDownloadName)}
+  `
+}
 
-        <div id="pdf-preview-container" class="pdf-iframe-wrapper" style="flex-grow:1; display:flex; height:calc(100vh - 180px); background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; justify-content:center; align-items:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; position:relative;">
-          <iframe id="pdf-preview-iframe" src="${isEdit && hw?.pdfUrl ? hw.pdfUrl.replace(/https?:\/\/kong:8000/g, import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321') : ''}" style="width:100%; height:100%; min-height:100%; border:none; background:#f8fafc; -webkit-overflow-scrolling:touch; ${isEdit && hw?.pdfUrl ? '' : 'display:none;'}"></iframe>
-          ${!(isEdit && hw?.pdfUrl) ? `
-            <div id="pdf-placeholder" style="color:#64748b; text-align:center; padding:20px;">
-              <i class="fa-regular fa-file-pdf" style="font-size:48px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
-              <span style="font-size:13px;">Vui lòng chọn file đề bài PDF để xem trước</span>
-            </div>
-          ` : ''}
+/* ==========================================================================
+ * GIAO DIỆN PRO — BƯỚC 2 "ĐỀ BÀI": Markdown ⇄ Xem trước + Sơ đồ câu + Kiểm tra lỗi
+ * ========================================================================== */
+
+// Trạng thái phân tích Markdown (Pro): nội dung đã phân tích gần nhất & thời điểm.
+let proLastParsedMarkdown = null
+let proLastParsedAt = null
+// Lỗi KaTeX phát hiện từ DOM sau khi render: { [qIndex]: string[] }
+let proKatexErrors = {}
+
+/** Đếm dấu $ không bị escape (\$) — số lẻ nghĩa là công thức chưa đóng. */
+function hasUnbalancedDollar(text) {
+  if (!text || typeof text !== 'string') return false
+  const stripped = text.replace(/\\\$/g, '')
+  const count = (stripped.match(/\$/g) || []).length
+  return count % 2 === 1
+}
+
+/**
+ * Kiểm tra một câu hỏi đã phân tích. Trả về:
+ * - errors: lỗi render (công thức hỏng, dấu $ chưa đóng, lỗi khối hình) — tô đỏ.
+ * - warnings: thiếu đáp án / phương án / ảnh… — tô vàng.
+ * - blocking: lỗi chặn lưu (giữ quy tắc cũ: khối hình lỗi, thiếu đáp án TN/TLN).
+ */
+function collectQuestionIssues(q, idx) {
+  const errors = []
+  const warnings = []
+  let blocking = false
+  const textParts = [q.promptText || '', q.explanation || '', ...((q.options || []).map(o => o?.text || ''))]
+
+  ;(proKatexErrors[idx] || []).forEach(msg => errors.push(`Công thức lỗi: ${msg}`))
+  if (textParts.some(hasUnbalancedDollar)) errors.push('Có dấu $ chưa đóng — công thức sẽ hiển thị sai')
+
+  const diag = validateQuestionDiagrams(q)
+  diag.errors.forEach(d => { errors.push(`Khối hình: ${d.message || d.code}`); blocking = true })
+  diag.warnings.forEach(d => warnings.push(`Khối hình: ${d.message || d.code}`))
+
+  if (!String(q.promptText || '').trim()) warnings.push('Chưa có nội dung câu hỏi')
+  if (q.questionType === 'MULTIPLE_CHOICE') {
+    const opts = q.options || []
+    if (opts.length < 4) warnings.push(`Chỉ có ${opts.length} phương án (cần A–D)`)
+    if (!q.mcAnswer) { warnings.push('Chưa đánh dấu đáp án đúng'); blocking = true }
+    else if (opts.length && !opts.some(o => o.id === q.mcAnswer)) warnings.push(`Đáp án ${q.mcAnswer} không có trong các phương án`)
+  } else if (q.questionType === 'TRUE_FALSE') {
+    const opts = q.options || []
+    if (opts.length !== 4) warnings.push(`Có ${opts.length} mệnh đề (chuẩn là 4: a–d)`)
+  } else if (q.questionType === 'SHORT_ANSWER') {
+    if (!String(q.saAnswer ?? '').trim()) { warnings.push('Chưa nhập đáp án trả lời ngắn'); blocking = true }
+  }
+  if (q.hasImagePlaceholder && !q.imageUrl) warnings.push('Có thẻ [Ảnh] nhưng chưa chèn ảnh')
+
+  return { errors, warnings, blocking }
+}
+
+function collectAllQuestionIssues() {
+  return (interactiveQuestions || []).map((q, idx) => ({
+    idx,
+    qNum: q.questionNumber || (idx + 1),
+    ...collectQuestionIssues(q, idx)
+  }))
+}
+
+const PRO_MD_PLACEHOLDER = `Dán hoặc soạn đề theo cú pháp, ví dụ:
+
+=== PHẦN I: TRẮC NGHIỆM ===
+[Câu 1]
+Giá trị của $\\sin 30^\\circ$ bằng
+A. $0$
+*B. $\\frac{1}{2}$
+C. $1$
+D. $2$
+[Lời giải]
+$\\sin 30^\\circ = \\frac12$.
+
+=== PHẦN II: ĐÚNG / SAI ===
+[Câu 2] [TF]
+*a) Mệnh đề đúng ...
+b) Mệnh đề sai ...
+
+=== PHẦN III: TRẢ LỜI NGẮN ===
+[Câu 3] [SA]
+Tính ...
+[Đáp án: 2.67]`
+
+function renderProSyntaxGuide() {
+  return `
+    <details class="ap-md-guide">
+      <summary><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Cú pháp soạn đề</summary>
+      <ul>
+        <li><code>=== PHẦN I: TRẮC NGHIỆM ===</code> tách phần (I trắc nghiệm, II đúng/sai, III trả lời ngắn)</li>
+        <li><code>[Câu 1]</code> mở đầu mỗi câu; thêm <code>[TF]</code> cho câu Đúng/Sai, <code>[SA]</code> cho câu trả lời ngắn</li>
+        <li>Phương án <code>A. B. C. D.</code>, mệnh đề <code>a) b) c) d)</code>; đặt <code>*</code> trước phương án/mệnh đề <strong>đúng</strong></li>
+        <li>Trả lời ngắn: <code>[Đáp án: 2.67]</code>, tuỳ chọn <code>[Dung sai: 0.05]</code></li>
+        <li>Công thức trong <code>$...$</code> hoặc <code>$$...$$</code>; hoá học <code>\\ce{H2O}</code> đặt trong <code>$...$</code></li>
+        <li><code>[Ảnh]</code> để chèn ảnh (dán/kéo ảnh vào thẻ xem trước), <code>[Lời giải]</code> trước phần lời giải</li>
+      </ul>
+    </details>
+  `
+}
+
+/** Khung bước 2 của giao diện Pro: chế độ đề + editor Markdown ⇄ xem trước (hoặc PDF). */
+function renderProQuestionPane(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
+  const modeSwitch = `
+    <div class="ap-q-modes" role="tablist" aria-label="Hình thức đề bài">
+      <button type="button" role="tab" aria-selected="${currentMode === 'INTERACTIVE'}" class="ap-q-mode ${currentMode === 'INTERACTIVE' ? 'active' : ''}" id="btn-mode-interactive">
+        <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Đề tương tác (Markdown)
+      </button>
+      <button type="button" role="tab" aria-selected="${currentMode === 'PDF'}" class="ap-q-mode ${currentMode === 'PDF' ? 'active' : ''}" id="btn-mode-pdf">
+        <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Đề file PDF
+      </button>
+    </div>
+  `
+  if (currentMode !== 'INTERACTIVE') {
+    return `
+      ${modeSwitch}
+      ${renderPdfViewerBlock(hw, isEdit, pdfDownloadUrl, pdfDownloadName)}
+      <div class="card ap-panel-card">
+        <div class="ap-card-header">
+          <h3 class="ap-card-title"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Số lượng câu theo phần</h3>
+          <span class="ap-card-hint">Đề PDF không có nội dung Markdown — nhập đáp án ở bảng bên dưới.</span>
         </div>
+        <div class="ap-counts-grid">
+          <div class="ap-count-box">
+            <label for="cfg-mc-count" class="ap-count-label">Trắc nghiệm ABCD</label>
+            <input type="number" id="cfg-mc-count" class="form-input ap-count-input" value="${currentConfig.mcCount}" min="0" max="100">
+          </div>
+          <div class="ap-count-box">
+            <label for="cfg-tf-count" class="ap-count-label">Đúng / Sai</label>
+            <input type="number" id="cfg-tf-count" class="form-input ap-count-input" value="${currentConfig.tfCount}" min="0" max="50">
+          </div>
+          <div class="ap-count-box">
+            <label for="cfg-sa-count" class="ap-count-label">Trả lời ngắn</label>
+            <input type="number" id="cfg-sa-count" class="form-input ap-count-input" value="${currentConfig.saCount}" min="0" max="50">
+          </div>
+        </div>
+        <button type="button" class="btn-primary ap-btn-update-counts" id="update-config-btn">
+          <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Cập nhật bảng đáp án
+        </button>
       </div>
-    `}
+      <div id="answer-matrix-container" class="ap-answer-matrix-wrap">
+        ${renderAnswerMatrix()}
+      </div>
+    `
+  }
+  return `
+    <div class="ap-q-toolbar">
+      ${modeSwitch}
+      <div class="ap-q-toolbar-actions">
+        <span id="ap-md-status" class="ap-md-status" aria-live="polite"></span>
+        <button type="button" class="ap-btn-parse" id="btn-parse-markdown" title="Phân tích Markdown và cập nhật xem trước (Ctrl + Enter)">
+          <i class="fa-solid fa-bolt" aria-hidden="true"></i> Phân tích & xem trước
+        </button>
+      </div>
+    </div>
+    <div class="ap-q-workspace">
+      <section class="ap-q-source" aria-label="Nội dung đề Markdown">
+        <div class="ap-q-col-head">
+          <h3><i class="fa-solid fa-code" aria-hidden="true"></i> Nội dung Markdown</h3>
+          <span class="ap-q-kbd">Ctrl + Enter để phân tích</span>
+        </div>
+        ${renderProSyntaxGuide()}
+        <textarea id="hw-markdown-input" class="ap-md-input" spellcheck="false" placeholder="${escapeHtml(PRO_MD_PLACEHOLDER)}">${escapeHtml(interactiveMarkdown)}</textarea>
+      </section>
+      <section class="ap-q-review" aria-label="Xem trước đề">
+        <div id="ap-q-summary" class="ap-q-summary"></div>
+        <div class="ap-q-map-card">
+          <div class="ap-q-map-head">
+            <h3><i class="fa-solid fa-map" aria-hidden="true"></i> Sơ đồ câu hỏi</h3>
+            <span class="ap-q-legend">
+              <span><i class="ap-dot is-ok"></i> Ổn</span>
+              <span><i class="ap-dot is-warn"></i> Cần kiểm tra</span>
+              <span><i class="ap-dot is-error"></i> Lỗi hiển thị</span>
+            </span>
+          </div>
+          <div id="hw-question-map" class="ap-q-map"></div>
+        </div>
+        <div id="ap-q-issues" class="ap-q-issues"></div>
+        <div id="interactive-preview-container" class="ap-q-preview">
+          ${renderInteractiveCardsHtml()}
+        </div>
+      </section>
+    </div>
   `
 }
 
@@ -1051,6 +1241,15 @@ export function renderProCreateHwView() {
     displayTitle
   } = prepareCreateHwViewData()
 
+  // Giao diện Pro không còn đề mẫu: bài mới bắt đầu với khung Markdown trống.
+  if (!isEdit && (interactiveMarkdown === MATH_TEMPLATE || !String(interactiveMarkdown || '').trim())) {
+    interactiveMarkdown = ''
+    interactiveQuestions = []
+  }
+  proLastParsedMarkdown = interactiveMarkdown
+  proLastParsedAt = null
+  proKatexErrors = {}
+
   return `
     <div class="app-layout ap-create-homework">
       ${renderSidebar('create-homework')}
@@ -1069,76 +1268,67 @@ export function renderProCreateHwView() {
           <section class="ap-create-hw-hero" aria-label="Tiêu đề khởi tạo bài tập">
             <div class="ap-create-hero-info">
               <div class="ap-create-hero-kicker">
-                <span class="ap-kicker-badge">Quy trình 4 bước</span>
+                <span class="ap-kicker-badge">3 bước</span>
                 <span class="ap-kicker-text">${isEdit ? 'Chế độ chỉnh sửa' : 'Soạn bài mới'}</span>
               </div>
-              <h1 class="ap-create-hero-title">${isEdit ? 'Cập nhật bài tập & bài thi' : 'Khởi tạo bài tập & bài thi'}</h1>
-              <p class="ap-create-hero-sub">Soạn thảo đề bài, thiết lập ma trận đáp án và cấu hình phòng thi trực tuyến</p>
+              <h1 class="ap-create-hero-title">${isEdit ? 'Cập nhật bài tập & bài thi' : 'Tạo bài tập & bài thi'}</h1>
+              <p class="ap-create-hero-sub">Nhập thông tin → dán đề Markdown và kiểm tra hiển thị → cấu hình thời gian, hạn nộp và giao bài</p>
             </div>
             <div class="ap-create-hero-actions">
               <a href="#homework-mgmt" class="btn-secondary ap-btn-hero-cancel">Hủy bỏ</a>
             </div>
           </section>
 
-          <!-- Stepper 4 bước (Mochi Pro) -->
-          <nav aria-label="Các bước tạo bài tập" class="ap-hw-stepper" id="hw-stepper-bar">
-            <button type="button" class="ap-step-btn active" data-step="1">
+          <!-- Stepper 3 bước (Mochi Pro) -->
+          <nav aria-label="Các bước tạo bài tập" class="ap-hw-stepper ap-hw-stepper-3" id="hw-stepper-bar">
+            <button type="button" class="ap-step-btn active" data-step="1" aria-current="step">
               <span class="ap-step-num">1</span>
               <span class="ap-step-text">
                 <span class="ap-step-sub">Bước 1</span>
-                <strong class="ap-step-title">Thông tin chung</strong>
+                <strong class="ap-step-title">Thông tin bài tập</strong>
               </span>
             </button>
             <button type="button" class="ap-step-btn" data-step="2">
               <span class="ap-step-num">2</span>
               <span class="ap-step-text">
                 <span class="ap-step-sub">Bước 2</span>
-                <strong class="ap-step-title">Đề bài & Đáp án</strong>
+                <strong class="ap-step-title">Đề bài & kiểm tra</strong>
               </span>
             </button>
             <button type="button" class="ap-step-btn" data-step="3">
               <span class="ap-step-num">3</span>
               <span class="ap-step-text">
                 <span class="ap-step-sub">Bước 3</span>
-                <strong class="ap-step-title">Phòng thi & Deadline</strong>
-              </span>
-            </button>
-            <button type="button" class="ap-step-btn" data-step="4">
-              <span class="ap-step-num">4</span>
-              <span class="ap-step-text">
-                <span class="ap-step-sub">Bước 4</span>
-                <strong class="ap-step-title">Giao lớp & Xuất bản</strong>
+                <strong class="ap-step-title">Cấu hình & giao bài</strong>
               </span>
             </button>
           </nav>
 
-          <!-- Form container with 4 Step Panels -->
           <div class="ap-step-panels-container">
 
-            <!-- BƯỚC 1: THÔNG TIN CƠ BẢN -->
+            <!-- BƯỚC 1: THÔNG TIN BÀI TẬP -->
             <div class="ap-step-panel active" data-step-panel="1">
               <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 1: Thông tin cơ bản</h2>
-                <p class="ap-step-desc">Đặt tên bài tập và liên kết vào khối lớp, chương trình học</p>
+                <h2 class="ap-step-heading">Bước 1: Thông tin bài tập</h2>
+                <p class="ap-step-desc">Đặt tên, chọn phân loại và gắn bài tập vào lớp, chương, bài học</p>
               </div>
-
               <div class="ap-step1-grid">
                 <div class="ap-field-group ap-field-span2">
-                  <label for="hw-title" class="ap-label">Tên bài tập / Bài thi <span class="ap-required">*</span></label>
-                  <input type="text" id="hw-title" class="form-input ap-input" placeholder="Ví dụ: Kiểm tra 45 phút cực trị hàm số..." value="${displayTitle}">
+                  <label for="hw-title" class="ap-label">Tên bài tập <span class="ap-required">*</span></label>
+                  <input type="text" id="hw-title" class="form-input ap-input" placeholder="Ví dụ: Kiểm tra 45 phút cực trị hàm số..." value="${escapeHtml(displayTitle)}" autocomplete="off">
                   <span class="ap-field-hint"><i class="fa-solid fa-circle-info"></i> Tên bài học sẽ tự động được ghép phía trước khi lưu bài</span>
                 </div>
 
                 <div class="ap-field-group">
-                  <label for="hw-type" class="ap-label">Phân loại bài làm <span class="ap-required">*</span></label>
+                  <label for="hw-type" class="ap-label">Phân loại <span class="ap-required">*</span></label>
                   <select id="hw-type" class="form-input ap-select">
-                    <option value="PRACTICE" ${isEdit && hw.type === 'PRACTICE' ? 'selected' : ''}>Luyện tập tự do (Tự chấm & hiện giải)</option>
-                    <option value="EXAM" ${isEdit && hw.type === 'EXAM' ? 'selected' : ''}>Bài thi chính thức (Có giám sát & tính điểm)</option>
+                    <option value="PRACTICE" ${isEdit && hw.type === 'PRACTICE' ? 'selected' : ''}>Luyện tập (tự chấm, làm nhiều lần)</option>
+                    <option value="EXAM" ${isEdit && hw.type === 'EXAM' ? 'selected' : ''}>Bài thi (1 lần làm, phòng thi)</option>
                   </select>
                 </div>
 
                 <div class="ap-field-group">
-                  <label for="hw-class-select" class="ap-label">Lớp học áp dụng <span class="ap-required">*</span></label>
+                  <label for="hw-class-select" class="ap-label">Lớp học <span class="ap-required">*</span></label>
                   <select id="hw-class-select" class="form-input ap-select">
                     ${classOptions}
                   </select>
@@ -1152,7 +1342,7 @@ export function renderProCreateHwView() {
                 </div>
 
                 <div class="ap-field-group">
-                  <label for="hw-lesson-select" class="ap-label">Bài học liên kết <span class="ap-required">*</span></label>
+                  <label for="hw-lesson-select" class="ap-label">Bài học <span class="ap-required">*</span></label>
                   <select id="hw-lesson-select" class="form-input ap-select">
                     <option value="">${isEdit ? 'Đang tải bài học...' : 'Chọn chương trước...'}</option>
                   </select>
@@ -1160,166 +1350,121 @@ export function renderProCreateHwView() {
               </div>
             </div>
 
-            <!-- BƯỚC 2: SOẠN THẢO ĐỀ BÀI -->
+            <!-- BƯỚC 2: ĐỀ BÀI & KIỂM TRA -->
             <div class="ap-step-panel" data-step-panel="2">
               <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 2: Soạn đề bài & Đáp án</h2>
-                <p class="ap-step-desc">Soạn thảo Markdown với công thức toán KaTeX hoặc bóc tách từ PDF, rồi chọn đáp án đúng cho từng câu</p>
+                <h2 class="ap-step-heading">Bước 2: Đề bài & kiểm tra hiển thị</h2>
+                <p class="ap-step-desc">Dán đề Markdown, bấm "Phân tích & xem trước" rồi dùng sơ đồ để đi tới câu cần sửa. Bấm phương án/mệnh đề trên thẻ để đổi đáp án.</p>
               </div>
-
-              <div id="create-hw-left-pane" class="ap-create-hw-pane">
-                ${renderLeftColumn(hw, isEdit, pdfDownloadUrl, pdfDownloadName)}
-              </div>
-
-              <!-- Đáp án & Sơ đồ câu hỏi (gộp từ bước 3 cũ) -->
-              <div class="ap-step-subheader">
-                <h3 class="ap-step-subheading"><i class="fa-solid fa-list-check"></i> Đáp án & Sơ đồ câu hỏi</h3>
-                <p class="ap-step-desc">Chọn đáp án đúng cho từng câu hỏi và phân bổ điểm số theo mẫu đề thi</p>
-              </div>
-
-              <!-- Sơ đồ câu hỏi Card -->
-              <div class="card ap-panel-card">
-                <style>.hw-map-active{ outline:2px solid var(--ap-accent) !important; }</style>
-                <div class="ap-card-header">
-                  <h3 class="ap-card-title"><i class="fa-solid fa-map"></i> Sơ đồ câu hỏi</h3>
-                  <span class="ap-card-hint">Bấm vào ô để nhảy tới câu • <span class="ap-text-ok">xanh</span>: đã có đáp án • <span class="ap-text-warn">vàng</span>: thiếu đáp án</span>
-                </div>
-                <div id="hw-question-map" class="ap-map-container"></div>
-              </div>
-
-              <!-- Cấu hình số lượng câu hỏi Card -->
-              <div class="card ap-panel-card">
-                <div class="ap-card-header">
-                  <h3 class="ap-card-title"><i class="fa-solid fa-sliders"></i> Cấu hình số lượng câu hỏi</h3>
-                </div>
-                <div class="ap-counts-grid">
-                  <div class="ap-count-box">
-                    <label for="cfg-mc-count" class="ap-count-label">Trắc nghiệm ABCD</label>
-                    <input type="number" id="cfg-mc-count" class="form-input ap-count-input" value="${currentConfig.mcCount}" min="0" max="100">
-                  </div>
-                  <div class="ap-count-box">
-                    <label for="cfg-tf-count" class="ap-count-label">Đúng / Sai</label>
-                    <input type="number" id="cfg-tf-count" class="form-input ap-count-input" value="${currentConfig.tfCount}" min="0" max="50">
-                  </div>
-                  <div class="ap-count-box">
-                    <label for="cfg-sa-count" class="ap-count-label">Trả lời ngắn</label>
-                    <input type="number" id="cfg-sa-count" class="form-input ap-count-input" value="${currentConfig.saCount}" min="0" max="50">
-                  </div>
-                </div>
-                <button type="button" class="btn-primary ap-btn-update-counts" id="update-config-btn">
-                  <i class="fa-solid fa-arrows-rotate"></i> Cập nhật số lượng câu hỏi
-                </button>
-              </div>
-
-              <!-- Nhập/Xuất đáp án Card -->
-              <div class="card ap-panel-card">
-                <div class="ap-card-header">
-                  <h3 class="ap-card-title"><i class="fa-solid fa-file-import"></i> Nhập / Xuất đáp án nhanh</h3>
-                </div>
-                <div class="ap-json-actions">
-                  <button class="btn-secondary ap-json-btn" id="copy-sample-btn" type="button" title="Sao chép cấu trúc JSON mẫu gồm 12 câu TN, 4 câu Đ/S, 6 câu TLN">
-                    <i class="fa-regular fa-file-code"></i> Sao chép JSON mẫu
-                  </button>
-                  <button class="btn-secondary ap-json-btn" id="copy-answers-btn" type="button" title="Sao chép toàn bộ đáp án hiện tại của bảng dưới dạng JSON">
-                    <i class="fa-regular fa-copy"></i> Sao chép đáp án JSON
-                  </button>
-                  <button class="btn-primary ap-json-btn" id="import-answers-btn" type="button" title="Nhập danh sách đáp án từ chuỗi JSON">
-                    <i class="fa-solid fa-keyboard"></i> Nhập đáp án (JSON)
-                  </button>
-                </div>
-              </div>
-
-              <!-- Ma trận đáp án Section -->
-              <div id="answer-matrix-container" class="ap-answer-matrix-wrap">
-                ${renderAnswerMatrix()}
+              <div id="create-hw-left-pane" class="ap-create-hw-pane ap-q-pane">
+                ${renderProQuestionPane(hw, isEdit, pdfDownloadUrl, pdfDownloadName)}
               </div>
             </div>
 
-            <!-- BƯỚC 4: CẤU HÌNH PHÒNG THI -->
+            <!-- BƯỚC 3: CẤU HÌNH & GIAO BÀI -->
             <div class="ap-step-panel" data-step-panel="3">
               <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 3: Cấu hình phòng thi & Deadline</h2>
-                <p class="ap-step-desc">Thiết lập thời gian làm bài và quy định hiển thị lời giải</p>
+                <h2 class="ap-step-heading">Bước 3: Cấu hình & giao bài</h2>
+                <p class="ap-step-desc">Thời gian làm, số lần làm, lời giải, hạn nộp và đối tượng được giao</p>
               </div>
 
-              <div class="ap-step4-grid">
-                <input type="hidden" id="hw-max-violations" value="${isEdit && hw.maxViolations !== undefined && hw.maxViolations !== null ? hw.maxViolations : 3}">
-                <div class="ap-field-group">
-                  <label for="hw-duration" class="ap-label">Thời lượng làm bài (Phút)</label>
-                  <input type="number" id="hw-duration" class="form-input ap-input" value="${isEdit ? hw.durationMinutes || 90 : 90}" min="5">
-                </div>
+              <div id="ap-hw-review-summary" class="ap-hw-review-summary" aria-live="polite"></div>
 
-                <div class="ap-field-group">
-                  <label for="hw-max-attempts" class="ap-label">Số lần làm bài tối đa (0 = Không giới hạn)</label>
-                  <input type="number" id="hw-max-attempts" class="form-input ap-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.max_attempts !== undefined && hw.max_attempts !== null ? hw.max_attempts : 0)}" min="0">
-                </div>
-
-                <div class="ap-field-group ap-field-span2">
-                  <label class="ap-label">Hiển thị lời giải chi tiết</label>
-                  <div class="ap-checkbox-card">
-                    <label class="ap-checkbox-label">
-                      <input type="checkbox" id="hw-show-solutions" ${isEdit ? (hw?.showSolutions !== false && hw?.show_solutions !== false ? 'checked' : '') : ''} class="ap-checkbox">
-                      <span>Hiển thị đáp án & giải thích sau khi nộp</span>
-                    </label>
-                    <span class="ap-checkbox-hint">Nếu chọn thì khi nộp bài sẽ hiển thị đáp án và giải thích, nếu ẩn thì chỉ hiển thị đúng/sai.</span>
+              <div class="ap-config-grid">
+                <section class="card ap-panel-card" aria-labelledby="ap-cfg-time-title">
+                  <div class="ap-card-header">
+                    <h3 class="ap-card-title" id="ap-cfg-time-title"><i class="fa-regular fa-clock" aria-hidden="true"></i> Thời gian & lượt làm</h3>
                   </div>
-                </div>
+                  <input type="hidden" id="hw-max-violations" value="${isEdit && hw.maxViolations !== undefined && hw.maxViolations !== null ? hw.maxViolations : 3}">
+                  <div class="ap-config-fields">
+                    <div class="ap-field-group">
+                      <label for="hw-duration" class="ap-label">Thời gian làm bài (phút)</label>
+                      <input type="number" id="hw-duration" class="form-input ap-input" value="${isEdit ? hw.durationMinutes || 90 : 90}" min="5" inputmode="numeric">
+                    </div>
+                    <div class="ap-field-group">
+                      <label for="hw-max-attempts" class="ap-label">Số lần làm tối đa</label>
+                      <input type="number" id="hw-max-attempts" class="form-input ap-input" value="${isEdit && hw.maxAttempts !== undefined && hw.maxAttempts !== null ? hw.maxAttempts : (isEdit && hw.type === 'EXAM' ? 1 : 0)}" min="0" inputmode="numeric">
+                      <span class="ap-field-hint" id="hw-attempts-hint">0 = không giới hạn. Bài thi luôn là 1 lần.</span>
+                    </div>
+                  </div>
+                  <label class="ap-switch-row" for="hw-show-solutions">
+                    <span class="ap-switch-text">
+                      <strong>Hiển thị lời giải sau khi nộp</strong>
+                      <small>Bật: học sinh xem đáp án & lời giải chi tiết. Tắt: chỉ biết câu đúng/sai.</small>
+                    </span>
+                    <input type="checkbox" id="hw-show-solutions" class="ap-switch" role="switch" ${isEdit ? (hw?.showSolutions !== false && hw?.show_solutions !== false ? 'checked' : '') : ''}>
+                  </label>
+                </section>
 
-                <!-- Deadline Row -->
-                <div class="ap-field-group ap-field-span2">
-                  <div class="ap-deadline-header">
-                    <label class="ap-label"><i class="fa-regular fa-calendar-days"></i> Hạn chót nộp bài (Deadline 24h)</label>
-                    <span class="ap-field-hint">(Không bắt buộc)</span>
+                <section class="card ap-panel-card" aria-labelledby="ap-cfg-deadline-title">
+                  <div class="ap-card-header">
+                    <h3 class="ap-card-title" id="ap-cfg-deadline-title"><i class="fa-regular fa-calendar-days" aria-hidden="true"></i> Hạn nộp</h3>
+                    <span class="ap-card-hint">Không bắt buộc</span>
                   </div>
                   <div class="ap-deadline-inputs">
-                    <input type="date" id="hw-deadline-date" class="form-input ap-input" value="${deadlineDateVal}" title="Chọn ngày hết hạn">
+                    <input type="date" id="hw-deadline-date" class="form-input ap-input" value="${deadlineDateVal}" aria-label="Ngày hết hạn">
                     <div class="ap-time-group">
-                      <select id="hw-deadline-hour" class="form-input ap-select-time" title="Chọn giờ (00 - 23)">
+                      <select id="hw-deadline-hour" class="form-input ap-select-time" aria-label="Giờ">
                         ${Array.from({ length: 24 }, (_, i) => {
                           const val = String(i).padStart(2, '0')
                           return `<option value="${val}" ${val === deadlineHourVal ? 'selected' : ''}>${val}h</option>`
                         }).join('')}
                       </select>
                       <span class="ap-time-colon">:</span>
-                      <select id="hw-deadline-minute" class="form-input ap-select-time" title="Chọn phút (00 - 59)">
+                      <select id="hw-deadline-minute" class="form-input ap-select-time" aria-label="Phút">
                         ${Array.from({ length: 60 }, (_, i) => {
                           const val = String(i).padStart(2, '0')
                           return `<option value="${val}" ${val === deadlineMinuteVal ? 'selected' : ''}>${val}p</option>`
                         }).join('')}
                       </select>
                     </div>
-                    <button type="button" id="hw-deadline-clear-btn" class="ap-btn-clear-deadline" title="Xóa hạn chót">
-                      <i class="fa-solid fa-xmark"></i>
+                    <button type="button" id="hw-deadline-clear-btn" class="ap-btn-clear-deadline" title="Xóa hạn nộp" aria-label="Xóa hạn nộp">
+                      <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                     </button>
                   </div>
-                </div>
+                  <div class="ap-deadline-quick" role="group" aria-label="Chọn nhanh hạn nộp">
+                    <button type="button" data-deadline-days="1">+1 ngày</button>
+                    <button type="button" data-deadline-days="3">+3 ngày</button>
+                    <button type="button" data-deadline-days="7">+1 tuần</button>
+                    <button type="button" data-deadline-days="14">+2 tuần</button>
+                  </div>
+                  <p class="ap-deadline-preview" id="hw-deadline-preview"></p>
+                </section>
               </div>
-            </div>
 
-            <!-- BƯỚC 5: GIAO LỚP & HOÀN TẤT -->
-            <div class="ap-step-panel" data-step-panel="4">
-              <div class="ap-step-panel-header">
-                <h2 class="ap-step-heading">Bước 4: Giao cho học sinh & Xuất bản</h2>
-                <p class="ap-step-desc">Kiểm tra thông tin lần cuối trước khi thông báo tới học sinh trong lớp</p>
-              </div>
-
-              <div class="card ap-panel-card ap-assign-card">
+              <section class="card ap-panel-card ap-assign-card" aria-labelledby="ap-cfg-assign-title">
                 <div class="ap-card-header">
-                  <h3 class="ap-card-title"><i class="fa-solid fa-user-check"></i> Giao riêng cho học sinh (tùy chọn)</h3>
+                  <h3 class="ap-card-title" id="ap-cfg-assign-title"><i class="fa-solid fa-user-check" aria-hidden="true"></i> Giao bài cho</h3>
                   <span id="assign-selected-count" class="ap-selected-count"></span>
                 </div>
-                <p class="ap-card-desc">Không chọn ai = cả lớp đều thấy bài này. Tick chọn để chỉ các em được chọn mới thấy và làm bài.</p>
-                <div class="ap-assign-actions">
-                  <button type="button" id="btn-assign-select-all" class="ap-btn-text">Chọn tất cả</button>
-                  <span class="ap-sep">|</span>
-                  <button type="button" id="btn-assign-deselect-all" class="ap-btn-text">Bỏ chọn</button>
+                <div class="ap-assign-modes" role="radiogroup" aria-label="Đối tượng được giao">
+                  <label class="ap-assign-mode">
+                    <input type="radio" name="hw-assign-mode" id="assign-mode-class" value="class" ${isEdit && (hw?.assignedStudentIds || []).length > 0 ? '' : 'checked'}>
+                    <span><strong>Cả lớp</strong><small>Mọi học sinh trong lớp đều thấy bài</small></span>
+                  </label>
+                  <label class="ap-assign-mode">
+                    <input type="radio" name="hw-assign-mode" id="assign-mode-select" value="select" ${isEdit && (hw?.assignedStudentIds || []).length > 0 ? 'checked' : ''}>
+                    <span><strong>Giao riêng</strong><small>Chỉ học sinh được chọn mới thấy & làm bài</small></span>
+                  </label>
                 </div>
-                <div id="assign-students-list" class="ap-assign-list">
-                  Chọn lớp học ở Bước 1 để tải danh sách học sinh...
+                <div id="assign-select-wrap" class="ap-assign-select-wrap" ${isEdit && (hw?.assignedStudentIds || []).length > 0 ? '' : 'hidden'}>
+                  <div class="ap-assign-tools">
+                    <div class="ap-assign-search">
+                      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                      <input type="search" id="assign-student-search" placeholder="Tìm học sinh..." aria-label="Tìm học sinh">
+                    </div>
+                    <div class="ap-assign-actions">
+                      <button type="button" id="btn-assign-select-all" class="ap-btn-text">Chọn tất cả</button>
+                      <span class="ap-sep">|</span>
+                      <button type="button" id="btn-assign-deselect-all" class="ap-btn-text">Bỏ chọn</button>
+                    </div>
+                  </div>
+                  <div id="assign-students-list" class="ap-assign-list">
+                    Chọn lớp học ở Bước 1 để tải danh sách học sinh...
+                  </div>
                 </div>
-              </div>
+              </section>
             </div>
-
           </div>
 
           <!-- Sticky Bottom Footer (Mochi Pro) -->
@@ -1331,7 +1476,7 @@ export function renderProCreateHwView() {
               </button>
             </div>
             <div class="ap-footer-center">
-              <span class="ap-step-indicator">Bước <strong id="current-step-display">1</strong> / 4</span>
+              <span class="ap-step-indicator">Bước <strong id="current-step-display">1</strong> / 3</span>
             </div>
             <div class="ap-footer-right">
               <button type="button" class="btn-primary ap-btn-footer-next" id="btn-hw-next-step">
@@ -1483,7 +1628,138 @@ export function bindCreateHwEvents() {
       renderMath(previewContainer)
     }
     renderHwQuestionMap()
+    refreshProReview()
   }
+
+  /* ---------- Pro: tổng quan, danh sách lỗi, trạng thái phân tích ---------- */
+  const isPro = isAdminProUI()
+
+  // Quét lỗi KaTeX trong DOM thẻ xem trước (KaTeX có thể nạp trễ → quét lại sau).
+  const scanKatexErrors = () => {
+    const container = document.getElementById('interactive-preview-container')
+    const next = {}
+    container?.querySelectorAll('.interactive-q-card').forEach(card => {
+      const idx = parseInt(card.getAttribute('data-qindex'), 10)
+      const msgs = Array.from(card.querySelectorAll('.katex-error')).map(el => {
+        const raw = (el.getAttribute('title') || '').replace(/^ParseError:\s*/i, '').replace(/^KaTeX parse error:\s*/i, '')
+        const src = (el.textContent || '').trim()
+        return `${raw || 'không đọc được công thức'}${src ? ` — "${src.length > 40 ? src.slice(0, 40) + '…' : src}"` : ''}`
+      })
+      // KaTeX auto-render bỏ qua công thức lỗi cú pháp và để nguyên "$...$" thô → coi là lỗi hiển thị.
+      // Chỉ kiểm khi KaTeX đã nạp (tránh báo nhầm lúc script CDN chưa chạy).
+      if (typeof window.renderMathInElement === 'function' && typeof document.createTreeWalker === 'function') {
+        const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) => node.parentElement?.closest('.katex, code, pre, textarea, script, style, .diagram-wrap, svg')
+            ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+        })
+        let node
+        while ((node = walker.nextNode())) {
+          const text = (node.nodeValue || '').replace(/\\\$/g, '')
+          const m = text.match(/\$\$?[^$]+\$\$?/)
+          if (m) {
+            const snippet = m[0].length > 40 ? m[0].slice(0, 40) + '…' : m[0]
+            msgs.push(`không hiển thị được "${snippet}"`)
+          }
+        }
+      }
+      if (msgs.length && !isNaN(idx)) next[idx] = msgs
+    })
+    const changed = JSON.stringify(next) !== JSON.stringify(proKatexErrors)
+    proKatexErrors = next
+    return changed
+  }
+
+  const updateMdStatus = () => {
+    const el = document.getElementById('ap-md-status')
+    const textarea = document.getElementById('hw-markdown-input')
+    if (!el || !textarea) return
+    const dirty = textarea.value !== (proLastParsedMarkdown ?? '')
+    el.className = `ap-md-status ${dirty ? 'is-dirty' : 'is-clean'}`
+    if (dirty) {
+      el.innerHTML = '<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> Có thay đổi chưa phân tích'
+    } else if (proLastParsedAt) {
+      el.innerHTML = `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> Đã phân tích ${interactiveQuestions.length} câu lúc ${proLastParsedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+    } else {
+      el.innerHTML = interactiveQuestions.length ? `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ${interactiveQuestions.length} câu đang xem trước` : ''
+    }
+  }
+
+  const jumpToQuestion = (qIndex) => {
+    const target = document.querySelector(`#interactive-preview-container .interactive-q-card[data-qindex="${qIndex}"]`)
+    if (!target) return
+    scrollToInteractiveQuestion(target)
+    target.classList.remove('ap-q-flash')
+    void target.offsetWidth
+    target.classList.add('ap-q-flash')
+    setTimeout(() => target.classList.remove('ap-q-flash'), 1700)
+    try { target.focus({ preventScroll: true }) } catch (_) {}
+  }
+
+  const renderProSummaryAndIssues = () => {
+    const summaryEl = document.getElementById('ap-q-summary')
+    const issuesEl = document.getElementById('ap-q-issues')
+    if (!summaryEl && !issuesEl) return
+    const all = collectAllQuestionIssues()
+    const errQs = all.filter(i => i.errors.length)
+    const warnQs = all.filter(i => !i.errors.length && i.warnings.length)
+    const counts = { MULTIPLE_CHOICE: 0, TRUE_FALSE: 0, SHORT_ANSWER: 0, ESSAY: 0 }
+    interactiveQuestions.forEach(q => { counts[q.questionType] = (counts[q.questionType] || 0) + 1 })
+    const rawMax = interactiveQuestions.length ? calculateExamRawMax(interactiveQuestions) : 0
+    if (summaryEl) {
+      summaryEl.innerHTML = interactiveQuestions.length ? `
+        <div class="ap-q-stat"><strong>${interactiveQuestions.length}</strong><span>câu hỏi</span></div>
+        <div class="ap-q-stat"><strong>${counts.MULTIPLE_CHOICE}/${counts.TRUE_FALSE}/${counts.SHORT_ANSWER}</strong><span>TN / Đ-S / TLN</span></div>
+        <div class="ap-q-stat"><strong>${rawMax}đ</strong><span>tổng điểm thô</span></div>
+        <div class="ap-q-stat ${errQs.length ? 'is-error' : 'is-ok'}"><strong>${errQs.length}</strong><span>câu lỗi hiển thị</span></div>
+        <div class="ap-q-stat ${warnQs.length ? 'is-warn' : 'is-ok'}"><strong>${warnQs.length}</strong><span>câu cần kiểm tra</span></div>
+      ` : ''
+    }
+    if (issuesEl) {
+      const list = all.filter(i => i.errors.length || i.warnings.length)
+      if (!interactiveQuestions.length) {
+        issuesEl.innerHTML = ''
+      } else if (!list.length) {
+        issuesEl.innerHTML = '<div class="ap-q-issues-ok"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Không phát hiện lỗi hiển thị hay thiếu đáp án.</div>'
+      } else {
+        issuesEl.innerHTML = `
+          <details class="ap-q-issues-box" ${list.length <= 6 ? 'open' : ''}>
+            <summary><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${list.length} câu cần xem lại <small>(bấm để đi tới câu)</small></summary>
+            <ul>
+              ${list.map(item => `
+                <li>
+                  <button type="button" class="ap-q-issue ${item.errors.length ? 'is-error' : 'is-warn'}" data-jump-qindex="${item.idx}">
+                    <span class="ap-q-issue-num">Câu ${escapeHtml(item.qNum)}</span>
+                    <span class="ap-q-issue-text">${[...item.errors, ...item.warnings].map(m => escapeHtml(m)).join(' · ')}</span>
+                  </button>
+                </li>
+              `).join('')}
+            </ul>
+          </details>
+        `
+        issuesEl.querySelectorAll('[data-jump-qindex]').forEach(btn => {
+          btn.addEventListener('click', () => jumpToQuestion(parseInt(btn.getAttribute('data-jump-qindex'), 10)))
+        })
+      }
+    }
+  }
+
+  function refreshProReview() {
+    if (!isPro || currentMode !== 'INTERACTIVE') return
+    const mdTa = document.getElementById('hw-markdown-input')
+    if (mdTa && mdTa.value === interactiveMarkdown) proLastParsedMarkdown = interactiveMarkdown
+    scanKatexErrors()
+    renderHwQuestionMap()
+    renderProSummaryAndIssues()
+    updateMdStatus()
+    // KaTeX có thể render trễ (script defer) → quét lại một lần nữa.
+    setTimeout(() => {
+      if (scanKatexErrors()) {
+        renderHwQuestionMap()
+        renderProSummaryAndIssues()
+      }
+    }, 700)
+  }
+  window.refreshProHwReview = refreshProReview
 
   // Sơ đồ câu hỏi: nhóm theo loại, bấm ô để cuộn tới câu (như lịch sử bài tập)
   const renderHwQuestionMap = () => {
@@ -1511,6 +1787,40 @@ export function bindCreateHwEvents() {
       { type: 'TRUE_FALSE', title: 'Đúng / Sai' },
       { type: 'SHORT_ANSWER', title: 'Trả lời ngắn' },
     ]
+    if (isAdminProUI()) {
+      const issues = collectAllQuestionIssues()
+      const proGroups = [...groups, { type: 'ESSAY', title: 'Tự luận' }]
+      mapEl.innerHTML = proGroups.map(g => {
+        const list = issues.filter(i => interactiveQuestions[i.idx]?.questionType === g.type)
+        if (!list.length) return ''
+        return `
+          <div class="ap-q-map-group">
+            <div class="ap-q-map-label"><span>${g.title}</span><span>${list.length} câu</span></div>
+            <div class="ap-q-map-grid">
+              ${list.map(item => {
+                const status = item.errors.length ? 'is-error' : (item.warnings.length ? 'is-warn' : 'is-ok')
+                const label = item.errors.length ? 'lỗi hiển thị' : (item.warnings.length ? 'cần kiểm tra' : 'ổn')
+                return `<button type="button" class="hw-map-cell ap-q-cell ${status}" data-qindex="${item.idx}" data-qnum="${escapeHtml(item.qNum)}" aria-label="Câu ${escapeHtml(item.qNum)} — ${label}" title="Câu ${escapeHtml(item.qNum)} — ${label}">${escapeHtml(item.qNum)}</button>`
+              }).join('')}
+            </div>
+          </div>`
+      }).join('')
+      mapEl.querySelectorAll('.ap-q-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+          mapEl.querySelectorAll('.ap-q-cell').forEach(c => c.classList.remove('is-active'))
+          cell.classList.add('is-active')
+          const qIndex = parseInt(cell.getAttribute('data-qindex'), 10)
+          const target = document.querySelector(`#interactive-preview-container .interactive-q-card[data-qindex="${qIndex}"]`)
+          if (!target) return
+          scrollToInteractiveQuestion(target)
+          target.classList.remove('ap-q-flash')
+          void target.offsetWidth
+          target.classList.add('ap-q-flash')
+          setTimeout(() => target.classList.remove('ap-q-flash'), 1700)
+        })
+      })
+      return
+    }
     mapEl.innerHTML = groups.map(g => {
       const list = interactiveQuestions.filter(q => q.questionType === g.type)
       if (list.length === 0) return ''
@@ -1716,6 +2026,7 @@ export function bindCreateHwEvents() {
       if (globalMdTextarea) {
         globalMdTextarea.value = interactiveMarkdown
       }
+      proLastParsedMarkdown = interactiveMarkdown
 
       // Re-render cards and sync counts
       refreshInteractiveCards()
@@ -2065,14 +2376,19 @@ export function bindCreateHwEvents() {
   const updateLeftPane = () => {
     const leftPane = document.getElementById('create-hw-left-pane')
     if (leftPane) {
-      leftPane.innerHTML = renderLeftColumn(hwData?.homework, isEditMode, downloadBtn?.getAttribute('href'), downloadBtn?.getAttribute('download'))
+      leftPane.innerHTML = isAdminProUI()
+        ? renderProQuestionPane(hwData?.homework, isEditMode, downloadBtn?.getAttribute('href'), downloadBtn?.getAttribute('download'))
+        : renderLeftColumn(hwData?.homework, isEditMode, downloadBtn?.getAttribute('href'), downloadBtn?.getAttribute('download'))
       bindInteractiveToolbarEvents()
       if (currentMode === 'INTERACTIVE') {
         bindInteractiveCardEvents()
         bindInteractivePdfEvents()
         syncCountsFromInteractive()
+        renderHwQuestionMap()
+        refreshProReview()
       } else {
         initPdfListeners()
+        if (isAdminProUI()) bindPdfAnswerTools()
       }
     }
   }
@@ -2135,12 +2451,22 @@ export function bindCreateHwEvents() {
           }
         })
         interactiveQuestions = parsed.questions
+        proLastParsedMarkdown = text
+        proLastParsedAt = new Date()
         refreshInteractiveCards()
         syncCountsFromInteractive()
         const issues = collectDiagramIssues(interactiveQuestions)
         const errCount = issues.reduce((s, it) => s + it.errors.length, 0)
         const warnCount = issues.reduce((s, it) => s + it.warnings.length, 0)
-        if (errCount > 0) {
+        if (isAdminProUI()) {
+          setTimeout(() => {
+            const all = collectAllQuestionIssues()
+            const bad = all.filter(i => i.errors.length).length
+            const warn = all.filter(i => !i.errors.length && i.warnings.length).length
+            if (bad || warn) showToast(`Đã phân tích ${parsed.questions.length} câu: ${bad} câu lỗi hiển thị, ${warn} câu cần kiểm tra — xem sơ đồ câu hỏi.`, bad ? 'error' : 'warning')
+            else showToast(`Đã phân tích ${parsed.questions.length} câu hỏi, không phát hiện lỗi.`, 'success')
+          }, 750)
+        } else if (errCount > 0) {
           showToast(`Đã phân tích ${parsed.questions.length} câu hỏi, nhưng có ${errCount} LỖI khối hình — xem mục "Chẩn đoán khối hình" và sửa trước khi lưu.`, 'error')
         } else if (warnCount > 0) {
           showToast(`Đã phân tích thành công ${parsed.questions.length} câu hỏi (${warnCount} cảnh báo khối hình cần kiểm tra).`, 'warning')
@@ -2148,9 +2474,23 @@ export function bindCreateHwEvents() {
           showToast(`Đã phân tích thành công ${parsed.questions.length} câu hỏi!`, 'success')
         }
       } else {
-        showToast('Không tìm thấy câu hỏi hợp lệ trong văn bản!', 'error')
+        showToast(isAdminProUI()
+          ? 'Không tìm thấy câu hỏi hợp lệ. Mỗi câu cần bắt đầu bằng [Câu 1], [Câu 2]… — xem "Cú pháp soạn đề".'
+          : 'Không tìm thấy câu hỏi hợp lệ trong văn bản!', 'error')
       }
     })
+
+    // Pro: theo dõi thay đổi Markdown + phím tắt Ctrl/Cmd + Enter để phân tích
+    const proMdInput = isAdminProUI() ? document.getElementById('hw-markdown-input') : null
+    if (proMdInput) {
+      proMdInput.addEventListener('input', updateMdStatus)
+      proMdInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault()
+          document.getElementById('btn-parse-markdown')?.click()
+        }
+      })
+    }
 
     // Xuất PDF đề (đề trắng / kèm đáp án) từ nội dung Markdown hiện tại
     document.getElementById('btn-export-exam-pdf')?.addEventListener('click', () => {
@@ -2494,10 +2834,16 @@ export function bindCreateHwEvents() {
   const updateAssignCount = () => {
     const n = document.querySelectorAll('.assign-student-cb:checked').length
     const el = document.getElementById('assign-selected-count')
-    if (el) el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : ''
+    if (!el) return
+    if (document.getElementById('assign-mode-class')?.checked) { el.textContent = 'Cả lớp'; return }
+    if (document.getElementById('assign-mode-select')) { el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : 'Chưa chọn học sinh nào'; return }
+    el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : ''
   }
-  const collectAssignStudentIds = () =>
-    Array.from(document.querySelectorAll('.assign-student-cb:checked')).map(cb => cb.value)
+  const collectAssignStudentIds = () => {
+    // Pro: chọn "Cả lớp" thì không giao riêng ai (giữ đúng nghĩa: danh sách rỗng = cả lớp)
+    if (document.getElementById('assign-mode-class')?.checked) return []
+    return Array.from(document.querySelectorAll('.assign-student-cb:checked')).map(cb => cb.value)
+  }
 
   async function loadAssignStudents(classId, preselected = null) {
     const box = assignListEl()
@@ -2525,6 +2871,7 @@ export function bindCreateHwEvents() {
         box.querySelectorAll('.assign-student-cb').forEach(cb => {
           cb.addEventListener('change', updateAssignCount)
         })
+        applyAssignSearch()
       }
     } catch (err) {
       box.innerHTML = 'Không tải được danh sách học sinh.'
@@ -2532,8 +2879,26 @@ export function bindCreateHwEvents() {
     updateAssignCount()
   }
 
+  // Pro: lọc danh sách học sinh theo ô tìm kiếm
+  function applyAssignSearch() {
+    const q = (document.getElementById('assign-student-search')?.value || '').trim().toLowerCase()
+    document.querySelectorAll('#assign-students-list label').forEach(label => {
+      label.hidden = !!q && !label.textContent.toLowerCase().includes(q)
+    })
+  }
+  document.getElementById('assign-student-search')?.addEventListener('input', applyAssignSearch)
+  document.querySelectorAll('input[name="hw-assign-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const selectMode = document.getElementById('assign-mode-select')?.checked
+      const wrap = document.getElementById('assign-select-wrap')
+      if (wrap) wrap.hidden = !selectMode
+      updateAssignCount()
+    })
+  })
+
   document.getElementById('btn-assign-select-all')?.addEventListener('click', () => {
-    document.querySelectorAll('.assign-student-cb').forEach(cb => { cb.checked = true })
+    // Chỉ chọn những em đang hiển thị (sau khi lọc)
+    document.querySelectorAll('.assign-student-cb').forEach(cb => { if (!cb.closest('label')?.hidden) cb.checked = true })
     updateAssignCount()
   })
   document.getElementById('btn-assign-deselect-all')?.addEventListener('click', () => {
@@ -2645,6 +3010,13 @@ export function bindCreateHwEvents() {
     }
   }
 
+  function bindPdfAnswerTools() {
+    document.getElementById('update-config-btn')?.addEventListener('click', () => {
+      updateConfig()
+      showToast('Đã cập nhật số lượng câu hỏi và bảng đáp án!', 'info')
+    })
+    bindMatrixEvents()
+  }
   document.getElementById('update-config-btn')?.addEventListener('click', () => {
     updateConfig()
     showToast('Đã cập nhật số lượng câu hỏi và bảng đáp án!', 'info')
@@ -2943,7 +3315,7 @@ export function bindCreateHwEvents() {
   document.getElementById('answer-matrix-container')?.addEventListener('click', () => window.refreshHwQuestionMap?.())
 
   // Save Homework Event
-  document.getElementById('save-homework-btn')?.addEventListener('click', async () => {
+  const handleSaveHomework = async (skipReviewConfirm = false) => {
     const saveBtn = document.getElementById('save-homework-btn')
     if (saveBtn?.dataset.saving === '1') return
 
@@ -2969,11 +3341,13 @@ export function bindCreateHwEvents() {
 
     if (!title) {
       showToast('Vui lòng nhập tên bài tập!', 'error')
+      if (isAdminProUI()) window.goToHwStep?.(1, 'hw-title')
       return
     }
 
     if (!lessonId) {
       showToast('Vui lòng chọn bài học cho bài tập này!', 'error')
+      if (isAdminProUI()) window.goToHwStep?.(1, classId ? 'hw-lesson-select' : 'hw-class-select')
       return
     }
 
@@ -2998,10 +3372,12 @@ export function bindCreateHwEvents() {
         const q = interactiveQuestions[i]
         if (q.questionType === 'MULTIPLE_CHOICE' && !q.mcAnswer) {
           showToast(`Vui lòng chọn đáp án đúng cho Câu ${q.questionNumber} (Phần I)!`, 'error')
+          if (isAdminProUI()) window.goToHwStep?.(2)
           return
         }
         if (q.questionType === 'SHORT_ANSWER' && (!q.saAnswer || String(q.saAnswer).trim() === '')) {
           showToast(`Vui lòng nhập đáp án cho Câu ${q.questionNumber} (Phần III)!`, 'error')
+          if (isAdminProUI()) window.goToHwStep?.(2)
           return
         }
       }
@@ -3015,7 +3391,33 @@ export function bindCreateHwEvents() {
           `Có lỗi khối hình ở Câu ${first.questionNumber}: ${detail}. Vui lòng sửa trước khi lưu!`,
           'error'
         )
+        if (isAdminProUI()) window.goToHwStep?.(2)
         return
+      }
+
+      // Pro: cảnh báo (không chặn) khi còn lỗi hiển thị / chưa phân tích bản Markdown mới nhất
+      if (isAdminProUI() && !skipReviewConfirm) {
+        const mdTa = document.getElementById('hw-markdown-input')
+        const unparsed = !!mdTa && mdTa.value !== (proLastParsedMarkdown ?? '')
+        const all = collectAllQuestionIssues()
+        const errQs = all.filter(i => i.errors.length)
+        const warnQs = all.filter(i => !i.errors.length && i.warnings.length)
+        if (unparsed || errQs.length || warnQs.length) {
+          const lines = []
+          if (unparsed) lines.push('Nội dung Markdown đã sửa nhưng <strong>chưa bấm "Phân tích & xem trước"</strong> — bài sẽ được lưu theo bản xem trước hiện tại.')
+          if (errQs.length) lines.push(`<strong>${errQs.length} câu lỗi hiển thị</strong>: ${errQs.slice(0, 8).map(i => `Câu ${escapeHtml(i.qNum)}`).join(', ')}${errQs.length > 8 ? '…' : ''}`)
+          if (warnQs.length) lines.push(`<strong>${warnQs.length} câu cần kiểm tra</strong>: ${warnQs.slice(0, 8).map(i => `Câu ${escapeHtml(i.qNum)}`).join(', ')}${warnQs.length > 8 ? '…' : ''}`)
+          openModal('Kiểm tra trước khi lưu', `
+            <div class="ap-save-review">
+              <ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul>
+              <p>Bạn có thể quay lại Bước 2 để sửa, hoặc vẫn lưu bài.</p>
+            </div>
+          `, () => {
+            setTimeout(() => handleSaveHomework(true), 0)
+            return true
+          }, { confirmLabel: 'Vẫn lưu bài', cancelLabel: 'Quay lại sửa', onCancel: () => window.goToHwStep?.(2) })
+          return
+        }
       }
 
       questions = interactiveQuestions.map((q, idx) => {
@@ -3229,7 +3631,8 @@ export function bindCreateHwEvents() {
         saveBtn.disabled = false
       }
     }
-  })
+  }
+  document.getElementById('save-homework-btn')?.addEventListener('click', () => handleSaveHomework(false))
 
   // Clear Deadline Event
   document.getElementById('hw-deadline-clear-btn')?.addEventListener('click', () => {
@@ -3237,8 +3640,162 @@ export function bindCreateHwEvents() {
     if (dateInput) {
       dateInput.value = ''
       showToast('Đã xóa hạn nộp bài', 'info')
+      updateDeadlinePreview()
     }
   })
+
+  // Pro: chọn nhanh hạn nộp + dòng mô tả hạn nộp
+  function updateDeadlinePreview() {
+    const el = document.getElementById('hw-deadline-preview')
+    if (!el) return
+    const date = document.getElementById('hw-deadline-date')?.value
+    if (!date) { el.textContent = 'Không đặt hạn nộp — học sinh làm bất cứ lúc nào.'; return }
+    const h = document.getElementById('hw-deadline-hour')?.value || '23'
+    const m = document.getElementById('hw-deadline-minute')?.value || '59'
+    const d = new Date(`${date}T${h}:${m}:00`)
+    if (isNaN(d.getTime())) { el.textContent = ''; return }
+    const days = Math.ceil((d.getTime() - Date.now()) / 86400000)
+    const when = d.toLocaleString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    el.textContent = days < 0 ? `Hạn nộp ${when} — đã qua.` : `Hạn nộp ${when} (còn ${days} ngày).`
+    el.classList.toggle('is-past', days < 0)
+  }
+  document.querySelectorAll('[data-deadline-days]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const n = parseInt(btn.getAttribute('data-deadline-days'), 10) || 0
+      const d = new Date()
+      d.setDate(d.getDate() + n)
+      const dateInput = document.getElementById('hw-deadline-date')
+      if (dateInput) dateInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const hourSel = document.getElementById('hw-deadline-hour')
+      const minSel = document.getElementById('hw-deadline-minute')
+      if (hourSel) hourSel.value = '23'
+      if (minSel) minSel.value = '59'
+      updateDeadlinePreview()
+    })
+  })
+  ;['hw-deadline-date', 'hw-deadline-hour', 'hw-deadline-minute'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', updateDeadlinePreview)
+  })
+  updateDeadlinePreview()
+
+  if (isAdminProUI()) {
+    bindProStepper()
+    refreshProReview()
+  }
+}
+
+/* ==========================================================================
+ * Pro: điều hướng 3 bước (gắn MỘT lần — trước đây nằm trong bindMatrixEvents
+ * nên bị gắn lặp và nhảy về bước 1 mỗi khi bảng đáp án render lại).
+ * ========================================================================== */
+function bindProStepper() {
+  const stepperBar = document.getElementById('hw-stepper-bar')
+  if (!stepperBar) return
+  const TOTAL = 3
+  let currentStep = 1
+  const stepButtons = document.querySelectorAll('.ap-step-btn')
+  const stepPanels = document.querySelectorAll('.ap-step-panel')
+  const prevBtn = document.getElementById('btn-hw-prev-step')
+  const nextBtn = document.getElementById('btn-hw-next-step')
+  const stepDisplay = document.getElementById('current-step-display')
+
+  const optionText = (id) => {
+    const el = document.getElementById(id)
+    if (!el || el.selectedIndex < 0 || !el.value) return ''
+    return el.options[el.selectedIndex]?.textContent?.trim() || ''
+  }
+
+  const missingStep1 = () => {
+    const missing = []
+    if (!document.getElementById('hw-title')?.value.trim()) missing.push(['hw-title', 'tên bài tập'])
+    if (!document.getElementById('hw-class-select')?.value) missing.push(['hw-class-select', 'lớp học'])
+    if (!document.getElementById('hw-chapter-select')?.value) missing.push(['hw-chapter-select', 'chương học'])
+    if (!document.getElementById('hw-lesson-select')?.value) missing.push(['hw-lesson-select', 'bài học'])
+    return missing
+  }
+
+  const renderReviewSummary = () => {
+    const box = document.getElementById('ap-hw-review-summary')
+    if (!box) return
+    const isInteractive = currentMode === 'INTERACTIVE'
+    const all = isInteractive ? collectAllQuestionIssues() : []
+    const bad = all.filter(i => i.errors.length || i.warnings.length).length
+    const qCount = isInteractive ? interactiveQuestions.length : (currentConfig.mcCount + currentConfig.tfCount + currentConfig.saCount)
+    const rows = [
+      ['Tên bài', document.getElementById('hw-title')?.value.trim() || '—'],
+      ['Phân loại', document.getElementById('hw-type')?.value === 'EXAM' ? 'Bài thi' : 'Luyện tập'],
+      ['Lớp', optionText('hw-class-select') || '—'],
+      ['Bài học', optionText('hw-lesson-select') || '—'],
+      ['Đề bài', `${qCount} câu · ${isInteractive ? 'Markdown' : 'File PDF'}`]
+    ]
+    box.innerHTML = `
+      <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>`).join('')}</dl>
+      ${bad ? `<button type="button" class="ap-review-warn" data-go-step="2"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${bad} câu cần xem lại ở Bước 2</button>` : ''}
+    `
+    box.querySelector('[data-go-step]')?.addEventListener('click', () => setStep(2))
+  }
+
+  function setStep(newStep, focusId = null) {
+    currentStep = Math.max(1, Math.min(TOTAL, newStep))
+    if (stepDisplay) stepDisplay.textContent = String(currentStep)
+    stepButtons.forEach(btn => {
+      const stepNum = parseInt(btn.getAttribute('data-step'), 10)
+      btn.classList.toggle('active', stepNum === currentStep)
+      btn.classList.toggle('completed', stepNum < currentStep)
+      if (stepNum === currentStep) btn.setAttribute('aria-current', 'step')
+      else btn.removeAttribute('aria-current')
+    })
+    stepPanels.forEach(panel => {
+      const panelNum = parseInt(panel.getAttribute('data-step-panel'), 10)
+      panel.classList.toggle('active', panelNum === currentStep)
+    })
+    if (prevBtn) prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible'
+    if (nextBtn) {
+      const display = currentStep === TOTAL ? 'none' : 'inline-flex'
+      if (typeof nextBtn.style.setProperty === 'function') nextBtn.style.setProperty('display', display, 'important')
+      else nextBtn.style.display = display
+    }
+    if (currentStep === 2) {
+      const previewEl = document.getElementById('interactive-preview-container')
+      if (previewEl) renderMath(previewEl)
+      window.refreshProHwReview?.()
+    }
+    if (currentStep === 3) renderReviewSummary()
+    // Bước 2: đưa thẳng thanh công cụ + khung soạn/xem trước lên đầu màn hình
+    const step2Anchor = currentStep === 2 ? document.getElementById('create-hw-left-pane') : null
+    if (step2Anchor && typeof step2Anchor.scrollIntoView === 'function') {
+      step2Anchor.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    } else if (typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    if (focusId) setTimeout(() => document.getElementById(focusId)?.focus(), 250)
+  }
+  window.goToHwStep = setStep
+
+  stepButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const stepNum = parseInt(btn.getAttribute('data-step'), 10)
+      if (!isNaN(stepNum)) setStep(stepNum)
+    })
+  })
+  prevBtn?.addEventListener('click', () => setStep(currentStep - 1))
+  nextBtn?.addEventListener('click', () => {
+    if (currentStep === 1) {
+      const missing = missingStep1()
+      if (missing.length) {
+        showToast(`Vui lòng chọn/nhập: ${missing.map(m => m[1]).join(', ')}.`, 'warning')
+        missing.forEach(([id]) => document.getElementById(id)?.classList.add('ap-invalid'))
+        document.getElementById(missing[0][0])?.focus()
+        return
+      }
+    }
+    setStep(currentStep + 1)
+  })
+  ;['hw-title', 'hw-class-select', 'hw-chapter-select', 'hw-lesson-select'].forEach(id => {
+    const el = document.getElementById(id)
+    el?.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => el.classList.remove('ap-invalid'))
+  })
+  setStep(1)
 }
 
 function bindMatrixEvents() {
@@ -3295,64 +3852,4 @@ function bindMatrixEvents() {
       saAnswers[index] = e.target.value
     })
   })
-
-  // Pro mode stepper navigation (4 bước; đáp án & sơ đồ câu hỏi nằm trong bước 2)
-  if (isAdminProUI()) {
-    const stepperBar = document.getElementById('hw-stepper-bar')
-    if (stepperBar) {
-      let currentStep = 1
-      const stepButtons = document.querySelectorAll('.ap-step-btn')
-      const stepPanels = document.querySelectorAll('.ap-step-panel')
-      const prevBtn = document.getElementById('btn-hw-prev-step')
-      const nextBtn = document.getElementById('btn-hw-next-step')
-      const stepDisplay = document.getElementById('current-step-display')
-
-      const setStep = (newStep) => {
-        currentStep = Math.max(1, Math.min(4, newStep))
-        if (stepDisplay) stepDisplay.textContent = String(currentStep)
-
-        stepButtons.forEach(btn => {
-          const stepNum = parseInt(btn.getAttribute('data-step'), 10)
-          btn.classList.toggle('active', stepNum === currentStep)
-          btn.classList.toggle('completed', stepNum < currentStep)
-        })
-
-        stepPanels.forEach(panel => {
-          const panelNum = parseInt(panel.getAttribute('data-step-panel'), 10)
-          panel.classList.toggle('active', panelNum === currentStep)
-        })
-
-        if (prevBtn) {
-          prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible'
-        }
-        if (nextBtn) {
-          nextBtn.style.display = currentStep === 4 ? 'none' : 'inline-flex'
-        }
-
-        if (currentStep === 2) {
-          const previewEl = document.getElementById('interactive-preview-container')
-          if (previewEl && typeof renderMath === 'function') {
-            renderMath(previewEl)
-          }
-          window.refreshHwQuestionMap?.()
-        }
-
-        if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
-          window.scrollTo({ top: 0, behavior: 'smooth' })
-        }
-      }
-
-      stepButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          const stepNum = parseInt(btn.getAttribute('data-step'), 10)
-          if (!isNaN(stepNum)) setStep(stepNum)
-        })
-      })
-
-      prevBtn?.addEventListener('click', () => setStep(currentStep - 1))
-      nextBtn?.addEventListener('click', () => setStep(currentStep + 1))
-
-      setStep(1)
-    }
-  }
 }

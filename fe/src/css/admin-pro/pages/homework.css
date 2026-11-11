@@ -333,7 +333,7 @@ html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  min-width: 980px;
+  min-width: 900px;
 }
 
 html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table thead tr {
@@ -347,7 +347,7 @@ html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table thead tr {
 }
 
 html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table th {
-  padding: 14px 16px;
+  padding: 14px 12px;
   font-weight: 800;
 }
 
@@ -361,7 +361,7 @@ html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tbody tr:hover {
 }
 
 html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table td {
-  padding: 14px 16px;
+  padding: 14px 12px;
   color: var(--ap-ink);
   font-weight: 600;
 }
@@ -459,46 +459,428 @@ html[data-admin-ui="pro"] .ap-homework-mgmt .ap-deadline-muted {
   border: 1px solid var(--ap-line);
 }
 
-/* Row Action Buttons */
-html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button {
-  width: 36px !important;
-  height: 36px !important;
-  min-width: 36px;
-  min-height: 36px !important;
-  padding: 0 !important;
-  border: 1.5px solid var(--ap-line) !important;
-  border-radius: 10px !important;
-  background: var(--ap-surface2) !important;
-  color: var(--ap-muted) !important;
-  box-shadow: none !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 13px !important;
-  cursor: pointer;
-  transition: all 0.15s ease;
+/* Cột bảng */
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table :is(th, td) {
+  vertical-align: middle;
 }
 
-html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button:hover {
-  border-color: currentColor !important;
-  background: var(--ap-surface) !important;
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table .ap-hw-col-index {
+  width: 44px;
+  text-align: center;
+  color: var(--ap-muted);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table .ap-hw-col-title { min-width: 220px; max-width: 300px; }
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table .ap-hw-col-class { min-width: 160px; max-width: 220px; }
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table .ap-hw-col-config { min-width: 140px; }
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table .ap-hw-col-deadline { min-width: 130px; }
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table .ap-hw-col-actions { width: 1%; white-space: nowrap; }
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-title-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-title {
+  font-family: var(--ap-font-heading);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--ap-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+html[data-admin-ui="pro"] :is(.ap-homework-mgmt, .ap-hw-preview-modal) .ap-hw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ap-line);
+  background: var(--ap-surface2);
+  color: var(--ap-muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] :is(.ap-homework-mgmt, .ap-hw-preview-modal) .ap-hw-chip.is-exam {
+  border-color: var(--ap-accent2);
+  background: var(--ap-accent2-soft);
+  color: var(--ap-accent2);
+}
+
+html[data-admin-ui="pro"] :is(.ap-homework-mgmt, .ap-hw-preview-modal) .ap-hw-chip.is-practice {
+  border-color: var(--ap-ok);
+  background: var(--ap-ok-soft);
+  color: var(--ap-ok);
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-chip.is-target {
+  border-color: var(--ap-warn);
+  background: var(--ap-warn-soft);
+  color: var(--ap-warn);
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-chip.is-copy {
+  border-color: var(--ap-blue);
+  background: var(--ap-blue-soft);
+  color: var(--ap-blue);
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-file i {
+  color: var(--ap-warn);
+  flex-shrink: 0;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-meta strong {
+  color: var(--ap-ink);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-meta > span {
+  color: var(--ap-muted);
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-meta > span i {
+  width: 14px;
+  text-align: center;
+  margin-right: 2px;
+  color: var(--ap-blue);
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-meta > span.ap-deadline-chip {
+  margin-top: 2px;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-meta small {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ap-muted);
+  opacity: 0.85;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-none {
+  font-style: italic;
+}
+
+/* Row Action Buttons */
+/* Thao tác: "Xem trước" ở tầng trên, nút icon ở tầng dưới để bảng không tràn ngang */
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 224px;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-preview-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 2px solid var(--ap-ink);
+  background: var(--ap-accent);
+  color: var(--ap-accent-ink);
+  box-shadow: 0 3px 0 var(--ap-block);
+  font-family: var(--ap-font);
+  font-size: 13px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  justify-content: center;
+  flex: 1 1 100%;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-preview-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--ap-block);
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  padding: 0;
+  border: 1.5px solid var(--ap-line);
+  border-radius: 10px;
+  background: var(--ap-surface2);
+  color: var(--ap-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn:hover {
+  border-color: currentColor;
+  background: var(--ap-surface);
   transform: translateY(-1px);
 }
 
-html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body :is(.btn-copy-link-hw, .btn-edit-hw) {
-  color: var(--ap-accent) !important;
+html[data-admin-ui="pro"] .ap-homework-mgmt :is(.ap-hw-icon-btn, .ap-hw-preview-btn):focus-visible {
+  outline: 3px solid var(--ap-blue);
+  outline-offset: 2px;
 }
 
-html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body :is(.btn-history-hw, .btn-pdf-hw) {
+html[data-admin-ui="pro"] .ap-homework-mgmt :is(.ap-hw-icon-btn, .ap-hw-preview-btn):disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn.is-accent { color: var(--ap-accent); }
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn.is-blue { color: var(--ap-blue); }
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn.is-ok { color: var(--ap-ok); }
+html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn.is-danger { color: var(--ap-warn); }
+
+@media (min-width: 1025px) {
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table :is(.ap-hw-icon-btn, .ap-hw-preview-btn) {
+    min-height: 40px;
+  }
+}
+
+/* Modal xem trước đề */
+/* Rule cũ theme-admin-modals.css (body:has(.admin-dark) #modal-container h3) ép chữ sáng cả ở giao diện Sáng */
+html[data-admin-ui="pro"] body:has(.app-layout.admin-dark) #modal-container .modal-content.ap-hw-preview-modal :is(h1, h2, h3, h4) {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-hw-preview-modal .ap-hw-preview-state {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--ap-muted);
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] .ap-hw-preview-modal .ap-hw-preview-state.is-error {
+  color: var(--ap-warn);
+}
+
+html[data-admin-ui="pro"] .ap-hw-preview-modal .ap-hw-preview-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--ap-line);
+  border-radius: 12px;
+  background: var(--ap-surface2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .ap-hw-preview-modal .ap-hw-preview-pdf {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--ap-line);
+  background: var(--ap-surface);
+  color: var(--ap-warn);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-hw-preview-modal .ap-hw-preview-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Popup Xem trước: tiêu đề + nút Đóng cố định, chỉ phần đề cuộn */
+html[data-admin-ui="pro"] #modal-container .modal-content.ap-hw-preview-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 40px);
+  overflow: hidden;
+}
+
+html[data-admin-ui="pro"] #modal-container .modal-content.ap-hw-preview-modal > div:first-child,
+html[data-admin-ui="pro"] #modal-container .modal-content.ap-hw-preview-modal > div:last-child {
+  flex-shrink: 0;
+}
+
+html[data-admin-ui="pro"] #modal-container .modal-content.ap-hw-preview-modal > .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-bottom: 16px !important;
+  padding-right: 4px;
+}
+
+/* Câu hỏi trong popup Xem trước — class riêng, khoá màu theo token Pro (độ ưu tiên theo id
+   để thắng các theme cũ ép màu chữ lên nội dung đề). */
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq {
+  padding: 16px 18px;
+  border: 1.5px solid var(--ap-line);
+  border-radius: 16px;
+  background: var(--ap-surface);
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1.5px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-num {
+  font-family: var(--ap-font-heading);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-part {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--ap-blue-soft);
   color: var(--ap-blue) !important;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body .btn-assign-hw {
-  color: var(--ap-ok) !important;
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal :is(.ap-hw-pq-text, .ap-hw-pq-opt-text) {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.65;
+  color: var(--ap-ink) !important;
+  overflow-wrap: anywhere;
 }
 
-html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body :is(.btn-delete-hw, .btn-proctor-hw) {
-  color: var(--ap-warn) !important;
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal :is(.ap-hw-pq-text, .ap-hw-pq-opt-text) :is(p, span, div, li, strong, em, b, i, h1, h2, h3, h4, td, th, .katex, .katex *) {
+  color: inherit !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-text :is(p, ul, ol) {
+  margin: 0 0 6px;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-text .katex-display {
+  margin: 8px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-img {
+  display: block;
+  max-width: 100%;
+  max-height: 380px;
+  margin: 10px 0;
+  object-fit: contain;
+  border: 1.5px solid var(--ap-line);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-options.is-statements {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--ap-line);
+  border-radius: 12px;
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-badge {
+  flex: 0 0 auto;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ap-line);
+  background: var(--ap-surface);
+  color: var(--ap-ink) !important;
+  font-size: 13px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-opt-text {
+  min-width: 0;
+  font-size: 14.5px;
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-admin-ui="pro"] #modal-container .ap-hw-preview-modal .ap-hw-pq {
+    padding: 14px;
+  }
 }
 
 html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-pagination-wrap {
@@ -1487,12 +1869,6 @@ html[data-admin-ui="pro"][data-theme="dark"] .ap-create-homework :is(code, .kate
     justify-content: center;
   }
 
-  html[data-admin-ui="pro"] .ap-homework-mgmt #hw-table-body td:last-child button {
-    width: 38px !important;
-    min-width: 38px;
-    height: 38px !important;
-    min-height: 38px !important;
-  }
 
   /* Create Homework Mobile */
   html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper {
@@ -1572,4 +1948,951 @@ html[data-admin-ui="pro"] .ap-create-homework .ap-step-subheading {
 
 html[data-admin-ui="pro"] .ap-create-homework .ap-step-subheading i {
   color: var(--ap-accent);
+}
+
+/* Bảng bài tập → dạng thẻ (tablet & laptop nhỏ ≤1180px): không phải cuộn ngang */
+@media (max-width: 1180px) {
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table {
+    min-width: 0;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table thead {
+    display: none;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table :is(tbody, tr, td) {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tr.ap-hw-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 18px;
+    padding: 16px 20px;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tr.ap-hw-row td {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    white-space: normal;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tr.ap-hw-row td.ap-hw-col-index {
+    display: none;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tr.ap-hw-row :is(td.ap-hw-col-title, td.ap-hw-col-actions) {
+    grid-column: 1 / -1;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tr.ap-hw-row :is(td.ap-hw-col-class, td.ap-hw-col-config, td.ap-hw-col-deadline)::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--ap-muted);
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-file {
+    max-width: 100%;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-actions {
+    width: auto;
+    flex-wrap: wrap;
+    padding-top: 12px;
+    border-top: 1.5px dashed var(--ap-line);
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-preview-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0 18px;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+}
+
+/* Điện thoại: thẻ 2 cột, nút Xem trước full chiều ngang, các icon chia đều một hàng */
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tr.ap-hw-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 14px;
+    padding: 16px;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-table tr.ap-hw-row td.ap-hw-col-class {
+    grid-column: 1 / -1;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-preview-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  html[data-admin-ui="pro"] .ap-homework-mgmt .ap-hw-icon-btn {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 44px;
+  }
+}
+
+/* ==========================================================================
+   Tạo/Sửa bài tập — chế độ SÁNG: theme-admin-editor.css ép chữ trắng (#f1f5f9 !important)
+   cho đề, công thức, đáp án vì viết cho nền tối; ở Sáng phải trả về token Pro.
+   ========================================================================== */
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="create-homework"] .content-body :is(
+  .interactive-q-prompt,
+  .interactive-q-prompt .katex,
+  .tf-statement-row,
+  .tf-statement-text,
+  .interactive-q-diagram-issues ul
+) {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-diagram-issues li span {
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="create-homework"] .content-body .exam-option-card:not(.selected):not([style*="border-color:#16a34a"]):not([style*="border-color: #16a34a"]) {
+  background: var(--ap-surface) !important;
+  border-color: var(--ap-line) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="create-homework"] .content-body .exam-option-card:not(.selected):not([style*="border-color:#16a34a"]):not([style*="border-color: #16a34a"]):hover {
+  background: var(--ap-surface2) !important;
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="create-homework"] .content-body .tf-statement-row {
+  background: var(--ap-surface) !important;
+  border-color: var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="create-homework"] .content-body .tf-statement-text strong {
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="create-homework"] .content-body .interactive-q-card [style*="background:#f1f5f9"] {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-ink) !important;
+}
+
+/* ==========================================================================
+   Tạo/Sửa bài tập — luồng 3 bước (Pro)
+   ========================================================================== */
+html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper.ap-hw-stepper-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-invalid {
+  border-color: var(--ap-warn) !important;
+  box-shadow: 0 0 0 3px var(--ap-warn-soft) !important;
+}
+
+/* ---- Bước 2: thanh công cụ ---- */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-pane {
+  scroll-margin-top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-modes {
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  border: 2px solid var(--ap-line);
+  border-radius: 14px;
+  background: var(--ap-surface2);
+  align-self: flex-start;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-mode {
+  min-height: 40px !important;
+  padding: 0 14px;
+  border: none !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: var(--ap-muted) !important;
+  font-size: 13px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-mode.active {
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: 0 2px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-status {
+  font-size: 12.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-status.is-dirty { color: var(--ap-warn); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-status.is-clean { color: var(--ap-ok); }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-btn-parse {
+  min-height: 44px !important;
+  padding: 0 18px;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: 12px !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: 0 3px 0 var(--ap-block) !important;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-btn-parse:hover { transform: translateY(-1px); }
+
+/* ---- Bước 2: khung làm việc Markdown ⇄ Xem trước ---- */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 16px;
+  height: max(600px, calc(100dvh - 250px));
+}
+
+html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-source, .ap-q-review) {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  min-width: 0;
+  padding: 14px;
+  border: 2px solid var(--ap-line);
+  border-radius: 18px;
+  background: var(--ap-surface);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-col-head,
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-col-head, .ap-q-map-head) h3 {
+  margin: 0;
+  font-family: var(--ap-font-heading);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-kbd {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-guide {
+  border: 1.5px dashed var(--ap-line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: var(--ap-surface2);
+  font-size: 12.5px;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-guide summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--ap-blue);
+  list-style-position: inside;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-guide ul {
+  margin: 8px 0 2px;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  line-height: 1.5;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-guide code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-line);
+  font-size: 11.5px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-input {
+  flex: 1 1 auto;
+  min-height: 320px;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  padding: 12px 14px;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-ink) !important;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-input:focus {
+  outline: none;
+  border-color: var(--ap-accent) !important;
+  box-shadow: 0 0 0 3px var(--ap-accent-soft);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-md-input::placeholder {
+  color: var(--ap-muted);
+  opacity: 0.75;
+}
+
+/* Tổng quan */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-summary:empty { display: none; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--ap-surface2);
+  border: 1.5px solid var(--ap-line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat strong {
+  font-family: var(--ap-font-heading);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  white-space: nowrap;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat.is-error { border-color: var(--ap-accent2); background: var(--ap-accent2-soft); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat.is-error strong { color: var(--ap-accent2); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat.is-warn { border-color: var(--ap-warn); background: var(--ap-warn-soft); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat.is-warn strong { color: var(--ap-warn); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-stat.is-ok strong { color: var(--ap-ok); }
+
+/* Sơ đồ câu hỏi */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-dot.is-ok { background: var(--ap-ok); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-dot.is-warn { background: var(--ap-warn); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-dot.is-error { background: var(--ap-accent2); }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map {
+  max-height: 190px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 18px;
+  padding-right: 2px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-group {
+  min-width: 0;
+  max-width: 100%;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map > div:only-child:not(.ap-q-map-group) {
+  font-size: 12.5px;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-label {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ap-muted);
+  margin-bottom: 5px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-cell {
+  width: 40px;
+  height: 40px;
+  min-height: 40px !important;
+  padding: 0 !important;
+  border: 2px solid transparent !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-cell.is-ok { background: var(--ap-ok-soft) !important; color: var(--ap-ok) !important; border-color: color-mix(in srgb, var(--ap-ok) 45%, transparent) !important; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-cell.is-warn { background: var(--ap-warn-soft) !important; color: var(--ap-warn) !important; border-color: var(--ap-warn) !important; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-cell.is-error { background: var(--ap-accent2-soft) !important; color: var(--ap-accent2) !important; border-color: var(--ap-accent2) !important; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-cell.is-active { outline: 3px solid var(--ap-accent); outline-offset: 1px; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-cell:focus-visible { outline: 3px solid var(--ap-blue); outline-offset: 1px; }
+
+/* Danh sách cần xem lại */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issues { flex-shrink: 0; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issues:empty { display: none; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issues-ok {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--ap-ok-soft);
+  color: var(--ap-ok);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issues-box {
+  border: 1.5px solid var(--ap-warn);
+  border-radius: 12px;
+  background: var(--ap-warn-soft);
+  padding: 8px 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issues-box summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ap-warn);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issues-box summary small {
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issues-box ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issue {
+  width: 100%;
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+  border: 1px solid var(--ap-line) !important;
+  border-radius: 9px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: none !important;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issue:hover { border-color: currentColor !important; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issue-num {
+  flex-shrink: 0;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issue.is-error .ap-q-issue-num { color: var(--ap-accent2); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issue.is-warn .ap-q-issue-num { color: var(--ap-warn); }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-issue-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Vùng xem trước (vùng cuộn để sơ đồ nhảy tới câu) */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scroll-padding-top: 8px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-preview .interactive-q-card {
+  scroll-margin-top: 8px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-preview .interactive-q-card.ap-q-flash {
+  animation: apQFlash 1.6s ease;
+}
+
+@keyframes apQFlash {
+  0%, 60% { box-shadow: 0 0 0 3px var(--ap-accent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-preview .katex-error {
+  background: var(--ap-accent2-soft);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+/* ---- Bước 3 ---- */
+html[data-admin-ui="pro"] .ap-create-homework .ap-hw-review-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 14px 18px;
+  border: 2px dashed var(--ap-line);
+  border-radius: 18px;
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-hw-review-summary:empty { display: none; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-hw-review-summary dl {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-hw-review-summary dl > div { min-width: 0; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-hw-review-summary dt {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-hw-review-summary dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-review-warn {
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  border: 1.5px solid var(--ap-warn) !important;
+  border-radius: 12px !important;
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-config-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 2px solid var(--ap-line);
+  border-radius: 14px;
+  background: var(--ap-surface2);
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch-text strong { font-size: 14px; color: var(--ap-ink); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch-text small { font-size: 12px; font-weight: 600; color: var(--ap-muted); line-height: 1.45; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 50px;
+  height: 28px;
+  margin: 0;
+  border-radius: 999px;
+  border: 2px solid var(--ap-line);
+  background: var(--ap-surface);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ap-muted);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch:checked {
+  background: var(--ap-ok);
+  border-color: var(--ap-ok);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch:checked::after {
+  transform: translateX(22px);
+  background: #ffffff;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-switch:focus-visible {
+  outline: 3px solid var(--ap-blue);
+  outline-offset: 2px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-deadline-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-deadline-quick button {
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: none !important;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-deadline-quick button:hover {
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-deadline-preview {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-deadline-preview.is-past { color: var(--ap-warn); }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 2px solid var(--ap-line);
+  border-radius: 14px;
+  background: var(--ap-surface);
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-mode:has(input:checked) {
+  border-color: var(--ap-accent);
+  background: var(--ap-accent-soft);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-mode input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--ap-accent);
+  flex-shrink: 0;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-mode span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-mode strong { font-size: 14px; color: var(--ap-ink); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-mode small { font-size: 12px; font-weight: 600; color: var(--ap-muted); }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-select-wrap[hidden] { display: none; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-search {
+  position: relative;
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-search i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ap-muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 34px !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-list {
+  max-height: 300px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px 10px;
+  align-content: start;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-list label {
+  min-height: 40px;
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-list label[hidden] { display: none !important; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-list label span { color: inherit !important; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-list label span + span { color: var(--ap-muted) !important; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-selected-count {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ap-accent);
+}
+
+/* Modal kiểm tra trước khi lưu */
+html[data-admin-ui="pro"] #modal-container .ap-save-review {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-save-review ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-save-review p {
+  margin: 0;
+  color: var(--ap-muted);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 1200px) {
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-md-input {
+    min-height: 360px;
+    resize: vertical;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-preview {
+    max-height: 75vh;
+  }
+}
+
+@media (max-width: 900px) {
+  html[data-admin-ui="pro"] .ap-create-homework .ap-config-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper.ap-hw-stepper-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper.ap-hw-stepper-3 .ap-step-btn {
+    flex: initial;
+    min-width: 0;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper.ap-hw-stepper-3 .ap-step-sub {
+    display: none;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper.ap-hw-stepper-3 .ap-step-btn {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+    padding: 8px 6px;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-hw-stepper.ap-hw-stepper-3 .ap-step-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 11.5px;
+    line-height: 1.25;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-toolbar,
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-modes { align-self: stretch; }
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-mode { flex: 1 1 0; justify-content: center; }
+  html[data-admin-ui="pro"] .ap-create-homework .ap-btn-parse { justify-content: center; }
+
+  html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-source, .ap-q-review) { padding: 12px; }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework :is(.ap-config-fields, .ap-assign-modes) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-admin-ui="pro"] .ap-create-homework .ap-assign-search { max-width: none; }
 }
