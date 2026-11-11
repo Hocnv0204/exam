@@ -87,7 +87,7 @@ function functionalHooks(markup) {
 // Hook của giao diện cũ mà luồng tạo bài Pro 3 bước chủ động bỏ (đề mẫu, nhập file .md, đính kèm/xuất PDF,
 // JSON đáp án; ma trận & số lượng câu chỉ còn ở chế độ đề PDF).
 const PRO_CREATE_REMOVED_HOOKS = [
-  'id:btn-load-math-tpl', 'id:btn-load-chem-tpl', 'id:btn-import-md-file', 'id:hw-md-file-input', 'id:btn-export-exam-pdf',
+  'id:btn-load-math-tpl', 'id:btn-load-chem-tpl', 'id:btn-export-exam-pdf',
   'id:interactive-pdf-attachment-container', 'id:hw-interactive-pdf-input', 'id:btn-select-interactive-pdf',
   'id:copy-sample-btn', 'id:copy-answers-btn', 'id:import-answers-btn',
   'id:cfg-mc-count', 'id:cfg-tf-count', 'id:cfg-sa-count', 'id:update-config-btn', 'id:answer-matrix-container',
@@ -249,13 +249,16 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   }
   // Bước 2: Markdown + phân tích + sơ đồ câu + tổng quan lỗi + xem trước
   const step2 = panel(2)
-  for (const id of ['create-hw-left-pane', 'btn-mode-interactive', 'btn-mode-pdf', 'hw-markdown-input', 'btn-parse-markdown', 'ap-md-status', 'ap-q-summary', 'hw-question-map', 'ap-q-issues', 'interactive-preview-container']) {
+  for (const id of ['create-hw-left-pane', 'btn-mode-interactive', 'btn-mode-pdf', 'hw-markdown-input', 'btn-import-md-file', 'hw-md-file-input', 'ap-md-source', 'btn-parse-markdown', 'ap-md-status', 'ap-q-summary', 'hw-question-map', 'ap-q-issues', 'interactive-preview-container']) {
     assert.match(step2, new RegExp(`id="${id}"`), `Bước 2 có ${id}`)
   }
   // Bài mới ở Pro bắt đầu với khung Markdown trống (không còn đề mẫu)
   assert.match(step2, /<textarea id="hw-markdown-input"[^>]*><\/textarea>/, 'Textarea Markdown trống khi tạo mới')
+  assert.match(step2, /<details class="ap-q-source" id="ap-md-source" open>/, 'Khung Markdown mở sẵn khi chưa có câu hỏi')
+  assert.ok(step2.indexOf('id="interactive-preview-container"') < step2.indexOf('class="ap-q-side"'), 'Cột trái là xem trước câu hỏi')
+  assert.ok(step2.indexOf('id="hw-question-map"') < step2.indexOf('id="hw-markdown-input"'), 'Khung Markdown nằm dưới sơ đồ câu hỏi')
   // Các tính năng đã bỏ ở Pro
-  for (const id of ['btn-load-math-tpl', 'btn-load-chem-tpl', 'btn-import-md-file', 'btn-export-exam-pdf', 'interactive-pdf-attachment-container', 'copy-sample-btn', 'copy-answers-btn', 'import-answers-btn']) {
+  for (const id of ['btn-load-math-tpl', 'btn-load-chem-tpl', 'btn-export-exam-pdf', 'interactive-pdf-attachment-container', 'copy-sample-btn', 'copy-answers-btn', 'import-answers-btn']) {
     assert.doesNotMatch(proCreate, new RegExp(`id="${id}"`), `Pro đã bỏ ${id}`)
   }
   // Ma trận đáp án chỉ còn ở chế độ đề PDF
@@ -303,6 +306,7 @@ test('(b2) sửa bài Markdown ở Pro: nạp đề vào textarea + thẻ xem tr
   const pro = renderCreateHwView()
   assert.match(pro, /<textarea id="hw-markdown-input"[^>]*>[^<]*Tính \$1\+1\$/, 'Markdown của đề được nạp vào textarea')
   assert.match(pro, /class="interactive-q-card" data-qindex="0"/, 'Có thẻ xem trước câu 1')
+  assert.match(pro, /<details class="ap-q-source" id="ap-md-source" >/, 'Đã có đề → khung Markdown thu gọn sẵn')
   assert.match(pro, /data-optid="B"/, 'Có phương án để bấm chọn đáp án')
   assert.match(pro, /id="assign-mode-select"[^>]*checked/, 'Bài đã giao riêng → chọn sẵn "Giao riêng"')
   assert.doesNotMatch(pro, /id="assign-select-wrap"[^>]*hidden/, 'Danh sách học sinh hiện khi giao riêng')

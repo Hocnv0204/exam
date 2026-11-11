@@ -2190,37 +2190,40 @@ html[data-admin-ui="pro"] .ap-create-homework .ap-btn-parse {
 
 html[data-admin-ui="pro"] .ap-create-homework .ap-btn-parse:hover { transform: translateY(-1px); }
 
-/* ---- Bước 2: khung làm việc Markdown ⇄ Xem trước ---- */
-html[data-admin-ui="pro"] .ap-create-homework .ap-q-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: 16px;
-  height: max(600px, calc(100dvh - 250px));
-}
-
-html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-source, .ap-q-review) {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-  min-width: 0;
-  padding: 14px;
+/* ---- Bước 2: khung Markdown (thu gọn được) + khu xem trước toàn chiều ngang ---- */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source {
   border: 2px solid var(--ap-line);
   border-radius: 18px;
   background: var(--ap-surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-html[data-admin-ui="pro"] .ap-create-homework .ap-q-col-head,
-html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-head {
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source.is-dragover {
+  border-style: dashed;
+  border-color: var(--ap-accent);
+  background: var(--ap-accent-soft);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-summary {
+  list-style: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 6px 10px;
+  gap: 6px 14px;
+  min-height: 48px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-radius: 16px;
 }
 
-html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-col-head, .ap-q-map-head) h3 {
-  margin: 0;
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-summary::-webkit-details-marker { display: none; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-summary:focus-visible {
+  outline: 3px solid var(--ap-blue);
+  outline-offset: 2px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-title {
   font-family: var(--ap-font-heading);
   font-size: 14px;
   font-weight: 800;
@@ -2230,10 +2233,122 @@ html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-col-head, .ap-q-map-head
   gap: 7px;
 }
 
-html[data-admin-ui="pro"] .ap-create-homework .ap-q-kbd {
-  font-size: 11.5px;
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-meta {
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--ap-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-toggle {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ap-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-toggle i { transition: transform 0.15s ease; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source[open] .ap-q-source-toggle i { transform: rotate(180deg); }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source .when-open { display: none; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source[open] .when-open { display: inline; }
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source[open] .when-closed { display: none; }
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-btn-upload-md {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: 12px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: none !important;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-btn-upload-md:hover {
+  border-color: var(--ap-accent) !important;
+  color: var(--ap-accent) !important;
+}
+
+/* 2 cột: trái = xem trước (cuộn riêng), phải = tổng quan + sơ đồ + cần xem lại + Markdown */
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-workspace {
+  scroll-margin-top: 84px;
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(320px, 5fr);
+  gap: 16px;
+  height: max(560px, calc(100dvh - 250px));
+}
+
+html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-preview-col, .ap-q-side) {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  border: 2px solid var(--ap-line);
+  border-radius: 18px;
+  background: var(--ap-surface);
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-preview-col {
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-side .ap-q-source {
+  flex-shrink: 0;
+  border-radius: 14px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-side .ap-q-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+html[data-admin-ui="pro"] .ap-create-homework .ap-q-map-head h3 {
+  margin: 0;
+  font-family: var(--ap-font-heading);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ap-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
 
 html[data-admin-ui="pro"] .ap-create-homework .ap-md-guide {
@@ -2269,11 +2384,11 @@ html[data-admin-ui="pro"] .ap-create-homework .ap-md-guide code {
 }
 
 html[data-admin-ui="pro"] .ap-create-homework .ap-md-input {
-  flex: 1 1 auto;
-  min-height: 320px;
+  height: 240px;
+  min-height: 140px;
   width: 100%;
   box-sizing: border-box;
-  resize: none;
+  resize: vertical;
   padding: 12px 14px;
   border: 2px solid var(--ap-line) !important;
   border-radius: 12px !important;
@@ -2816,19 +2931,21 @@ html[data-admin-ui="pro"] #modal-container .ap-save-review p {
 }
 
 /* ---- Responsive ---- */
-@media (max-width: 1200px) {
+@media (max-width: 1100px) {
   html[data-admin-ui="pro"] .ap-create-homework .ap-q-workspace {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
   }
 
-  html[data-admin-ui="pro"] .ap-create-homework .ap-md-input {
-    min-height: 360px;
-    resize: vertical;
+  /* Màn hẹp: sơ đồ + Markdown lên trước, xem trước bên dưới */
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-side {
+    order: -1;
+    overflow: visible;
   }
 
   html[data-admin-ui="pro"] .ap-create-homework .ap-q-preview {
-    max-height: 75vh;
+    flex: none;
+    height: 75vh;
   }
 }
 
@@ -2884,7 +3001,12 @@ html[data-admin-ui="pro"] #modal-container .ap-save-review p {
   html[data-admin-ui="pro"] .ap-create-homework .ap-q-mode { flex: 1 1 0; justify-content: center; }
   html[data-admin-ui="pro"] .ap-create-homework .ap-btn-parse { justify-content: center; }
 
-  html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-source, .ap-q-review) { padding: 12px; }
+  html[data-admin-ui="pro"] .ap-create-homework :is(.ap-q-preview-col, .ap-q-side) { padding: 12px; }
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-side .ap-q-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-summary { padding: 10px 12px; }
+  html[data-admin-ui="pro"] .ap-create-homework .ap-q-source-body { padding: 0 12px 12px; }
+  html[data-admin-ui="pro"] .ap-create-homework .ap-btn-upload-md { justify-content: center; }
+
 
   html[data-admin-ui="pro"] .ap-create-homework .ap-q-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));

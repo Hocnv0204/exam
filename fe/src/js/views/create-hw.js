@@ -241,7 +241,7 @@ function renderInteractiveCardsHtml() {
       <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:10px; padding:30px; text-align:center; color:#64748b;">
         <i class="fa-solid fa-file-lines" style="font-size:36px; color:#cbd5e1; margin-bottom:10px; display:block;"></i>
         <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Chưa có câu hỏi nào được bóc tách</div>
-        <div style="font-size:12px;">${isAdminProUI() ? 'Dán đề Markdown vào khung bên trái rồi bấm "Phân tích & xem trước" (Ctrl + Enter).' : 'Nhập nội dung vào khung soạn thảo ở trên và bấm "Phân tích & Xem trước", hoặc bấm "Mẫu Toán" / "Mẫu Hóa".'}</div>
+        <div style="font-size:12px;">${isAdminProUI() ? 'Dán đề hoặc tải file .md ở khung "Nội dung Markdown" bên phải — đề sẽ được phân tích và hiện ở đây.' : 'Nhập nội dung vào khung soạn thảo ở trên và bấm "Phân tích & Xem trước", hoặc bấm "Mẫu Toán" / "Mẫu Hóa".'}</div>
       </div>
     `
   }
@@ -663,6 +663,8 @@ let proLastParsedMarkdown = null
 let proLastParsedAt = null
 // Lỗi KaTeX phát hiện từ DOM sau khi render: { [qIndex]: string[] }
 let proKatexErrors = {}
+// Tên file .md vừa tải (chỉ để hiển thị)
+let proMdFileName = ''
 
 /** Đếm dấu $ không bị escape (\$) — số lẻ nghĩa là công thức chưa đóng. */
 function hasUnbalancedDollar(text) {
@@ -798,26 +800,28 @@ function renderProQuestionPane(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
       </div>
     `
   }
+  const mdLines = interactiveMarkdown ? interactiveMarkdown.split('\n').length : 0
   return `
     <div class="ap-q-toolbar">
       ${modeSwitch}
       <div class="ap-q-toolbar-actions">
         <span id="ap-md-status" class="ap-md-status" aria-live="polite"></span>
+        <input type="file" id="hw-md-file-input" accept=".md,.markdown,.txt" hidden>
+        <button type="button" class="ap-btn-upload-md" id="btn-import-md-file" title="Tải file .md soạn theo cú pháp — tự phân tích sau khi tải">
+          <i class="fa-solid fa-file-arrow-up" aria-hidden="true"></i> Tải file .md
+        </button>
         <button type="button" class="ap-btn-parse" id="btn-parse-markdown" title="Phân tích Markdown và cập nhật xem trước (Ctrl + Enter)">
           <i class="fa-solid fa-bolt" aria-hidden="true"></i> Phân tích & xem trước
         </button>
       </div>
     </div>
     <div class="ap-q-workspace">
-      <section class="ap-q-source" aria-label="Nội dung đề Markdown">
-        <div class="ap-q-col-head">
-          <h3><i class="fa-solid fa-code" aria-hidden="true"></i> Nội dung Markdown</h3>
-          <span class="ap-q-kbd">Ctrl + Enter để phân tích</span>
+      <section class="ap-q-preview-col" aria-label="Xem trước câu hỏi">
+        <div id="interactive-preview-container" class="ap-q-preview">
+          ${renderInteractiveCardsHtml()}
         </div>
-        ${renderProSyntaxGuide()}
-        <textarea id="hw-markdown-input" class="ap-md-input" spellcheck="false" placeholder="${escapeHtml(PRO_MD_PLACEHOLDER)}">${escapeHtml(interactiveMarkdown)}</textarea>
       </section>
-      <section class="ap-q-review" aria-label="Xem trước đề">
+      <aside class="ap-q-side" aria-label="Sơ đồ câu hỏi và nội dung Markdown">
         <div id="ap-q-summary" class="ap-q-summary"></div>
         <div class="ap-q-map-card">
           <div class="ap-q-map-head">
@@ -831,10 +835,19 @@ function renderProQuestionPane(hw, isEdit, pdfDownloadUrl, pdfDownloadName) {
           <div id="hw-question-map" class="ap-q-map"></div>
         </div>
         <div id="ap-q-issues" class="ap-q-issues"></div>
-        <div id="interactive-preview-container" class="ap-q-preview">
-          ${renderInteractiveCardsHtml()}
-        </div>
-      </section>
+        <details class="ap-q-source" id="ap-md-source" ${interactiveQuestions.length ? '' : 'open'}>
+          <summary class="ap-q-source-summary">
+            <span class="ap-q-source-title"><i class="fa-solid fa-code" aria-hidden="true"></i> Nội dung Markdown</span>
+            <span class="ap-q-source-meta" id="ap-md-meta">${mdLines ? `${mdLines} dòng` : 'Dán đề, kéo-thả hoặc tải file .md'}</span>
+            <span class="ap-q-source-toggle" aria-hidden="true"><span class="when-closed">Mở</span><span class="when-open">Thu gọn</span> <i class="fa-solid fa-chevron-down"></i></span>
+          </summary>
+          <div class="ap-q-source-body">
+            ${renderProSyntaxGuide()}
+            <textarea id="hw-markdown-input" class="ap-md-input" spellcheck="false" placeholder="${escapeHtml(PRO_MD_PLACEHOLDER)}">${escapeHtml(interactiveMarkdown)}</textarea>
+            <p class="ap-q-source-hint"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Dán (Ctrl + V) là tự phân tích. Kéo-thả file .md vào khung này. Ctrl + Enter để phân tích lại sau khi sửa.</p>
+          </div>
+        </details>
+      </aside>
     </div>
   `
 }
@@ -1695,6 +1708,17 @@ export function bindCreateHwEvents() {
     try { target.focus({ preventScroll: true }) } catch (_) {}
   }
 
+  // Sau khi phân tích thành công: thu gọn khung Markdown, cập nhật mô tả, đưa sơ đồ + xem trước lên màn hình
+  const afterProParse = () => {
+    const source = document.getElementById('ap-md-source')
+    const meta = document.getElementById('ap-md-meta')
+    const text = document.getElementById('hw-markdown-input')?.value || ''
+    if (meta) meta.textContent = `${text ? text.split('\n').length : 0} dòng${proMdFileName ? ` · ${proMdFileName}` : ''}`
+    if (source && interactiveQuestions.length) source.open = false
+    const review = document.querySelector('.ap-q-workspace')
+    if (review && typeof review.scrollIntoView === 'function') review.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
+
   const renderProSummaryAndIssues = () => {
     const summaryEl = document.getElementById('ap-q-summary')
     const issuesEl = document.getElementById('ap-q-issues')
@@ -2386,6 +2410,7 @@ export function bindCreateHwEvents() {
         syncCountsFromInteractive()
         renderHwQuestionMap()
         refreshProReview()
+        if (isAdminProUI()) bindMdFileImport()
       } else {
         initPdfListeners()
         if (isAdminProUI()) bindPdfAnswerTools()
@@ -2459,6 +2484,7 @@ export function bindCreateHwEvents() {
         const errCount = issues.reduce((s, it) => s + it.errors.length, 0)
         const warnCount = issues.reduce((s, it) => s + it.warnings.length, 0)
         if (isAdminProUI()) {
+          afterProParse()
           setTimeout(() => {
             const all = collectAllQuestionIssues()
             const bad = all.filter(i => i.errors.length).length
@@ -2484,6 +2510,46 @@ export function bindCreateHwEvents() {
     const proMdInput = isAdminProUI() ? document.getElementById('hw-markdown-input') : null
     if (proMdInput) {
       proMdInput.addEventListener('input', updateMdStatus)
+      // Dán đề vào khung → tự phân tích
+      proMdInput.addEventListener('paste', () => {
+        setTimeout(() => {
+          if (proMdInput.value.trim()) {
+            proMdFileName = ''
+            document.getElementById('btn-parse-markdown')?.click()
+          }
+        }, 0)
+      })
+      // Kéo-thả file .md vào khung Markdown
+      const dropZone = document.getElementById('ap-md-source')
+      if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+          if (!e.dataTransfer?.types?.includes?.('Files')) return
+          e.preventDefault()
+          dropZone.classList.add('is-dragover')
+        })
+        dropZone.addEventListener('dragleave', (e) => {
+          if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('is-dragover')
+        })
+        dropZone.addEventListener('drop', async (e) => {
+          const file = e.dataTransfer?.files?.[0]
+          dropZone.classList.remove('is-dragover')
+          if (!file) return
+          e.preventDefault()
+          if (!/\.(md|markdown|txt)$/i.test(file.name)) {
+            showToast('Chỉ nhận file .md, .markdown hoặc .txt', 'warning')
+            return
+          }
+          try {
+            const text = await file.text()
+            if (!text.trim()) { showToast('File .md trống!', 'error'); return }
+            proMdInput.value = text
+            proMdFileName = file.name
+            document.getElementById('btn-parse-markdown')?.click()
+          } catch (err) {
+            showToast(`Đọc file thất bại: ${err.message}`, 'error')
+          }
+        })
+      }
       proMdInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
           e.preventDefault()
@@ -2556,6 +2622,7 @@ export function bindCreateHwEvents() {
   }
 
   // Nhập 1 file .md soạn theo quy chuẩn: tự đổ vào khung soạn + phân tích ra câu hỏi/đáp án/hình
+  function bindMdFileImport() {
   document.getElementById('btn-import-md-file')?.addEventListener('click', () => {
     document.getElementById('hw-md-file-input')?.click()
   })
@@ -2569,6 +2636,16 @@ export function bindCreateHwEvents() {
       if (!text.trim()) {
         showToast('File .md trống!', 'error')
         return
+      }
+      // Pro: đổ vào khung Markdown rồi dùng chung luồng "Phân tích & xem trước"
+      if (isAdminProUI()) {
+        const proTa = document.getElementById('hw-markdown-input')
+        if (proTa) {
+          proTa.value = text
+          proMdFileName = file.name
+          document.getElementById('btn-parse-markdown')?.click()
+          return
+        }
       }
       const textarea = document.getElementById('hw-markdown-input')
       if (textarea) textarea.value = text
@@ -2608,6 +2685,8 @@ export function bindCreateHwEvents() {
       showToast(`Đọc file thất bại: ${err.message}`, 'error')
     }
   })
+  }
+  bindMdFileImport()
 
   const initPdfListeners = () => {
     if (isEditMode && hwData?.homework?.pdfUrl) {

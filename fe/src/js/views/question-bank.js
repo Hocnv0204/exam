@@ -5617,17 +5617,17 @@ export function renderProMatrixModalHtml({ uniqueBlocks = [], treeDataCache = {}
 
         <!-- Stepper 3 bước -->
         <div class="ap-mx-stepper" aria-label="Các bước tạo đề">
-          <div class="ap-mx-step" data-step-num="1">
+          <div class="ap-mx-step" data-step-num="1" role="button" tabindex="-1" aria-disabled="true">
             <span class="ap-mx-step-badge">1</span>
             <span class="ap-mx-step-label">Chọn nguồn</span>
           </div>
           <div class="ap-mx-step-sep" aria-hidden="true"></div>
-          <div class="ap-mx-step" data-step-num="2">
+          <div class="ap-mx-step" data-step-num="2" role="button" tabindex="-1" aria-disabled="true">
             <span class="ap-mx-step-badge">2</span>
             <span class="ap-mx-step-label">Số lượng câu</span>
           </div>
           <div class="ap-mx-step-sep" aria-hidden="true"></div>
-          <div class="ap-mx-step" data-step-num="3">
+          <div class="ap-mx-step" data-step-num="3" role="button" tabindex="-1" aria-disabled="true">
             <span class="ap-mx-step-badge">3</span>
             <span class="ap-mx-step-label">Xem trước &amp; giao bài</span>
           </div>
@@ -5929,81 +5929,131 @@ export function renderProMatrixModalHtml({ uniqueBlocks = [], treeDataCache = {}
             </div>
           </div>
 
-          <!-- Assignment Metadata & Target Destination -->
-          <div class="ap-mx-assignment-panel">
-            <div class="ap-mx-assignment-header">
-              <div class="ap-mx-assignment-title">
-                <i class="fa-solid fa-file-pen" style="color:var(--ap-accent);"></i> Thông tin bài tập &amp; Lớp / Bài học đích nhận đề
+          <!-- Thông tin & cấu hình bài tập (bố cục giống form tạo bài tập) -->
+          <div class="ap-mx-assignment-panel ap-mx-form-v2">
+            <section class="ap-mx-card" aria-labelledby="ap-mx-info-title">
+              <div class="ap-mx-card-head">
+                <h4 class="ap-mx-card-title" id="ap-mx-info-title"><i class="fa-solid fa-file-pen" aria-hidden="true"></i> Thông tin bài tập</h4>
+                <p class="ap-mx-card-desc">Nơi lưu bài và lớp nhận bài — tách biệt với phạm vi nguồn câu hỏi ở Bước 1</p>
               </div>
-              <div class="ap-mx-assignment-desc">
-                Chọn vị trí lưu trữ bài tập và giao cho học sinh làm bài (tách biệt với phạm vi nguồn bốc câu hỏi ở Bước 1)
+              <div class="ap-mx-info-grid">
+                <div class="ap-mx-form-field ap-mx-span2">
+                  <label for="gen-exam-title" class="ap-mx-form-label">Tên bài tập <span class="ap-mx-req">*</span></label>
+                  <input type="text" id="gen-exam-title" class="ap-mx-input" placeholder="Ví dụ: Đề 15 phút, Đề kiểm tra chương 1..." autocomplete="off" />
+                  <div class="ap-mx-field-hint"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Tên bài học đích sẽ tự động được ghép phía trước khi tạo bài tập</div>
+                </div>
+                <div class="ap-mx-form-field">
+                  <label for="gen-exam-type" class="ap-mx-form-label">Phân loại <span class="ap-mx-req">*</span></label>
+                  <select id="gen-exam-type" class="ap-mx-select">
+                    <option value="PRACTICE">Luyện tập (tự chấm, làm nhiều lần)</option>
+                    <option value="EXAM">Bài thi (1 lần làm, phòng thi)</option>
+                  </select>
+                </div>
+                <div class="ap-mx-form-field">
+                  <label for="gen-dest-class" class="ap-mx-form-label">Lớp học <span class="ap-mx-req">*</span></label>
+                  <select id="gen-dest-class" class="ap-mx-select">
+                    <option value="">-- Chọn lớp đích --</option>
+                    ${allClasses.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="ap-mx-form-field">
+                  <label for="gen-dest-chapter" class="ap-mx-form-label">Chương học <span class="ap-mx-req">*</span></label>
+                  <select id="gen-dest-chapter" class="ap-mx-select">
+                    <option value="">-- Chọn chương đích --</option>
+                  </select>
+                </div>
+                <div class="ap-mx-form-field">
+                  <label for="gen-dest-lesson" class="ap-mx-form-label">Bài học <span class="ap-mx-req">*</span></label>
+                  <select id="gen-dest-lesson" class="ap-mx-select">
+                    <option value="">-- Chọn bài học đích --</option>
+                  </select>
+                </div>
               </div>
+            </section>
+
+            <div class="ap-mx-config-grid">
+              <section class="ap-mx-card" aria-labelledby="ap-mx-time-title">
+                <div class="ap-mx-card-head">
+                  <h4 class="ap-mx-card-title" id="ap-mx-time-title"><i class="fa-regular fa-clock" aria-hidden="true"></i> Thời gian &amp; lượt làm</h4>
+                </div>
+                <input type="hidden" id="mx-violations" value="3">
+                <div class="ap-mx-config-fields">
+                  <div class="ap-mx-form-field">
+                    <label for="mx-duration" class="ap-mx-form-label">Thời gian làm bài (phút)</label>
+                    <input type="number" id="mx-duration" class="ap-mx-input" value="90" min="5" inputmode="numeric" />
+                  </div>
+                  <div class="ap-mx-form-field">
+                    <label for="mx-attempts" class="ap-mx-form-label">Số lần làm tối đa</label>
+                    <input type="number" id="mx-attempts" class="ap-mx-input" value="0" min="0" inputmode="numeric" />
+                    <div class="ap-mx-field-hint">0 = không giới hạn. Bài thi luôn là 1 lần.</div>
+                  </div>
+                </div>
+                <label class="ap-mx-switch-row" for="mx-show-solutions">
+                  <span class="ap-mx-switch-text">
+                    <strong>Hiển thị lời giải sau khi nộp</strong>
+                    <small>Bật: học sinh xem đáp án &amp; lời giải chi tiết. Tắt: chỉ biết câu đúng/sai.</small>
+                  </span>
+                  <input type="checkbox" id="mx-show-solutions" class="ap-mx-switch" role="switch" />
+                </label>
+              </section>
+
+              <section class="ap-mx-card" aria-labelledby="ap-mx-deadline-title">
+                <div class="ap-mx-card-head ap-mx-card-head-row">
+                  <h4 class="ap-mx-card-title" id="ap-mx-deadline-title"><i class="fa-regular fa-calendar-days" aria-hidden="true"></i> Hạn nộp</h4>
+                  <span class="ap-mx-card-note">Không bắt buộc</span>
+                </div>
+                <div class="ap-mx-deadline-row">
+                  <input type="date" id="mx-deadline-date" class="ap-mx-input" aria-label="Ngày hết hạn" />
+                  <div class="ap-mx-time-group">
+                    <select id="mx-deadline-hour" class="ap-mx-select ap-mx-select-time" aria-label="Giờ">${Array.from({ length: 24 }, (_, i) => { const v = String(i).padStart(2, '0'); return `<option value="${v}" ${v === '23' ? 'selected' : ''}>${v}h</option>` }).join('')}</select>
+                    <span aria-hidden="true">:</span>
+                    <select id="mx-deadline-minute" class="ap-mx-select ap-mx-select-time" aria-label="Phút">${Array.from({ length: 60 }, (_, i) => { const v = String(i).padStart(2, '0'); return `<option value="${v}" ${v === '59' ? 'selected' : ''}>${v}p</option>` }).join('')}</select>
+                  </div>
+                  <button type="button" id="mx-deadline-clear" class="ap-mx-icon-btn" title="Xóa hạn nộp" aria-label="Xóa hạn nộp"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                </div>
+                <div class="ap-mx-deadline-quick" role="group" aria-label="Chọn nhanh hạn nộp">
+                  <button type="button" data-mx-deadline-days="1">+1 ngày</button>
+                  <button type="button" data-mx-deadline-days="3">+3 ngày</button>
+                  <button type="button" data-mx-deadline-days="7">+1 tuần</button>
+                  <button type="button" data-mx-deadline-days="14">+2 tuần</button>
+                </div>
+                <p class="ap-mx-deadline-preview" id="mx-deadline-preview"></p>
+              </section>
             </div>
 
-            <div class="ap-mx-form-grid">
-              <div class="ap-mx-form-field">
-                <label for="gen-exam-title" class="ap-mx-form-label">Tên bài tập *</label>
-                <input type="text" id="gen-exam-title" class="ap-mx-input" placeholder="Ví dụ: TN - 1, Đề 15 phút, Đề kiểm tra..." />
-                <div class="ap-mx-field-hint"><i class="fa-solid fa-circle-info"></i> Tên bài học đích sẽ tự động được ghép phía trước khi tạo bài tập</div>
-              </div>
-              <div class="ap-mx-form-field">
-                <label for="gen-exam-type" class="ap-mx-form-label">Hình thức làm bài</label>
-                <select id="gen-exam-type" class="ap-mx-select">
-                  <option value="PRACTICE">Luyện tập tự do (Tối đa 3 lần làm)</option>
-                  <option value="EXAM">Kiểm tra / Thi chính thức (Chỉ 1 lần làm)</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Cấu hình bài tập -->
-            <div class="ap-mx-hw-config-card">
-              <div class="ap-mx-hw-config-title">
-                <i class="fa-solid fa-sliders" style="color:var(--ap-accent);"></i> Cấu hình bài tập
-              </div>
-              ${renderHomeworkConfigFields('mx')}
-            </div>
-
-            <!-- Destination lesson selection -->
-            <div class="ap-mx-dest-grid">
-              <div class="ap-mx-form-field">
-                <label for="gen-dest-class" class="ap-mx-form-label">Gán vào Lớp đích *</label>
-                <select id="gen-dest-class" class="ap-mx-select">
-                  <option value="">-- Chọn lớp đích --</option>
-                  ${allClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-                </select>
-              </div>
-              <div class="ap-mx-form-field">
-                <label for="gen-dest-chapter" class="ap-mx-form-label">Chương đích</label>
-                <select id="gen-dest-chapter" class="ap-mx-select">
-                  <option value="">-- Chọn chương đích --</option>
-                </select>
-              </div>
-              <div class="ap-mx-form-field">
-                <label for="gen-dest-lesson" class="ap-mx-form-label">Bài học đích *</label>
-                <select id="gen-dest-lesson" class="ap-mx-select">
-                  <option value="">-- Chọn bài học đích --</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Assign to specific students -->
-            <div class="ap-mx-assign-box">
-              <div class="ap-mx-assign-title">
-                <i class="fa-solid fa-user-check"></i> Giao riêng cho học sinh (tùy chọn)
-              </div>
-              <div class="ap-mx-assign-desc">Không chọn ai = cả lớp đích đều thấy bài này. Tick chọn để chỉ các em được chọn mới thấy và làm bài.</div>
-              <div class="ap-mx-assign-toolbar">
-                <button type="button" id="btn-gen-assign-select-all" class="ap-mx-btn-text">Chọn tất cả</button>
-                <span class="ap-mx-sep">|</span>
-                <button type="button" id="btn-gen-assign-deselect-all" class="ap-mx-btn-text">Bỏ chọn</button>
+            <section class="ap-mx-card" aria-labelledby="ap-mx-assign-title">
+              <div class="ap-mx-card-head ap-mx-card-head-row">
+                <h4 class="ap-mx-card-title" id="ap-mx-assign-title"><i class="fa-solid fa-user-check" aria-hidden="true"></i> Giao bài cho</h4>
                 <span id="gen-assign-selected-count" class="ap-mx-selected-count"></span>
               </div>
-              <div id="gen-assign-students-list" class="ap-mx-students-list">
-                Chọn lớp đích ở trên để tải danh sách học sinh...
+              <div class="ap-mx-assign-modes" role="radiogroup" aria-label="Đối tượng được giao">
+                <label class="ap-mx-assign-mode">
+                  <input type="radio" name="gen-assign-mode" id="gen-assign-mode-class" value="class" checked />
+                  <span><strong>Cả lớp</strong><small>Mọi học sinh trong lớp đích đều thấy bài</small></span>
+                </label>
+                <label class="ap-mx-assign-mode">
+                  <input type="radio" name="gen-assign-mode" id="gen-assign-mode-select" value="select" />
+                  <span><strong>Giao riêng</strong><small>Chỉ học sinh được chọn mới thấy &amp; làm bài</small></span>
+                </label>
               </div>
-            </div>
+              <div id="gen-assign-select-wrap" class="ap-mx-assign-select-wrap" hidden>
+                <div class="ap-mx-assign-tools">
+                  <div class="ap-mx-assign-search">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <input type="search" id="gen-assign-search" class="ap-mx-input" placeholder="Tìm học sinh..." aria-label="Tìm học sinh" />
+                  </div>
+                  <div class="ap-mx-assign-toolbar">
+                    <button type="button" id="btn-gen-assign-select-all" class="ap-mx-btn-text">Chọn tất cả</button>
+                    <span class="ap-mx-sep">|</span>
+                    <button type="button" id="btn-gen-assign-deselect-all" class="ap-mx-btn-text">Bỏ chọn</button>
+                  </div>
+                </div>
+                <div id="gen-assign-students-list" class="ap-mx-students-list">
+                  Chọn lớp đích ở trên để tải danh sách học sinh...
+                </div>
+              </div>
+            </section>
 
-            <!-- Toggles -->
             <div class="ap-mx-variants-row">
               <label class="ap-mx-checkbox-label" title="Tự động tạo 4 mã đề hoán vị trật tự câu hỏi và phương án ABCD (Mã 101, 102, 103, 104)">
                 <input type="checkbox" id="gen-multi-variants" />
@@ -6037,6 +6087,9 @@ export function renderProMatrixModalHtml({ uniqueBlocks = [], treeDataCache = {}
           <div class="ap-mx-footer-actions">
             <button type="button" id="matrix-gen-cancel-btn" class="btn-secondary ap-mx-btn-cancel">
               Đóng
+            </button>
+            <button type="button" id="btn-return-preview" class="btn-secondary ap-mx-btn-return" hidden>
+              <i class="fa-solid fa-arrow-right"></i> Quay lại xem trước
             </button>
             <button type="button" id="btn-roll-preview" class="btn-primary ap-mx-btn-primary">
               <i class="fa-solid fa-dice"></i> Bốc ngẫu nhiên &amp; Xem trước
@@ -7270,8 +7323,28 @@ async function openMatrixGeneratorModal() {
   const updateGenAssignCount = () => {
     const n = document.querySelectorAll('.gen-assign-student-cb:checked').length
     const el = document.getElementById('gen-assign-selected-count')
-    if (el) el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : ''
+    if (!el) return
+    // Pro: hiển thị theo chế độ giao (Cả lớp / Giao riêng)
+    if (document.getElementById('gen-assign-mode-class')?.checked) { el.textContent = 'Cả lớp'; return }
+    if (document.getElementById('gen-assign-mode-select')) { el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : 'Chưa chọn học sinh nào'; return }
+    el.textContent = n > 0 ? `Đã chọn ${n} học sinh` : ''
   }
+  // Pro: lọc danh sách học sinh theo ô tìm kiếm
+  const applyGenAssignSearch = () => {
+    const q = (document.getElementById('gen-assign-search')?.value || '').trim().toLowerCase()
+    document.querySelectorAll('#gen-assign-students-list label').forEach(label => {
+      label.hidden = !!q && !label.textContent.toLowerCase().includes(q)
+    })
+  }
+  document.getElementById('gen-assign-search')?.addEventListener('input', applyGenAssignSearch)
+  document.querySelectorAll('input[name="gen-assign-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const wrap = document.getElementById('gen-assign-select-wrap')
+      if (wrap) wrap.hidden = !document.getElementById('gen-assign-mode-select')?.checked
+      updateGenAssignCount()
+    })
+  })
+  updateGenAssignCount()
 
   async function loadGenAssignStudents(classId) {
     const box = genAssignListEl()
@@ -7298,6 +7371,7 @@ async function openMatrixGeneratorModal() {
         box.querySelectorAll('.gen-assign-student-cb').forEach(cb => {
           cb.addEventListener('change', updateGenAssignCount)
         })
+        applyGenAssignSearch()
       }
     } catch (err) {
       box.innerHTML = 'Không tải được danh sách học sinh.'
@@ -7306,7 +7380,7 @@ async function openMatrixGeneratorModal() {
   }
 
   document.getElementById('btn-gen-assign-select-all')?.addEventListener('click', () => {
-    document.querySelectorAll('.gen-assign-student-cb').forEach(cb => { cb.checked = true })
+    document.querySelectorAll('.gen-assign-student-cb').forEach(cb => { if (!cb.closest('label')?.hidden) cb.checked = true })
     updateGenAssignCount()
   })
   document.getElementById('btn-gen-assign-deselect-all')?.addEventListener('click', () => {
@@ -7649,6 +7723,7 @@ async function openMatrixGeneratorModal() {
     generatorState.borrowAlerts = []
     generatorState.currentScope = null
     document.getElementById('preview-questions-container')?.replaceChildren()
+    window.__syncMatrixStepper?.()
   }
 
   function validateMatrixSelection() {
@@ -7676,7 +7751,11 @@ async function openMatrixGeneratorModal() {
     }
     button.disabled = rolling || !availabilityReady || !valid || !(generatorState.availableStats?.total > 0)
     button.style.width = 'auto'
-    if (!rolling) button.innerHTML = '<i class="fa-solid fa-dice"></i> Bốc ngẫu nhiên & Xem trước'
+    if (!rolling) {
+      button.innerHTML = (Array.isArray(generatorState.previewQuestions) && generatorState.previewQuestions.length > 0)
+        ? '<i class="fa-solid fa-dice"></i> Bốc lại đề mới'
+        : '<i class="fa-solid fa-dice"></i> Bốc ngẫu nhiên & Xem trước'
+    }
 
     const footerHint = document.getElementById('mx-footer-hint')
     if (footerHint) {
@@ -7759,6 +7838,41 @@ async function openMatrixGeneratorModal() {
   // Cụm cấu hình bài tập dùng chung form tạo bài tập
   bindHomeworkConfigFields('mx')
   bindHomeworkTypeCoupling('gen-exam-type', 'mx-attempts', 'mx-violations')
+
+  // Pro: chọn nhanh hạn nộp + dòng mô tả (giống form tạo bài tập)
+  const updateMxDeadlinePreview = () => {
+    const el = document.getElementById('mx-deadline-preview')
+    if (!el) return
+    const date = document.getElementById('mx-deadline-date')?.value
+    if (!date) { el.textContent = 'Không đặt hạn nộp — học sinh làm bất cứ lúc nào.'; el.classList.remove('is-past'); return }
+    const h = document.getElementById('mx-deadline-hour')?.value || '23'
+    const m = document.getElementById('mx-deadline-minute')?.value || '59'
+    const d = new Date(`${date}T${h}:${m}:00`)
+    if (isNaN(d.getTime())) { el.textContent = ''; return }
+    const days = Math.ceil((d.getTime() - Date.now()) / 86400000)
+    const when = d.toLocaleString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    el.textContent = days < 0 ? `Hạn nộp ${when} — đã qua.` : `Hạn nộp ${when} (còn ${days} ngày).`
+    el.classList.toggle('is-past', days < 0)
+  }
+  document.querySelectorAll('[data-mx-deadline-days]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const n = parseInt(btn.getAttribute('data-mx-deadline-days'), 10) || 0
+      const d = new Date()
+      d.setDate(d.getDate() + n)
+      const dateInput = document.getElementById('mx-deadline-date')
+      if (dateInput) dateInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const hourSel = document.getElementById('mx-deadline-hour')
+      const minSel = document.getElementById('mx-deadline-minute')
+      if (hourSel) hourSel.value = '23'
+      if (minSel) minSel.value = '59'
+      updateMxDeadlinePreview()
+    })
+  })
+  ;['mx-deadline-date', 'mx-deadline-hour', 'mx-deadline-minute'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', updateMxDeadlinePreview)
+  })
+  document.getElementById('mx-deadline-clear')?.addEventListener('click', () => setTimeout(updateMxDeadlinePreview, 0))
+  updateMxDeadlinePreview()
 
   // Step 1 -> Step 2: Roll & Preview
   const btnRollPreview = document.getElementById('btn-roll-preview')
@@ -7878,6 +7992,7 @@ async function openMatrixGeneratorModal() {
       btnRollPreview.style.display = 'none'
       btnFinalize.style.display = 'inline-flex'
       if (matrixModal) matrixModal.dataset.step = 'preview'
+      window.__syncMatrixStepper?.()
 
       const titleInput = document.getElementById('gen-exam-title')
       if (titleInput && !titleInput.value.trim()) {
@@ -7912,14 +8027,55 @@ async function openMatrixGeneratorModal() {
     }
   })
 
-  // Back to Config
-  document.getElementById('btn-back-to-config')?.addEventListener('click', () => {
+  // Điều hướng giữa cấu hình ma trận (bước 1–2) và xem trước (bước 3).
+  // Đề đã bốc được GIỮ khi quay lại chỉnh, để có thể trở lại xem trước mà không phải bốc lại;
+  // chỉ khi nguồn/số câu thay đổi (clearMatrixPreview) thì mới phải bốc đề mới.
+  const btnReturnPreview = document.getElementById('btn-return-preview')
+  const hasPreview = () => Array.isArray(generatorState.previewQuestions) && generatorState.previewQuestions.length > 0
+  const syncMatrixStepper = () => {
+    const onPreview = matrixModal?.dataset?.step === 'preview'
+    document.querySelectorAll('#matrix-gen-backdrop .ap-mx-step').forEach(stepEl => {
+      const num = stepEl.getAttribute('data-step-num')
+      const clickable = onPreview ? num !== '3' : (num === '3' && hasPreview())
+      stepEl.classList?.toggle('is-clickable', clickable)
+      stepEl.setAttribute?.('aria-disabled', clickable ? 'false' : 'true')
+      stepEl.tabIndex = clickable ? 0 : -1
+    })
+    if (btnReturnPreview) btnReturnPreview.hidden = onPreview || !hasPreview()
+  }
+  const goToMatrixConfig = () => {
     step1.style.display = 'block'
     step2.style.display = 'none'
     btnRollPreview.style.display = 'inline-flex'
     btnFinalize.style.display = 'none'
     if (matrixModal) matrixModal.dataset.step = 'config'
+    updateGenerateButton()
+    syncMatrixStepper()
+  }
+  const goToMatrixPreview = () => {
+    if (!hasPreview()) return showToast('Ma trận đã thay đổi — hãy bốc lại đề để xem trước.', 'info')
+    step1.style.display = 'none'
+    step2.style.display = 'block'
+    btnRollPreview.style.display = 'none'
+    btnFinalize.style.display = 'inline-flex'
+    if (matrixModal) matrixModal.dataset.step = 'preview'
+    syncMatrixStepper()
+  }
+  window.__syncMatrixStepper = syncMatrixStepper
+  document.getElementById('btn-back-to-config')?.addEventListener('click', goToMatrixConfig)
+  btnReturnPreview?.addEventListener('click', goToMatrixPreview)
+  document.querySelectorAll('#matrix-gen-backdrop .ap-mx-step').forEach(stepEl => {
+    const activate = () => {
+      if (!stepEl.classList.contains('is-clickable')) return
+      if (stepEl.getAttribute('data-step-num') === '3') goToMatrixPreview()
+      else goToMatrixConfig()
+    }
+    stepEl.addEventListener('click', activate)
+    stepEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() }
+    })
   })
+  syncMatrixStepper()
 
   // Export PDF from Matrix Step 2 Preview
   const handleMatrixExport = async (mode) => {
@@ -8282,7 +8438,10 @@ async function openMatrixGeneratorModal() {
       }
     }
 
-    const assignedStudentIds = Array.from(document.querySelectorAll('.gen-assign-student-cb:checked')).map(cb => cb.value)
+    // Pro: "Cả lớp" = không giao riêng ai (danh sách rỗng)
+    const assignedStudentIds = document.getElementById('gen-assign-mode-class')?.checked
+      ? []
+      : Array.from(document.querySelectorAll('.gen-assign-student-cb:checked')).map(cb => cb.value)
 
     const type = document.getElementById('gen-exam-type')?.value || 'PRACTICE'
     const cfg = collectHomeworkConfig('mx')
