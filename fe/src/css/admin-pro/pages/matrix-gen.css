@@ -183,6 +183,10 @@ html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx[data-step="preview"] .ap-mx
   border-color: var(--ap-ok) !important;
   color: #ffffff !important;
 }
+html[data-admin-ui="pro"][data-theme="dark"] #matrix-gen-backdrop.ap-mx[data-step="preview"] .ap-mx-step[data-step-num="1"] .ap-mx-step-badge,
+html[data-admin-ui="pro"][data-theme="dark"] #matrix-gen-backdrop.ap-mx[data-step="preview"] .ap-mx-step[data-step-num="2"] .ap-mx-step-badge {
+  color: #0b2a1e !important;
+}
 html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx[data-step="preview"] .ap-mx-step[data-step-num="3"] {
   color: var(--ap-accent) !important;
 }
@@ -1175,8 +1179,17 @@ html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx #btn-finalize-create-hw {
   color: #ffffff !important;
 }
 
+html[data-admin-ui="pro"][data-theme="dark"] #matrix-gen-backdrop.ap-mx #btn-finalize-create-hw {
+  color: #0b2a1e !important;
+}
+
 html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx #btn-finalize-create-hw:hover:not(:disabled) {
   background: #126343 !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] #matrix-gen-backdrop.ap-mx #btn-finalize-create-hw:hover:not(:disabled) {
+  background: #7be0b4 !important;
+  color: #0b2a1e !important;
 }
 
 /* Nút Disabled: tương phản đọc được, opacity ~0.55 */
@@ -1296,6 +1309,30 @@ html[data-admin-ui="pro"] #qb-modal-container #matrix-gen-backdrop.ap-mx .modal-
 @media (max-width: 640px) {
   html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx #matrix-gen-step2 div[style*="grid-template-columns:1fr 1fr 1fr"] {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx .ap-mx-preview-topbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx .ap-mx-preview-top-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx .ap-mx-preview-top-actions button {
+    width: 100% !important;
+    min-height: 42px !important;
+    justify-content: center !important;
+    display: inline-flex !important;
+  }
+
+  html[data-admin-ui="pro"] #matrix-gen-backdrop.ap-mx #matrix-gen-step2 {
+    padding-bottom: 90px !important;
   }
 }
 

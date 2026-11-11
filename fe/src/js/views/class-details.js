@@ -299,6 +299,21 @@ export function renderClassicClassDetailsView(currentClass, classStudents, short
 }
 
 function renderProClassDetailsView(currentClass, classStudents, shortId) {
+  const hasCachedKpi = Boolean(cachedKpiStats)
+  const totalSessions = hasCachedKpi ? (cachedKpiStats.sessions?.totalHeld ?? 0) : '--'
+  const monthSessions = hasCachedKpi ? (cachedKpiStats.sessions?.monthHeld ?? 0) : 0
+  const unpaidTuition = Number(cachedKpiStats?.uncollectedTuition?.totalAmount ?? 0)
+  const unpaidStudentsCount = cachedKpiStats?.uncollectedTuition?.owingStudentsCount ?? 0
+  const latestSession = cachedKpiStats?.latestSession
+  const [latestYear, latestMonth, latestDay] = (latestSession?.sessionDate || '').split('-')
+  const latestSessionDate = latestDay && latestMonth && latestYear
+    ? `${latestDay}/${latestMonth}/${latestYear}`
+    : 'Chưa có'
+  const latestSessionPresent = latestSession
+    ? `${latestSession.presentCount ?? 0}/${latestSession.totalCount ?? 0} có mặt`
+    : 'Chưa điểm danh'
+  const openHomeworks = hasCachedKpi ? (cachedKpiStats.homeworks?.openCount ?? 0) : 0
+
   return `
     <div class="app-layout admin-dark" id="class-details" data-route="class-details" data-role="ADMIN">
       ${renderSidebar('classes-admin')}
@@ -379,7 +394,7 @@ function renderProClassDetailsView(currentClass, classStudents, shortId) {
               </div>
               <div class="class-kpi-content">
                 <div class="class-kpi-title">Tổng số buổi đã học</div>
-                <div class="class-kpi-value" id="kpi-total-sessions">${cachedKpiStats ? cachedKpiStats.totalSessions : '--'}</div>
+                <div class="class-kpi-value" id="kpi-total-sessions">${totalSessions}</div>
                 <div class="class-kpi-subtitle">Số buổi học lớp đã diễn ra</div>
               </div>
             </div>
@@ -391,8 +406,8 @@ function renderProClassDetailsView(currentClass, classStudents, shortId) {
               </div>
               <div class="class-kpi-content">
                 <div class="class-kpi-title">Học phí chưa thu</div>
-                <div class="class-kpi-value text-warn" id="kpi-unpaid-tuition">${cachedKpiStats ? `${(Number(cachedKpiStats.unpaidTuition || 0)).toLocaleString('vi-VN')} VND` : '0 VND'}</div>
-                <div class="class-kpi-subtitle" id="kpi-unpaid-students-count">${cachedKpiStats ? `${cachedKpiStats.unpaidStudentsCount || 0} học sinh còn nợ` : '0 học sinh còn nợ'}</div>
+                <div class="class-kpi-value text-warn" id="kpi-unpaid-tuition">${unpaidTuition.toLocaleString('vi-VN')} VND</div>
+                <div class="class-kpi-subtitle" id="kpi-unpaid-students-count">${unpaidStudentsCount} học sinh còn nợ</div>
               </div>
             </div>
 
@@ -403,7 +418,7 @@ function renderProClassDetailsView(currentClass, classStudents, shortId) {
               </div>
               <div class="class-kpi-content">
                 <div class="class-kpi-title">Buổi học tháng này</div>
-                <div class="class-kpi-value" id="kpi-month-sessions">${cachedKpiStats ? cachedKpiStats.monthSessions : '0'}</div>
+                <div class="class-kpi-value" id="kpi-month-sessions">${monthSessions}</div>
                 <div class="class-kpi-subtitle" id="kpi-month-sessions-sub">Tính đến hôm nay</div>
               </div>
             </div>
@@ -415,8 +430,8 @@ function renderProClassDetailsView(currentClass, classStudents, shortId) {
               </div>
               <div class="class-kpi-content">
                 <div class="class-kpi-title">Buổi học gần nhất</div>
-                <div class="class-kpi-value" id="kpi-latest-session-date" style="font-size:16px;">${cachedKpiStats ? (cachedKpiStats.latestSessionDate || 'Chưa có') : 'Chưa có'}</div>
-                <div class="class-kpi-subtitle" id="kpi-latest-session-present">${cachedKpiStats ? (cachedKpiStats.latestSessionPresent || 'Chưa điểm danh') : 'Chưa điểm danh'}</div>
+                <div class="class-kpi-value" id="kpi-latest-session-date" style="font-size:16px;">${latestSessionDate}</div>
+                <div class="class-kpi-subtitle" id="kpi-latest-session-present">${latestSessionPresent}</div>
               </div>
             </div>
 
@@ -427,7 +442,7 @@ function renderProClassDetailsView(currentClass, classStudents, shortId) {
               </div>
               <div class="class-kpi-content">
                 <div class="class-kpi-title">Bài tập đang mở</div>
-                <div class="class-kpi-value" id="kpi-open-homeworks">${cachedKpiStats ? cachedKpiStats.openHomeworks : '0'}</div>
+                <div class="class-kpi-value" id="kpi-open-homeworks">${openHomeworks}</div>
                 <div class="class-kpi-subtitle" id="kpi-pending-submissions">Hạn sau thời điểm hiện tại</div>
               </div>
             </div>

@@ -6,6 +6,33 @@ import { syncMochiUI, syncAdminProUI, isMochiUI, isAdminProUI } from './ui-flag.
 
 // Skin học sinh đang hiển thị: Mochi dùng đủ 4 bảng màu; giao diện cũ chỉ dark/sakura.
 const studentSkin = () => (isMochiUI() ? getStudentTheme() : getClassicStudentTheme())
+
+// Sau mỗi lần deploy, file chunk/CSS cũ (tên có hash) bị thay thế. Tab đang mở bản cũ sẽ
+// lỗi "Failed to fetch dynamically imported module" / CSS 404 khi chuyển trang.
+// Tự tải lại trang MỘT lần để lấy bản mới (chặn vòng lặp reload bằng sessionStorage).
+const CHUNK_RELOAD_KEY = 'eduportal-chunk-reload-at'
+function isChunkLoadError(err) {
+  const msg = String(err?.message || err || '')
+  return /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Unable to preload CSS|ChunkLoadError/i.test(msg)
+}
+function reloadForNewDeploy() {
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0)
+    if (Date.now() - last < 30000) return false // vừa reload xong vẫn lỗi → không lặp
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()))
+  } catch (_) {}
+  window.location.reload()
+  return true
+}
+if (typeof window !== 'undefined') {
+  // Vite phát sự kiện này khi preload chunk/CSS của import() thất bại.
+  window.addEventListener('vite:preloadError', (event) => {
+    if (reloadForNewDeploy()) event.preventDefault?.()
+  })
+  window.addEventListener('unhandledrejection', (event) => {
+    if (isChunkLoadError(event.reason)) reloadForNewDeploy()
+  })
+}
 import { renderLoginView, bindLoginEvents } from './views/login.js'
 import { renderMyClassesView, bindMyClassesEvents } from './views/my-classes.js'
 import { renderClassMgmtView, bindClassMgmtEvents } from './views/class-mgmt.js'
@@ -285,7 +312,13 @@ async function router() {
   }
 
   const route = routes[hash] || routes['login']
-  const routeModule = route.loader ? await route.loader() : route
+  let routeModule
+  try {
+    routeModule = route.loader ? await route.loader() : route
+  } catch (loadErr) {
+    if (isChunkLoadError(loadErr) && reloadForNewDeploy()) return
+    throw loadErr
+  }
   if (isStale()) return
   if (routeModule.updateAdminChartTheme) adminChartThemeUpdater = routeModule.updateAdminChartTheme
   if (routeModule.updateReportChartTheme) reportChartThemeUpdater = routeModule.updateReportChartTheme

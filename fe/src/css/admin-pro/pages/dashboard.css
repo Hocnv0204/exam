@@ -477,9 +477,13 @@ html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-action.btn-primary {
 
 html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 16px;
 }
+
+/* Bảy KPI được chia thành hàng 3 + 4 ở màn hình rộng để không có thẻ lẻ. */
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi:nth-child(-n + 3) { grid-column: span 4; }
+html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi:nth-child(n + 4) { grid-column: span 3; }
 
 html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi,
 html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-panel {
@@ -570,13 +574,116 @@ html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item small { color: var(--
 html[data-admin-ui="pro"] #admin-dashboard .ap-recent-item b { color: var(--ap-ok); font-size: 13px; }
 html[data-admin-ui="pro"] #admin-dashboard .ap-empty-inline { padding: 24px 0; color: var(--ap-muted); font-weight: 700; text-align: center; }
 
+/* Popup học sinh cần đóng tiền: ghi đè các màu inline cũ bằng token Pro. */
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal {
+  background: var(--ap-surface);
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-list {
+  scrollbar-color: var(--ap-muted) transparent !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal :is(.zb-table-responsive, .table-responsive) {
+  border: 2px solid var(--ap-line);
+  border-radius: 14px;
+  background: var(--ap-surface);
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table {
+  width: 100%;
+  min-width: 480px;
+  table-layout: fixed;
+  color: var(--ap-ink);
+  font-size: 13px;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table th {
+  border-color: var(--ap-line);
+  background: var(--ap-surface2);
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table td {
+  border-color: var(--ap-line);
+  background: var(--ap-surface);
+  color: var(--ap-muted) !important;
+  vertical-align: middle;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table :is(th:nth-child(1), td:nth-child(1)) { width: 56px; }
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table :is(th:nth-child(2), td:nth-child(2)) { width: 34%; }
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table :is(th:nth-child(4), td:nth-child(4)) { width: 150px; text-align: center; }
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table-index { font-weight: 700; }
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table-name { color: var(--ap-ink) !important; font-weight: 800; overflow-wrap: anywhere; }
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table-class { color: var(--ap-muted) !important; }
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table-class > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table-action {
+  text-align: center;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal .zb-table-action .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  width: auto !important;
+  min-height: 44px;
+  color: var(--ap-warn) !important;
+  border-color: var(--ap-warn) !important;
+  background: var(--ap-warn-soft) !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-list > div[style*="color:#64748b"] {
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-list [style*="background:#e2e8f0"] {
+  background: var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-pagination > div {
+  border-color: var(--ap-line) !important;
+  color: var(--ap-muted) !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-pagination strong,
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-pagination span {
+  color: var(--ap-ink) !important;
+}
+
+html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-pagination .btn-secondary {
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--ap-ink);
+  border-color: var(--ap-line);
+  background: var(--ap-surface2);
+}
+
 @media (min-width: 901px) and (max-width: 1279px) {
-  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi,
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi:nth-child(n) { grid-column: auto; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi:last-child { grid-column: 1 / -1; }
   html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-insights { grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); }
 }
 
 @media (max-width: 900px) {
   html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi,
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi:nth-child(n) { grid-column: auto; }
+  html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-kpi:last-child { grid-column: 1 / -1; }
   html[data-admin-ui="pro"] #admin-dashboard :is(.ap-dashboard-insights, .ap-dashboard-lower, .ap-dashboard-secondary) { grid-template-columns: minmax(0, 1fr); }
   html[data-admin-ui="pro"] #admin-dashboard .ap-dashboard-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -596,4 +703,6 @@ html[data-admin-ui="pro"] #admin-dashboard .ap-empty-inline { padding: 24px 0; c
   html[data-admin-ui="pro"] #admin-dashboard .ap-student-pagination { align-items: stretch; flex-direction: column; }
   html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout { align-items: flex-start; flex-wrap: wrap; }
   html[data-admin-ui="pro"] #admin-dashboard .ap-debtor-callout .btn-secondary { width: 100%; }
+  html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-pagination > div { align-items: stretch !important; flex-direction: column; }
+  html[data-admin-ui="pro"] #modal-container .ap-zero-balance-modal #zero-balance-modal-pagination > div > div:last-child { justify-content: space-between; }
 }

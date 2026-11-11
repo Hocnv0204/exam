@@ -42,7 +42,7 @@
     "test:mochi-weekly-calendar": "node --experimental-loader ./scripts/svg-loader.mjs --test scripts/test-mochi-weekly-calendar.mjs",
     "test:mochi-attendance": "node --experimental-loader ./scripts/svg-loader.mjs --test scripts/test-mochi-attendance.mjs",
     "test:mochi-achievements": "node --experimental-loader ./scripts/svg-loader.mjs --test scripts/test-mochi-achievements.mjs",
-    "test:admin-pro-dashboard": "node --test scripts/test-admin-pro-dashboard.mjs",
+    "test:admin-pro-dashboard": "node --test scripts/test-admin-pro-dashboard.mjs && node scripts/test-admin-template-fields.mjs",
     "test:admin-pro-question-bank": "node --test scripts/test-admin-pro-question-bank.mjs",
     "test:admin-pro-classes": "node --test scripts/test-admin-pro-classes.mjs",
     "test:admin-pro-homework": "node --test scripts/test-admin-pro-homework.mjs",

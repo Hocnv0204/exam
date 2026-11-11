@@ -108,9 +108,18 @@ html[data-admin-ui="pro"] .ap-question-bank #btn-open-sync-modal {
   transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
+html[data-admin-ui="pro"][data-theme="dark"] .ap-question-bank #btn-open-sync-modal {
+  color: #0b2a1e !important;
+}
+
 html[data-admin-ui="pro"] .ap-question-bank #btn-open-sync-modal:hover {
   transform: translateY(-1px) !important;
   box-shadow: 0 5px 0 var(--ap-block) !important;
+}
+
+html[data-admin-ui="pro"][data-theme="dark"] .ap-question-bank #btn-open-sync-modal:hover {
+  background: #7be0b4 !important;
+  color: #0b2a1e !important;
 }
 
 html[data-admin-ui="pro"] .ap-question-bank :is(#btn-open-taxonomy-modal, #btn-open-import-md, #btn-open-import-hw) {
@@ -493,11 +502,16 @@ html[data-admin-ui="pro"] .ap-question-bank #qb-btn-reset-filters:hover {
 }
 
 /* --- 5. Main 2-Column Grid & Sticky Cart Panel --- */
+html[data-admin-ui="pro"] .ap-question-bank .content-body {
+  padding-bottom: 48px !important;
+}
+
 html[data-admin-ui="pro"] .ap-question-bank .ap-qb-main-grid {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 380px !important;
   gap: 20px !important;
   align-items: start !important;
+  margin-bottom: 36px !important;
 }
 
 html[data-admin-ui="pro"] .ap-question-bank .ap-qb-list-col {
@@ -645,6 +659,9 @@ html[data-admin-ui="pro"] .ap-question-bank .ap-qb-cart-panel {
   flex-direction: column !important;
   gap: 14px !important;
   z-index: 10 !important;
+  max-height: calc(100vh - 40px) !important;
+  overflow-y: auto !important;
+  margin-bottom: 24px !important;
 }
 
 html[data-admin-ui="pro"] .ap-question-bank .ap-cart-header {

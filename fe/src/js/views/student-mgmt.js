@@ -241,7 +241,7 @@ function renderStudentRow(s) {
           <i class="fa-solid fa-circle" style="font-size:6px;"></i> ${s.status || 'Hoạt động'}
         </span>`}
       </td>
-      <td style="color:#64748b;">${s.createdAt || 'Mới khởi tạo'}</td>
+      <td style="color:#64748b;">${escapeHtml(formatCreatedDate(s.createdAt))}</td>
       <td>
         <div style="display:flex; gap:10px; align-items:center;">
           <a href="#student-details?studentId=${s.id}&classId=${s.classId || (s.classIds && s.classIds[0]) || ''}" title="Xem chi tiết học tập & học phí"${proUI ? ` aria-label="Xem chi tiết ${escapeHtml(s.fullName || '')}"` : ''} style="color:#10b981; font-size:16px; text-decoration:none; display:inline-flex; align-items:center;"><i class="fa-solid fa-circle-user"></i></a>
@@ -277,7 +277,7 @@ function renderProStudentRow(s) {
       <td data-label="Lớp học"><div class="ap-class-list">${classBadges}</div></td>
       <td data-label="Số dư"><strong class="ap-balance ${balance < 0 ? 'is-negative' : 'is-positive'}">${balance.toLocaleString('vi-VN')} đ</strong></td>
       <td data-label="Trạng thái"><span class="ap-status-chip ${isLocked ? 'is-locked' : 'is-active'}"><i class="fa-solid ${isLocked ? 'fa-lock' : 'fa-circle-check'}" aria-hidden="true"></i>${isLocked ? 'Tạm khóa' : escapeHtml(s.status || 'Hoạt động')}</span></td>
-      <td data-label="Ngày tạo"><span class="ap-created-date">${escapeHtml(s.createdAt || 'Mới khởi tạo')}</span></td>
+      <td data-label="Ngày tạo"><span class="ap-created-date">${escapeHtml(formatCreatedDate(s.createdAt))}</span></td>
       <td data-label="Thao tác"><div class="ap-row-actions">
         <a href="${detailHref}" title="Xem chi tiết học tập & học phí" aria-label="Xem chi tiết ${fullName}"><i class="fa-solid fa-circle-user" aria-hidden="true"></i></a>
         <button class="btn-view-activity" data-id="${escapeHtml(s.id)}" data-name="${fullName}" title="Xem nhật ký hoạt động" aria-label="Xem nhật ký hoạt động của ${fullName}"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
@@ -563,6 +563,15 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+function formatCreatedDate(value) {
+  if (!value) return 'Mới khởi tạo'
+  // Backend thường đã trả ngày vi-VN ("01/09/2026"); new Date() sẽ đọc nhầm theo kiểu Mỹ
+  // (tháng/ngày) → chỉ format lại khi là chuỗi ISO (yyyy-mm-dd...).
+  if (!/^\d{4}-\d{2}-\d{2}/.test(String(value))) return String(value)
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('vi-VN')
 }
 
 /**

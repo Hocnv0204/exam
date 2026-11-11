@@ -1898,6 +1898,10 @@ html[data-admin-ui="pro"][data-theme="dark"] .ap-create-homework :is(code, .kate
     flex-direction: column;
   }
 
+  html[data-admin-ui="pro"] .ap-create-homework .content-body.ap-create-hw-body {
+    padding-bottom: 175px !important;
+  }
+
   html[data-admin-ui="pro"] .ap-create-homework .ap-hw-sticky-footer {
     padding: 10px 14px;
     flex-direction: column;

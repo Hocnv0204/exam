@@ -81,36 +81,42 @@ html[data-admin-ui="pro"] .content-body > .card {
 }
 
 html[data-admin-ui="pro"] .search-box {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 2px solid var(--ap-line);
-  border-radius: var(--ap-radius);
-  background: var(--ap-surface2);
-  box-sizing: border-box;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-height: 44px !important;
+  padding: 0 14px !important;
+  border: 2px solid var(--ap-line) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-surface2) !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 380px !important;
   transition: border-color 0.15s ease;
 }
 
 html[data-admin-ui="pro"] .search-box:focus-within {
-  border-color: var(--ap-accent);
+  border-color: var(--ap-accent) !important;
 }
 
 html[data-admin-ui="pro"] .search-box i {
-  color: var(--ap-muted);
-  font-size: 15px;
+  color: var(--ap-muted) !important;
+  font-size: 15px !important;
 }
 
 html[data-admin-ui="pro"] .search-box input {
-  border: none;
-  background: transparent;
-  color: var(--ap-ink);
-  font-family: var(--ap-font);
-  font-size: 14px;
-  font-weight: 600;
-  outline: none;
-  width: 100%;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  outline: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 4px !important;
+  border-radius: 0 !important;
 }
 
 html[data-admin-ui="pro"] .search-box input::placeholder {
@@ -667,6 +673,42 @@ html[data-admin-ui="pro"] #trial-mgmt-list {
   margin-top: 16px;
 }
 
+/* Badges học thử chuẩn tương phản token soft/strong (≥3:1, WCAG AA) */
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-youtube) {
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+  border: 1px solid var(--ap-danger) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-google-drive) {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+  border: 1px solid var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-earth-asia) {
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  border: 1px solid var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-triangle-exclamation) {
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  border: 1px solid var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-video-slash),
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-lock) {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  border: 1px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span[style*="margin:0 6px"] {
+  color: var(--ap-muted) !important;
+}
+
 html[data-admin-ui="pro"] .trial-lesson-row {
   border-top: 1px solid var(--ap-line) !important;
   padding: 16px 20px !important;
@@ -909,6 +951,16 @@ html[data-admin-ui="pro"] #weekly-calendar-root .wc-day h3 {
   margin: 0 0 12px 0 !important;
 }
 
+/* Nút xuất lịch khi disabled */
+html[data-admin-ui="pro"] #weekly-calendar-root #wc-export:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  border-color: var(--ap-line) !important;
+  box-shadow: none !important;
+}
+
 html[data-admin-ui="pro"] #weekly-calendar-root .wc-event {
   border-radius: 12px !important;
   border: 1px solid var(--ap-line) !important;
@@ -1016,6 +1068,28 @@ html[data-admin-ui="pro"][data-theme="dark"] td[style*="color:#334155"] {
 @media (max-width: 640px) {
   html[data-admin-ui="pro"] #weekly-calendar-root .wc-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  /* Điều hướng tuần 3 nút gọn đều 1 hàng không bị vỡ dòng lẻ ở 390px */
+  html[data-admin-ui="pro"] #weekly-calendar-root .wc-toolbar {
+    padding: 12px 14px !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] #weekly-calendar-root .wc-toolbar > div:first-child {
+    display: flex !important;
+    width: 100% !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  html[data-admin-ui="pro"] #weekly-calendar-root :is(#wc-prev, #wc-today, #wc-next) {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 0 8px !important;
+    font-size: 13px !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
   }
 
   html[data-admin-ui="pro"] .page-header .page-title {

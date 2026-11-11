@@ -387,7 +387,7 @@ export function bindStudentDetailsEvents() {
         
         // Filter payload to only save sessions of the current month
         const payloadDates = Array.from(selectedSessionDates.entries())
-          .filter(([date]) => date.startsWith(month))
+          .filter(([date]) => typeof date === 'string' && date.startsWith(month))
           .map(([date, val]) => ({
             date,
             isPaid: val.isPaid
@@ -1234,7 +1234,7 @@ function updateSummaryMetrics(tuitionFee) {
   
   // Filter sessions to only count those belonging to the current month
   const currentMonthSessions = Array.from(selectedSessionDates.entries())
-    .filter(([date]) => date.startsWith(currentMonth))
+    .filter(([date]) => typeof date === 'string' && date.startsWith(currentMonth))
 
   const sessionsCount = currentMonthSessions.length
   

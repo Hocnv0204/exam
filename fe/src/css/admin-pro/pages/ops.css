@@ -342,6 +342,42 @@ html[data-admin-ui="pro"] #trial-management .trial-row-highlight {
   background: var(--ap-accent-soft) !important;
 }
 
+/* Badges học thử chuẩn tương phản token soft/strong (≥3:1, WCAG AA) */
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-youtube) {
+  background: var(--ap-danger-soft) !important;
+  color: var(--ap-danger) !important;
+  border: 1px solid var(--ap-danger) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-google-drive) {
+  background: var(--ap-blue-soft) !important;
+  color: var(--ap-blue) !important;
+  border: 1px solid var(--ap-blue) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-earth-asia) {
+  background: var(--ap-ok-soft) !important;
+  color: var(--ap-ok) !important;
+  border: 1px solid var(--ap-ok) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-triangle-exclamation) {
+  background: var(--ap-warn-soft) !important;
+  color: var(--ap-warn) !important;
+  border: 1px solid var(--ap-warn) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-video-slash),
+html[data-admin-ui="pro"] #trial-management td span:has(.fa-lock) {
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  border: 1px solid var(--ap-line) !important;
+}
+
+html[data-admin-ui="pro"] #trial-management td span[style*="margin:0 6px"] {
+  color: var(--ap-muted) !important;
+}
+
 /* ==========================================================================
    5. LỊCH TUẦN ADMIN (#weekly-calendar[data-role="ADMIN"])
    ========================================================================== */
@@ -386,6 +422,16 @@ html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] #wc-range {
   font-size: 18px !important;
   font-weight: 800 !important;
   color: var(--ap-ink) !important;
+}
+
+/* Nút xuất lịch khi disabled */
+html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] #wc-export:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  background: var(--ap-surface2) !important;
+  color: var(--ap-muted) !important;
+  border-color: var(--ap-line) !important;
+  box-shadow: none !important;
 }
 
 /* Ghi chú quy định */
@@ -894,6 +940,28 @@ html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-badge--best
 
   html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Điều hướng tuần 3 nút gọn đều 1 hàng không bị vỡ dòng lẻ ở 390px */
+  html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-toolbar {
+    padding: 12px 14px !important;
+    gap: 12px !important;
+  }
+
+  html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] .wc-toolbar > div:first-child {
+    display: flex !important;
+    width: 100% !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  html[data-admin-ui="pro"] #weekly-calendar[data-role="ADMIN"] :is(#wc-prev, #wc-today, #wc-next) {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 0 8px !important;
+    font-size: 13px !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
   }
 
   html[data-admin-ui="pro"] #student-report[data-role="ADMIN"] .report-kpi-grid {

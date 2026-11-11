@@ -48,6 +48,7 @@ const { renderTuitionLedgerView } = await import('../src/js/views/tuition-ledger
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const cssPath = resolve(scriptDir, '../src/css/admin-pro/pages/dashboard.css')
 const dashboardCss = readFileSync(cssPath, 'utf8')
+const dashboardSource = readFileSync(resolve(scriptDir, '../src/js/views/admin-dashboard.js'), 'utf8')
 
 function fixture() {
   state.token = 'admin-token'
@@ -172,12 +173,29 @@ test('Pro có root hook mới và giữ toàn bộ id/data-* chức năng của 
   assert.match(proDashboard, /Học phí theo tháng/, 'Có biểu đồ học phí')
   assert.match(proDashboard, /Phân bố điểm/, 'Có khối phân bố điểm')
   assert.match(proDashboard, /Học sinh cần đóng tiền/, 'Có khối học sinh cần đóng tiền')
+  assert.doesNotMatch(proDashboard, /<span>Lượt nộp bài tập<\/span>/, 'Pro không còn KPI lượt nộp bài tập')
+  assert.doesNotMatch(proDashboard, /<span>Điểm trung bình<\/span>/, 'Pro không còn KPI điểm trung bình')
   assertSuperset(functionalHooks(proDashboard), functionalHooks(classicDashboard), 'Dashboard Pro')
 
   window.location.hash = '#tuition-ledger'
   const proLedger = renderTuitionLedgerView()
   assert.match(proLedger, /class="app-layout admin-dark" id="tuition-ledger" data-route="tuition-ledger" data-role="ADMIN"/)
   assertSuperset(functionalHooks(proLedger), functionalHooks(classicLedger), 'Sổ học phí Pro')
+})
+
+test('popup học sinh cần đóng tiền giữ lớp classic và chỉ thêm hook ở Pro', () => {
+  assert.match(
+    dashboardSource,
+    /contentClass:\s*isAdminProUI\(\)\s*\?\s*'zb-popup ap-zero-balance-modal'\s*:\s*'zb-popup'/
+  )
+  assert.match(
+    dashboardSource,
+    /isAdminProUI\(\)\s*\?\s*renderZeroBalanceModalTable[\s\S]*?:\s*renderZeroBalanceTable/
+  )
+  const classicContentClass = dashboardSource.match(/:\s*'zb-popup'\s*\n\s*}/)?.[0] || ''
+  assert.match(classicContentClass, /'zb-popup'/, 'classic vẫn dùng zb-popup')
+  assert.doesNotMatch(classicContentClass, /ap-zero-balance-modal/, 'classic không có hook Pro')
+  assert.match(dashboardCss, /#modal-container \.ap-zero-balance-modal/)
 })
 
 test('bind dashboard trên DOM Pro tối thiểu và dữ liệu rỗng/lỗi không ném lỗi', async () => {

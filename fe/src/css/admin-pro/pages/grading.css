@@ -505,6 +505,10 @@ html[data-admin-ui="pro"] .ap-grade-alert {
   margin: 0;
 }
 
+html[data-admin-ui="pro"] .ap-grade-alert:empty {
+  display: none !important;
+}
+
 /* 10. Nút hành động trong hàng & trang (Buttons & Actions) */
 html[data-admin-ui="pro"] .ap-grade-actions {
   display: flex;

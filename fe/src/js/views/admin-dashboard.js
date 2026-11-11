@@ -16,7 +16,8 @@ import {
   renderZeroBalanceTable,
   renderZeroBalanceEmpty,
   renderZeroBalanceError,
-  renderZeroBalancePaginationBar
+  renderZeroBalancePaginationBar,
+  escapeHtml
 } from '../utils/zero-balance.js'
 
 if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/dashboard.css') }
@@ -192,6 +193,45 @@ function renderZeroBalanceCard() {
   subtextEl.innerHTML = '<i class="fa-solid fa-coins"></i> Số dư hiện tại · Tất cả học sinh'
 }
 
+/** Bảng popup có class riêng để theme Mochi Pro không bị các màu inline cũ che lấp. */
+function renderZeroBalanceModalTable(items = [], { page = 1, pageSize = 20 } = {}) {
+  const startIndex = (Math.max(1, Number(page) || 1) - 1) * pageSize
+  const rows = items.map((item, index) => {
+    const fullName = escapeHtml(item?.fullName || item?.username || '')
+    const className = escapeHtml(item?.className || 'Chưa phân lớp')
+    const studentId = escapeHtml(item?.id || '')
+
+    return `
+      <tr>
+        <td class="zb-table-index">${startIndex + index + 1}</td>
+        <td class="zb-table-name">${fullName}</td>
+        <td class="zb-table-class"><span title="${className}">${className}</span></td>
+        <td class="zb-table-action">
+          <button
+            type="button"
+            class="btn-secondary"
+            data-zb-topup="${studentId}"
+            data-zb-name="${fullName}"
+            title="Nạp nhanh cho ${fullName}"
+            style="width:auto; padding:5px 10px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:5px; color:#b45309; border-color:#fcd34d; background:#fffbeb; white-space:nowrap;"
+          >
+            <i class="fa-solid fa-bolt" style="font-size:10px;"></i> Nạp nhanh
+          </button>
+        </td>
+      </tr>`
+  }).join('')
+
+  return `
+    <div class="table-responsive zb-table-responsive">
+      <table class="data-table zb-table">
+        <thead>
+          <tr><th>STT</th><th>Họ tên</th><th>Lớp học</th><th>Nạp nhanh</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`
+}
+
 /**
  * Tải số học sinh có số dư 0 đ (toàn hệ thống, không theo bộ lọc dashboard).
  * Dùng request id để response cũ không ghi đè request mới.
@@ -314,7 +354,9 @@ async function loadZeroBalancePage(page = 1) {
 
     zeroBalanceListItems = items
     currentListEl.innerHTML = items.length > 0
-      ? renderZeroBalanceTable(items, { page: pagination.currentPage, pageSize: pagination.pageSize })
+      ? (isAdminProUI()
+        ? renderZeroBalanceModalTable(items, { page: pagination.currentPage, pageSize: pagination.pageSize })
+        : renderZeroBalanceTable(items, { page: pagination.currentPage, pageSize: pagination.pageSize }))
       : renderZeroBalanceEmpty()
 
     if (currentPaginationEl) {
@@ -356,8 +398,8 @@ function openZeroBalanceModal({ page = 1 } = {}) {
       bodyStyle: 'flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden;',
       // Vỏ modal là flex column => header/footer giữ nguyên kích thước, không bị bóp méo
       shellFlex: true,
-      // Class riêng (nếu CSS đã cập nhật thì dùng thêm các quy tắc mở rộng)
-      contentClass: 'zb-popup'
+      // Giữ zb-popup cho bố cục/flex/scroll classic; Pro chỉ bổ sung hook theme.
+      contentClass: isAdminProUI() ? 'zb-popup ap-zero-balance-modal' : 'zb-popup'
     }
   )
 
@@ -1144,8 +1186,6 @@ function renderProAdminDashboardView() {
     ['Tổng học sinh', overview.totalStudents || 0, 'fa-users', 'accent', 'Xem danh sách', "window.location.hash='#students'"],
     ['Lớp học đang mở', overview.totalClasses || 0, 'fa-book-open', 'blue', 'Quản lý lớp', "window.location.hash='#classes-admin'"],
     ['Tổng buổi đã dạy', `${overview.totalTaughtSessions || 0} buổi`, 'fa-calendar-check', 'ok', 'Theo điểm danh', ''],
-    ['Lượt nộp bài tập', overview.totalSubmissions || 0, 'fa-file-pen', 'pink', `${overview.onTimeRate || 100}% đúng hạn`, "window.location.hash='#homework-mgmt'"],
-    ['Điểm trung bình', `${avgScore.toFixed(1)} / 10`, 'fa-star', 'warn', `Tỷ lệ đạt ${overview.passRate || 0}%`, ''],
     ['Học phí đã thu', `${totalPaid.toLocaleString('vi-VN')} đ`, 'fa-wallet', 'ok', `${collectionRate}% học phí phát sinh`, ''],
     ['Học phí phát sinh', `${totalTuition.toLocaleString('vi-VN')} đ`, 'fa-receipt', 'blue', 'Theo buổi đã điểm danh', ''],
     ['Công nợ / chưa đóng', `${totalUnpaid.toLocaleString('vi-VN')} đ`, 'fa-triangle-exclamation', 'warn', 'Cần theo dõi', '']

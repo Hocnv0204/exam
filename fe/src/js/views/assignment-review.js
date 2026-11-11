@@ -83,23 +83,25 @@ export function renderClassicAssignmentReviewView() {
     `
   }
 
-  const sub = result.submission || {
-    id: result.submissionId || result.id,
-    homeworkTitle: result.homeworkTitle || result.homework?.title,
-    score: result.score !== undefined ? result.score : result.total_score,
-    maxScore: result.maxScore || result.max_score,
-    passScore: result.passScore || result.pass_score,
-    correctCount: result.correctCount || result.correct_count,
-    wrongCount: result.wrongCount || result.wrong_count,
-    submittedAt: result.submittedAt || result.submitted_at,
-    isLate: result.isLate || result.is_late,
-    pdfUrl: result.pdfUrl || result.pdf_url,
-    showSolutions: result.showSolutions !== undefined ? result.showSolutions : result.show_solutions,
-    student: result.student || result.profiles,
-    guest_name: result.guest_name || result.guestName,
-    guest_phone: result.guest_phone || result.guestPhone,
-    durationSecondsTaken: result.durationSecondsTaken || result.duration_seconds_taken,
-    bonus_score: result.bonus_score !== undefined ? result.bonus_score : result.bonusScore
+  const resultSubmission = result.submission || {}
+  const sub = {
+    ...resultSubmission,
+    id: resultSubmission.id ?? result.submissionId ?? result.id,
+    homeworkTitle: resultSubmission.homeworkTitle ?? result.homeworkTitle ?? result.homework?.title,
+    score: resultSubmission.score ?? result.score ?? result.total_score,
+    maxScore: resultSubmission.maxScore ?? result.maxScore ?? result.max_score,
+    passScore: resultSubmission.passScore ?? result.passScore ?? result.pass_score,
+    correctCount: resultSubmission.correctCount ?? resultSubmission.correct_count ?? result.correctCount ?? result.correct_count ?? 0,
+    wrongCount: resultSubmission.wrongCount ?? resultSubmission.wrong_count ?? result.wrongCount ?? result.wrong_count ?? 0,
+    submittedAt: resultSubmission.submittedAt ?? result.submittedAt ?? result.submitted_at,
+    isLate: resultSubmission.isLate ?? result.isLate ?? result.is_late,
+    pdfUrl: resultSubmission.pdfUrl ?? result.pdfUrl ?? result.pdf_url,
+    showSolutions: resultSubmission.showSolutions ?? result.showSolutions ?? result.show_solutions,
+    student: resultSubmission.student ?? result.student ?? result.profiles,
+    guest_name: resultSubmission.guest_name ?? resultSubmission.guestName ?? result.guest_name ?? result.guestName,
+    guest_phone: resultSubmission.guest_phone ?? resultSubmission.guestPhone ?? result.guest_phone ?? result.guestPhone,
+    durationSecondsTaken: resultSubmission.durationSecondsTaken ?? result.durationSecondsTaken ?? result.duration_seconds_taken,
+    bonus_score: resultSubmission.bonus_score ?? resultSubmission.bonusScore ?? result.bonus_score ?? result.bonusScore
   }
 
   const studentInfo = result.student || sub.student || sub.profiles || result.profiles || {}

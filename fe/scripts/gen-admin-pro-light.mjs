@@ -87,7 +87,10 @@ for (const f of files) {
       const p = prop === 'background-color' ? 'background' : prop
       // Chỉ sửa CHỮ màu pastel (sinh ra cho nền tối) → token đậm cùng sắc độ. Nền, viền, chữ trắng/xám
       // đã được tokens/components xử lý; map chúng làm hỏng tab/nút đang chọn (chữ trắng trên nền accent).
-      if (p !== 'color' || family(c).endsWith('gray') || hsl(c).l <= 0.55) continue
+      // Ngoại lệ: rule ánh xạ style inline trong modal ([style*="color:#0f172a"] → #f1f5f9 !important)
+      // ép chữ xám sáng cả ở chế độ Sáng → chữ trắng trên nền trắng. Map nhóm này về --ap-ink/--ap-muted.
+      const inlineNeutral = p === 'color' && sel.includes('[style') && family(c) === 'light-gray'
+      if (!inlineNeutral && (p !== 'color' || family(c).endsWith('gray') || hsl(c).l <= 0.55)) continue
       mapped.push(`${p === 'background' ? 'background' : p}: ${mapValue(p, c, solidBg)} !important`)
     }
     if (!mapped.length) continue
