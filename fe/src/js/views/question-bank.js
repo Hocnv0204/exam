@@ -1,6 +1,7 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
+import { mochiConfirm } from '../components/mochi-dialog.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderHomeworkConfigFields, bindHomeworkConfigFields, bindHomeworkTypeCoupling, collectHomeworkConfig } from '../components/homework-config-fields.js'
@@ -2125,7 +2126,13 @@ function bindQuestionCardEvents(container) {
       const qId = btn.getAttribute('data-id')
       if (!qId) return
 
-      if (!confirm('Bạn có chắc chắn muốn xóa câu hỏi này khỏi Ngân hàng? Hành động này không thể hoàn tác.')) {
+      if (!(await mochiConfirm({
+        title: 'Xóa câu hỏi?',
+        message: 'Bạn có chắc chắn muốn xóa câu hỏi này khỏi Ngân hàng? Hành động này không thể hoàn tác.',
+        confirmLabel: 'Xóa câu hỏi',
+        cancelLabel: 'Hủy',
+        tone: 'danger'
+      }))) {
         return
       }
 
@@ -3456,7 +3463,13 @@ async function openTaxonomyManagementModal() {
         }
         const label = typeLabels[type] || 'mục'
 
-        if (!confirm(`Bạn có chắc chắn muốn xóa ${label} "${name}" khỏi danh mục Constant?\n\nLưu ý: Chỉ xóa được nếu không chứa danh mục con hoặc câu hỏi liên kết.`)) {
+        if (!(await mochiConfirm({
+          title: `Xóa ${label}?`,
+          message: `Bạn có chắc chắn muốn xóa ${label} "${name}" khỏi danh mục Constant?\n\nLưu ý: Chỉ xóa được nếu không chứa danh mục con hoặc câu hỏi liên kết.`,
+          confirmLabel: `Xóa ${label}`,
+          cancelLabel: 'Hủy',
+          tone: 'danger'
+        }))) {
           return
         }
 
@@ -3752,7 +3765,13 @@ function setupHeaderActionListeners() {
     }
     const ids = Array.from(selectedQuestionIds)
     const count = ids.length
-    if (!confirm(`Bạn có chắc chắn muốn xóa ${count} câu hỏi đã chọn khỏi Ngân hàng đề? Hành động này không thể hoàn tác!`)) {
+    if (!(await mochiConfirm({
+      title: 'Xóa câu hỏi hàng loạt?',
+      message: `Bạn có chắc chắn muốn xóa ${count} câu hỏi đã chọn khỏi Ngân hàng đề? Hành động này không thể hoàn tác!`,
+      confirmLabel: `Xóa ${count} câu hỏi`,
+      cancelLabel: 'Hủy',
+      tone: 'danger'
+    }))) {
       return
     }
 

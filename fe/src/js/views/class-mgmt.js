@@ -2,6 +2,7 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
+import { mochiConfirm } from '../components/mochi-dialog.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { isAdminProUI } from '../ui-flag.js'
@@ -726,7 +727,13 @@ export async function showGradeBlockManagementModal() {
       btn.onclick = async () => {
         const id = btn.getAttribute('data-id')
         const name = btn.getAttribute('data-name')
-        if (!confirm(`Bạn có chắc muốn xóa khối "${name}"?`)) return
+        if (!(await mochiConfirm({
+          title: 'Xóa khối học?',
+          message: `Bạn có chắc muốn xóa khối "${name}"?`,
+          confirmLabel: 'Xóa',
+          cancelLabel: 'Hủy',
+          tone: 'danger'
+        }))) return
 
         try {
           showToast('Đang xóa khối...', 'info')
@@ -939,7 +946,13 @@ function bindClassTableActionEvents() {
     btn.onclick = async () => {
       const id = btn.getAttribute('data-id')
       const name = btn.getAttribute('data-name')
-      if (confirm(`Bạn có chắc chắn muốn xóa lớp học ${name}?`)) {
+      if (await mochiConfirm({
+        title: 'Xóa lớp học?',
+        message: `Bạn có chắc chắn muốn xóa lớp học ${name}?`,
+        confirmLabel: 'Xóa',
+        cancelLabel: 'Hủy',
+        tone: 'danger'
+      })) {
         try {
           showToast('Đang xóa lớp học...', 'info')
           await api.deleteClass(id)

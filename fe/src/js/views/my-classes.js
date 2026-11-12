@@ -5,6 +5,7 @@ import { state } from '../state.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
 import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
+import { mochiConfirm } from '../components/mochi-dialog.js'
 import { api, SUPABASE_URL } from '../api.js'
 import { downloadHomeworkPdf, escapeHtml } from '../utils/download-helper.js'
 import { canViewHomeworkPdf } from '../utils/homework-pdf-policy.js'
@@ -1351,7 +1352,13 @@ export async function loadInprogressDrafts() {
     `
     container.querySelectorAll('.btn-discard-draft').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Xóa bản nháp này? Bài làm dở sẽ mất.')) return
+        if (!(await mochiConfirm({
+          title: 'Xóa bản nháp?',
+          message: 'Xóa bản nháp này? Bài làm dở sẽ mất.',
+          confirmLabel: 'Xóa bản nháp',
+          cancelLabel: 'Hủy',
+          tone: 'danger'
+        }))) return
         const hwId = btn.getAttribute('data-id')
         try {
           await api.deleteDraft(hwId)

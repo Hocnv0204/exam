@@ -14,6 +14,7 @@ import { downloadHomeworkPdf } from '../utils/download-helper.js'
 import { exportExamPdf } from '../utils/exam-print.js'
 import { renderCurriculumTabHTML, bindCurriculumTabEvents, ensureCurriculumLoaded } from './curriculum.js'
 import { isAdminProUI } from '../ui-flag.js'
+import { mochiConfirm, mochiPrompt } from '../components/mochi-dialog.js'
 
 if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
 
@@ -2126,6 +2127,22 @@ function applyDebtSummary(classId, currentClass, debtList) {
   }
 }
 
+// Chống bấm lặp cho thao tác tiền / xoá: khoá nút từ lúc bấm (kể cả lúc chờ hộp thoại xác nhận)
+// tới khi xử lý xong. Nút có thể bị render lại sau khi tải lại dữ liệu — finally vẫn an toàn.
+async function withBusyButton(btn, fn) {
+  if (!btn || btn.dataset.busy === 'true') return
+  btn.dataset.busy = 'true'
+  btn.disabled = true
+  btn.setAttribute('aria-busy', 'true')
+  try {
+    return await fn()
+  } finally {
+    delete btn.dataset.busy
+    btn.disabled = false
+    btn.removeAttribute('aria-busy')
+  }
+}
+
 // Tab Điểm danh: lịch sử các buổi học (phân trang + lọc tháng ở server)
 function loadAttendanceScope(classId, currentClass, force = false) {
   const key = scopeKey(classId, `attendance:${attendanceMonth}:${attendancePage}`)
@@ -2359,11 +2376,16 @@ function bindStudentsTabEvents(classId, currentClass) {
 
   // Remove student from class
   document.querySelectorAll('.btn-remove-from-class').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = () => withBusyButton(btn, async () => {
       const studentId = btn.getAttribute('data-student-id')
       const studentName = btn.getAttribute('data-student-name')
 
-      if (confirm(`Bạn có chắc chắn muốn xóa học sinh "${studentName}" ra khỏi lớp học này?`)) {
+      if (await mochiConfirm({
+        title: 'Xóa học sinh?',
+        message: `Bạn có chắc chắn muốn xóa học sinh "${studentName}" ra khỏi lớp học này?`,
+        confirmLabel: 'Xóa',
+        tone: 'danger'
+      })) {
         try {
           showToast('Đang xóa học sinh khỏi lớp...', 'info')
           await api.removeStudentFromClass(classId, studentId)
@@ -2384,7 +2406,7 @@ function bindStudentsTabEvents(classId, currentClass) {
           showToast(`Xóa thất bại: ${e.message}`, 'error')
         }
       }
-    }
+    })
   })
 }
 
@@ -2603,15 +2625,17 @@ function bindAttendanceTabEvents(classId, currentClass) {
 
   // Nút Xóa buổi điểm danh
   document.querySelectorAll('.btn-delete-attendance').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = () => withBusyButton(btn, async () => {
       const sessionId = btn.getAttribute('data-session-id')
       const classIdAttr = btn.getAttribute('data-class-id') || classId
       const sessionDate = btn.getAttribute('data-session-date')
       const date = btn.getAttribute('data-date')
-      if (!confirm(`Bạn có chắc chắn muốn xóa buổi điểm danh ngày ${date}? Toàn bộ dữ liệu điểm danh và khoản phí liên quan sẽ được gỡ bỏ.`)) return
-      if (btn.dataset.deleting === 'true') return
-      btn.dataset.deleting = 'true'
-      btn.disabled = true
+      if (!(await mochiConfirm({
+        title: 'Xóa buổi điểm danh?',
+        message: `Bạn có chắc chắn muốn xóa buổi điểm danh ngày ${date}? Toàn bộ dữ liệu điểm danh và khoản phí liên quan sẽ được gỡ bỏ.`,
+        confirmLabel: 'Xóa',
+        tone: 'danger'
+      }))) return
 
       showToast('Đang xóa buổi điểm danh...', 'info')
       try {
@@ -2627,11 +2651,8 @@ function bindAttendanceTabEvents(classId, currentClass) {
         ])
       } catch (err) {
         showToast(`Xóa thất bại: ${err.message}`, 'error')
-      } finally {
-        delete btn.dataset.deleting
-        btn.disabled = false
       }
-    }
+    })
   })
 
   if (isAdminProUI()) bindProAttendanceExtras(classId)
@@ -2942,7 +2963,12 @@ async function showAttendanceModal(classId, currentClass, initialDate) {
       })
 
       if (hasUncheckedPaidStudent) {
-        if (!confirm('Cảnh báo: Có học sinh đã ĐÓNG HỌC PHÍ bị đánh dấu vắng mặt. Bạn có chắc chắn muốn bỏ tích học sinh này không?')) {
+        if (!(await mochiConfirm({
+          title: 'Cảnh báo học phí',
+          message: 'Cảnh báo: Có học sinh đã ĐÓNG HỌC PHÍ bị đánh dấu vắng mặt. Bạn có chắc chắn muốn bỏ tích học sinh này không?',
+          confirmLabel: 'Tiếp tục',
+          tone: 'warning'
+        }))) {
           return false
         }
       }
@@ -3114,12 +3140,17 @@ function bindTuitionTabEvents(classId, currentClass) {
 
   // Collect single student's debt
   document.querySelectorAll('.btn-collect-student-tuition').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = () => withBusyButton(btn, async () => {
       const studentId = btn.getAttribute('data-student-id')
       const studentName = btn.getAttribute('data-student-name')
       const debt = Number(btn.getAttribute('data-debt') || 0)
 
-      if (!confirm(`Xác nhận đã thu toàn bộ học phí nợ (${debt.toLocaleString('vi-VN')} VND) của học sinh "${studentName}"?`)) return
+      if (!(await mochiConfirm({
+        title: 'Xác nhận thu học phí',
+        message: `Xác nhận đã thu toàn bộ học phí nợ (${debt.toLocaleString('vi-VN')} VND) của học sinh "${studentName}"?`,
+        confirmLabel: 'Xác nhận thu',
+        tone: 'danger'
+      }))) return
 
       showToast('Đang cập nhật trạng thái học phí...', 'info')
       try {
@@ -3129,7 +3160,7 @@ function bindTuitionTabEvents(classId, currentClass) {
       } catch (err) {
         showToast(`Thu học phí thất bại: ${err.message}`, 'error')
       }
-    }
+    })
   })
 
   // Collect all debt for entire class
@@ -3137,7 +3168,12 @@ function bindTuitionTabEvents(classId, currentClass) {
   if (collectAllBtn) {
     collectAllBtn.onclick = async () => {
       if (collectAllBtn.disabled) return
-      if (!confirm('Bạn có chắc chắn muốn đánh dấu đã đóng học phí cho TẤT CẢ các học sinh còn nợ trong lớp?')) return
+      if (!(await mochiConfirm({
+        title: 'Xác nhận thu học phí',
+        message: 'Bạn có chắc chắn muốn đánh dấu đã đóng học phí cho TẤT CẢ các học sinh còn nợ trong lớp?',
+        confirmLabel: 'Xác nhận thu',
+        tone: 'danger'
+      }))) return
 
       collectAllBtn.disabled = true
       collectAllBtn.style.opacity = '0.6'
@@ -3221,12 +3257,24 @@ function bindTuitionTabEvents(classId, currentClass) {
 
   // Waive all unpaid debt of a student
   document.querySelectorAll('.btn-waive-student-tuition').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = () => withBusyButton(btn, async () => {
       const studentId = btn.getAttribute('data-student-id')
       const studentName = btn.getAttribute('data-student-name')
-      const reason = prompt(`Nhập lý do miễn học phí cho "${studentName}" (để trống nếu không cần):`, '')
+      const reason = await mochiPrompt({
+        title: 'Miễn học phí',
+        message: `Nhập lý do miễn học phí cho "${studentName}" (để trống nếu không cần):`,
+        label: 'Lý do miễn học phí',
+        defaultValue: '',
+        confirmLabel: 'Tiếp tục',
+        tone: 'warning'
+      })
       if (reason === null) return
-      if (!confirm(`Xác nhận MIỄN toàn bộ nợ còn lại của "${studentName}"?`)) return
+      if (!(await mochiConfirm({
+        title: 'Xác nhận miễn học phí',
+        message: `Xác nhận MIỄN toàn bộ nợ còn lại của "${studentName}"?`,
+        confirmLabel: 'Xác nhận miễn',
+        tone: 'danger'
+      }))) return
       showToast('Đang miễn học phí...', 'info')
       try {
         await api.waiveTuition({ classId, studentId, reason: reason || '' })
@@ -3235,7 +3283,7 @@ function bindTuitionTabEvents(classId, currentClass) {
       } catch (err) {
         showToast(`Miễn thất bại: ${err.message}`, 'error')
       }
-    }
+    })
   })
 
   // Open global ledger page filtered to this class
@@ -3360,10 +3408,17 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
       }
     })
     document.querySelectorAll('.btn-waive-session-payment').forEach(btn => {
-      btn.onclick = async () => {
+      btn.onclick = () => withBusyButton(btn, async () => {
         const recordId = btn.getAttribute('data-record-id')
         if (!recordId) return
-        const reason = prompt('Nhập lý do miễn buổi này (để trống nếu không cần):', '')
+        const reason = await mochiPrompt({
+          title: 'Miễn học phí',
+          message: 'Nhập lý do miễn buổi này (để trống nếu không cần):',
+          label: 'Lý do miễn học phí',
+          defaultValue: '',
+          confirmLabel: 'Xác nhận miễn',
+          tone: 'warning'
+        })
         if (reason === null) return
         showToast('Đang miễn buổi học...', 'info')
         try {
@@ -3374,7 +3429,7 @@ function showStudentSessionDebtModal(classId, currentClass, studentId, studentNa
         } catch (err) {
           showToast(`Lỗi: ${err.message}`, 'error')
         }
-      }
+      })
     })
   }, 100)
 }
@@ -3624,7 +3679,12 @@ function bindSettingsTabEvents(classId, currentClass) {
     archiveBtn.onclick = async () => {
       const isArchived = !currentClass.is_archived
       const actionText = isArchived ? 'lưu trữ' : 'hủy lưu trữ'
-      if (!confirm(`Bạn có chắc muốn ${actionText} lớp học này?`)) return
+      if (!(await mochiConfirm({
+        title: `Xác nhận ${actionText} lớp`,
+        message: `Bạn có chắc muốn ${actionText} lớp học này?`,
+        confirmLabel: actionText === 'lưu trữ' ? 'Lưu trữ' : 'Hủy lưu trữ',
+        tone: 'primary'
+      }))) return
 
       showToast(`Đang ${actionText} lớp học...`, 'info')
       try {
@@ -3641,8 +3701,13 @@ function bindSettingsTabEvents(classId, currentClass) {
   // 4. Permanent delete class
   const deleteBtn = document.getElementById('btn-delete-class-permanent')
   if (deleteBtn) {
-    deleteBtn.onclick = async () => {
-      if (confirm(`CẢNH BÁO NGUY HIỂM: Bạn có chắc chắn muốn xóa VĨNH VIỄN lớp học "${currentClass.name}"? Toàn bộ bài tập, dữ liệu điểm danh và thông tin lớp sẽ bị xóa hoàn toàn.`)) {
+    deleteBtn.onclick = () => withBusyButton(deleteBtn, async () => {
+      if (await mochiConfirm({
+        title: 'Xóa vĩnh viễn lớp học?',
+        message: `CẢNH BÁO NGUY HIỂM: Bạn có chắc chắn muốn xóa VĨNH VIỄN lớp học "${currentClass.name}"? Toàn bộ bài tập, dữ liệu điểm danh và thông tin lớp sẽ bị xóa hoàn toàn.`,
+        confirmLabel: 'Xóa vĩnh viễn',
+        tone: 'danger'
+      })) {
         showToast('Đang xóa lớp học...', 'info')
         try {
           await api.deleteClass(classId)
@@ -3653,7 +3718,7 @@ function bindSettingsTabEvents(classId, currentClass) {
           showToast(`Xóa thất bại: ${err.message}`, 'error')
         }
       }
-    }
+    })
   }
 }
 
@@ -3805,7 +3870,12 @@ function renderTelegramConfigUI(classId, config, container) {
   const unlinkBtn = container.querySelector('.btn-unlink-telegram')
   if (unlinkBtn) {
     unlinkBtn.onclick = async () => {
-      if (!confirm('Bạn có chắc muốn hủy liên kết Telegram của lớp học này?')) return
+      if (!(await mochiConfirm({
+        title: 'Hủy liên kết Telegram?',
+        message: 'Bạn có chắc muốn hủy liên kết Telegram của lớp học này?',
+        confirmLabel: 'Hủy liên kết',
+        tone: 'primary'
+      }))) return
       showToast('Đang hủy liên kết...', 'info')
       try {
         await api.deleteTelegramConfig(classId)

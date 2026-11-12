@@ -1,3 +1,5 @@
+import { isMochiUI } from '../ui-flag.js'
+import { showToast } from './toast.js'
 /**
  * Mở modal dùng chung (chỉ 1 modal tại 1 thời điểm).
  *
@@ -41,6 +43,13 @@ export function openModal(title, bodyHTML, onConfirm = null, options = {}) {
     container = document.createElement('div')
     container.id = 'modal-container'
     document.body.appendChild(container)
+  }
+  // Trang công khai Mochi (lộ trình/học thử): popup nằm ngoài gốc .m-roadmap → mang theo chế độ màu
+  // để CSS popup Mochi (mochi/components.css + tokens.css) áp dụng. Trang khác: bỏ thuộc tính.
+  const publicMochiRoot = document.querySelector?.('.m-roadmap[data-roadmap-theme]')
+  if (container.dataset) {
+    if (publicMochiRoot) container.dataset.mochiTheme = publicMochiRoot.dataset.roadmapTheme
+    else delete container.dataset.mochiTheme
   }
 
   const token = ++activeModalToken
@@ -122,7 +131,7 @@ export function closeModal() {
 window.openModal = openModal
 window.closeModal = closeModal
 
-export function showTrialRegistrationModal() {
+function showClassicTrialRegistrationModal() {
   openModal(
     'Đăng ký khóa học',
     `
@@ -140,7 +149,7 @@ export function showTrialRegistrationModal() {
           <a href="https://zalo.me/0349097659" target="_blank" rel="noopener noreferrer" class="btn-primary" style="padding:10px 22px; font-size:14px; font-weight:700; border-radius:8px; display:inline-flex; align-items:center; gap:8px; text-decoration:none; background:#0068ff; border-color:#0068ff; box-shadow:0 4px 14px rgba(0,104,255,0.25);">
             <i class="fa-solid fa-comment-dots"></i> Nhắn tin qua Zalo
           </a>
-          <button type="button" class="btn-secondary" onclick="navigator.clipboard && navigator.clipboard.writeText('0349097659').then(() => alert('Đã sao chép SĐT Zalo: 0349097659'))" style="padding:10px 16px; font-size:14px; font-weight:600; border-radius:8px; cursor:pointer;">
+          <button type="button" class="btn-secondary" onclick="window.copyZaloPhone()" style="padding:10px 16px; font-size:14px; font-weight:600; border-radius:8px; cursor:pointer;">
             <i class="fa-regular fa-copy"></i> 0349097659
           </button>
         </div>
@@ -148,4 +157,40 @@ export function showTrialRegistrationModal() {
     `
   )
 }
+
+const ZALO_PHONE = '0349097659'
+
+function copyZaloPhone() {
+  const done = () => showToast(`Đã sao chép SĐT Zalo: ${ZALO_PHONE}`, 'success')
+  try {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ZALO_PHONE).then(done, () => showToast(`SĐT Zalo: ${ZALO_PHONE}`, 'info'))
+    else showToast(`SĐT Zalo: ${ZALO_PHONE}`, 'info')
+  } catch (_) { showToast(`SĐT Zalo: ${ZALO_PHONE}`, 'info') }
+}
+window.copyZaloPhone = copyZaloPhone
+
+export function showTrialRegistrationModal() {
+  if (!isMochiUI()) return showClassicTrialRegistrationModal()
+  openModal(
+    'Đăng ký khóa học',
+    `
+      <div class="m-reg">
+        <div class="m-reg-icon" aria-hidden="true"><i class="fa-solid fa-comments"></i></div>
+        <h3 class="m-reg-title">Liên hệ admin qua Zalo ${ZALO_PHONE} để đăng ký học</h3>
+        <p class="m-reg-text">Quản trị viên sẽ hỗ trợ tư vấn lộ trình học tập phù hợp và cấp tài khoản chính thức cho bạn trong ít phút.</p>
+        <div class="m-reg-actions">
+          <a href="https://zalo.me/${ZALO_PHONE}" target="_blank" rel="noopener noreferrer" class="btn-primary m-reg-zalo">
+            <i class="fa-solid fa-comment-dots" aria-hidden="true"></i> Nhắn tin qua Zalo
+          </a>
+          <button type="button" class="btn-secondary m-reg-copy" onclick="window.copyZaloPhone()" aria-label="Sao chép số điện thoại Zalo ${ZALO_PHONE}">
+            <i class="fa-regular fa-copy" aria-hidden="true"></i> ${ZALO_PHONE}
+          </button>
+        </div>
+      </div>
+    `,
+    null,
+    { cancelLabel: 'Đóng' }
+  )
+}
+
 window.showTrialRegistrationModal = showTrialRegistrationModal

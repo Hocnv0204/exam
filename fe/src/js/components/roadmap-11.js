@@ -1,3 +1,5 @@
+import { mochiConfirm } from './mochi-dialog.js'
+
 // ==========================================================================
 // ROADMAP HÓA 11 - KẾT NỐI TRI THỨC (35 TUẦN)
 // Template đồng bộ với Lộ trình Hóa 12
@@ -1148,9 +1150,15 @@ export function bindRoadmap11Events(root, options = {}) {
     })
   })
 
-  root.querySelector('[data-reset="1"]')?.addEventListener('click', () => {
+  root.querySelector('[data-reset="1"]')?.addEventListener('click', async () => {
     if (done.size === 0) return
-    if (confirm('Bạn có chắc chắn muốn xóa toàn bộ tiến độ bài học Hóa 11 đã đánh dấu?')) {
+    if (await mochiConfirm({
+      title: 'Xóa tiến độ?',
+      message: 'Bạn có chắc chắn muốn xóa toàn bộ tiến độ bài học Hóa 11 đã đánh dấu?',
+      confirmLabel: 'Xóa tiến độ',
+      cancelLabel: 'Hủy',
+      tone: 'danger'
+    })) {
       done.clear()
       save()
       updateProgress()

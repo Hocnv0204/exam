@@ -2,6 +2,7 @@ import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
+import { mochiConfirm } from '../components/mochi-dialog.js'
 import { state } from '../state.js'
 import { api, SUPABASE_URL } from '../api.js'
 import { renderPdfViewer } from '../components/pdf-viewer.js'
@@ -2031,7 +2032,13 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         return
       }
 
-      if (confirm(`Bạn có chắc chắn muốn xóa bài học "${lesson.title}"?`)) {
+      if (await mochiConfirm({
+        title: 'Xóa bài học?',
+        message: `Bạn có chắc chắn muốn xóa bài học "${lesson.title}"?`,
+        confirmLabel: 'Xóa bài học',
+        cancelLabel: 'Hủy',
+        tone: 'danger'
+      })) {
         try {
           showToast('Đang xóa bài học...', 'info')
           await api.deleteLesson(lessonId)
@@ -2074,7 +2081,13 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation()
       const chId = btn.getAttribute('data-id')
-      if (confirm('Bạn có chắc chắn muốn xóa chương này cùng toàn bộ các bài học bên trong?')) {
+      if (await mochiConfirm({
+        title: 'Xóa chương học?',
+        message: 'Bạn có chắc chắn muốn xóa chương này cùng toàn bộ các bài học bên trong?',
+        confirmLabel: 'Xóa chương',
+        cancelLabel: 'Hủy',
+        tone: 'danger'
+      })) {
         try {
           showToast('Đang xóa chương học...', 'info')
           await api.deleteChapter(chId)

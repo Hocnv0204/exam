@@ -3,6 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { openModal } from '../components/modal.js'
 import { openTopupModal } from '../components/topup-modal.js'
 import { showToast } from '../components/toast.js'
+import { mochiConfirm } from '../components/mochi-dialog.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
@@ -981,7 +982,13 @@ function bindTableActionEvents() {
     btn.onclick = async () => {
       const id = btn.getAttribute('data-id')
       const name = btn.getAttribute('data-name')
-      if (!confirm(`Tạm khóa tài khoản "${name}"?\nHọc sinh sẽ không đăng nhập được và chuyển sang Tạm nghỉ ở các lớp.`)) return
+      if (!(await mochiConfirm({
+        title: 'Tạm khóa tài khoản?',
+        message: `Tạm khóa tài khoản "${name}"?\nHọc sinh sẽ không đăng nhập được và chuyển sang Tạm nghỉ ở các lớp.`,
+        confirmLabel: 'Khóa tài khoản',
+        cancelLabel: 'Hủy',
+        tone: 'danger'
+      }))) return
       try {
         showToast('Đang tạm khóa tài khoản...', 'info')
         await api.setUserLock(id, true)
@@ -997,7 +1004,13 @@ function bindTableActionEvents() {
     btn.onclick = async () => {
       const id = btn.getAttribute('data-id')
       const name = btn.getAttribute('data-name')
-      if (!confirm(`Mở khóa tài khoản "${name}"?\nHọc sinh đăng nhập lại được và chuyển về Đang học.`)) return
+      if (!(await mochiConfirm({
+        title: 'Mở khóa tài khoản?',
+        message: `Mở khóa tài khoản "${name}"?\nHọc sinh đăng nhập lại được và chuyển về Đang học.`,
+        confirmLabel: 'Mở khóa',
+        cancelLabel: 'Hủy',
+        tone: 'primary'
+      }))) return
       try {
         showToast('Đang mở khóa tài khoản...', 'info')
         await api.setUserLock(id, false)
@@ -1036,7 +1049,13 @@ function bindTableActionEvents() {
     btn.onclick = async () => {
       const id = btn.getAttribute('data-id')
       const name = btn.getAttribute('data-name')
-      if (confirm(`Bạn có chắc chắn muốn xóa học sinh ${name}?`)) {
+      if (await mochiConfirm({
+        title: 'Xóa học sinh?',
+        message: `Bạn có chắc chắn muốn xóa học sinh ${name}?`,
+        confirmLabel: 'Xóa',
+        cancelLabel: 'Hủy',
+        tone: 'danger'
+      })) {
         try {
           showToast('Đang xóa học sinh...', 'info')
           await api.deleteStudent(id)

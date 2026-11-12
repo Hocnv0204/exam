@@ -1,0 +1,164 @@
+/* Hộp thoại Mochi (components/mochi-dialog.js). Mọi rule nằm dưới #m-dialog-root.
+   Biến --d-* lấy theo ngữ cảnh: mặc định = Mochi Sáng; data-mochi-theme (trang công khai);
+   học sinh Mochi (--m-*); admin Pro (--ap-*, theo chế độ màu admin). */
+
+#m-dialog-root {
+  --d-bg:#FFF8F1;--d-surface:#FFFFFF;--d-surface2:#F3EEFF;--d-ink:#2B2340;--d-muted:#625A78;--d-accent:#6A4CF0;--d-accent-ink:#FFFFFF;--d-accent-soft:#E9E3FF;--d-accent2:#D63B78;--d-accent2-soft:#FFE1EC;--d-line:#E4DCF5;--d-ok:#167A54;--d-ok-soft:#DDF5EA;--d-warn:#A93A0C;--d-warn-soft:#FFE8DA;--d-block:#DCD2F3;
+  --d-danger:#B4233F;--d-danger-soft:#FFE4E8;
+}
+
+#m-dialog-root[data-mochi-theme="light"] {
+  --d-bg:#FFF8F1;--d-surface:#FFFFFF;--d-surface2:#F3EEFF;--d-ink:#2B2340;--d-muted:#625A78;--d-accent:#6A4CF0;--d-accent-ink:#FFFFFF;--d-accent-soft:#E9E3FF;--d-accent2:#D63B78;--d-accent2-soft:#FFE1EC;--d-line:#E4DCF5;--d-ok:#167A54;--d-ok-soft:#DDF5EA;--d-warn:#A93A0C;--d-warn-soft:#FFE8DA;--d-block:#DCD2F3;
+  --d-danger:#B4233F;--d-danger-soft:#FFE4E8;
+}
+
+#m-dialog-root[data-mochi-theme="dark"] {
+  --d-bg:#141127;--d-surface:#1E1A38;--d-surface2:#28224A;--d-ink:#F4F0FF;--d-muted:#B9B0DA;--d-accent:#A18DFF;--d-accent-ink:#141127;--d-accent-soft:#332A63;--d-accent2:#FF8FB8;--d-accent2-soft:#4A2440;--d-line:#3A3166;--d-ok:#5FD4A3;--d-ok-soft:#1D3A33;--d-warn:#FFAD7A;--d-warn-soft:#45291C;--d-block:#0B0918;
+  --d-danger:#FF8A9E;--d-danger-soft:#4A1F2A;
+}
+
+#m-dialog-root[data-mochi-theme="sakura"] {
+  --d-bg:#FFF1F6;--d-surface:#FFFFFF;--d-surface2:#FFE4EF;--d-ink:#3A1E2E;--d-muted:#74505F;--d-accent:#C2285F;--d-accent-ink:#FFFFFF;--d-accent-soft:#FFD9E7;--d-accent2:#6B4BD8;--d-accent2-soft:#ECE6FF;--d-line:#F6CFDF;--d-ok:#167A54;--d-ok-soft:#DDF5EA;--d-warn:#A93A0C;--d-warn-soft:#FFE8DA;--d-block:#F2C2D5;
+  --d-danger:#B4233F;--d-danger-soft:#FFE4E8;
+}
+
+#m-dialog-root[data-mochi-theme="mint"] {
+  --d-bg:#EDFAF5;--d-surface:#FFFFFF;--d-surface2:#DDF5EC;--d-ink:#0F3329;--d-muted:#46675D;--d-accent:#0A7A60;--d-accent-ink:#FFFFFF;--d-accent-soft:#CFF1E5;--d-accent2:#B4510E;--d-accent2-soft:#FFE7D3;--d-line:#C7EADD;--d-ok:#0A7A60;--d-ok-soft:#D4F3E7;--d-warn:#A93A0C;--d-warn-soft:#FFE8DA;--d-block:#BFE5D7;
+  --d-danger:#B4233F;--d-danger-soft:#FFE4E8;
+}
+
+html[data-ui="mochi"] #m-dialog-root:not([data-mochi-theme]) {
+  --d-bg:var(--m-bg);--d-surface:var(--m-surface);--d-surface2:var(--m-surface2);--d-ink:var(--m-ink);--d-muted:var(--m-muted);--d-accent:var(--m-accent);--d-accent-ink:var(--m-accent-ink);--d-accent-soft:var(--m-accent-soft);--d-accent2:var(--m-accent2);--d-accent2-soft:var(--m-accent2-soft);--d-line:var(--m-line);--d-ok:var(--m-ok);--d-ok-soft:var(--m-ok-soft);--d-warn:var(--m-warn);--d-warn-soft:var(--m-warn-soft);--d-block:var(--m-block);
+}
+
+html[data-admin-ui="pro"] #m-dialog-root {
+  --d-bg:var(--ap-bg);--d-surface:var(--ap-surface);--d-surface2:var(--ap-surface2);--d-ink:var(--ap-ink);--d-muted:var(--ap-muted);--d-accent:var(--ap-accent);--d-accent-ink:var(--ap-accent-ink);--d-accent-soft:var(--ap-accent-soft);--d-accent2:var(--ap-accent2);--d-accent2-soft:var(--ap-accent2-soft);--d-line:var(--ap-line);--d-ok:var(--ap-ok);--d-ok-soft:var(--ap-ok-soft);--d-warn:var(--ap-warn);--d-warn-soft:var(--ap-warn-soft);--d-block:var(--ap-block);--d-danger:var(--ap-danger);--d-danger-soft:var(--ap-danger-soft);
+}
+
+
+#m-dialog-root .m-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(20, 17, 39, 0.55);
+  animation: m-dialog-fade .15s ease;
+}
+
+#m-dialog-root .m-dialog {
+  width: 100%;
+  max-width: 440px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  border: 2.5px solid var(--d-ink);
+  border-radius: 24px;
+  background: var(--d-surface);
+  color: var(--d-ink);
+  box-shadow: 0 8px 0 var(--d-block), 0 20px 40px rgba(0, 0, 0, .2);
+  font-family: 'Nunito', system-ui, sans-serif;
+  text-align: center;
+  animation: m-dialog-pop .2s cubic-bezier(.16, 1, .3, 1);
+}
+
+#m-dialog-root .m-dialog-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--d-accent);
+  background: var(--d-accent-soft);
+}
+
+#m-dialog-root .m-dialog--danger .m-dialog-icon { color: var(--d-danger); background: var(--d-danger-soft); }
+#m-dialog-root .m-dialog--warning .m-dialog-icon { color: var(--d-warn); background: var(--d-warn-soft); }
+#m-dialog-root .m-dialog--success .m-dialog-icon { color: var(--d-ok); background: var(--d-ok-soft); }
+
+#m-dialog-root .m-dialog-title {
+  margin: 0 0 8px;
+  font: 800 20px/1.3 'Baloo 2', system-ui, sans-serif;
+  color: var(--d-ink);
+}
+
+#m-dialog-root .m-dialog-message {
+  margin: 0 0 18px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--d-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+#m-dialog-root .m-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 18px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--d-ink);
+}
+
+#m-dialog-root .m-dialog-input {
+  min-height: 46px;
+  padding: 0 14px;
+  border: 2px solid var(--d-line);
+  border-radius: 14px;
+  background: var(--d-surface2);
+  color: var(--d-ink);
+  font: 700 15px 'Nunito', system-ui, sans-serif;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+#m-dialog-root .m-dialog-input:focus { outline: 3px solid var(--d-accent-soft); border-color: var(--d-accent); }
+
+#m-dialog-root .m-dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#m-dialog-root .m-dialog-btn {
+  flex: 1 1 140px;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 2px solid var(--d-ink);
+  border-radius: 999px;
+  font: 800 15px 'Nunito', system-ui, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--d-block);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+#m-dialog-root .m-dialog-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--d-block); }
+#m-dialog-root .m-dialog-btn:focus-visible { outline: 3px solid var(--d-accent); outline-offset: 2px; }
+#m-dialog-root .m-dialog-btn--primary { background: var(--d-accent); color: var(--d-accent-ink); }
+#m-dialog-root .m-dialog-btn--danger { background: var(--d-danger); color: #FFFFFF; }
+#m-dialog-root .m-dialog-btn--ghost { background: var(--d-surface); color: var(--d-ink); border-color: var(--d-line); box-shadow: none; }
+#m-dialog-root .m-dialog-btn--ghost:hover { border-color: var(--d-ink); }
+
+@keyframes m-dialog-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-dialog-pop { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  #m-dialog-root .m-dialog-backdrop, #m-dialog-root .m-dialog { animation: none; }
+}
+
+@media (max-width: 420px) {
+  #m-dialog-root .m-dialog { padding: 20px 18px; }
+  #m-dialog-root .m-dialog-actions { flex-direction: column-reverse; }
+  #m-dialog-root .m-dialog-btn { flex: 0 0 auto; width: 100%; }
+}

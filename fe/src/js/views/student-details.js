@@ -3,6 +3,7 @@ import { renderNavbar } from '../components/navbar.js'
 import { state } from '../state.js'
 import { api } from '../api.js'
 import { showToast } from '../components/toast.js'
+import { mochiConfirm } from '../components/mochi-dialog.js'
 import { isAdminProUI } from '../ui-flag.js'
 import { showAddBalanceModal, showEditBalanceModal } from './student-mgmt.js'
 
@@ -344,7 +345,13 @@ export function bindStudentDetailsEvents() {
       const lockMsg = nextLocked
         ? `Tạm khóa tài khoản "${student.fullName}"?\nHọc sinh sẽ không đăng nhập được và chuyển sang Tạm nghỉ ở các lớp.`
         : `Mở khóa tài khoản "${student.fullName}"?\nHọc sinh đăng nhập lại được và chuyển về Đang học.`
-      if (!confirm(lockMsg)) return
+      if (!(await mochiConfirm({
+        title: nextLocked ? 'Tạm khóa tài khoản?' : 'Mở khóa tài khoản?',
+        message: lockMsg,
+        confirmLabel: nextLocked ? 'Khóa tài khoản' : 'Mở khóa',
+        cancelLabel: 'Hủy',
+        tone: nextLocked ? 'danger' : 'primary'
+      }))) return
       try {
         showToast(`Đang ${action} tài khoản...`, 'info')
         await api.setUserLock(studentId, nextLocked)

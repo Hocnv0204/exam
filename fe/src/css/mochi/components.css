@@ -176,7 +176,7 @@ html[data-ui="mochi"] .m-tab-more-logout {display:none}
    Mochi Modal Template (#modal-container)
    Áp dụng cho mọi popup/modal khi giao diện Mochi đang hoạt động
    -------------------------------------------------------------------------- */
-html[data-ui="mochi"] #modal-container .modal-backdrop {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-backdrop {
   background: rgba(20, 17, 39, 0.5) !important;
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
@@ -187,7 +187,7 @@ html[data-ui="mochi"] #modal-container .modal-backdrop {
   box-sizing: border-box;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content {
   background: var(--m-surface) !important;
   color: var(--m-ink) !important;
   border: 2.5px solid var(--m-ink) !important;
@@ -200,20 +200,20 @@ html[data-ui="mochi"] #modal-container .modal-content {
   box-sizing: border-box;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content > div:first-child {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content > div:first-child {
   border-bottom: 2px solid var(--m-line) !important;
   margin-bottom: 18px !important;
   padding-bottom: 12px !important;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content :is(h1, h2, h3, h4) {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content :is(h1, h2, h3, h4) {
   font-family: var(--m-font-heading) !important;
   font-weight: 800 !important;
   color: var(--m-ink) !important;
   letter-spacing: -0.3px;
 }
 
-html[data-ui="mochi"] #modal-container #modal-close-btn {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) #modal-close-btn {
   color: var(--m-muted) !important;
   border-radius: var(--m-radius-sm) !important;
   width: 36px;
@@ -224,19 +224,19 @@ html[data-ui="mochi"] #modal-container #modal-close-btn {
   transition: all 0.15s ease;
 }
 
-html[data-ui="mochi"] #modal-container #modal-close-btn:hover {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) #modal-close-btn:hover {
   color: var(--m-ink) !important;
   background: var(--m-surface2) !important;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content > div:last-child {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content > div:last-child {
   border-top: 2px solid var(--m-line) !important;
   padding-top: 16px !important;
   gap: 12px !important;
 }
 
-html[data-ui="mochi"] #modal-container .btn-secondary,
-html[data-ui="mochi"] #modal-container #modal-cancel-btn {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .btn-secondary,
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) #modal-cancel-btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -255,15 +255,15 @@ html[data-ui="mochi"] #modal-container #modal-cancel-btn {
   transition: transform 0.12s ease, box-shadow 0.12s ease !important;
 }
 
-html[data-ui="mochi"] #modal-container .btn-secondary:hover,
-html[data-ui="mochi"] #modal-container #modal-cancel-btn:hover {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .btn-secondary:hover,
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) #modal-cancel-btn:hover {
   transform: translateY(-2px);
   box-shadow: var(--m-shadow-md) !important;
   background: var(--m-surface2) !important;
 }
 
-html[data-ui="mochi"] #modal-container .btn-primary,
-html[data-ui="mochi"] #modal-container #modal-confirm-btn {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .btn-primary,
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) #modal-confirm-btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -282,18 +282,18 @@ html[data-ui="mochi"] #modal-container #modal-confirm-btn {
   transition: transform 0.12s ease, box-shadow 0.12s ease !important;
 }
 
-html[data-ui="mochi"] #modal-container .btn-primary:hover,
-html[data-ui="mochi"] #modal-container #modal-confirm-btn:hover {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .btn-primary:hover,
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) #modal-confirm-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 0 var(--m-ink) !important;
 }
 
-html[data-ui="mochi"] #modal-container :is(button, a, input, select, textarea):focus-visible {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) :is(button, a, input, select, textarea):focus-visible {
   outline: 3px solid var(--m-accent) !important;
   outline-offset: 2px !important;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
   border: 2px solid var(--m-line) !important;
   border-radius: var(--m-radius-sm) !important;
   background: var(--m-surface2) !important;
@@ -302,33 +302,33 @@ html[data-ui="mochi"] #modal-container .modal-content :is(input:not([type="check
   padding: 8px 12px !important;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content :is(input, select, textarea):focus {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content :is(input, select, textarea):focus {
   border-color: var(--m-accent) !important;
   outline: none !important;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content [style*="background:#f8fafc"],
-html[data-ui="mochi"] #modal-container .modal-content [style*="background: #f8fafc"] {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="background:#f8fafc"],
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="background: #f8fafc"] {
   background: var(--m-surface2) !important;
   border-color: var(--m-line) !important;
   color: var(--m-ink) !important;
   border-radius: var(--m-radius-md) !important;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content [style*="color:#334155"],
-html[data-ui="mochi"] #modal-container .modal-content [style*="color: #334155"] {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="color:#334155"],
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="color: #334155"] {
   color: var(--m-ink) !important;
 }
 
-html[data-ui="mochi"] #modal-container .modal-content [style*="color:#475569"],
-html[data-ui="mochi"] #modal-container .modal-content [style*="color: #475569"],
-html[data-ui="mochi"] #modal-container .modal-content [style*="color:#64748b"],
-html[data-ui="mochi"] #modal-container .modal-content [style*="color: #64748b"] {
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="color:#475569"],
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="color: #475569"],
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="color:#64748b"],
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content [style*="color: #64748b"] {
   color: var(--m-muted) !important;
 }
 
 @media (max-width: 640px) {
-  html[data-ui="mochi"] #modal-container .modal-content {
+  :is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .modal-content {
     width: calc(100% - 24px) !important;
     max-width: none !important;
     padding: 20px 18px !important;
@@ -338,3 +338,11 @@ html[data-ui="mochi"] #modal-container .modal-content [style*="color: #64748b"] 
 }
 
 
+
+/* Popup "Đăng ký khóa học" (modal.js showTrialRegistrationModal, bản Mochi) */
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg {display:flex;flex-direction:column;align-items:center;gap:10px;padding:4px 2px 8px;text-align:center}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-icon {width:64px;height:64px;display:flex;align-items:center;justify-content:center;border:2.5px solid var(--m-ink);border-radius:50%;background:var(--m-accent-soft);color:var(--m-accent);font-size:26px;box-shadow:var(--m-shadow-sm)}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-title {margin:6px 0 0;font:800 20px/1.35 var(--m-font-heading);color:var(--m-ink)}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-text {margin:0 0 8px;color:var(--m-muted);font-size:15px;font-weight:600;line-height:1.6}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-actions {display:flex;flex-wrap:wrap;justify-content:center;gap:10px;width:100%}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-actions > * {flex:1 1 180px;min-height:46px;justify-content:center;text-decoration:none}
