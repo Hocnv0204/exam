@@ -108,7 +108,8 @@ test('ADMIN Pro có đủ menu, href đúng và giữ các mục ẩn ở trạn
   assert.match(sidebar, /Tài chính & hệ thống/)
   assert.doesNotMatch(sidebar, /href="#question-appeals"|href="#grade-blocks"/, 'mục đang ẩn không được tự hiện')
   assert.match(sidebar, /id="sidebar-logout-btn"/)
-  assert.match(sidebar, /data-theme-toggle/)
+  // Bộ chọn 4 chế độ màu Mochi (Sáng/Tối/Sakura/Bạc hà) thay nút Sáng/Tối
+  for (const p of ['light', 'dark', 'sakura', 'mint']) assert.match(sidebar, new RegExp(`data-admin-palette-option="${p}"`))
   assert.match(sidebar, /Thầy Hoàng/)
 })
 
@@ -119,7 +120,8 @@ test('header ADMIN Pro có thương hiệu, điều khiển theme, tài khoản 
   const header = renderNavbar('Quản trị / Dashboard')
   assert.match(header, /class="top-navbar ap-header"/)
   assert.match(header, /ap-header-brand[\s\S]*EduPortal[\s\S]*Quản trị/)
-  assert.match(header, /data-theme-toggle/)
+  // Bộ chọn 4 chế độ màu Mochi (Sáng/Tối/Sakura/Bạc hà) thay nút Sáng/Tối
+  for (const p of ['light', 'dark', 'sakura', 'mint']) assert.match(header, new RegExp(`data-admin-palette-option="${p}"`))
   assert.match(header, /Thầy Hoàng/)
   assert.match(header, /data-admin-logout/)
 })

@@ -724,3 +724,44 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .conte
 @media (min-width: 901px) {
   html[data-admin-ui="pro"] .ap-sidebar { transform: none !important; }
 }
+
+/* Bộ chọn 4 chế độ màu admin (theme.js renderAdminPalettePicker) */
+html[data-admin-ui="pro"] .ap-palette-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 2px solid var(--ap-line);
+  border-radius: 999px;
+  background: var(--ap-surface);
+}
+html[data-admin-ui="pro"] .ap-palette-option {
+  width: 36px;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+html[data-admin-ui="pro"] .ap-palette-option:hover { background: var(--ap-surface2); }
+html[data-admin-ui="pro"] .ap-palette-option:focus-visible { outline: 3px solid var(--ap-accent); outline-offset: 1px; }
+html[data-admin-ui="pro"] .ap-palette-option[aria-pressed="true"] { border-color: var(--ap-ink); background: var(--ap-surface2); }
+html[data-admin-ui="pro"] .ap-palette-dot {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--ap-ink);
+  border-radius: 50%;
+  background: var(--swatch);
+}
+html[data-admin-ui="pro"] .ap-sidebar-palette { display: flex; justify-content: space-between; width: 100%; box-sizing: border-box; }
+@media (max-width: 640px) {
+  html[data-admin-ui="pro"] .ap-header-palette { display: none; }
+}
+@media (pointer: coarse) {
+  html[data-admin-ui="pro"] .ap-palette-option { width: 44px; height: 44px; }
+}

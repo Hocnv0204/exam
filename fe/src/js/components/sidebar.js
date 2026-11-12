@@ -1,5 +1,5 @@
 import { state, logout } from '../state.js'
-import { renderThemeToggle, renderStudentThemeToggle } from '../theme.js'
+import { renderThemeToggle, renderStudentThemeToggle, renderAdminPalettePicker } from '../theme.js'
 import { isMochiUI, isAdminProUI, ADMIN_PRO_ROUTES, MOCHI_FEATURES } from '../ui-flag.js'
 
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
@@ -140,7 +140,7 @@ export function renderAdminProSidebar(currentRoute) {
       </nav>
       <div class="ap-sidebar-footer">
         <div class="ap-sidebar-user" title="${name}"><i class="fa-solid fa-user-shield" aria-hidden="true"></i><span>${name}</span></div>
-        ${renderThemeToggle('sidebar-theme-toggle')}
+        ${renderAdminPalettePicker('ap-sidebar-palette')}
         <button type="button" class="nav-item ap-logout" id="sidebar-logout-btn">
           <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Đăng xuất</span>
         </button>

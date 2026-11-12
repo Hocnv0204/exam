@@ -50,3 +50,51 @@ html[data-admin-ui="pro"][data-theme="dark"] {
   --ap-danger: #ff9baa;
   --ap-danger-soft: #4b2130;
 }
+
+/* Chế độ màu Sakura / Bạc hà cho admin (theme.js: html[data-admin-palette]); đồng bộ bảng màu học sinh Mochi.
+   data-theme vẫn là "light" nên CSS sáng + light-overrides.css áp dụng, chỉ token đổi. */
+html[data-admin-ui="pro"][data-admin-palette="sakura"]:not([data-theme="dark"]) {
+  --ap-bg: #fff1f6;
+  --ap-surface: #ffffff;
+  --ap-surface2: #ffe4ef;
+  --ap-ink: #3a1e2e;
+  --ap-muted: #74505f;
+  --ap-accent: #c2285f;
+  --ap-accent-ink: #ffffff;
+  --ap-accent-soft: #ffd9e7;
+  --ap-accent2: #6b4bd8;
+  --ap-accent2-soft: #ece6ff;
+  --ap-line: #f6cfdf;
+  --ap-ok: #167a54;
+  --ap-ok-soft: #ddf5ea;
+  --ap-warn: #a93a0c;
+  --ap-warn-soft: #ffe8da;
+  --ap-block: #f2c2d5;
+  --ap-blue: #1d5fbf;
+  --ap-blue-soft: #e1ecff;
+  --ap-danger: #b4233f;
+  --ap-danger-soft: #ffe4e8;
+}
+
+html[data-admin-ui="pro"][data-admin-palette="mint"]:not([data-theme="dark"]) {
+  --ap-bg: #edfaf5;
+  --ap-surface: #ffffff;
+  --ap-surface2: #ddf5ec;
+  --ap-ink: #0f3329;
+  --ap-muted: #46675d;
+  --ap-accent: #0a7a60;
+  --ap-accent-ink: #ffffff;
+  --ap-accent-soft: #cff1e5;
+  --ap-accent2: #b4510e;
+  --ap-accent2-soft: #ffe7d3;
+  --ap-line: #c7eadd;
+  --ap-ok: #0a7a60;
+  --ap-ok-soft: #d4f3e7;
+  --ap-warn: #a93a0c;
+  --ap-warn-soft: #ffe8da;
+  --ap-block: #bfe5d7;
+  --ap-blue: #1d5fbf;
+  --ap-blue-soft: #e1ecff;
+  --ap-danger: #b4233f;
+  --ap-danger-soft: #ffe4e8;
+}

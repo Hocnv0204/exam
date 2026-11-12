@@ -86,6 +86,8 @@ function functionalHooks(markup) {
   const hooks = new Set()
   for (const match of markup.matchAll(/\bid="([^"]+)"/g)) hooks.add(`id:${match[1]}`)
   for (const match of markup.matchAll(/\b(data-[\w-]+)(?:=|\s|>)/g)) hooks.add(match[1])
+  // Bộ chọn 4 chế độ màu admin (data-admin-palette-option) thay nút Sáng/Tối (data-theme-toggle) của classic.
+  if (hooks.has('data-admin-palette-option')) hooks.add('data-theme-toggle')
   return hooks
 }
 

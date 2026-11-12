@@ -2,7 +2,7 @@ import { state } from '../state.js'
 import { showToast } from './toast.js'
 import { api } from '../api.js'
 import { isImpersonating } from '../utils/impersonate.js'
-import { renderThemeToggle, renderStudentThemeToggle } from '../theme.js'
+import { renderThemeToggle, renderStudentThemeToggle, renderAdminPalettePicker } from '../theme.js'
 import { renderStudentThemePicker } from './student-theme-picker.js'
 import { renderMascot } from './mascot.js'
 import { isMochiUI, isAdminProUI, ADMIN_PRO_ROUTES } from '../ui-flag.js'
@@ -51,7 +51,7 @@ export function renderNavbar(breadcrumbText = 'Nền tảng / Bảng điều khi
 export function renderAdminProNavbar(breadcrumbText = 'Quản trị / Bảng điều khiển', options = {}) {
   const name = state.user?.fullName || 'Quản trị hệ thống'
   const initials = name.split(' ').filter(Boolean).map(part => part[0]).join('').substring(0, 2).toUpperCase() || 'QT'
-  const themeToggle = options.themeToggle === false ? '' : renderThemeToggle('ap-theme-toggle')
+  const themeToggle = options.themeToggle === false ? '' : renderAdminPalettePicker('ap-header-palette')
   return `
     <header class="top-navbar ap-header">
       <div class="ap-header-start">

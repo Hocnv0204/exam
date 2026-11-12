@@ -5,6 +5,16 @@ const STUDENT_STORAGE_KEY = 'eduportal-student-theme'
 const DEFAULT_THEME = 'light'
 export const STUDENT_THEMES = ['light', 'dark', 'sakura', 'mint']
 const CHANGE_EVENT = 'eduportal:themechange'
+// Admin Pro: 4 chế độ màu Mochi. data-theme vẫn chỉ light|dark (sakura/mint là biến thể sáng) để
+// CSS sáng/tối sẵn có và màu biểu đồ tiếp tục đúng; bảng màu nằm ở html[data-admin-palette].
+const ADMIN_PALETTE_KEY = 'eduportal-admin-palette'
+export const ADMIN_PALETTES = ['light', 'dark', 'sakura', 'mint']
+const ADMIN_PALETTE_META = [
+  { id: 'light', label: 'Sáng', colour: '#6A4CF0' },
+  { id: 'dark', label: 'Tối', colour: '#141127' },
+  { id: 'sakura', label: 'Sakura', colour: '#C2285F' },
+  { id: 'mint', label: 'Bạc hà', colour: '#0A7A60' }
+]
 let currentTheme
 let studentDocumentEnabled = true
 
@@ -144,6 +154,7 @@ export function applyTheme(theme = getTheme()) {
   updateToggleButtons()
   updateStudentThemeToggle()
   updateStudentThemePicker()
+  updateAdminPalette()
   if (previous && previous !== next) notifyThemeChange()
   return next
 }
@@ -158,6 +169,51 @@ export function toggleTheme() {
   const next = getTheme() === 'dark' ? 'light' : 'dark'
   setTheme(next)
   return next
+}
+
+/** Bảng màu admin hiện tại; luôn khớp sáng/tối với getTheme() (nút đổi theme cũ vẫn dùng được). */
+export function getAdminPalette() {
+  const theme = getTheme()
+  let stored = null
+  try { stored = localStorage.getItem(ADMIN_PALETTE_KEY) } catch (_) {}
+  if (!ADMIN_PALETTES.includes(stored)) return theme
+  if ((stored === 'dark') !== (theme === 'dark')) return theme
+  return stored
+}
+
+export function setAdminPalette(palette) {
+  if (!ADMIN_PALETTES.includes(palette)) return getAdminPalette()
+  try { localStorage.setItem(ADMIN_PALETTE_KEY, palette) } catch (_) {}
+  const theme = palette === 'dark' ? 'dark' : 'light'
+  if (getTheme() === theme) {
+    applyTheme(theme)
+    // Đổi giữa các bảng sáng (light/sakura/mint) không đổi data-theme → tự phát sự kiện cho biểu đồ.
+    notifyThemeChange()
+  } else {
+    setTheme(theme) // applyTheme tự phát sự kiện khi sáng/tối đổi
+  }
+  return palette
+}
+
+export function renderAdminPalettePicker(extraClass = '') {
+  const current = getAdminPalette()
+  return `
+    <div class="ap-palette-picker${extraClass ? ` ${extraClass}` : ''}" role="group" aria-label="Chế độ màu giao diện">
+      ${ADMIN_PALETTE_META.map(p => `
+        <button type="button" class="ap-palette-option" data-admin-palette-option="${p.id}" aria-pressed="${p.id === current}" aria-label="Chế độ màu ${p.label}" title="${p.label}">
+          <span class="ap-palette-dot" style="--swatch:${p.colour}" aria-hidden="true"></span>
+        </button>
+      `).join('')}
+    </div>
+  `
+}
+
+function updateAdminPalette() {
+  const palette = getAdminPalette()
+  document.documentElement.dataset.adminPalette = palette
+  document.querySelectorAll?.('[data-admin-palette-option]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.adminPaletteOption === palette))
+  })
 }
 
 export function renderThemeToggle(extraClass = '') {
@@ -199,6 +255,11 @@ document.addEventListener('click', (event) => {
     setStudentTheme(option.dataset.studentThemeOption)
     return
   }
+  const paletteOption = event.target.closest?.('[data-admin-palette-option]')
+  if (paletteOption) {
+    setAdminPalette(paletteOption.dataset.adminPaletteOption)
+    return
+  }
   if (event.target.closest?.('[data-student-theme-toggle]')) {
     toggleStudentTheme()
     return
@@ -212,6 +273,7 @@ window.addEventListener('storage', (event) => {
     const next = event.key === null ? readStudentPreference() : normalizeStudentTheme(event.newValue)
     applyStudentPreference(next, { persist: event.newValue !== next })
   }
+  if (event.key === ADMIN_PALETTE_KEY) { updateAdminPalette(); notifyThemeChange(); return }
   if (event.key !== STORAGE_KEY && event.key !== null) return
   applyTheme(event.key === STORAGE_KEY ? normalizeTheme(event.newValue) : readStoredTheme())
 })

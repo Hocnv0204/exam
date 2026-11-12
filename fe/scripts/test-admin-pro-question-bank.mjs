@@ -119,7 +119,10 @@ function extractIds(html) {
 
 function extractDataAttrs(html) {
   const matches = [...html.matchAll(/\b(data-[a-zA-Z0-9_-]+)(?:="([^"]*)")?/g)].map(m => m[1])
-  return new Set(matches)
+  const attrs = new Set(matches)
+  // Bộ chọn 4 chế độ màu admin (data-admin-palette-option) thay nút Sáng/Tối (data-theme-toggle) của classic.
+  if (attrs.has('data-admin-palette-option')) attrs.add('data-theme-toggle')
+  return attrs
 }
 
 test("(a) Opt-out classic: renderQuestionBankView trả về layout classic y hệt trước khi sửa", () => {
