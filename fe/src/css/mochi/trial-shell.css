@@ -1,0 +1,104 @@
+/* Khung trang HỌC THỬ Mochi. Token màu, font, thanh trên lấy từ roadmap.css (.m-roadmap).
+   Mọi rule nằm dưới .m-roadmap.m-trial. Màn A–D: trial-browse.css, trial-detail.css. */
+.m-roadmap.m-trial .m-trial-main {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+  box-sizing: border-box;
+}
+
+.m-roadmap.m-trial .m-trial-subnav {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 24px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.m-roadmap.m-trial .m-trial-subtab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--pill);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: 800 14px var(--fb);
+  cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease;
+}
+
+.m-roadmap.m-trial .m-trial-subtab:hover { border-color: var(--m-accent); }
+.m-roadmap.m-trial .m-trial-subtab:focus-visible { outline: 3px solid var(--m-accent); outline-offset: 2px; }
+
+.m-roadmap.m-trial .m-trial-subtab.is-active {
+  background: var(--m-accent);
+  border-color: var(--m-ink);
+  color: var(--m-accent-ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.m-roadmap.m-trial .m-trial-subtab-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: var(--pill);
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+  font-size: 12px;
+  text-align: center;
+}
+
+.m-roadmap.m-trial .m-trial-subtab.is-active .m-trial-subtab-count {
+  background: var(--m-surface);
+  color: var(--m-ink);
+}
+
+.m-roadmap.m-trial .m-trial-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 20px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--r-xl);
+  background: var(--m-surface);
+  text-align: center;
+}
+
+.m-roadmap.m-trial .m-trial-loading h2 { margin: 8px 0 0; font: 800 22px var(--fh); color: var(--m-ink); }
+.m-roadmap.m-trial .m-trial-loading p { margin: 0; color: var(--m-muted); font-weight: 600; }
+
+.m-roadmap.m-trial .m-trial-skeleton {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 16px;
+}
+
+.m-roadmap.m-trial .m-trial-skeleton span {
+  height: 120px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(90deg, var(--m-surface2), var(--m-accent-soft), var(--m-surface2));
+  background-size: 200% 100%;
+  animation: m-trial-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes m-trial-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-roadmap.m-trial .m-trial-skeleton span { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .m-roadmap.m-trial .m-trial-main { padding: 16px 16px 48px; }
+  .m-roadmap.m-trial .m-trial-skeleton { grid-template-columns: minmax(0, 1fr); }
+  .m-roadmap.m-trial .m-trial-skeleton span { height: 72px; }
+}

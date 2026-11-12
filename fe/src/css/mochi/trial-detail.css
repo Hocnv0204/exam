@@ -1,0 +1,105 @@
+.m-roadmap.m-trial .m-trial-lesson,
+.m-roadmap.m-trial .m-trial-history { display: flex; flex-direction: column; gap: 20px; }
+.m-roadmap.m-trial .m-trial-back { align-self: flex-start; }
+.m-roadmap.m-trial .m-trial-lesson-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 20px; align-items: start; }
+.m-roadmap.m-trial .m-trial-lesson-primary,
+.m-roadmap.m-trial .m-trial-lesson-aside { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.m-roadmap.m-trial .m-trial-video-wrap { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 2px solid var(--m-ink); border-radius: var(--r-lg); background: var(--m-block); box-shadow: var(--shadow); }
+.m-roadmap.m-trial .m-trial-video-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.m-roadmap.m-trial .m-trial-video-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; text-align: center; color: var(--m-muted); font-weight: 700; }
+.m-roadmap.m-trial .m-trial-video-empty p { margin: 0; }
+.m-roadmap.m-trial .m-trial-detail-card,
+.m-roadmap.m-trial .m-trial-lookup,
+.m-roadmap.m-trial .m-trial-history-list-wrap { border: 2px solid var(--m-ink); border-radius: var(--r-lg); background: var(--m-surface); box-shadow: var(--shadow); padding: 20px; }
+.m-roadmap.m-trial .m-trial-detail-eyebrow,
+.m-roadmap.m-trial .m-trial-homework-meta,
+.m-roadmap.m-trial .m-trial-result-grid { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.m-roadmap.m-trial .m-trial-detail-eyebrow { color: var(--m-muted); font-size: 13px; font-weight: 700; }
+.m-roadmap.m-trial .m-trial-detail-eyebrow span { display: inline-flex; align-items: center; gap: 6px; }
+.m-roadmap.m-trial .m-trial-detail-eyebrow i,
+.m-roadmap.m-trial .m-trial-detail-card h2 i { color: var(--m-accent); }
+.m-roadmap.m-trial .m-trial-lesson-info h1,
+.m-roadmap.m-trial .m-trial-page-header h1,
+.m-roadmap.m-trial .m-trial-revoked h1 { margin: 10px 0; font: 800 clamp(26px, 4vw, 36px) / 1.18 var(--fh); color: var(--m-ink); overflow-wrap: anywhere; }
+.m-roadmap.m-trial .m-trial-lesson-content { margin: 0; color: var(--m-muted); white-space: pre-line; line-height: 1.65; overflow-wrap: anywhere; }
+.m-roadmap.m-trial .m-trial-detail-card h2,
+.m-roadmap.m-trial .m-trial-lookup h2,
+.m-roadmap.m-trial .m-trial-history-list-head h2 { margin: 0 0 14px; font: 800 18px / 1.25 var(--fh); color: var(--m-ink); }
+.m-roadmap.m-trial .m-trial-detail-card h2 span,
+.m-roadmap.m-trial .m-trial-history-list-head h2 span { color: var(--m-accent); }
+.m-roadmap.m-trial .m-trial-theory-list,
+.m-roadmap.m-trial .m-trial-homework-list,
+.m-roadmap.m-trial .m-trial-other-list,
+.m-roadmap.m-trial .m-trial-history-list { display: flex; flex-direction: column; gap: 12px; }
+.m-roadmap.m-trial .m-trial-theory-item,
+.m-roadmap.m-trial .m-trial-homework-card,
+.m-roadmap.m-trial .m-trial-other-item,
+.m-roadmap.m-trial .m-trial-history-item { border: 2px solid var(--m-line); border-radius: var(--r-md); background: var(--m-surface2); }
+.m-roadmap.m-trial .m-trial-theory-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; }
+.m-roadmap.m-trial .m-trial-theory-name { min-width: 0; overflow-wrap: anywhere; color: var(--m-ink); font-weight: 800; }
+.m-roadmap.m-trial .m-trial-theory-name i { color: var(--m-accent2); margin-right: 6px; }
+.m-roadmap.m-trial .m-trial-theory-actions,
+.m-roadmap.m-trial .m-trial-homework-actions,
+.m-roadmap.m-trial .m-trial-history-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.m-roadmap.m-trial .m-trial-theory-actions .m-rm-btn { min-height: 44px; padding: 0 13px; font-size: 13px; }
+.m-roadmap.m-trial .m-trial-homework-card { padding: 14px; }
+.m-roadmap.m-trial .m-trial-homework-card h3 { margin: 0 0 10px; color: var(--m-ink); font: 800 16px / 1.35 var(--fh); overflow-wrap: anywhere; }
+.m-roadmap.m-trial .m-trial-homework-meta { margin: 0 0 14px; color: var(--m-muted); font-size: 13px; }
+.m-roadmap.m-trial .m-trial-homework-meta div { display: flex; gap: 5px; }
+.m-roadmap.m-trial .m-trial-homework-meta dt { font-weight: 700; }
+.m-roadmap.m-trial .m-trial-homework-meta dd { margin: 0; font-weight: 800; color: var(--m-ink); }
+.m-roadmap.m-trial .m-trial-homework-meta i { color: var(--m-accent); }
+.m-roadmap.m-trial .m-trial-homework-actions .m-rm-btn { flex: 1 1 130px; padding: 0 12px; font-size: 13px; white-space: normal; }
+.m-roadmap.m-trial .m-trial-inline-note,
+.m-roadmap.m-trial .m-trial-empty-copy { margin: 0; color: var(--m-muted); font-size: 14px; line-height: 1.5; }
+.m-roadmap.m-trial .m-trial-other-list { max-height: 360px; overflow-y: auto; padding-right: 2px; }
+.m-roadmap.m-trial .m-trial-other-item { min-height: 54px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; color: var(--m-ink); font-weight: 800; cursor: pointer; overflow-wrap: anywhere; }
+.m-roadmap.m-trial .m-trial-other-item:hover,
+.m-roadmap.m-trial .m-trial-other-item.is-current { border-color: var(--m-accent); background: var(--m-accent-soft); }
+.m-roadmap.m-trial .m-trial-other-item > span:nth-child(2) { flex: 1; min-width: 0; }
+.m-roadmap.m-trial .m-trial-other-item > i { color: var(--m-muted); }
+.m-roadmap.m-trial .m-trial-other-index { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; height: 32px; border: 2px solid var(--m-ink); border-radius: 50%; background: var(--m-surface); color: var(--m-accent); font-family: var(--fh); }
+.m-roadmap.m-trial .m-trial-page-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 4px 4px 0; }
+.m-roadmap.m-trial .m-trial-page-header p,
+.m-roadmap.m-trial .m-trial-lookup p { margin: 0; color: var(--m-muted); line-height: 1.55; }
+.m-roadmap.m-trial .m-trial-header-mascot { flex: 0 0 auto; }
+.m-roadmap.m-trial .m-trial-kicker { display: inline-flex; align-items: center; gap: 7px; color: var(--m-accent); font-weight: 800; font-size: 13px; }
+.m-roadmap.m-trial .m-trial-lookup { display: flex; justify-content: space-between; align-items: center; gap: 18px; background: var(--m-surface2); }
+.m-roadmap.m-trial .m-trial-lookup h2 { margin-bottom: 4px; }
+.m-roadmap.m-trial .m-trial-lookup-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; min-width: min(100%, 470px); }
+.m-roadmap.m-trial .m-trial-lookup-form label { grid-column: 1 / -1; color: var(--m-ink); font-size: 13px; font-weight: 800; }
+.m-roadmap.m-trial .m-trial-lookup-form input { min-width: 0; min-height: 48px; padding: 0 14px; border: 2px solid var(--m-line); border-radius: var(--pill); background: var(--m-surface); color: var(--m-ink); font: 700 15px var(--fb); }
+.m-roadmap.m-trial .m-trial-history-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.m-roadmap.m-trial .m-trial-history-stats > div { padding: 15px; border: 2px solid var(--m-line); border-radius: var(--r-md); background: var(--m-surface); box-shadow: var(--shadow-sm); }
+.m-roadmap.m-trial .m-trial-history-stats span { display: block; color: var(--m-muted); font-size: 12px; font-weight: 800; }
+.m-roadmap.m-trial .m-trial-history-stats strong { display: block; margin-top: 4px; color: var(--m-accent); font: 800 28px / 1.1 var(--fh); }
+.m-roadmap.m-trial .m-trial-history-stats small { margin-left: 2px; color: var(--m-muted); font: 800 12px var(--fb); }
+.m-roadmap.m-trial .m-trial-history-list-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.m-roadmap.m-trial .m-trial-history-list-head h2 { margin: 0; }
+.m-roadmap.m-trial .m-trial-danger { min-height: 44px; padding: 0 14px; border-color: var(--m-warn); background: var(--m-warn-soft); color: var(--m-warn); box-shadow: var(--shadow-sm); }
+.m-roadmap.m-trial .m-trial-history-item { padding: 16px; }
+.m-roadmap.m-trial .m-trial-history-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.m-roadmap.m-trial .m-trial-history-item h2 { margin: 0 0 3px; color: var(--m-ink); font: 800 17px / 1.3 var(--fh); overflow-wrap: anywhere; }
+.m-roadmap.m-trial .m-trial-history-item p { margin: 0; color: var(--m-muted); font-size: 13px; }
+.m-roadmap.m-trial .m-trial-status,
+.m-roadmap.m-trial .m-trial-source { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 9px; border-radius: var(--pill); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.m-roadmap.m-trial .m-trial-status.is-passed { background: var(--m-ok-soft); color: var(--m-ok); }
+.m-roadmap.m-trial .m-trial-status.is-failed { background: var(--m-warn-soft); color: var(--m-warn); }
+.m-roadmap.m-trial .m-trial-source { background: var(--m-accent-soft); color: var(--m-accent); }
+.m-roadmap.m-trial .m-trial-result-grid { margin: 0 0 14px; }
+.m-roadmap.m-trial .m-trial-result-grid div { flex: 1 1 130px; }
+.m-roadmap.m-trial .m-trial-result-grid dt { color: var(--m-muted); font-size: 12px; font-weight: 700; }
+.m-roadmap.m-trial .m-trial-result-grid dd { margin: 2px 0 0; color: var(--m-ink); font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
+.m-roadmap.m-trial .m-trial-score { font: 800 20px var(--fh); }
+.m-roadmap.m-trial .m-trial-score.is-passed { color: var(--m-ok); }
+.m-roadmap.m-trial .m-trial-score.is-failed { color: var(--m-warn); }
+.m-roadmap.m-trial .m-trial-score small { color: var(--m-muted); font: 800 12px var(--fb); }
+.m-roadmap.m-trial .m-trial-history-actions .m-rm-btn { min-height: 44px; padding: 0 14px; font-size: 13px; }
+.m-roadmap.m-trial .m-trial-empty-state { min-height: 300px; padding: 40px 20px; border: 2px dashed var(--m-line); border-radius: var(--r-xl); background: var(--m-surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.m-roadmap.m-trial .m-trial-empty-state h2 { margin: 0; color: var(--m-ink); font: 800 22px / 1.25 var(--fh); }
+.m-roadmap.m-trial .m-trial-empty-state p { max-width: 50ch; margin: 0 0 8px; color: var(--m-muted); line-height: 1.55; }
+.m-roadmap.m-trial .m-trial-revoked { max-width: 760px; margin: 32px auto; }
+.m-roadmap.m-trial .m-trial-revoked h1 { max-width: 24ch; }
+@media (max-width: 1023px) { .m-roadmap.m-trial .m-trial-lesson-grid { grid-template-columns: minmax(0, 1fr); } .m-roadmap.m-trial .m-trial-lesson-primary, .m-roadmap.m-trial .m-trial-lesson-aside { display: contents; } .m-roadmap.m-trial .m-trial-video-wrap { order: 1; } .m-roadmap.m-trial .m-trial-homeworks { order: 2; } .m-roadmap.m-trial .m-trial-lesson-info { order: 3; } .m-roadmap.m-trial .m-trial-theory { order: 4; } .m-roadmap.m-trial .m-trial-other-lessons { order: 5; } }
+@media (max-width: 767px) { .m-roadmap.m-trial .m-trial-page-header { align-items: flex-start; } .m-roadmap.m-trial .m-trial-header-mascot { display: none; } .m-roadmap.m-trial .m-trial-lookup { align-items: stretch; flex-direction: column; } .m-roadmap.m-trial .m-trial-lookup-form { width: 100%; } .m-roadmap.m-trial .m-trial-history-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .m-roadmap.m-trial .m-trial-detail-card, .m-roadmap.m-trial .m-trial-lookup, .m-roadmap.m-trial .m-trial-history-list-wrap { padding: 16px; } .m-roadmap.m-trial .m-trial-theory-item { align-items: flex-start; flex-direction: column; } .m-roadmap.m-trial .m-trial-theory-actions { width: 100%; } .m-roadmap.m-trial .m-trial-theory-actions .m-rm-btn { flex: 1; } .m-roadmap.m-trial .m-trial-lookup-form { grid-template-columns: minmax(0, 1fr); } .m-roadmap.m-trial .m-trial-lookup-form button { width: 100%; } .m-roadmap.m-trial .m-trial-history-stats { gap: 8px; } .m-roadmap.m-trial .m-trial-history-stats > div { padding: 12px; } .m-roadmap.m-trial .m-trial-history-stats strong { font-size: 23px; } .m-roadmap.m-trial .m-trial-history-actions .m-rm-btn { flex: 1; } }

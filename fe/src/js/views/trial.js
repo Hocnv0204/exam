@@ -8,7 +8,10 @@ import { renderRoadmap, bindRoadmapEvents, ENTRANCE_TEST_HOMEWORK_ID } from '../
 import { renderRoadmap11, bindRoadmap11Events } from '../components/roadmap-11.js'
 import { downloadHomeworkPdf, escapeHtml } from '../utils/download-helper.js'
 import { resolveTrialLessonDeepLink } from '../utils/trial-management.js'
-import { isMochiUI } from '../ui-flag.js'
+import { isMochiUI, loadMochiStyles } from '../ui-flag.js'
+import { getEmbedUrl, formatDuration } from '../utils/trial-helpers.js'
+import { renderMochiTrialView, resolveMochiTrialScreen } from './mochi/trial.js'
+import { bindMochiPublicTopbar } from '../components/mochi-public-topbar.js'
 
 let cachedTrialLessons = []
 let isLoadingTrial = false
@@ -71,18 +74,6 @@ function renderTrialTabSwitcher(activeTab, historyCount = 0) {
   `
 }
 
-function getEmbedUrl(url) {
-  if (!url) return null
-  let match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)
-  if (match && match[1]) {
-    return `https://www.youtube.com/embed/${match[1]}`
-  }
-  match = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/)
-  if (match && match[1]) {
-    return `https://drive.google.com/file/d/${match[1]}/preview`
-  }
-  return url
-}
 
 window.confirmStartTrialHomework = (homeworkId) => {
   openModal(
@@ -172,12 +163,6 @@ function groupTrialLessonsByClass(lessons) {
   return Object.values(map)
 }
 
-function formatDuration(seconds = 0) {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  if (mins === 0) return `${secs} giây`
-  return `${mins} phút ${secs}s`
-}
 
 export function renderTrialView() {
   const hashUrl = window.location.hash.replace('#', '')
@@ -247,6 +232,18 @@ export function renderTrialView() {
   let activeLesson = null
   if (lessonId) {
     activeLesson = classLessons.find(l => l.id === lessonId) || cachedTrialLessons.find(l => l.id === lessonId)
+  }
+
+  // Giao diện Mochi (mặc định): cùng dữ liệu, markup mới; sự kiện vẫn do bindTrialEvents gắn qua id/class cũ.
+  if (isMochiUI()) {
+    const loading = isLoadingTrial || (!trialLoaded && cachedTrialLessons.length === 0)
+    const revoked = resolveTrialLessonDeepLink({
+      lessonId: lessonId || null,
+      lessons: cachedTrialLessons,
+      loaded: trialLoaded && !isLoadingTrial,
+    }).status === 'revoked'
+    const screen = resolveMochiTrialScreen({ activeTab, loading, revoked, selectedClass, activeLesson })
+    return renderMochiTrialView({ screen, classes, selectedClass, classLessons, activeLesson, historyList, savedPhone })
   }
 
   // Loading state for lessons
@@ -873,6 +870,11 @@ export function renderTrialView() {
 
 export function bindTrialEvents() {
   bindSidebarEvents()
+  const mochiTrialRoot = document.querySelector('.m-roadmap.m-trial')
+  if (mochiTrialRoot) {
+    loadMochiStyles() // chèn font Baloo 2 / Nunito (trang công khai không qua shell học sinh)
+    bindMochiPublicTopbar(mochiTrialRoot)
+  }
 
   const hashUrl = window.location.hash.replace('#', '')
   const [routePath, queryString] = hashUrl.split('?')
@@ -1001,8 +1003,10 @@ export function bindTrialEvents() {
   })
 
   // Back button: Class details -> Class List
+  // Mochi: '#trial' không tab sẽ chuyển sang trang lộ trình, nên trỏ thẳng danh sách lớp học thử.
+  const trialClassesHash = isMochiUI() ? '#trial?tab=lessons' : '#trial'
   document.getElementById('back-to-trial-classes-btn')?.addEventListener('click', () => {
-    window.location.hash = '#trial'
+    window.location.hash = trialClassesHash
   })
 
   // Back button: Active lesson -> Class Lessons List
@@ -1010,7 +1014,7 @@ export function bindTrialEvents() {
     if (classId) {
       window.location.hash = `#trial?classId=${classId}`
     } else {
-      window.location.hash = '#trial'
+      window.location.hash = trialClassesHash
     }
   })
 
@@ -1092,8 +1096,8 @@ export function bindTrialEvents() {
       if (isDifferent) {
         const app = document.getElementById('app')
         const currentHash = window.location.hash.replace('#', '').split('?')[0]
-        // Trang lộ trình Mochi (.m-roadmap) không dùng dữ liệu bài học thử: không được ghi đè bằng view cũ.
-        if (app && ['trial', 'roadmap', 'roadmap-12', 'roadmap-11'].includes(currentHash) && !app.querySelector('.m-roadmap')) {
+        // Trang lộ trình Mochi ([data-roadmap-id]) không dùng dữ liệu bài học thử: không được ghi đè.
+        if (app && ['trial', 'roadmap', 'roadmap-12', 'roadmap-11'].includes(currentHash) && !app.querySelector('.m-roadmap[data-roadmap-id]')) {
           refreshTrialView(app)
         }
       }

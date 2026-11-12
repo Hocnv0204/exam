@@ -1,0 +1,799 @@
+/* ==========================================================================
+   MOCHI TRIAL BROWSE CSS (Màn A & Màn B)
+   Mọi rule nằm dưới .m-roadmap.m-trial.
+   Token màu từ roadmap.css: --m-*, --r-*, --shadow-*, --pill, --fh, --fb.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CHUNG (Headers, Badges, Buttons, Empty State)
+   -------------------------------------------------------------------------- */
+
+.m-roadmap.m-trial .m-trial-header {
+  margin-bottom: 28px;
+}
+
+.m-roadmap.m-trial .m-trial-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--pill);
+  background: var(--m-surface);
+  color: var(--m-ok);
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 13px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.m-roadmap.m-trial .m-trial-title {
+  margin: 0 0 10px;
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: clamp(24px, 3.5vw, 32px);
+  line-height: 1.2;
+  color: var(--m-ink);
+  letter-spacing: -0.3px;
+}
+
+.m-roadmap.m-trial .m-trial-subtitle {
+  margin: 0;
+  font-family: var(--fb);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--m-muted);
+  max-width: 68ch;
+}
+
+.m-roadmap.m-trial .m-trial-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--m-ok);
+  border-radius: var(--pill);
+  background: var(--m-ok-soft);
+  color: var(--m-ok);
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Empty State Card */
+.m-roadmap.m-trial .m-trial-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--r-xl);
+  background: var(--m-surface);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 28px;
+}
+
+.m-roadmap.m-trial .m-trial-empty-mascot {
+  margin-bottom: 12px;
+}
+
+.m-roadmap.m-trial .m-trial-empty-title {
+  margin: 0 0 8px;
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--m-ink);
+}
+
+.m-roadmap.m-trial .m-trial-empty-desc {
+  margin: 0;
+  font-family: var(--fb);
+  font-size: 14px;
+  color: var(--m-muted);
+  max-width: 44ch;
+}
+
+/* --------------------------------------------------------------------------
+   MÀN A: LƯỚI THẺ LỚP HỌC (Classes Grid & Cards)
+   Lưới: 4 cột ≥1280px, 3 cột ≥1024px, 2 cột ≥640px, 1 cột <640px
+   -------------------------------------------------------------------------- */
+
+.m-roadmap.m-trial .m-trial-classes-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+@media (min-width: 640px) {
+  .m-roadmap.m-trial .m-trial-classes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .m-roadmap.m-trial .m-trial-classes-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .m-roadmap.m-trial .m-trial-classes-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.m-roadmap.m-trial .m-trial-class-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 220px;
+  padding: 22px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--r-lg);
+  background: var(--m-surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.m-roadmap.m-trial .m-trial-class-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--m-accent);
+  box-shadow: var(--shadow-lg);
+}
+
+.m-roadmap.m-trial .m-trial-class-card:focus-visible {
+  outline: 3px solid var(--m-accent);
+  outline-offset: 3px;
+  border-color: var(--m-accent);
+}
+
+.m-roadmap.m-trial .m-trial-class-card:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.m-roadmap.m-trial .m-trial-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.m-roadmap.m-trial .m-trial-subj-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--pill);
+  border: 2px solid var(--m-line);
+  background: var(--m-surface2);
+  color: var(--m-accent);
+  font-size: 20px;
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.m-roadmap.m-trial .m-trial-subj-icon.is-math {
+  background: var(--m-accent2-soft);
+  color: var(--m-accent2);
+  border-color: var(--m-accent2-soft);
+}
+
+.m-roadmap.m-trial .m-trial-subj-icon.is-chem {
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+  border-color: var(--m-accent-soft);
+}
+
+.m-roadmap.m-trial .m-trial-subj-icon.is-general {
+  background: var(--m-ok-soft);
+  color: var(--m-ok);
+  border-color: var(--m-ok-soft);
+}
+
+.m-roadmap.m-trial .m-trial-card-title {
+  margin: 0 0 14px;
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--m-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.m-roadmap.m-trial .m-trial-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-family: var(--fb);
+  font-size: 13px;
+  color: var(--m-muted);
+}
+
+.m-roadmap.m-trial .m-trial-card-stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-roadmap.m-trial .m-trial-card-stat-item i {
+  color: var(--m-accent);
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
+.m-roadmap.m-trial .m-trial-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--m-line);
+  margin-top: auto;
+  gap: 8px;
+}
+
+.m-roadmap.m-trial .m-trial-card-free-chip {
+  font-family: var(--fb);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--m-muted);
+}
+
+.m-roadmap.m-trial .m-trial-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--m-ok);
+  transition: transform 0.15s ease;
+}
+
+.m-roadmap.m-trial .m-trial-class-card:hover .m-trial-card-action {
+  transform: translateX(4px);
+}
+
+/* --------------------------------------------------------------------------
+   MÀN A: BANNER QUẢNG BÁ CUỐI TRANG (Promotional Banner)
+   -------------------------------------------------------------------------- */
+
+.m-roadmap.m-trial .m-trial-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 24px 28px;
+  border: 2px solid var(--m-ink);
+  border-radius: var(--r-xl);
+  background: var(--m-surface);
+  box-shadow: var(--shadow-lg);
+  margin-top: 12px;
+}
+
+.m-roadmap.m-trial .m-trial-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 1 1 320px;
+}
+
+.m-roadmap.m-trial .m-trial-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--pill);
+  border: 2px solid var(--m-ink);
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+  font-size: 22px;
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.m-roadmap.m-trial .m-trial-banner-text {
+  flex: 1 1 auto;
+}
+
+.m-roadmap.m-trial .m-trial-banner-title {
+  margin: 0 0 6px;
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--m-ink);
+}
+
+.m-roadmap.m-trial .m-trial-banner-desc {
+  margin: 0;
+  font-family: var(--fb);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--m-muted);
+}
+
+.m-roadmap.m-trial .m-trial-banner-action {
+  flex-shrink: 0;
+}
+
+.m-roadmap.m-trial .m-trial-btn-register {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 2px solid var(--m-ink);
+  border-radius: var(--pill);
+  background: var(--m-accent2);
+  color: var(--m-accent-ink);
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  white-space: nowrap;
+}
+
+.m-roadmap.m-trial .m-trial-btn-register:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.m-roadmap.m-trial .m-trial-btn-register:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.m-roadmap.m-trial .m-trial-btn-register:focus-visible {
+  outline: 3px solid var(--m-accent);
+  outline-offset: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   MÀN B: BÀI HỌC TRONG MỘT LỚP (Trial Class Details & Lessons)
+   -------------------------------------------------------------------------- */
+
+.m-roadmap.m-trial .m-trial-nav-back {
+  margin-bottom: 18px;
+}
+
+.m-roadmap.m-trial .m-trial-btn-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--pill);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.m-roadmap.m-trial .m-trial-btn-back:hover {
+  transform: translateY(-1px);
+  border-color: var(--m-accent);
+  background: var(--m-surface2);
+}
+
+.m-roadmap.m-trial .m-trial-btn-back:focus-visible {
+  outline: 3px solid var(--m-accent);
+  outline-offset: 2px;
+}
+
+.m-roadmap.m-trial .m-trial-btn-back:active {
+  transform: translateY(1px);
+}
+
+/* Class Hero Banner */
+.m-roadmap.m-trial .m-trial-class-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 24px 28px;
+  border: 2px solid var(--m-ink);
+  border-radius: var(--r-xl);
+  background: var(--m-surface);
+  box-shadow: var(--shadow-lg);
+  margin-bottom: 28px;
+}
+
+.m-roadmap.m-trial .m-trial-class-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1 1 320px;
+}
+
+.m-roadmap.m-trial .m-trial-class-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--r-lg);
+  border: 2px solid var(--m-ink);
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+  font-size: 26px;
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.m-roadmap.m-trial .m-trial-class-banner-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.m-roadmap.m-trial .m-trial-class-title {
+  margin: 0;
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: clamp(22px, 3.5vw, 28px);
+  line-height: 1.25;
+  color: var(--m-ink);
+}
+
+.m-roadmap.m-trial .m-trial-class-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-family: var(--fb);
+  font-size: 13px;
+  color: var(--m-muted);
+}
+
+.m-roadmap.m-trial .m-trial-class-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.m-roadmap.m-trial .m-trial-class-meta i {
+  color: var(--m-accent);
+}
+
+.m-roadmap.m-trial .m-trial-class-banner-action {
+  flex-shrink: 0;
+}
+
+/* Class Body: 2 Columns on >= 1024px */
+.m-roadmap.m-trial .m-trial-class-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .m-roadmap.m-trial .m-trial-class-body {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+.m-roadmap.m-trial .m-trial-column-header {
+  margin-bottom: 16px;
+}
+
+.m-roadmap.m-trial .m-trial-column-title {
+  margin: 0;
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--m-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-roadmap.m-trial .m-trial-column-title i {
+  color: var(--m-ok);
+}
+
+/* Lessons List & Lesson Card */
+.m-roadmap.m-trial .m-trial-lessons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  min-height: 64px;
+  border: 2px solid var(--m-line);
+  border-left: 6px solid var(--m-ok);
+  border-radius: var(--r-md);
+  background: var(--m-surface);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--m-accent);
+  border-left-color: var(--m-accent);
+  box-shadow: var(--shadow);
+}
+
+.m-roadmap.m-trial .m-trial-lesson-card:focus-visible {
+  outline: 3px solid var(--m-accent);
+  outline-offset: 3px;
+  border-color: var(--m-accent);
+}
+
+.m-roadmap.m-trial .m-trial-lesson-card:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--m-block);
+}
+
+.m-roadmap.m-trial .m-trial-lesson-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--pill);
+  border: 2px solid var(--m-line);
+  background: var(--m-surface2);
+  color: var(--m-ink);
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-card:hover .m-trial-lesson-order {
+  border-color: var(--m-accent);
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+}
+
+.m-roadmap.m-trial .m-trial-lesson-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-headline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-title {
+  margin: 0;
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--m-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+.m-roadmap.m-trial .m-trial-badge-video {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--m-warn);
+  border-radius: var(--pill);
+  background: var(--m-warn-soft);
+  color: var(--m-warn);
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.m-roadmap.m-trial .m-trial-badge-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--fb);
+  font-size: 11px;
+  color: var(--m-muted);
+  white-space: nowrap;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-family: var(--fb);
+  font-size: 12px;
+  color: var(--m-muted);
+}
+
+.m-roadmap.m-trial .m-trial-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.m-roadmap.m-trial .m-trial-tag i {
+  color: var(--m-accent);
+  font-size: 12px;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-right {
+  flex-shrink: 0;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--m-ok);
+  transition: transform 0.15s ease;
+}
+
+.m-roadmap.m-trial .m-trial-lesson-card:hover .m-trial-lesson-cta {
+  transform: translateX(4px);
+}
+
+/* Right Guide Column (>= 1024px) */
+.m-roadmap.m-trial .m-trial-guide-card {
+  padding: 22px;
+  border: 2px solid var(--m-line);
+  border-radius: var(--r-xl);
+  background: var(--m-surface);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: calc(var(--topbar-h, 68px) + 20px);
+}
+
+.m-roadmap.m-trial .m-trial-guide-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.m-roadmap.m-trial .m-trial-guide-mascot {
+  flex-shrink: 0;
+}
+
+.m-roadmap.m-trial .m-trial-guide-title {
+  margin: 0;
+  font-family: var(--fh);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--m-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-roadmap.m-trial .m-trial-guide-title i {
+  color: var(--m-ok);
+}
+
+.m-roadmap.m-trial .m-trial-guide-desc {
+  margin: 0 0 14px;
+  font-family: var(--fb);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--m-muted);
+}
+
+.m-roadmap.m-trial .m-trial-guide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-roadmap.m-trial .m-trial-guide-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: var(--fb);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--m-ink);
+}
+
+.m-roadmap.m-trial .m-trial-guide-list li i {
+  color: var(--m-ok);
+  margin-top: 2px;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE ADJUSTMENTS (360px - 768px)
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .m-roadmap.m-trial .m-trial-class-banner {
+    padding: 18px;
+  }
+
+  .m-roadmap.m-trial .m-trial-class-banner-main {
+    gap: 14px;
+  }
+
+  .m-roadmap.m-trial .m-trial-class-banner-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+  }
+
+  .m-roadmap.m-trial .m-trial-btn-register {
+    width: 100%;
+  }
+
+  .m-roadmap.m-trial .m-trial-banner {
+    padding: 18px;
+  }
+
+  .m-roadmap.m-trial .m-trial-banner-action {
+    width: 100%;
+  }
+
+  .m-roadmap.m-trial .m-trial-lesson-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .m-roadmap.m-trial .m-trial-lesson-order {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+}

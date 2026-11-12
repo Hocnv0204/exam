@@ -62,7 +62,8 @@ export function renderTrialRoute() {
 }
 
 export function bindTrialRoute() {
-  const root = document.querySelector('.m-roadmap')
+  // Trang học thử Mochi cũng có gốc .m-roadmap (.m-trial) → phân biệt bằng data-roadmap-id.
+  const root = document.querySelector('.m-roadmap[data-roadmap-id]')
   if (!root) return bindTrialEvents()
   bindMochiRoadmapEvents(root, getRoadmapSubjectByRoute(currentRoute()))
 }
