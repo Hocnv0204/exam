@@ -903,9 +903,21 @@ html[data-admin-ui="pro"] #assignment-review #view-exam-logs-btn:hover {
 
 html[data-admin-ui="pro"] .ap-review-questions-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 20px;
   align-items: start;
+}
+
+/* Cột câu hỏi có inline grid-column: span 2 (markup classic 3 cột) → trong lưới Pro 2 cột nó chiếm
+   cả hàng và đẩy "Sơ đồ câu hỏi" xuống cuối trang. Ghim lại: câu hỏi cột 1, sơ đồ cột 2 (sticky). */
+html[data-admin-ui="pro"] .ap-review-questions-grid > div:first-child {
+  grid-column: 1 !important;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-review-questions-grid > .review-sidebar-col {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 html[data-admin-ui="pro"] #assignment-review .review-question-card {
@@ -921,8 +933,8 @@ html[data-admin-ui="pro"] #assignment-review .review-question-card {
 
 html[data-admin-ui="pro"] #assignment-review .ap-review-navigator,
 html[data-admin-ui="pro"] #assignment-review .review-navigator-card {
-  position: sticky;
-  top: 88px;
+  /* Cột .review-sidebar-col đã sticky; thẻ không sticky riêng để không đè thẻ bên dưới. */
+  position: static;
   padding: 20px;
   border: 2px solid var(--ap-line);
   border-radius: 20px;
@@ -938,8 +950,12 @@ html[data-admin-ui="pro"] #assignment-review .question-nav-grid {
 }
 
 html[data-admin-ui="pro"] #assignment-review .nav-grid-item {
-  width: 38px;
-  height: 38px;
+  /* Ô co theo lưới 5 cột (không tràn mép thẻ), vẫn ≥ 44px vùng bấm. */
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 44px;
+  aspect-ratio: 1;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -1265,6 +1281,12 @@ html[data-admin-ui="pro"] :is(
 
   html[data-admin-ui="pro"] .ap-review-questions-grid {
     grid-template-columns: 1fr;
+  }
+
+  html[data-admin-ui="pro"] .ap-review-questions-grid > .review-sidebar-col {
+    grid-column: 1;
+    grid-row: auto;
+    order: -1;
   }
 
   html[data-admin-ui="pro"] #assignment-review .ap-review-navigator,
