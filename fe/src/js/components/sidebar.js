@@ -166,6 +166,10 @@ export function renderClassicSidebar(currentRoute) {
         <div class="nav-section-title">Trải nghiệm học thử</div>
         <div class="nav-item ${currentRoute === 'roadmap' || currentRoute === 'roadmap-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap'"><i class="fa-solid fa-route" style="color:#0284c7;"></i> Lộ trình Hóa 12 (Bứt phá 8+)</div>
         <div class="nav-item ${currentRoute === 'roadmap-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-11'"><i class="fa-solid fa-compass" style="color:#8b5cf6;"></i> Lộ trình Hóa 11 (Chuẩn KNTT)</div>
+        ${isMochiUI() ? `
+        <div class="nav-item ${currentRoute === 'roadmap-math-12' ? 'active' : ''}" onclick="window.location.hash='#roadmap-math-12'"><i class="fa-solid fa-square-root-variable" style="color:#d63b78;"></i> Lộ trình Toán 12 (Bứt phá 8+)</div>
+        <div class="nav-item ${currentRoute === 'roadmap-math-11' ? 'active' : ''}" onclick="window.location.hash='#roadmap-math-11'"><i class="fa-solid fa-shapes" style="color:#0a7a60;"></i> Lộ trình Toán 11 (Chuẩn KNTT)</div>
+        ` : ''}
         <div class="nav-item ${currentRoute === 'trial' ? 'active' : ''}" onclick="window.location.hash='#trial?tab=lessons'">
           <i class="fa-solid fa-wand-magic-sparkles" style="color:#16a34a;"></i> Bài học thử
         </div>

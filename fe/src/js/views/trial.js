@@ -8,6 +8,7 @@ import { renderRoadmap, bindRoadmapEvents, ENTRANCE_TEST_HOMEWORK_ID } from '../
 import { renderRoadmap11, bindRoadmap11Events } from '../components/roadmap-11.js'
 import { downloadHomeworkPdf, escapeHtml } from '../utils/download-helper.js'
 import { resolveTrialLessonDeepLink } from '../utils/trial-management.js'
+import { isMochiUI } from '../ui-flag.js'
 
 let cachedTrialLessons = []
 let isLoadingTrial = false
@@ -49,6 +50,14 @@ function renderTrialTabSwitcher(activeTab, historyCount = 0) {
       <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-roadmap-11" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${isRoadmap11 ? 'background:#8b5cf6; color:#fff; border-color:#8b5cf6;' : 'background:#fff;'};">
         <i class="fa-solid fa-compass" style="${isRoadmap11 ? 'color:#fff;' : 'color:#8b5cf6;'}"></i> Lộ trình Hóa 11 (Chuẩn KNTT)
       </button>
+      ${isMochiUI() ? `
+        <button class="btn-secondary tab-trial-nav" type="button" onclick="window.location.hash='#roadmap-math-12'" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; background:#fff;">
+          <i class="fa-solid fa-square-root-variable" style="color:#d63b78;"></i> Lộ trình Toán 12 (Bứt phá 8+)
+        </button>
+        <button class="btn-secondary tab-trial-nav" type="button" onclick="window.location.hash='#roadmap-math-11'" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; background:#fff;">
+          <i class="fa-solid fa-shapes" style="color:#0a7a60;"></i> Lộ trình Toán 11 (Chuẩn KNTT)
+        </button>
+      ` : ''}
       <button class="btn-secondary tab-trial-nav" id="btn-tab-trial-lessons" style="padding:9px 18px; font-weight:700; font-size:13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; ${activeTab === 'lessons' ? 'background:#16a34a; color:#fff; border-color:#16a34a;' : 'background:#fff;'};">
         <i class="fa-solid fa-wand-magic-sparkles" style="${activeTab === 'lessons' ? 'color:#fff;' : 'color:#16a34a;'}"></i> Bài học & Luyện tập
       </button>
@@ -1083,7 +1092,8 @@ export function bindTrialEvents() {
       if (isDifferent) {
         const app = document.getElementById('app')
         const currentHash = window.location.hash.replace('#', '').split('?')[0]
-        if (app && ['trial', 'roadmap', 'roadmap-12', 'roadmap-11'].includes(currentHash)) {
+        // Trang lộ trình Mochi (.m-roadmap) không dùng dữ liệu bài học thử: không được ghi đè bằng view cũ.
+        if (app && ['trial', 'roadmap', 'roadmap-12', 'roadmap-11'].includes(currentHash) && !app.querySelector('.m-roadmap')) {
           refreshTrialView(app)
         }
       }

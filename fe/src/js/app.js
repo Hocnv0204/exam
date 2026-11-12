@@ -43,7 +43,7 @@ import { renderLearningHistoryView, bindLearningHistoryEvents } from './views/le
 // class-details, question-bank, exam-proctoring dùng lazy loader.
 import { renderStudentDetailsView, bindStudentDetailsEvents } from './views/student-details.js'
 import { renderHomeworkMgmtView, bindHomeworkMgmtEvents } from './views/homework-mgmt.js'
-import { renderTrialView, bindTrialEvents } from './views/trial.js'
+import { renderRoadmapPage, bindRoadmapPage, renderTrialRoute, bindTrialRoute } from './views/roadmap-page.js'
 import { renderTrialManagementView, bindTrialManagementEvents } from './views/trial-management.js'
 import { renderMyHomeworksView, bindMyHomeworksEvents } from './views/my-homeworks.js'
 import { renderGradeBlocksView, bindGradeBlocksEvents, fetchGradeBlocksData } from './views/grade-blocks.js'
@@ -170,11 +170,13 @@ document.addEventListener('eduportal:themechange', () => {
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
-  trial: { render: renderTrialView, bind: bindTrialEvents },
+  trial: { render: renderTrialRoute, bind: bindTrialRoute },
   'trial-management': { render: renderTrialManagementView, bind: bindTrialManagementEvents },
-  roadmap: { render: renderTrialView, bind: bindTrialEvents },
-  'roadmap-12': { render: renderTrialView, bind: bindTrialEvents },
-  'roadmap-11': { render: renderTrialView, bind: bindTrialEvents },
+  roadmap: { render: renderRoadmapPage, bind: bindRoadmapPage },
+  'roadmap-12': { render: renderRoadmapPage, bind: bindRoadmapPage },
+  'roadmap-11': { render: renderRoadmapPage, bind: bindRoadmapPage },
+  'roadmap-math-12': { render: renderRoadmapPage, bind: bindRoadmapPage },
+  'roadmap-math-11': { render: renderRoadmapPage, bind: bindRoadmapPage },
   'my-classes': { render: renderMyClassesView, bind: bindMyClassesEvents },
   'student-dashboard': { render: renderMyClassesView, bind: bindMyClassesEvents },
   'my-homeworks': { render: renderMyHomeworksView, bind: bindMyHomeworksEvents },
@@ -232,7 +234,7 @@ async function router() {
       return
     }
     const isTrialMode = params.get('trial') === 'true' || hash === 'trial' || hash.startsWith('roadmap')
-    const guestRoutes = ['login', 'trial', 'roadmap', 'roadmap-12', 'roadmap-11', 'homework-attempt', 'assignment-review']
+    const guestRoutes = ['login', 'trial', 'roadmap', 'roadmap-12', 'roadmap-11', 'roadmap-math-12', 'roadmap-math-11', 'homework-attempt', 'assignment-review']
     if (!guestRoutes.includes(hash)) {
       window.location.hash = '#login'
       return
