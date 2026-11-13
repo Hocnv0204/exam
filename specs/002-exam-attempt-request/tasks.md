@@ -26,7 +26,7 @@ Thứ tự ưu tiên provider theo CLAUDE.md; task rủi ro cao (SQL/RPC, auth, 
 
 - [x] T010 `supabase db push` migration.
 - [x] T011 Deploy functions: `exam-session`, `homework-detail`, `exam-attempt-request`, `telegram-bot`.
-- [ ] T012 Đặt secret `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS`, `TELEGRAM_WEBHOOK_SECRET`; `setWebhook` kèm `secret_token` (người dùng cung cấp chat id/user id).
+- [x] T012 Đặt secret `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS`, `TELEGRAM_WEBHOOK_SECRET`; `setWebhook` kèm `secret_token` (người dùng cung cấp chat id/user id).
 - [x] T013 Push FE (`main`) sau khi backend đã lên.
 - [ ] T014 Thử end-to-end với tài khoản thử nghiệm (không dùng tài khoản thật để thi).
 
@@ -39,5 +39,5 @@ Thứ tự ưu tiên provider theo CLAUDE.md; task rủi ro cao (SQL/RPC, auth, 
 
 - T010: `db push --remote` 20261113000000_exam_attempt_requests.sql ✔
 - T011: deploy exam-session, homework-detail, exam-attempt-request, telegram-bot ✔ (smoke: không đăng nhập → 401; bot OPTIONS 200)
-- T012: CHƯA — cần token bot (chỉ có trên server) và Telegram user id của admin. Chưa đặt `TELEGRAM_WEBHOOK_SECRET` nên bot cũ vẫn chạy; nút duyệt báo "chưa cấu hình bảo mật"; yêu cầu vẫn được lưu (notified:false) cho tới khi đặt `TELEGRAM_ADMIN_CHAT_ID`.
+- T012: ✔ `TELEGRAM_WEBHOOK_SECRET` + `setWebhook(secret_token)` qua function tạm (đã xoá ngay sau, kèm SETUP_TOKEN); bot từ chối update không có/sai secret (401). `TELEGRAM_ADMIN_CHAT_ID` = `TELEGRAM_ADMIN_USER_IDS` = id admin.
 - T013: push FE ✔
