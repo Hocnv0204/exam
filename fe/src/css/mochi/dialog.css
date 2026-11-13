@@ -39,7 +39,7 @@ html[data-admin-ui="pro"] #m-dialog-root {
 #m-dialog-root .m-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10050;
+  z-index: 100500; /* trên .modal-backdrop (99999) và .loading-overlay (100000), dưới toast (999999) */
   display: flex;
   align-items: center;
   justify-content: center;
