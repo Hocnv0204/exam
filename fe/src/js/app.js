@@ -697,7 +697,21 @@ window.addEventListener('DOMContentLoaded', () => {
   }).observe(app, { childList: true })
 })
 
-window.addEventListener('hashchange', router)
+// Chốt chặn rời trang (vd phòng thi đang làm bài): view đặt window.__routeLeaveGuard = (newHash, oldUrl) => boolean.
+// Trả false = chặn: dừng mọi listener hashchange khác (để view không tự dọn engine) và không render route mới.
+// Listener này đăng ký lúc nạp app nên chạy trước listener của các view lazy.
+window.addEventListener('hashchange', (event) => {
+  const guard = window.__routeLeaveGuard
+  if (typeof guard === 'function') {
+    let allow = true
+    try { allow = guard(window.location.hash, event?.oldURL || '') !== false } catch (e) { allow = true }
+    if (!allow) {
+      event.stopImmediatePropagation()
+      return
+    }
+  }
+  router()
+})
 window.addEventListener('DOMContentLoaded', router)
 
 window.addEventListener('resize', () => {

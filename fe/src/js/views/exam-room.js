@@ -13,6 +13,7 @@ import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 import { getStudentTheme, getClassicStudentTheme, renderStudentThemeToggle } from '../theme.js'
 import { isMochiUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
+import { mochiConfirm } from '../components/mochi-dialog.js'
 
 // Mã lỗi máy chủ trả khi bắt đầu / tiếp tục phiên thi (exam-session) → xử lý thân thiện.
 const EXAM_START_ERROR_CODES = ['ATTEMPT_LIMIT', 'EXAM_EXPIRED', 'INVALID_TOKEN']
@@ -2238,7 +2239,31 @@ export function bindExamRoomEvents() {
   }
 
   let rulesModalOpen = false
+  // Bấm Back / chuyển trang khi đang làm bài: cảnh báo như khi đóng tab (trước đây rời đi ngay).
+  let leaveConfirmed = false
+  const isExamInProgress = () => examStarted && !engineClosed && !examLocked && !isSubmitting && !submittedOrUncertain && remainingSeconds() > 0
+  const routeLeaveGuard = (newHash, oldUrl) => {
+    if (leaveConfirmed || !isExamInProgress()) return true
+    if (String(newHash).split('?')[0] === '#exam-room') return true
+    // Giữ URL ở phòng thi (pushState không phát hashchange), rồi hỏi học sinh.
+    try { window.history.pushState(null, '', oldUrl || `#exam-room?homeworkId=${hw.id}`) } catch (_) {}
+    mochiConfirm({
+      title: 'Rời phòng thi?',
+      message: 'Bạn đang làm bài thi chính thức. Nếu rời phòng thi, đồng hồ vẫn tiếp tục chạy. Khi quay lại, nếu đã hết giờ hệ thống sẽ nộp phần bài đã lưu.',
+      confirmLabel: 'Rời phòng thi',
+      cancelLabel: 'Ở lại làm bài',
+      tone: 'warning'
+    }).then(leave => {
+      if (!leave || !isExamInProgress()) return
+      leaveConfirmed = true
+      window.location.hash = newHash
+    })
+    return false
+  }
+  window.__routeLeaveGuard = routeLeaveGuard
+
   const cleanupExamEngine = () => {
+    if (window.__routeLeaveGuard === routeLeaveGuard) window.__routeLeaveGuard = null
     engineClosed = true
     // Rời phòng thi khi popup quy chế còn mở: đóng popup để nút "Bắt đầu" không thể tạo lượt thi
     // và khởi động đồng hồ trên một engine đã dọn.
