@@ -23,6 +23,7 @@ import { renderMascot } from '../components/mascot.js'
 import { renderMochiStudentHome, bindMochiStudentHome } from './mochi/student-home.js'
 import { renderMochiLessonMap, bindMochiLessonMap } from './mochi/lesson-map.js'
 import { renderMochiLessonDetail, bindMochiLessonDetail } from './mochi/lesson-detail.js'
+import { mountStudentExamNotice } from '../components/student-exam-notice.js'
 
 window.confirmStartHomework = (homeworkId, type = 'PRACTICE') => {
   if (type === 'EXAM') {
@@ -629,7 +630,7 @@ export function renderClassicMyClassesView() {
               <p>Chọn lớp để xem bài học và tài liệu.</p>
             </div>
           </div>` : ''}
-          ${isDashboard ? '<div id="student-tuition-notice" aria-live="polite"></div>' : ''}
+          ${isDashboard ? '<div id="student-tuition-notice" aria-live="polite"></div><div id="student-exam-notice" aria-live="polite"></div>' : ''}
           ${!isDashboard ? `<div class="page-header">
             <div>
               <h2 class="page-title">Danh sách lớp học</h2>
@@ -823,6 +824,8 @@ export function bindMyClassesEvents() {
 
   // Load todo homeworks for student notifications
   if (!classId && (!hashUrl || hashUrl.split('?')[0] === 'student-dashboard') && state.user?.role === 'STUDENT') {
+    const examNotice = document.getElementById('student-exam-notice')
+    if (examNotice) mountStudentExamNotice(examNotice)
     loadStudentDashboardStats()
     loadStudentDashboardScores()
     loadLatestHomeworksAll()

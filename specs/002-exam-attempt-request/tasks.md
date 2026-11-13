@@ -41,3 +41,10 @@ Thứ tự ưu tiên provider theo CLAUDE.md; task rủi ro cao (SQL/RPC, auth, 
 - T011: deploy exam-session, homework-detail, exam-attempt-request, telegram-bot ✔ (smoke: không đăng nhập → 401; bot OPTIONS 200)
 - T012: ✔ `TELEGRAM_WEBHOOK_SECRET` + `setWebhook(secret_token)` qua function tạm (đã xoá ngay sau, kèm SETUP_TOKEN); bot từ chối update không có/sai secret (401). `TELEGRAM_ADMIN_CHAT_ID` = `TELEGRAM_ADMIN_USER_IDS` = id admin.
 - T013: push FE ✔
+
+## Phase 5 — Báo kết quả cho học sinh (2026-11-14)
+
+- [x] T015 [Claude] Migration `20261114000000_exam_attempt_notifications.sql`: `decide_exam_attempt_request` ghi `notifications`; index notifications; test PGlite.
+- [x] T016 [ChatGPT gpt-5.6-terra] Function `student-notifications` (GET chưa đọc / POST đánh dấu đọc) + test; `create-homework` action `my-homeworks` trả `extraAttemptGranted`.
+- [x] T017 [Gemini gemini-3.8-flash-high] FE: A polling trong popup (exam-room.js); B banner (component mới + gắn vào trang chủ học sinh Mochi/classic); C nhãn thẻ bài (my-homeworks.js) + test. `api.js` do Claude thêm wrapper.
+- [ ] T018 [Claude] Review, test, trình duyệt; deploy (migration, student-notifications, create-homework) + push FE.

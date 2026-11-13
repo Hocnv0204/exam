@@ -358,10 +358,15 @@ function mochiHwCard(hw) {
   const isExam = (hw.type || 'PRACTICE') === 'EXAM'
   const canShowPdf = canViewHomeworkPdf(state.user?.role, hw)
   const deadlineInfo = getDeadlineInfo(hw.deadline)
+  const hasExtraAttempt = isExam && hw.extraAttemptGranted === true
 
   const typeBadge = isExam
     ? `<span class="m-chip m-chip--warn"><i class="fa-solid fa-award" aria-hidden="true"></i> BÀI THI</span>`
     : `<span class="m-chip"><i class="fa-solid fa-book-open" aria-hidden="true"></i> LUYỆN TẬP</span>`
+
+  const extraAttemptBadge = hasExtraAttempt
+    ? `<span class="m-chip m-chip--ok"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Được cấp thêm lượt</span>`
+    : ''
 
   let statusBlock = ''
   let actions = ''
@@ -403,7 +408,7 @@ function mochiHwCard(hw) {
         <i class="fa-solid fa-eye" aria-hidden="true"></i> Xem kết quả
       </a>
       <button type="button" class="m-btn m-btn--primary" onclick="window.confirmStartHomework('${hw.id}','${hw.type || 'PRACTICE'}')">
-        <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Làm lại
+        <i class="fa-solid ${hasExtraAttempt ? 'fa-pen-to-square' : 'fa-rotate-right'}" aria-hidden="true"></i> ${hasExtraAttempt ? 'Vào thi' : 'Làm lại'}
       </button>
     `
   } else {
@@ -415,7 +420,7 @@ function mochiHwCard(hw) {
         <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> Tải PDF
       </button>` : ''}
       <button type="button" class="m-btn m-btn--primary" onclick="window.confirmStartHomework('${hw.id}','${hw.type || 'PRACTICE'}')">
-        <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> ${isExam ? 'Vào phòng thi' : 'Làm bài'}
+        <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> ${isExam ? (hasExtraAttempt ? 'Vào thi' : 'Vào phòng thi') : 'Làm bài'}
       </button>
     `
   }
@@ -425,6 +430,7 @@ function mochiHwCard(hw) {
       <div class="m-hw-card-main">
         <div class="m-hw-card-tags">
           ${typeBadge}
+          ${extraAttemptBadge}
           <span class="m-chip m-chip--secondary"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> ${escapeHtml(hw.className || 'Lớp học')}</span>
         </div>
         <h3 class="m-hw-card-title">${escapeHtml(hw.title || 'Bài tập')}</h3>
@@ -446,6 +452,7 @@ export function hwCard(hw) {
     return mochiHwCard(hw)
   }
   const isExam = (hw.type || 'PRACTICE') === 'EXAM'
+  const hasExtraAttempt = isExam && hw.extraAttemptGranted === true
   // Học sinh tuyệt đối không thấy nút tải PDF của BÀI THI (kể cả bài đã gắn PDF).
   const canShowPdf = canViewHomeworkPdf(state.user?.role, hw)
   const deadlineDate = hw.deadline && !isNaN(new Date(hw.deadline).getTime()) ? new Date(hw.deadline) : null
@@ -453,6 +460,10 @@ export function hwCard(hw) {
   const typeBadge = isExam
     ? `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca;">BÀI THI</span>`
     : `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:#eff6ff; color:#0284c7; border:1px solid #bfdbfe;">LUYỆN TẬP</span>`
+
+  const extraAttemptBadge = hasExtraAttempt
+    ? `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;"><i class="fa-solid fa-circle-check" style="margin-right:4px;"></i>Được cấp thêm lượt</span>`
+    : ''
 
   let statusBlock = ''
   let actions = ''
@@ -480,7 +491,7 @@ export function hwCard(hw) {
         <i class="fa-solid fa-eye"></i> Xem kết quả
       </a>
       <button type="button" class="btn-primary" onclick="window.confirmStartHomework('${hw.id}','${hw.type || 'PRACTICE'}')" style="padding:8px 16px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;">
-        <i class="fa-solid fa-rotate-right"></i> Làm lại
+        <i class="fa-solid ${hasExtraAttempt ? 'fa-pen-to-square' : 'fa-rotate-right'}"></i> ${hasExtraAttempt ? 'Vào thi' : 'Làm lại'}
       </button>
     `
   } else {
@@ -495,7 +506,7 @@ export function hwCard(hw) {
         <i class="fa-solid fa-file-arrow-down"></i> Tải PDF
       </button>` : ''}
       <button type="button" class="btn-primary" onclick="window.confirmStartHomework('${hw.id}','${hw.type || 'PRACTICE'}')" style="padding:8px 18px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto; background:${overdue ? '#d97706' : ''}; border-color:${overdue ? '#d97706' : ''};">
-        <i class="fa-solid fa-pen-to-square"></i> ${isExam ? 'Vào phòng thi' : 'Làm bài'}
+        <i class="fa-solid fa-pen-to-square"></i> ${isExam ? (hasExtraAttempt ? 'Vào thi' : 'Vào phòng thi') : 'Làm bài'}
       </button>
     `
   }
@@ -506,6 +517,7 @@ export function hwCard(hw) {
         <div style="flex:1; min-width:240px;">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
             ${typeBadge}
+            ${extraAttemptBadge}
             <span style="font-size:12px; color:#64748b; font-weight:600;"><i class="fa-solid fa-users" style="font-size:11px;"></i> ${escapeHtml(hw.className || 'Lớp học')}</span>
           </div>
           <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:6px;">${escapeHtml(hw.title || 'Bài tập')}</div>

@@ -25,6 +25,8 @@ await db.exec(`
   create table public.exam_sessions(id uuid primary key default gen_random_uuid(), homework_id uuid, student_id uuid, session_token text,
     status text, attempt_no int, created_at timestamptz default clock_timestamp(), last_heartbeat_at timestamptz, draft_answers jsonb default '[]');
   create table public.exam_logs(id uuid primary key default gen_random_uuid(), session_id uuid, counted boolean);
+  create table public.notifications(id uuid primary key default gen_random_uuid(), user_id uuid not null references public.profiles on delete cascade,
+    title text not null, content text not null, type text not null, related_id uuid, is_read boolean not null default false, created_at timestamptz not null default now());
   grant usage on schema public to anon, authenticated, service_role;
   grant all on all tables in schema public to service_role;
   insert into public.profiles values ('${student}','STUDENT'),('${other}','STUDENT'),('${outsider}','STUDENT'),('${admin}','ADMIN');
@@ -40,6 +42,7 @@ await db.exec(`
   insert into public.homework_targets values ('${hwTargeted}','${other}');
 `)
 await db.exec(readFileSync(new URL('../migrations/20261113000000_exam_attempt_requests.sql', import.meta.url), 'utf8'))
+await db.exec(readFileSync(new URL('../migrations/20261114000000_exam_attempt_notifications.sql', import.meta.url), 'utf8'))
 await db.exec('set role service_role')
 
 const errCode = async (fn) => { try { await fn(); return 'OK' } catch (e) { return (String(e.message).match(/[A-Z_]{5,}/) || [e.message])[0] } }
@@ -149,6 +152,15 @@ assert.equal(await errCode(() => status(hwPractice, student)), 'INVALID_EXAM')
 assert.equal((await status(hwTargeted, other)).latest, null)
 assert.equal(await allowance(id(4242), student), 0, 'bài không tồn tại → 0, không NULL')
 assert.equal(d7.decidedByName, 'Cô Lan', 'nhánh quyết định lần đầu có decidedByName')
+
+// 11d. Thông báo cho học sinh: mỗi quyết định lần đầu đúng 1 dòng; bấm lại không thêm; nội dung đúng loại
+const notes = (s) => q(`select type, title, content, related_id from public.notifications where user_id=$1 order by created_at`, [s]).then(x => x.rows)
+const ns = await notes(student)
+const decidedCount = (await q(`select count(*)::int c from public.exam_attempt_requests where student_id=$1 and status<>'PENDING'`, [student])).rows[0].c
+assert.equal(ns.length, decidedCount, 'mỗi yêu cầu đã quyết định có đúng 1 thông báo (bấm lại không thêm)')
+assert.ok(ns.some(n => n.type === 'EXAM_ATTEMPT_APPROVED' && n.title === 'Đã được cấp thêm lượt thi' && n.content.includes('Đề thi') && n.related_id === hw))
+assert.ok(ns.some(n => n.type === 'EXAM_ATTEMPT_REJECTED' && /không còn được giao bài/.test(n.content)), 'từ chối do không còn hợp lệ có lý do riêng')
+assert.ok(ns.some(n => n.type === 'EXAM_ATTEMPT_REJECTED' && /đã từ chối yêu cầu/.test(n.content)))
 
 // 12. Oracle JS độc lập: chuỗi thao tác ngẫu nhiên cho học sinh "other" trên bài giao riêng
 const model = { submitted: 0, active: false, approved: 0, pending: null, today: 0, base: 1 }

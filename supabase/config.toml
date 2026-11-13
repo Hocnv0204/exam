@@ -81,6 +81,9 @@ verify_jwt = true
 [functions.exam-attempt-request]
 verify_jwt = true
 
+[functions.student-notifications]
+verify_jwt = true
+
 [functions.exam-log]
 verify_jwt = true
 

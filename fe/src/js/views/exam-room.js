@@ -280,6 +280,12 @@ export function renderAttemptRequestState(state, options = {}) {
   `
 }
 
+export function shouldPollAttemptRequest(requestState, visibilityState = (typeof document !== 'undefined' ? document.visibilityState : 'visible')) {
+  if (!requestState || requestState.status !== 'PENDING') return false
+  if (visibilityState !== 'visible') return false
+  return true
+}
+
 /**
  * Hiển thị popup hết lượt làm bài, tích hợp chức năng gửi yêu cầu thêm lượt thi.
  */
@@ -292,6 +298,94 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
 
   let currentRequestState = { loading: true }
   let isSubmitting = false
+  let pollIntervalId = null
+  let inFlight = false
+
+  const stopPolling = () => {
+    if (pollIntervalId) {
+      clearInterval(pollIntervalId)
+      pollIntervalId = null
+    }
+  }
+
+  const pollAttemptRequest = async () => {
+    const container = document.getElementById('attempt-request-state-container')
+    if (!container) {
+      stopPolling()
+      return
+    }
+
+    const vis = typeof document !== 'undefined' ? document.visibilityState : 'visible'
+    if (!shouldPollAttemptRequest(currentRequestState, vis)) {
+      if (currentRequestState?.status !== 'PENDING') {
+        stopPolling()
+      }
+      return
+    }
+
+    if (inFlight) return
+    inFlight = true
+
+    try {
+      const res = await api.getExamAttemptRequest(hw.id)
+      if (!document.getElementById('attempt-request-state-container')) {
+        stopPolling()
+        return
+      }
+
+      const latest = res?.latest || null
+      const newStatus = latest?.status || null
+
+      if (newStatus === 'APPROVED') {
+        stopPolling()
+        currentRequestState = {
+          latest,
+          status: 'APPROVED',
+          requestedAt: latest?.requestedAt || null,
+          decidedAt: latest?.decidedAt || null,
+          remainingToday: typeof res?.remainingToday === 'number' ? res.remainingToday : 3,
+          allowance: res?.allowance,
+          attemptsUsed: res?.attemptsUsed
+        }
+        updateModalBody(currentRequestState)
+        showToast('Giáo viên đã cấp thêm lượt thi cho bạn!', 'success')
+      } else if (newStatus === 'REJECTED') {
+        stopPolling()
+        currentRequestState = {
+          latest,
+          status: 'REJECTED',
+          requestedAt: latest?.requestedAt || null,
+          decidedAt: latest?.decidedAt || null,
+          remainingToday: typeof res?.remainingToday === 'number' ? res.remainingToday : 0,
+          allowance: res?.allowance,
+          attemptsUsed: res?.attemptsUsed
+        }
+        updateModalBody(currentRequestState)
+        showToast('Yêu cầu thêm lượt thi đã bị từ chối.', 'info')
+      } else if (newStatus !== 'PENDING') {
+        stopPolling()
+      }
+    } catch (_e) {
+      // Lỗi mạng: im lặng, thử lại lần sau.
+    } finally {
+      inFlight = false
+    }
+  }
+
+  const startPolling = () => {
+    stopPolling()
+    if (currentRequestState?.status === 'PENDING') {
+      pollIntervalId = setInterval(pollAttemptRequest, 15000)
+    }
+  }
+
+  const cleanupNav = () => {
+    stopPolling()
+    window.removeEventListener('hashchange', cleanupNav)
+    window.removeEventListener('beforeunload', cleanupNav)
+  }
+  window.addEventListener('hashchange', cleanupNav)
+  window.addEventListener('beforeunload', cleanupNav)
 
   const bindButtons = () => {
     const btn = document.getElementById('btn-request-attempt')
@@ -321,6 +415,7 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
             notified: res?.notified
           }
           updateModalBody(currentRequestState)
+          startPolling()
         } catch (err) {
           console.warn('[exam-room] Gửi yêu cầu thêm lượt thi thất bại:', err)
           const errCode = err?.code || ''
@@ -328,6 +423,7 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
           showToast(errMsg, 'error')
 
           if (errCode === 'REQUEST_DAILY_LIMIT') {
+            stopPolling()
             currentRequestState = {
               status: 'REJECTED',
               remainingToday: 0
@@ -339,6 +435,7 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
               requestedAt: new Date().toISOString()
             }
             updateModalBody(currentRequestState, { error: errMsg })
+            startPolling()
           } else {
             updateModalBody(currentRequestState, { error: errMsg })
           }
@@ -373,7 +470,10 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
       cancelLabel: 'Đóng',
       showCancel: true,
       dismissOnBackdrop: false,
-      onCancel: () => { window.location.hash = '#my-classes' }
+      onCancel: () => {
+        stopPolling()
+        window.location.hash = '#my-classes'
+      }
     }
   )
 
@@ -394,14 +494,21 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
           attemptsUsed: res?.attemptsUsed
         }
         updateModalBody(currentRequestState)
+        if (currentRequestState.status === 'PENDING') {
+          startPolling()
+        } else {
+          stopPolling()
+        }
       })
       .catch(err => {
         console.warn('[exam-room] Không tải được trạng thái yêu cầu:', err)
         // Lỗi tải: vẫn cho gửi
+        stopPolling()
         currentRequestState = { latest: null, remainingToday: 3 }
         updateModalBody(currentRequestState)
       })
   } else {
+    stopPolling()
     currentRequestState = { latest: null, remainingToday: 3 }
     updateModalBody(currentRequestState)
   }

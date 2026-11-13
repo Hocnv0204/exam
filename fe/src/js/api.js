@@ -674,6 +674,11 @@ export const api = {
   setBonus: (data) => request(`reopen-submission?action=set-bonus`, { method: 'POST', body: JSON.stringify(data) }),
   // Yêu cầu thêm lượt thi EXAM (specs/002-exam-attempt-request). Lỗi có err.code:
   // NOT_AT_LIMIT | REQUEST_PENDING | REQUEST_DAILY_LIMIT | FORBIDDEN | INVALID_EXAM
+  // Thông báo của chính học sinh (vd kết quả yêu cầu thêm lượt thi).
+  // GET → { items: [{ id, title, content, type, relatedId, isRead, createdAt }] }
+  getStudentNotifications: ({ unreadOnly = true, limit = 20 } = {}, options = {}) => request(`student-notifications?unread=${unreadOnly ? 1 : 0}&limit=${Number(limit) || 20}`, { method: 'GET', silent: true, ...options }),
+  // ids: mảng UUID, hoặc 'all' để đánh dấu tất cả → { updated }
+  markNotificationsRead: (ids, options = {}) => request('student-notifications', { method: 'POST', body: JSON.stringify(ids === 'all' ? { all: true } : { ids }), silent: true, ...options }),
   requestExamAttempt: (homeworkId, options = {}) => request('exam-attempt-request', { method: 'POST', body: JSON.stringify({ homeworkId }), silent: true, ...options }),
   getExamAttemptRequest: (homeworkId, options = {}) => request(`exam-attempt-request?homeworkId=${encodeURIComponent(homeworkId)}`, { method: 'GET', silent: true, ...options }),
   initExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }), silent: true, ...options }),

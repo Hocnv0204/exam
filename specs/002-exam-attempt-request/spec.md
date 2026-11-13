@@ -97,3 +97,10 @@ Gửi vào **chat riêng của admin với bot hiện có**: secret `TELEGRAM_AD
 - Sau clarify (điểm trên) → plan + tasks → xác nhận trước implement.
 - Migration DB, đổi RPC `init_exam_attempt`, API mới, đổi webhook: xác nhận trước khi chạy lên cloud.
 - Đặt `setWebhook` kèm `secret_token` và các secret mới: bạn thực hiện hoặc cho phép tôi chạy.
+
+## Bổ sung 2026-11-14 — Báo kết quả cho học sinh (đã chốt: A + B + C)
+
+- **A. Popup tự cập nhật**: popup hết lượt ở trạng thái PENDING tự gọi lại trạng thái mỗi 15 giây khi tab đang hiển thị; APPROVED → chuyển ngay sang "Giáo viên đã cấp thêm lượt thi — Vào thi" + toast; REJECTED → hiện trạng thái từ chối. Dừng khi đóng popup / rời trang.
+- **B. Thông báo trong ứng dụng**: `decide_exam_attempt_request` ghi 1 dòng vào `notifications` (cùng transaction) khi quyết định lần đầu: `EXAM_ATTEMPT_APPROVED` / `EXAM_ATTEMPT_REJECTED`, `related_id = homework_id`. Function mới `student-notifications` (STUDENT): GET thông báo chưa đọc của chính mình; POST đánh dấu đã đọc (theo id hoặc tất cả). Trang chủ học sinh / trang lớp hiện banner (Mochi + classic) "Bài thi X đã được mở thêm 1 lượt — Vào thi ngay" / "Yêu cầu … bị từ chối"; bấm "Vào thi" hoặc "Đã hiểu" → đánh dấu đã đọc.
+- **C. Nhãn trên thẻ bài thi**: `my-homeworks` trả `extraAttemptGranted` cho bài EXAM khi học sinh có lượt được cấp chưa dùng (allowance > số lần đã nộp và có yêu cầu APPROVED); thẻ bài hiện nhãn "Được cấp thêm lượt" và nút "Vào thi".
+- Ngoài phạm vi: Telegram cho học sinh (chưa có liên kết tài khoản).

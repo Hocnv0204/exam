@@ -6,6 +6,7 @@ import { renderNavbar } from '../../components/navbar.js'
 import { renderMascot } from '../../components/mascot.js'
 import { escapeHtml } from '../../utils/download-helper.js'
 import { mountHomeAchievementsWidget, renderHomeAchievementsSkeleton } from '../../components/progress-widgets.js'
+import { mountStudentExamNotice } from '../../components/student-exam-notice.js'
 import { MOCHI_FEATURES } from '../../ui-flag.js'
 
 let currentStudentHomeClasses = []
@@ -35,6 +36,7 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
         <main class="content-body">
           <div class="m-page-wrap">
             <div id="student-tuition-notice" aria-live="polite"></div>
+            <div id="student-exam-notice" aria-live="polite"></div>
             <section class="m-home-hero" aria-labelledby="m-home-title">
               <div class="m-home-hero-copy">
                 <span class="m-chip m-chip--accent2">${escapeHtml(today)}</span>
@@ -114,6 +116,11 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
 }
 
 export function bindMochiStudentHome({ loadStats, loadScores, loadHomeworks, loadWeakTopics, loadDrafts, startTour } = {}) {
+  const examNoticeContainer = document.getElementById('student-exam-notice')
+  if (examNoticeContainer) {
+    mountStudentExamNotice(examNoticeContainer)
+  }
+
   const continueButton = document.getElementById('m-home-continue')
   continueButton?.addEventListener('click', () => {
     if (continueButton.dataset.homeworkId) {

@@ -105,8 +105,10 @@ serve(async (req: Request) => {
         if (subRes.error) return errorResponse(subRes.error.message, 500)
 
         const latestByHw = new Map<string, any>()
+        const submittedCountByHw = new Map<string, number>()
         for (const s of (subRes.data || [])) {
           if (!latestByHw.has(s.homework_id)) latestByHw.set(s.homework_id, s)
+          submittedCountByHw.set(s.homework_id, (submittedCountByHw.get(s.homework_id) || 0) + 1)
         }
 
         const merged = (hwRes.data || [])
@@ -172,8 +174,40 @@ serve(async (req: Request) => {
         const total = ordered.length
         const totalPages = Math.max(1, Math.ceil(total / pageSize))
         const safePage = Math.min(page, totalPages)
+        const pageItems = ordered.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+        // Chỉ lookup các bài EXAM thực sự hiện trên trang đang trả về. Lỗi lookup này
+        // không được làm hỏng danh sách bài tập; khi đó mọi nhãn đều là false.
+        const examIds = pageItems
+          .filter((item: any) => item.type === 'EXAM' && Number(item.maxAttempts) > 0)
+          .map((item: any) => item.id)
+        const approvedCountByHw = new Map<string, number>()
+        if (examIds.length > 0) {
+          try {
+            const { data: approved, error: approvedError } = await serviceRoleClient
+              .from('exam_attempt_requests')
+              .select('homework_id')
+              .eq('student_id', user.id)
+              .eq('status', 'APPROVED')
+              .in('homework_id', examIds)
+            if (approvedError) throw approvedError
+            for (const request of approved || []) {
+              approvedCountByHw.set(request.homework_id, (approvedCountByHw.get(request.homework_id) || 0) + 1)
+            }
+          } catch (err) {
+            console.error('[create-homework] extra attempt lookup failed:', (err as Error).name || 'DatabaseError')
+          }
+        }
         return jsonResponse({
-          items: ordered.slice((safePage - 1) * pageSize, safePage * pageSize),
+          items: pageItems.map((item: any) => {
+            const maxAttempts = Number(item.maxAttempts)
+            const approved = approvedCountByHw.get(item.id) || 0
+            const allowance = maxAttempts + approved
+            return {
+              ...item,
+              extraAttemptGranted: item.type === 'EXAM' && maxAttempts > 0 && approved > 0 && (submittedCountByHw.get(item.id) || 0) < allowance,
+            }
+          }),
           total,
           page: safePage,
           pageSize,
