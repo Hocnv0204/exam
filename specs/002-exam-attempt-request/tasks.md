@@ -47,4 +47,9 @@ Thứ tự ưu tiên provider theo CLAUDE.md; task rủi ro cao (SQL/RPC, auth, 
 - [x] T015 [Claude] Migration `20261114000000_exam_attempt_notifications.sql`: `decide_exam_attempt_request` ghi `notifications`; index notifications; test PGlite.
 - [x] T016 [ChatGPT gpt-5.6-terra] Function `student-notifications` (GET chưa đọc / POST đánh dấu đọc) + test; `create-homework` action `my-homeworks` trả `extraAttemptGranted`.
 - [x] T017 [Gemini gemini-3.8-flash-high] FE: A polling trong popup (exam-room.js); B banner (component mới + gắn vào trang chủ học sinh Mochi/classic); C nhãn thẻ bài (my-homeworks.js) + test. `api.js` do Claude thêm wrapper.
-- [ ] T018 [Claude] Review, test, trình duyệt; deploy (migration, student-notifications, create-homework) + push FE.
+- [x] T018 [Claude] Review, test, trình duyệt; deploy (migration, student-notifications, create-homework) + push FE.
+
+## Triển khai Phase 5 (2026-11-14)
+
+- Lần đẩy đầu thất bại (rollback, không thay đổi): production không còn bảng `public.notifications` (bị xoá ngoài migration). Migration 20261114 sửa lại: tạo bảng nếu thiếu (RLS bật, chỉ service_role) → db push ✔.
+- Deploy `student-notifications`, `create-homework` ✔ (smoke: không đăng nhập → 401). Push FE ✔.

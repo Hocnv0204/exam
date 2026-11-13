@@ -25,8 +25,7 @@ await db.exec(`
   create table public.exam_sessions(id uuid primary key default gen_random_uuid(), homework_id uuid, student_id uuid, session_token text,
     status text, attempt_no int, created_at timestamptz default clock_timestamp(), last_heartbeat_at timestamptz, draft_answers jsonb default '[]');
   create table public.exam_logs(id uuid primary key default gen_random_uuid(), session_id uuid, counted boolean);
-  create table public.notifications(id uuid primary key default gen_random_uuid(), user_id uuid not null references public.profiles on delete cascade,
-    title text not null, content text not null, type text not null, related_id uuid, is_read boolean not null default false, created_at timestamptz not null default now());
+  -- notifications: KHÔNG tạo sẵn — như production, migration 20261114 phải tự tạo.
   grant usage on schema public to anon, authenticated, service_role;
   grant all on all tables in schema public to service_role;
   insert into public.profiles values ('${student}','STUDENT'),('${other}','STUDENT'),('${outsider}','STUDENT'),('${admin}','ADMIN');
@@ -203,6 +202,7 @@ for (const role of ['anon', 'authenticated']) {
   await assert.rejects(q('select public.decide_exam_attempt_request($1,true,1,$2)', [r4.requestId, 'x']), e => e.code === '42501')
   await assert.rejects(q('select public.init_exam_attempt($1,$2,$3)', [hw, student, 't']), e => e.code === '42501')
   await assert.rejects(q('select public.get_exam_attempt_request_status($1,$2)', [hw, student]), e => e.code === '42501')
+  await assert.rejects(q('select * from public.notifications'), e => e.code === '42501')
   await db.exec('reset role')
 }
 await db.exec('grant select on public.exam_attempt_requests to authenticated; set role authenticated')

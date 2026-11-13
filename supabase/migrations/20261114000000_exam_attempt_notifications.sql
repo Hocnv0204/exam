@@ -2,6 +2,23 @@
 -- decide_exam_attempt_request ghi 1 dòng vào public.notifications (cùng transaction) khi quyết định lần đầu.
 -- Apply after 20261113000000_exam_attempt_requests.sql.
 
+-- Production không còn bảng notifications (đã bị xoá ngoài migration) → tạo lại nếu thiếu, cùng cột với
+-- 20260801000011_create_notifications_table.sql. Client chỉ đọc qua function student-notifications
+-- (service role), nên khoá quyền như các bảng mới: RLS bật, không cho anon/authenticated.
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  type TEXT NOT NULL,
+  related_id UUID,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.notifications FROM PUBLIC, anon, authenticated;
+GRANT ALL ON public.notifications TO service_role;
+
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
   ON public.notifications (user_id, is_read, created_at DESC);
 
