@@ -53,7 +53,9 @@ globalThis.window = {
 const { state } = await import('../src/js/state.js')
 const {
   renderExamRoomView,
-  renderClassicExamRoomView
+  renderClassicExamRoomView,
+  examStartErrorCode,
+  examStartErrorMessage
 } = await import('../src/js/views/exam-room.js')
 const {
   renderHomeworkSolverView,
@@ -357,4 +359,17 @@ test('bản Mochi giữ đủ class chức năng, data-*/name và id như bản 
     for (const id of ids(classic)) if (!id.startsWith('sidebar-')) assert.ok(mi.has(id), `[${label}] thiếu id #${id}`)
   }
   setMochi(false)
+})
+
+
+test('mã lỗi bắt đầu phiên thi được nhận diện và dịch sang tiếng Việt (không hiện mã thô)', () => {
+  assert.equal(examStartErrorCode(new Error('ATTEMPT_LIMIT')), 'ATTEMPT_LIMIT')
+  assert.equal(examStartErrorCode({ code: 'EXAM_EXPIRED', message: 'x' }), 'EXAM_EXPIRED')
+  assert.equal(examStartErrorCode(new Error('INVALID_TOKEN')), 'INVALID_TOKEN')
+  assert.equal(examStartErrorCode(new Error('Network down')), '')
+  for (const code of ['ATTEMPT_LIMIT', 'EXAM_EXPIRED', 'INVALID_TOKEN']) {
+    const msg = examStartErrorMessage(new Error(code))
+    assert.doesNotMatch(msg, new RegExp(code), `${code} không được hiện mã thô`)
+  }
+  assert.equal(examStartErrorMessage(new Error('Lỗi khác')), 'Lỗi khác')
 })

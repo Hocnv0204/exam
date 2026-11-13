@@ -15,6 +15,8 @@ import { showToast } from './toast.js'
  *   đóng bằng code (closeModal()) không bị chặn.
  * - onCancel: callback khi người dùng huỷ (nút Hủy / nút X / bấm nền ngoài)
  * - onClose: callback khi modal đã đóng, nhận lý do 'cancel' | 'confirm' | 'close'
+ * - dismissOnBackdrop: bấm nền mờ có đóng modal không (mặc định true). false → giữ modal,
+ *   gọi onBackdropClick() nếu có (vd modal bắt buộc chọn như quy chế phòng thi).
  *
  * Lưu ý:
  * - Chỉ 1 modal active: mở modal mới sẽ thay thế modal cũ. Callback của modal cũ
@@ -35,7 +37,9 @@ export function openModal(title, bodyHTML, onConfirm = null, options = {}) {
     shellFlex = false,
     beforeClose = null,
     onCancel = null,
-    onClose = null
+    onClose = null,
+    dismissOnBackdrop = true,
+    onBackdropClick = null
   } = options
 
   let container = document.getElementById('modal-container')
@@ -89,7 +93,10 @@ export function openModal(title, bodyHTML, onConfirm = null, options = {}) {
 
   document.getElementById('modal-close-btn')?.addEventListener('click', () => close('cancel'))
   document.getElementById('modal-cancel-btn')?.addEventListener('click', () => close('cancel'))
-  document.getElementById('active-modal-backdrop')?.addEventListener('click', () => close('cancel'))
+  document.getElementById('active-modal-backdrop')?.addEventListener('click', () => {
+    if (dismissOnBackdrop) close('cancel')
+    else onBackdropClick?.()
+  })
 
   if (onConfirm) {
     const confirmBtn = document.getElementById('modal-confirm-btn')

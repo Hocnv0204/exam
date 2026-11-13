@@ -1187,6 +1187,7 @@ select.form-input {
   width: 100%;
   max-width: 540px;
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px); /* mobile: không để nút bị thanh trình duyệt che */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   box-shadow: 0 20px 40px rgba(0,0,0,0.2);
@@ -1502,6 +1503,7 @@ html:has(body.modal-open #modal-container .class-homework-preview-modal) {
   width: 100%;
   max-width: 540px;
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px); /* mobile: không để nút bị thanh trình duyệt che */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   box-shadow: 0 20px 40px rgba(0,0,0,0.2);
@@ -1536,6 +1538,7 @@ html:has(body.modal-open #modal-container .class-homework-preview-modal) {
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px); /* mobile: không để nút bị thanh trình duyệt che */
 }
 
 /* Header (tiêu đề + nút X) và footer (nút Đóng): giữ nguyên, không cuộn */

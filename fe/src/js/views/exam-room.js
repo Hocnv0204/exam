@@ -14,6 +14,21 @@ import { getStudentTheme, getClassicStudentTheme, renderStudentThemeToggle } fro
 import { isMochiUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
 
+// Mã lỗi máy chủ trả khi bắt đầu / tiếp tục phiên thi (exam-session) → xử lý thân thiện.
+const EXAM_START_ERROR_CODES = ['ATTEMPT_LIMIT', 'EXAM_EXPIRED', 'INVALID_TOKEN']
+export function examStartErrorCode(err) {
+  const raw = `${err?.code || ''} ${err?.message || ''}`
+  return EXAM_START_ERROR_CODES.find(code => raw.includes(code)) || ''
+}
+export function examStartErrorMessage(err) {
+  switch (examStartErrorCode(err)) {
+    case 'ATTEMPT_LIMIT': return 'Bạn đã dùng hết số lượt làm bài thi này.'
+    case 'EXAM_EXPIRED': return 'Phiên thi đã hết giờ.'
+    case 'INVALID_TOKEN': return 'Phiên thi trên thiết bị này không còn hợp lệ. Vui lòng tải lại trang.'
+    default: return err?.message || 'Không thể bắt đầu phiên thi. Vui lòng thử lại.'
+  }
+}
+
 // The exam room has no .app-layout root; app.js updates this shell on theme changes.
 const examShell = () => {
   // Giao diện cũ chỉ có navy/hồng; Mochi dùng đủ 4 bảng màu.
@@ -1856,8 +1871,15 @@ export function bindExamRoomEvents() {
     showToast('Menu chuột phải bị khóa trong phòng thi!', 'warning')
   }
 
+  let rulesModalOpen = false
   const cleanupExamEngine = () => {
     engineClosed = true
+    // Rời phòng thi khi popup quy chế còn mở: đóng popup để nút "Bắt đầu" không thể tạo lượt thi
+    // và khởi động đồng hồ trên một engine đã dọn.
+    if (rulesModalOpen) {
+      rulesModalOpen = false
+      closeModal()
+    }
     shield.detach()
     if (examAutosave) examAutosave.dispose()
     if (timerInterval) clearInterval(timerInterval)
@@ -1938,7 +1960,22 @@ export function bindExamRoomEvents() {
     updateExamProgress(questions.length)
   }
 
+  // Hết lượt thi: popup thông báo rõ ràng thay cho mã lỗi thô.
+  const showAttemptLimitModal = () => {
+    clearSessionStorageData(hw.id)
+    openModal(
+      'Bạn đã hết lượt làm bài',
+      `<div style="display:flex; flex-direction:column; gap:12px; text-align:center;">
+        <div style="font-size:15px; line-height:1.6;">Bạn đã dùng hết số lượt làm bài thi <strong>${escapeHtml(hw.title || '')}</strong>.</div>
+        <div style="font-size:14px; line-height:1.6; color:#64748b;">Nếu cần làm lại, hãy liên hệ giáo viên để được cấp thêm lượt thi.</div>
+      </div>`,
+      () => { window.location.hash = '#my-classes'; return true },
+      { confirmLabel: 'Đóng', showCancel: false, dismissOnBackdrop: false, onCancel: () => { window.location.hash = '#my-classes' } }
+    )
+  }
+
   const startExamFlow = async () => {
+    let resumeFailed = false
     // Initial display of timer before starting
     updateTimerDisplay()
 
@@ -1950,6 +1987,7 @@ export function bindExamRoomEvents() {
     if (isExamActive && examSessionToken) {
       try {
         const res = await api.initExamSession(hw.id, examSessionToken)
+        if (engineClosed) return
         if (res && res.success !== false) {
           examSessionId = res.sessionId || null
           configureDeadline(res)
@@ -1982,7 +2020,14 @@ export function bindExamRoomEvents() {
         }
       } catch (e) {
         console.warn('Cannot resume existing token, presenting rules modal:', e)
-        if (String(e?.message || '').includes('EXAM_EXPIRED')) {
+        if (engineClosed) return
+        if (examStartErrorCode(e) === 'ATTEMPT_LIMIT') {
+          disableAllInputs()
+          showAttemptLimitModal()
+          return
+        }
+        resumeFailed = true
+        if (examStartErrorCode(e) === 'EXAM_EXPIRED') {
           disableAllInputs()
           openModal('PHIÊN THI ĐÃ HẾT GIỜ', '<p>Máy chủ báo thời lượng phiên thi đã hết. Hãy kiểm tra kết quả trong lớp học hoặc liên hệ giáo viên.</p>',
             () => { window.location.hash = '#my-classes'; return true }, { confirmLabel: 'Kiểm tra trong lớp học', showCancel: false })
@@ -2034,13 +2079,27 @@ export function bindExamRoomEvents() {
       </div>
     `
 
+    const handleExitModal = () => {
+      rulesModalOpen = false
+      clearSessionStorageData(hw.id)
+      cleanupExamEngine()
+      window.location.hash = '#my-classes'
+    }
+    rulesModalOpen = true
     openModal(
-      'QUY CHẾ PHÒNG THI CHÍNH THỨC',
-      examRulesBody,
+      resumeFailed ? 'TIẾP TỤC BÀI THI' : 'QUY CHẾ PHÒNG THI CHÍNH THỨC',
+      resumeFailed
+        ? `<div style="display:flex; flex-direction:column; gap:12px; font-size:14px; line-height:1.6;">
+            <div>Không tự tiếp tục được phiên thi đang làm (có thể do mất kết nối).</div>
+            <div>Bấm <strong>"Tiếp tục làm bài"</strong> để thử lại. Thời gian vẫn được tính từ lúc bạn bắt đầu bài thi, không bắt đầu lại.</div>
+          </div>${examRulesBody}`
+        : examRulesBody,
       async () => {
         try {
           const token = examSessionToken || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2))
           const res = await api.initExamSession(hw.id, token)
+          // Học sinh đã rời phòng thi trong lúc chờ máy chủ: không khởi động phiên trên engine đã dọn.
+          if (engineClosed) return true
           if (!res || res.success === false || !res.sessionId) throw new Error('Chưa xác nhận được phiên thi')
           examSessionId = res.sessionId
           examSessionToken = token
@@ -2053,10 +2112,26 @@ export function bindExamRoomEvents() {
           configureDeadline(res)
           restoreDraftAnswersFromServer(res.draftAnswers || [])
         } catch (e) {
-          showToast(e.message || 'Không thể bắt đầu phiên thi', 'error')
+          if (engineClosed) return true
+          const code = examStartErrorCode(e)
+          if (code === 'ATTEMPT_LIMIT') {
+            rulesModalOpen = false
+            disableAllInputs()
+            showAttemptLimitModal() // thay popup quy chế bằng popup hết lượt
+            return true
+          }
+          if (code === 'EXAM_EXPIRED') {
+            rulesModalOpen = false
+            disableAllInputs()
+            openModal('PHIÊN THI ĐÃ HẾT GIỜ', '<p>Máy chủ báo thời lượng phiên thi đã hết. Hãy kiểm tra kết quả trong lớp học hoặc liên hệ giáo viên.</p>',
+              () => { window.location.hash = '#my-classes'; return true }, { confirmLabel: 'Kiểm tra trong lớp học', showCancel: false, dismissOnBackdrop: false })
+            return true
+          }
+          showToast(examStartErrorMessage(e), 'error')
           return false
         }
 
+        rulesModalOpen = false
         examStarted = true
         shield.sync()
         loadSignals()
@@ -2068,36 +2143,31 @@ export function bindExamRoomEvents() {
         recordSignal('EXAM_STARTED')
         showToast('Bài thi đã bắt đầu! Thời gian đang đếm ngược.', 'info')
         return true
+      },
+      {
+        // Bắt buộc chọn: bấm nền mờ không đóng popup (trước đây popup biến mất, học sinh bị kẹt).
+        dismissOnBackdrop: false,
+        onBackdropClick: () => showToast('Vui lòng chọn "Bắt đầu làm bài" hoặc "Quay lại"', 'warning'),
+        onCancel: handleExitModal,
+        // Nút luôn nằm ở chân popup, chỉ phần quy chế cuộn (màn hình điện thoại thấp).
+        shellFlex: true,
+        contentStyle: 'display:flex; flex-direction:column; max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px);',
+        bodyStyle: 'flex:1 1 auto; min-height:0; overflow-y:auto; margin-bottom:12px;'
       }
     )
 
-    // Customize Modal buttons & prevent backdrop click bypass
+    // Customize Modal buttons
     const confirmBtn = document.getElementById('modal-confirm-btn')
     const cancelBtn = document.getElementById('modal-cancel-btn')
-    const closeBtn = document.getElementById('modal-close-btn')
-    const backdrop = document.getElementById('active-modal-backdrop')
-
     if (confirmBtn) {
-      confirmBtn.innerHTML = '<i class="fa-solid fa-play"></i> Bắt đầu làm bài'
+      confirmBtn.innerHTML = resumeFailed
+        ? '<i class="fa-solid fa-play"></i> Tiếp tục làm bài'
+        : '<i class="fa-solid fa-play"></i> Bắt đầu làm bài'
       confirmBtn.style.background = '#059669'
     }
     if (cancelBtn) {
       cancelBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Quay lại'
-    }
-    const handleExitModal = () => {
-      clearSessionStorageData(hw.id)
-      cleanupExamEngine()
-      window.location.hash = '#my-classes'
-    }
-    cancelBtn?.addEventListener('click', handleExitModal, { once: true })
-    closeBtn?.addEventListener('click', handleExitModal, { once: true })
-    if (backdrop) {
-      backdrop.onclick = (e) => {
-        if (e.target === backdrop) {
-          e.stopPropagation()
-          showToast('Vui lòng chọn "Bắt đầu làm bài" hoặc "Quay lại"', 'warning')
-        }
-      }
+      cancelBtn.style.whiteSpace = 'nowrap'
     }
   }
 
