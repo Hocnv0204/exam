@@ -304,3 +304,22 @@ test('effectiveMaxAttempts đọc được cả trong data.homework (vị trí b
   assert.equal(mod.isExamAttemptExceeded({ ...nested, attemptsCount: 2 }), true)
   assert.equal(mod.isExamAttemptExceeded({ homework: { id: 'h', maxAttempts: null, effectiveMaxAttempts: null }, attemptsCount: 5 }), true, 'null → công thức cũ (maxAttempts||1)')
 })
+
+
+test('lượt được cấp đã dùng hết → không hiện "Vào thi", cho gửi yêu cầu mới', async () => {
+  const mod = await import('../src/js/views/exam-room.js')
+  const latest = { requestId: 'r1', status: 'APPROVED', requestedAt: '2026-11-14T01:00:00Z', decidedAt: '2026-11-14T01:05:00Z' }
+  assert.equal(mod.isAttemptGrantConsumed({ status: 'APPROVED', allowance: 2, attemptsUsed: 2 }), true)
+  assert.equal(mod.isAttemptGrantConsumed({ status: 'APPROVED', allowance: 2, attemptsUsed: 1 }), false)
+  assert.equal(mod.isAttemptGrantConsumed({ status: 'APPROVED', allowance: 0, attemptsUsed: 5 }), false, '0 = không giới hạn')
+  assert.equal(mod.isAttemptGrantConsumed({ status: 'PENDING', allowance: 2, attemptsUsed: 2 }), false)
+  const consumed = mod.renderAttemptRequestState({ latest, status: 'APPROVED', allowance: 2, attemptsUsed: 2, remainingToday: 2 })
+  assert.doesNotMatch(consumed, /data-action="enter"/)
+  assert.match(consumed, /data-action="request"/)
+  assert.match(consumed, /đã được sử dụng/)
+  const consumedNoQuota = mod.renderAttemptRequestState({ latest, status: 'APPROVED', allowance: 2, attemptsUsed: 2, remainingToday: 0 })
+  assert.doesNotMatch(consumedNoQuota, /data-action="request"/)
+  assert.match(consumedNoQuota, /tối đa 3 yêu cầu/)
+  const unused = mod.renderAttemptRequestState({ latest, status: 'APPROVED', allowance: 2, attemptsUsed: 1, remainingToday: 2 })
+  assert.match(unused, /data-action="enter"/)
+})

@@ -145,17 +145,28 @@ export function isExamAttemptExceeded(hwData) {
   return maxAttempts > 0 && attemptsCount >= attemptAllowance
 }
 
+/** Yêu cầu đã duyệt nhưng lượt được cấp đã dùng hết (số lần nộp ≥ hạn mức hiệu lực). */
+export function isAttemptGrantConsumed({ status, allowance, attemptsUsed } = {}) {
+  const limit = Number(allowance)
+  const used = Number(attemptsUsed)
+  return status === 'APPROVED' && Number.isFinite(limit) && limit > 0 && Number.isFinite(used) && used >= limit
+}
+
 /**
  * Render HTML cho trạng thái yêu cầu thêm lượt thi trong popup.
  * Hỗ trợ các trạng thái: null / loading / PENDING / REJECTED / APPROVED.
  */
 export function renderAttemptRequestState(state, options = {}) {
   const latest = state?.latest !== undefined ? state.latest : state
-  const status = latest?.status || null
+  const rawStatus = latest?.status || null
   const requestedAt = latest?.requestedAt || state?.requestedAt || null
   const remainingToday = typeof state?.remainingToday === 'number'
     ? state.remainingToday
     : (typeof latest?.remainingToday === 'number' ? latest.remainingToday : 3)
+  // Yêu cầu gần nhất đã duyệt nhưng lượt được cấp đã dùng hết (đã nộp đủ allowance) → coi như chưa có
+  // yêu cầu: cho gửi yêu cầu mới thay vì hiện "Vào thi".
+  const grantConsumed = isAttemptGrantConsumed({ status: rawStatus, allowance: state?.allowance, attemptsUsed: state?.attemptsUsed })
+  const status = grantConsumed ? null : rawStatus
   const notified = state?.notified !== undefined ? state.notified : latest?.notified
   const isLoading = state?.loading === true
   const errorMessage = options?.error || state?.error || ''
@@ -238,15 +249,17 @@ export function renderAttemptRequestState(state, options = {}) {
       </div>
     `
   } else {
-    // null / không có
+    // null / không có (kể cả khi lượt được cấp trước đó đã dùng hết)
+    const canRequest = remainingToday > 0
     statusHtml = `
+      ${grantConsumed ? `<div class="attempt-request-status-consumed" style="font-size:13.5px; line-height:1.5; color:#64748b;">Lượt thi được cấp trước đó đã được sử dụng.</div>` : ''}
       <div class="attempt-request-status-none" style="font-size:14px; line-height:1.6; color:#64748b;">
-        Nếu cần làm lại, hãy gửi yêu cầu để được giáo viên cấp thêm lượt thi.
+        ${canRequest ? 'Nếu cần làm lại, hãy gửi yêu cầu để được giáo viên cấp thêm lượt thi.' : 'Bạn đã gửi tối đa 3 yêu cầu hôm nay.'}
       </div>
     `
     actionHtml = `
       <div class="attempt-request-actions" style="margin-top:12px; display:flex; justify-content:center;">
-        <button type="button" id="btn-request-attempt" class="btn-primary" data-action="request" style="min-height:44px; padding:10px 24px; width:auto; cursor:pointer;">
+        <button type="button" id="btn-request-attempt" class="btn-primary" ${canRequest ? 'data-action="request"' : 'disabled aria-disabled="true"'} style="min-height:44px; padding:10px 24px; width:auto; ${canRequest ? 'cursor:pointer;' : 'opacity:0.5; cursor:not-allowed;'}">
           <i class="fa-solid fa-hand-holding-hand" style="margin-right:8px;" aria-hidden="true"></i>Yêu cầu thêm lượt thi
         </button>
       </div>
