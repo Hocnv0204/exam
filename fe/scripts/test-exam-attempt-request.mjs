@@ -323,3 +323,20 @@ test('lượt được cấp đã dùng hết → không hiện "Vào thi", cho 
   const unused = mod.renderAttemptRequestState({ latest, status: 'APPROVED', allowance: 2, attemptsUsed: 1, remainingToday: 2 })
   assert.match(unused, /data-action="enter"/)
 })
+
+
+test('đang chờ: nhắc chờ 5 phút; quá 5 phút → nhắc liên hệ giáo viên', async () => {
+  const mod = await import('../src/js/views/exam-room.js')
+  const now = Date.parse('2026-11-14T03:00:00Z')
+  const fresh = new Date(now - 2 * 60000).toISOString()
+  const old = new Date(now - 6 * 60000).toISOString()
+  assert.equal(mod.isAttemptRequestOverdue(fresh, now), false)
+  assert.equal(mod.isAttemptRequestOverdue(old, now), true)
+  assert.equal(mod.isAttemptRequestOverdue('không-phải-ngày', now), false)
+  const htmlFresh = mod.renderAttemptRequestState({ status: 'PENDING', requestedAt: fresh, latest: { status: 'PENDING', requestedAt: fresh } }, { now })
+  assert.match(htmlFresh, /chờ trong 5 phút/)
+  assert.doesNotMatch(htmlFresh, /Đã quá 5 phút/)
+  const htmlOld = mod.renderAttemptRequestState({ status: 'PENDING', requestedAt: old, latest: { status: 'PENDING', requestedAt: old } }, { now })
+  assert.match(htmlOld, /Đã quá 5 phút/)
+  assert.match(htmlOld, /liên hệ trực tiếp giáo viên/)
+})

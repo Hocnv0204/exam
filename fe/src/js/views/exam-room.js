@@ -13,7 +13,7 @@ import { renderMath, renderMarkdown } from '../utils/exam-parser.js'
 import { getStudentTheme, getClassicStudentTheme, renderStudentThemeToggle } from '../theme.js'
 import { isMochiUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
-import { mochiConfirm } from '../components/mochi-dialog.js'
+import { mochiConfirm, mochiAlert } from '../components/mochi-dialog.js'
 
 // Mã lỗi máy chủ trả khi bắt đầu / tiếp tục phiên thi (exam-session) → xử lý thân thiện.
 const EXAM_START_ERROR_CODES = ['ATTEMPT_LIMIT', 'EXAM_EXPIRED', 'INVALID_TOKEN']
@@ -145,6 +145,15 @@ export function isExamAttemptExceeded(hwData) {
   return maxAttempts > 0 && attemptsCount >= attemptAllowance
 }
 
+const ATTEMPT_REQUEST_WAIT_MINUTES = 5
+const ATTEMPT_REQUEST_WAIT_MESSAGE = 'Vui lòng chờ trong 5 phút để giáo viên duyệt. Nếu quá 5 phút vẫn chưa được duyệt, hãy liên hệ giáo viên.'
+
+/** Yêu cầu đang chờ quá 5 phút (theo requestedAt) → nhắc học sinh liên hệ giáo viên. */
+export function isAttemptRequestOverdue(requestedAt, now = Date.now()) {
+  const t = Date.parse(requestedAt)
+  return Number.isFinite(t) && (Number(now) || Date.now()) - t > ATTEMPT_REQUEST_WAIT_MINUTES * 60 * 1000
+}
+
 /** Yêu cầu đã duyệt nhưng lượt được cấp đã dùng hết (số lần nộp ≥ hạn mức hiệu lực). */
 export function isAttemptGrantConsumed({ status, allowance, attemptsUsed } = {}) {
   const limit = Number(allowance)
@@ -189,9 +198,15 @@ export function renderAttemptRequestState(state, options = {}) {
     `
   } else if (status === 'PENDING') {
     const timeText = formatAttemptTime(requestedAt)
+    const overdue = isAttemptRequestOverdue(requestedAt, options?.now)
     statusHtml = `
       <div class="attempt-request-status-pending" style="font-size:14.5px; line-height:1.6; color:#0284c7; font-weight:600;">
         Đã gửi yêu cầu${timeText ? ` lúc ${escapeHtml(timeText)}` : ''}. Đang chờ giáo viên duyệt.
+      </div>
+      <div class="attempt-request-wait-hint" style="font-size:13.5px; line-height:1.55; color:${overdue ? '#b45309' : '#64748b'};">
+        ${overdue
+          ? '<i class="fa-solid fa-phone" aria-hidden="true" style="margin-right:6px;"></i>Đã quá 5 phút mà yêu cầu chưa được duyệt — vui lòng liên hệ trực tiếp giáo viên.'
+          : `<i class="fa-regular fa-clock" aria-hidden="true" style="margin-right:6px;"></i>${escapeHtml(ATTEMPT_REQUEST_WAIT_MESSAGE)}`}
       </div>
     `
     actionHtml = `
@@ -375,7 +390,10 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
         }
         updateModalBody(currentRequestState)
         showToast('Yêu cầu thêm lượt thi đã bị từ chối.', 'info')
-      } else if (newStatus !== 'PENDING') {
+      } else if (newStatus === 'PENDING') {
+        // Vẽ lại để lời nhắc "quá 5 phút → liên hệ giáo viên" tự xuất hiện khi popup còn mở.
+        updateModalBody(currentRequestState)
+      } else {
         stopPolling()
       }
     } catch (_e) {
@@ -420,6 +438,8 @@ export function showAttemptLimitModal(homework = null, homeworkData = null) {
         try {
           const res = await api.requestExamAttempt(hw.id)
           showToast('Đã gửi yêu cầu tới giáo viên.', 'success')
+          // Thông báo rõ thời gian chờ (hộp thoại Mochi nằm trên popup hết lượt).
+          void mochiAlert({ title: 'Đã gửi yêu cầu thêm lượt thi', message: ATTEMPT_REQUEST_WAIT_MESSAGE, confirmLabel: 'Đã hiểu', tone: 'success' })
           currentRequestState = {
             status: 'PENDING',
             requestId: res?.requestId,
