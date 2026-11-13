@@ -29,6 +29,383 @@ export function examStartErrorMessage(err) {
   }
 }
 
+function escapeHtml(str) {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function getSessionTokenKey(hwId) {
+  return `exam_session_token_${hwId}_${state.user?.id || 'guest'}`
+}
+function getActiveKey(hwId) {
+  return `exam_active_${hwId}_${state.user?.id || 'guest'}`
+}
+function clearSessionStorageData(hwId) {
+  if (!hwId) return
+  try {
+    localStorage.removeItem(getSessionTokenKey(hwId))
+    localStorage.removeItem(getActiveKey(hwId))
+    sessionStorage.removeItem(getSessionTokenKey(hwId))
+    sessionStorage.removeItem(getActiveKey(hwId))
+    sessionStorage.removeItem(`exam_session_token_${hwId}`)
+    sessionStorage.removeItem(`exam_active_${hwId}`)
+    sessionStorage.removeItem('mock_violations_count')
+  } catch (e) {
+    console.warn('clearSessionStorageData failed:', e)
+  }
+}
+
+/**
+ * Định dạng thời điểm yêu cầu theo giờ Việt Nam: HH:mm dd/MM
+ */
+export function formatAttemptTime(isoString) {
+  if (!isoString) return ''
+  try {
+    const d = new Date(isoString)
+    if (Number.isNaN(d.getTime())) return ''
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      hour12: false
+    }).formatToParts(d)
+    const p = {}
+    for (const part of parts) {
+      p[part.type] = part.value
+    }
+    return `${p.hour}:${p.minute} ${p.day}/${p.month}`
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Chuyển mã lỗi gửi yêu cầu thêm lượt thi sang thông báo tiếng Việt.
+ * Tuyệt đối không trả về mã kỹ thuật thô.
+ */
+export function attemptRequestErrorMessage(errOrCode) {
+  const code = typeof errOrCode === 'string'
+    ? errOrCode
+    : (errOrCode?.code || '')
+
+  switch (code) {
+    case 'NOT_AT_LIMIT':
+      return 'Bạn vẫn còn lượt làm bài, hãy tải lại trang.'
+    case 'REQUEST_PENDING':
+      return 'Bạn đã có một yêu cầu đang chờ giáo viên duyệt.'
+    case 'REQUEST_DAILY_LIMIT':
+      return 'Bạn đã gửi tối đa 3 yêu cầu hôm nay.'
+    case 'FORBIDDEN':
+      return 'Bạn không có quyền gửi yêu cầu cho bài thi này.'
+    case 'INVALID_EXAM':
+      return 'Bài thi không hợp lệ hoặc chưa được mở.'
+    default: {
+      const msg = typeof errOrCode?.message === 'string' ? errOrCode.message : ''
+      const hasRawCode = /NOT_AT_LIMIT|REQUEST_PENDING|REQUEST_DAILY_LIMIT|FORBIDDEN|INVALID_EXAM|ATTEMPT_LIMIT|HTTP\s+\d+|500|404|403|400|409|429/i.test(msg)
+      if (msg && !hasRawCode && /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(msg)) {
+        return msg
+      }
+      return 'Không gửi được yêu cầu, vui lòng thử lại.'
+    }
+  }
+}
+
+/**
+ * Kiểm tra học sinh đã hết lượt thi chưa.
+ * Ưu tiên hwData.effectiveMaxAttempts (0 = không giới hạn).
+ */
+// homework-detail trả effectiveMaxAttempts trong data.homework; chấp nhận cả cấp data.
+export function effectiveMaxAttemptsOf(hwData) {
+  const hw = hwData?.homework || hwData
+  const value = hwData?.effectiveMaxAttempts ?? hw?.effectiveMaxAttempts
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+export function isExamAttemptExceeded(hwData) {
+  const hw = hwData?.homework || hwData
+  if (!hw || !hw.id) return false
+  const attemptsCount = hwData?.attemptsCount || 0
+  const effective = effectiveMaxAttemptsOf(hwData)
+  if (effective !== undefined) {
+    const allowance = effective
+    if (allowance === 0) return false // 0 = không giới hạn
+    return attemptsCount >= allowance
+  }
+  const maxAttempts = hw.maxAttempts || hw.max_attempts || 1
+  const grantedExtra = Math.max(0, (hwData?.activeAttemptNo || 0) - 1)
+  const attemptAllowance = maxAttempts + grantedExtra
+  return maxAttempts > 0 && attemptsCount >= attemptAllowance
+}
+
+/**
+ * Render HTML cho trạng thái yêu cầu thêm lượt thi trong popup.
+ * Hỗ trợ các trạng thái: null / loading / PENDING / REJECTED / APPROVED.
+ */
+export function renderAttemptRequestState(state, options = {}) {
+  const latest = state?.latest !== undefined ? state.latest : state
+  const status = latest?.status || null
+  const requestedAt = latest?.requestedAt || state?.requestedAt || null
+  const remainingToday = typeof state?.remainingToday === 'number'
+    ? state.remainingToday
+    : (typeof latest?.remainingToday === 'number' ? latest.remainingToday : 3)
+  const notified = state?.notified !== undefined ? state.notified : latest?.notified
+  const isLoading = state?.loading === true
+  const errorMessage = options?.error || state?.error || ''
+
+  let statusHtml = ''
+  let actionHtml = ''
+
+  if (isLoading) {
+    statusHtml = `
+      <div class="attempt-request-status-loading" style="font-size:14px; line-height:1.6; color:#64748b; display:flex; align-items:center; justify-content:center; gap:8px;">
+        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Đang kiểm tra yêu cầu…
+      </div>
+    `
+    actionHtml = `
+      <div class="attempt-request-actions" style="margin-top:12px; display:flex; justify-content:center;">
+        <button type="button" id="btn-request-attempt" class="btn-primary" disabled aria-disabled="true" aria-busy="true" style="min-height:44px; padding:10px 24px; width:auto; opacity:0.7; cursor:not-allowed;">
+          <i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;" aria-hidden="true"></i>Đang kiểm tra yêu cầu…
+        </button>
+      </div>
+    `
+  } else if (status === 'PENDING') {
+    const timeText = formatAttemptTime(requestedAt)
+    statusHtml = `
+      <div class="attempt-request-status-pending" style="font-size:14.5px; line-height:1.6; color:#0284c7; font-weight:600;">
+        Đã gửi yêu cầu${timeText ? ` lúc ${escapeHtml(timeText)}` : ''}. Đang chờ giáo viên duyệt.
+      </div>
+    `
+    actionHtml = `
+      <div class="attempt-request-actions" style="margin-top:12px; display:none;">
+        <button type="button" id="btn-request-attempt" class="btn-primary" disabled aria-disabled="true" style="min-height:44px; padding:10px 24px; width:auto; display:none;">
+          Đang chờ giáo viên duyệt
+        </button>
+      </div>
+    `
+  } else if (status === 'REJECTED') {
+    if (remainingToday > 0) {
+      statusHtml = `
+        <div class="attempt-request-status-rejected" style="font-size:14.5px; line-height:1.6; color:#ef4444; font-weight:600;">
+          Yêu cầu gần nhất đã bị từ chối.
+        </div>
+        <div class="attempt-request-remaining" style="font-size:13.5px; line-height:1.5; color:#64748b;">
+          Còn ${remainingToday} lần gửi hôm nay.
+        </div>
+      `
+      actionHtml = `
+        <div class="attempt-request-actions" style="margin-top:12px; display:flex; justify-content:center;">
+          <button type="button" id="btn-request-attempt" class="btn-primary" data-action="request" style="min-height:44px; padding:10px 24px; width:auto; cursor:pointer;">
+            <i class="fa-solid fa-hand-holding-hand" style="margin-right:8px;" aria-hidden="true"></i>Yêu cầu thêm lượt thi
+          </button>
+        </div>
+      `
+    } else {
+      statusHtml = `
+        <div class="attempt-request-status-rejected" style="font-size:14.5px; line-height:1.6; color:#ef4444; font-weight:600;">
+          Yêu cầu gần nhất đã bị từ chối.
+        </div>
+        <div class="attempt-request-daily-limit" style="font-size:13.5px; line-height:1.5; color:#64748b;">
+          Bạn đã gửi tối đa 3 yêu cầu hôm nay.
+        </div>
+      `
+      actionHtml = `
+        <div class="attempt-request-actions" style="margin-top:12px; display:flex; justify-content:center;">
+          <button type="button" id="btn-request-attempt" class="btn-primary" disabled aria-disabled="true" style="min-height:44px; padding:10px 24px; width:auto; opacity:0.5; cursor:not-allowed;">
+            <i class="fa-solid fa-hand-holding-hand" style="margin-right:8px;" aria-hidden="true"></i>Yêu cầu thêm lượt thi
+          </button>
+        </div>
+      `
+    }
+  } else if (status === 'APPROVED') {
+    statusHtml = `
+      <div class="attempt-request-status-approved" style="font-size:14.5px; line-height:1.6; color:#059669; font-weight:600;">
+        Giáo viên đã cấp thêm lượt thi.
+      </div>
+    `
+    actionHtml = `
+      <div class="attempt-request-actions" style="margin-top:12px; display:flex; justify-content:center;">
+        <button type="button" id="btn-request-attempt" class="btn-primary" data-action="enter" style="min-height:44px; padding:10px 24px; width:auto; cursor:pointer; background:#059669;">
+          <i class="fa-solid fa-play" style="margin-right:6px;" aria-hidden="true"></i>Vào thi
+        </button>
+      </div>
+    `
+  } else {
+    // null / không có
+    statusHtml = `
+      <div class="attempt-request-status-none" style="font-size:14px; line-height:1.6; color:#64748b;">
+        Nếu cần làm lại, hãy gửi yêu cầu để được giáo viên cấp thêm lượt thi.
+      </div>
+    `
+    actionHtml = `
+      <div class="attempt-request-actions" style="margin-top:12px; display:flex; justify-content:center;">
+        <button type="button" id="btn-request-attempt" class="btn-primary" data-action="request" style="min-height:44px; padding:10px 24px; width:auto; cursor:pointer;">
+          <i class="fa-solid fa-hand-holding-hand" style="margin-right:8px;" aria-hidden="true"></i>Yêu cầu thêm lượt thi
+        </button>
+      </div>
+    `
+  }
+
+  const noteHtml = notified === false
+    ? `
+      <div class="attempt-request-note" style="font-size:13px; line-height:1.5; color:#d97706; background:#fffbeb; border:1px solid #fef3c7; border-radius:8px; padding:8px 12px; text-align:left;">
+        <i class="fa-solid fa-circle-info" style="margin-right:6px;" aria-hidden="true"></i>Hệ thống chưa gửi được thông báo, giáo viên sẽ thấy yêu cầu khi kiểm tra.
+      </div>
+    `
+    : ''
+
+  // Không lặp lại câu đã có trong phần trạng thái (vd "Bạn đã gửi tối đa 3 yêu cầu hôm nay").
+  const errorHtml = errorMessage && !statusHtml.includes(escapeHtml(errorMessage))
+    ? `
+      <div class="attempt-request-error" style="font-size:13px; line-height:1.5; color:#dc2626; background:#fef2f2; border:1px solid #fee2e2; border-radius:8px; padding:8px 12px; text-align:left;">
+        <i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;" aria-hidden="true"></i>${escapeHtml(errorMessage)}
+      </div>
+    `
+    : ''
+
+  return `
+    <div class="attempt-request-state-content" style="display:flex; flex-direction:column; gap:10px; text-align:center;">
+      ${statusHtml}
+      ${noteHtml}
+      ${errorHtml}
+      ${actionHtml}
+    </div>
+  `
+}
+
+/**
+ * Hiển thị popup hết lượt làm bài, tích hợp chức năng gửi yêu cầu thêm lượt thi.
+ */
+export function showAttemptLimitModal(homework = null, homeworkData = null) {
+  const hwData = homeworkData || state.currentHomework
+  const hw = homework || hwData?.homework || hwData
+  if (!hw || !hw.id) return
+
+  clearSessionStorageData(hw.id)
+
+  let currentRequestState = { loading: true }
+  let isSubmitting = false
+
+  const bindButtons = () => {
+    const btn = document.getElementById('btn-request-attempt')
+    if (!btn) return
+
+    btn.onclick = async () => {
+      const action = btn.dataset.action
+      if (action === 'enter') {
+        window.location.reload()
+        return
+      }
+      if (action === 'request') {
+        if (isSubmitting || btn.disabled) return
+        isSubmitting = true
+        btn.disabled = true
+        btn.setAttribute('aria-busy', 'true')
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;" aria-hidden="true"></i>Đang gửi yêu cầu…'
+
+        try {
+          const res = await api.requestExamAttempt(hw.id)
+          showToast('Đã gửi yêu cầu tới giáo viên.', 'success')
+          currentRequestState = {
+            status: 'PENDING',
+            requestId: res?.requestId,
+            requestedAt: res?.requestedAt || new Date().toISOString(),
+            remainingToday: res?.remainingToday,
+            notified: res?.notified
+          }
+          updateModalBody(currentRequestState)
+        } catch (err) {
+          console.warn('[exam-room] Gửi yêu cầu thêm lượt thi thất bại:', err)
+          const errCode = err?.code || ''
+          const errMsg = attemptRequestErrorMessage(err)
+          showToast(errMsg, 'error')
+
+          if (errCode === 'REQUEST_DAILY_LIMIT') {
+            currentRequestState = {
+              status: 'REJECTED',
+              remainingToday: 0
+            }
+            updateModalBody(currentRequestState, { error: errMsg })
+          } else if (errCode === 'REQUEST_PENDING') {
+            currentRequestState = {
+              status: 'PENDING',
+              requestedAt: new Date().toISOString()
+            }
+            updateModalBody(currentRequestState, { error: errMsg })
+          } else {
+            updateModalBody(currentRequestState, { error: errMsg })
+          }
+        } finally {
+          isSubmitting = false
+        }
+      }
+    }
+  }
+
+  const updateModalBody = (reqState, options = {}) => {
+    const container = document.getElementById('attempt-request-state-container')
+    if (container) {
+      container.innerHTML = renderAttemptRequestState(reqState, {
+        hwTitle: hw.title,
+        ...options
+      })
+      bindButtons()
+    }
+  }
+
+  openModal(
+    'Bạn đã hết lượt làm bài',
+    `<div id="attempt-limit-modal-body" style="display:flex; flex-direction:column; gap:12px; text-align:center;">
+      <div style="font-size:15px; line-height:1.6;">Bạn đã dùng hết số lượt làm bài thi <strong>${escapeHtml(hw.title || '')}</strong>.</div>
+      <div id="attempt-request-state-container">
+        ${renderAttemptRequestState(currentRequestState, { hwTitle: hw.title })}
+      </div>
+    </div>`,
+    null,
+    {
+      cancelLabel: 'Đóng',
+      showCancel: true,
+      dismissOnBackdrop: false,
+      onCancel: () => { window.location.hash = '#my-classes' }
+    }
+  )
+
+  bindButtons()
+
+  // Khi mở: gọi api.getExamAttemptRequest(hw.id) để hiện trạng thái
+  if (typeof api?.getExamAttemptRequest === 'function') {
+    api.getExamAttemptRequest(hw.id)
+      .then(res => {
+        const latest = res?.latest || null
+        currentRequestState = {
+          latest,
+          status: latest?.status || null,
+          requestedAt: latest?.requestedAt || null,
+          decidedAt: latest?.decidedAt || null,
+          remainingToday: typeof res?.remainingToday === 'number' ? res.remainingToday : 3,
+          allowance: res?.allowance,
+          attemptsUsed: res?.attemptsUsed
+        }
+        updateModalBody(currentRequestState)
+      })
+      .catch(err => {
+        console.warn('[exam-room] Không tải được trạng thái yêu cầu:', err)
+        // Lỗi tải: vẫn cho gửi
+        currentRequestState = { latest: null, remainingToday: 3 }
+        updateModalBody(currentRequestState)
+      })
+  } else {
+    currentRequestState = { latest: null, remainingToday: 3 }
+    updateModalBody(currentRequestState)
+  }
+}
+
 // The exam room has no .app-layout root; app.js updates this shell on theme changes.
 const examShell = () => {
   // Giao diện cũ chỉ có navy/hồng; Mochi dùng đủ 4 bảng màu.
@@ -45,16 +422,6 @@ let studentAnswers = {
 }
 let isDraftRestored = false
 let flaggedQuestions = new Set()
-
-function escapeHtml(str) {
-  if (!str) return ''
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
 
 function formatExamContent(str) {
   if (!str) return ''
@@ -250,13 +617,9 @@ export function renderClassicExamRoomView() {
     `
   }
 
-  const attemptsCount = hwData?.attemptsCount || 0
   const maxAttempts = hw.maxAttempts || hw.max_attempts || 1
-  // Mỗi lần admin khôi phục bài thi sẽ cấp thêm 1 lượt (activeAttemptNo tăng dần).
-  // Cho phép vào thi khi số lần đã nộp < maxAttempts + (lượt được cấp thêm).
-  const grantedExtra = Math.max(0, (hwData?.activeAttemptNo || 0) - 1)
-  const attemptAllowance = maxAttempts + grantedExtra
-  const isExceeded = maxAttempts > 0 && attemptsCount >= attemptAllowance
+  const isExceeded = isExamAttemptExceeded(hwData)
+  const displayLimit = (effectiveMaxAttemptsOf(hwData) || 0) > 0 ? effectiveMaxAttemptsOf(hwData) : maxAttempts
 
   if (isExceeded) {
     return `
@@ -265,7 +628,7 @@ export function renderClassicExamRoomView() {
           <i class="fa-solid fa-lock" style="font-size:56px; color:#ef4444; margin-bottom:20px;"></i>
           <h2 style="font-weight:700; color:#0f172a; margin-bottom:12px; font-family:var(--font-heading);">Đạt Giới Hạn Lượt Thi</h2>
           <p style="font-size:14.5px; color:#475569; line-height:1.6; margin-bottom:24px;">
-            Bài thi chính thức <strong>${escapeHtml(hw.title)}</strong> chỉ cho phép thực hiện tối đa <strong>${maxAttempts}</strong> lần.<br>
+            Bài thi chính thức <strong>${escapeHtml(hw.title)}</strong> chỉ cho phép thực hiện tối đa <strong>${displayLimit}</strong> lần.<br>
             Bạn đã nộp bài thi này và không thể làm lại trừ khi được giáo viên cấp quyền.
           </p>
           <button class="btn-primary" onclick="window.location.hash='#my-classes'" style="padding:10px 24px; font-size:14px; cursor:pointer;">
@@ -773,11 +1136,9 @@ function renderMochiExamRoomView() {
     `
   }
 
-  const attemptsCount = hwData?.attemptsCount || 0
   const maxAttempts = hw.maxAttempts || hw.max_attempts || 1
-  const grantedExtra = Math.max(0, (hwData?.activeAttemptNo || 0) - 1)
-  const attemptAllowance = maxAttempts + grantedExtra
-  const isExceeded = maxAttempts > 0 && attemptsCount >= attemptAllowance
+  const isExceeded = isExamAttemptExceeded(hwData)
+  const displayLimit = (effectiveMaxAttemptsOf(hwData) || 0) > 0 ? effectiveMaxAttemptsOf(hwData) : maxAttempts
 
   if (isExceeded) {
     return `
@@ -786,7 +1147,7 @@ function renderMochiExamRoomView() {
           ${renderMascot({ mood: 'wink', size: 120 })}
           <h2 style="font-weight:800; color:var(--m-ink); margin:16px 0 12px; font-family:var(--m-font-heading);">Đạt Giới Hạn Lượt Thi</h2>
           <p style="font-size:14.5px; color:var(--m-muted); line-height:1.6; margin-bottom:24px;">
-            Bài thi chính thức <strong>${escapeHtml(hw.title)}</strong> chỉ cho phép thực hiện tối đa <strong>${maxAttempts}</strong> lần.<br>
+            Bài thi chính thức <strong>${escapeHtml(hw.title)}</strong> chỉ cho phép thực hiện tối đa <strong>${displayLimit}</strong> lần.<br>
             Bạn đã nộp bài thi này và không thể làm lại trừ khi được giáo viên cấp quyền.
           </p>
           <button class="m-btn m-btn--primary" onclick="window.location.hash='#my-classes'" style="min-height:44px; padding:0 24px; font-size:14px; cursor:pointer;">
@@ -1065,6 +1426,11 @@ export function bindExamRoomEvents() {
   const questions = hwData?.questions || []
 
   if (!hw || !hw.id) return
+
+  if (isExamAttemptExceeded(hwData)) {
+    showAttemptLimitModal(hw, hwData)
+    return
+  }
 
   // =========================================================
   // TIMER & PROCTORING STATE ENGINE
@@ -1960,20 +2326,6 @@ export function bindExamRoomEvents() {
     updateExamProgress(questions.length)
   }
 
-  // Hết lượt thi: popup thông báo rõ ràng thay cho mã lỗi thô.
-  const showAttemptLimitModal = () => {
-    clearSessionStorageData(hw.id)
-    openModal(
-      'Bạn đã hết lượt làm bài',
-      `<div style="display:flex; flex-direction:column; gap:12px; text-align:center;">
-        <div style="font-size:15px; line-height:1.6;">Bạn đã dùng hết số lượt làm bài thi <strong>${escapeHtml(hw.title || '')}</strong>.</div>
-        <div style="font-size:14px; line-height:1.6; color:#64748b;">Nếu cần làm lại, hãy liên hệ giáo viên để được cấp thêm lượt thi.</div>
-      </div>`,
-      () => { window.location.hash = '#my-classes'; return true },
-      { confirmLabel: 'Đóng', showCancel: false, dismissOnBackdrop: false, onCancel: () => { window.location.hash = '#my-classes' } }
-    )
-  }
-
   const startExamFlow = async () => {
     let resumeFailed = false
     // Initial display of timer before starting
@@ -2023,7 +2375,7 @@ export function bindExamRoomEvents() {
         if (engineClosed) return
         if (examStartErrorCode(e) === 'ATTEMPT_LIMIT') {
           disableAllInputs()
-          showAttemptLimitModal()
+          showAttemptLimitModal(hw, hwData)
           return
         }
         resumeFailed = true
@@ -2117,7 +2469,7 @@ export function bindExamRoomEvents() {
           if (code === 'ATTEMPT_LIMIT') {
             rulesModalOpen = false
             disableAllInputs()
-            showAttemptLimitModal() // thay popup quy chế bằng popup hết lượt
+            showAttemptLimitModal(hw, hwData) // thay popup quy chế bằng popup hết lượt
             return true
           }
           if (code === 'EXAM_EXPIRED') {

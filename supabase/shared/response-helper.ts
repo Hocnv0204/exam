@@ -32,10 +32,15 @@ export function jsonResponse<T = unknown>(data: T, status: any = 200): Response 
   )
 }
 
+/**
+ * @param code mã lỗi máy đọc được (vd 'ATTEMPT_LIMIT'); client đọc qua err.code (api.js).
+ *             Chỉ thêm key `code` khi có truyền → response cũ giữ nguyên.
+ */
 export function errorResponse(
   message: string,
   status: any = 400,
-  details: unknown = null
+  details: unknown = null,
+  code?: string
 ): Response {
   const statusCode = typeof status === 'number' ? status : (typeof status === 'object' && status?.status ? Number(status.status) : 400)
   return new Response(
@@ -43,6 +48,7 @@ export function errorResponse(
       success: false,
       error: message,
       details,
+      ...(code ? { code } : {}),
     }),
     {
       status: statusCode,

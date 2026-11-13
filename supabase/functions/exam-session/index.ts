@@ -48,7 +48,14 @@ serve(async (req: Request) => {
         const msg = error.message || ''
         if (/FORBIDDEN/.test(msg)) return errorResponse('Forbidden: Exam is not assigned to this student', 403)
         if (/INVALID_EXAM/.test(msg)) return errorResponse('Published exam not found', 404)
-        if (/EXAM_EXPIRED|ATTEMPT_LIMIT|INVALID_TOKEN/.test(msg)) return errorResponse(msg, 400)
+        const known = msg.match(/EXAM_EXPIRED|ATTEMPT_LIMIT|INVALID_TOKEN/)?.[0]
+        const knownMessages: Record<string, string> = {
+          ATTEMPT_LIMIT: 'Bạn đã dùng hết số lượt làm bài thi này.',
+          EXAM_EXPIRED: 'Phiên thi đã hết giờ.',
+          INVALID_TOKEN: 'Phiên thi không hợp lệ, vui lòng tải lại trang.',
+        }
+        // message tiếng Việt cho người dùng; code để client rẽ nhánh (vd popup hết lượt).
+        if (known) return errorResponse(knownMessages[known], 400, null, known)
         return errorResponse('Failed to start exam session', 500)
       }
       return jsonResponse(data)

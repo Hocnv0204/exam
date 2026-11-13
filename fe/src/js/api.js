@@ -672,6 +672,10 @@ export const api = {
   editReviewQuestion: (submissionAnswerId, question, options = {}) => request('create-homework?action=edit-question', { method: 'POST', body: JSON.stringify({ submissionAnswerId, question }), ...options }),
   gradeEssay: (submissionId, answerId, score, feedback = '', options = {}) => request('reopen-submission?action=grade-essay', { method: 'POST', body: JSON.stringify({ submissionId, answerId, score, feedback }), ...options }),
   setBonus: (data) => request(`reopen-submission?action=set-bonus`, { method: 'POST', body: JSON.stringify(data) }),
+  // Yêu cầu thêm lượt thi EXAM (specs/002-exam-attempt-request). Lỗi có err.code:
+  // NOT_AT_LIMIT | REQUEST_PENDING | REQUEST_DAILY_LIMIT | FORBIDDEN | INVALID_EXAM
+  requestExamAttempt: (homeworkId, options = {}) => request('exam-attempt-request', { method: 'POST', body: JSON.stringify({ homeworkId }), silent: true, ...options }),
+  getExamAttemptRequest: (homeworkId, options = {}) => request(`exam-attempt-request?homeworkId=${encodeURIComponent(homeworkId)}`, { method: 'GET', silent: true, ...options }),
   initExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'init', homeworkId, sessionToken }), silent: true, ...options }),
   heartbeatExamSession: (homeworkId, sessionToken, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'heartbeat', homeworkId, sessionToken }), silent: true, ...options }),
   autosaveExamSession: (homeworkId, sessionToken, draftAnswers, options = {}) => request(`exam-session`, { method: 'POST', body: JSON.stringify({ action: 'autosave', homeworkId, sessionToken, draftAnswers }), silent: true, ...options }),

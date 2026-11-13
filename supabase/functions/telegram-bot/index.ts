@@ -1,11 +1,55 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
+import { parseIdList } from '../../shared/telegram.ts'
 
 const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')
 const BOT_USERNAME = Deno.env.get('TELEGRAM_BOT_USERNAME')?.replace(/^@/, '').toLowerCase()
 if (!BOT_TOKEN) {
   console.warn('[telegram-bot] TELEGRAM_BOT_TOKEN not set')
+}
+let warnedWebhookSecret = false
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder()
+  const bufA = enc.encode(a)
+  const bufB = enc.encode(b)
+  if (bufA.length !== bufB.length) return false
+  let diff = 0
+  for (let i = 0; i < bufA.length; i++) {
+    diff |= bufA[i] ^ bufB[i]
+  }
+  return diff === 0
+}
+
+function getHeader(req: Request, name: string): string | null {
+  if (typeof req.headers?.get === 'function') {
+    return req.headers.get(name) ?? req.headers.get(name.toLowerCase()) ?? null
+  }
+  const raw = req.headers as unknown as Record<string, string | undefined>
+  if (raw && typeof raw === 'object') {
+    const target = name.toLowerCase()
+    for (const [k, v] of Object.entries(raw)) {
+      if (k.toLowerCase() === target) return v ?? null
+    }
+  }
+  return null
+}
+
+function formatVnTimeShort(dateInput?: string | number | Date | null): string {
+  const d = dateInput ? new Date(dateInput) : new Date()
+  const validDate = isNaN(d.getTime()) ? new Date() : d
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    hour12: false,
+  }).formatToParts(validDate)
+  const map: Record<string, string> = {}
+  for (const p of parts) map[p.type] = p.value
+  return `${map.hour || '00'}:${map.minute || '00'} ${map.day || '01'}/${map.month || '01'}`
 }
 
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN || ''}`
@@ -31,6 +75,17 @@ serve(async (req: Request) => {
   try {
     if (req.method !== 'POST') {
       return errorResponse('Method not allowed', 405)
+    }
+
+    const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET')?.trim()
+    if (webhookSecret) {
+      const headerSecret = getHeader(req, 'x-telegram-bot-api-secret-token')
+      if (!headerSecret || !constantTimeEqual(headerSecret, webhookSecret)) {
+        return errorResponse('Unauthorized', 401)
+      }
+    } else if (!warnedWebhookSecret) {
+      warnedWebhookSecret = true
+      console.warn('[telegram-bot] TELEGRAM_WEBHOOK_SECRET not set')
     }
 
     const body = await req.json()
@@ -265,15 +320,27 @@ async function sendMessageWithKeyboard(
   })
 }
 
-// Xử lý khi giáo viên bấm nút chọn lớp (link: liên kết nhóm, report: thống kê).
+// Xử lý khi giáo viên bấm nút (chọn lớp khi link:/report: hoặc duyệt thêm lượt thi ar:).
 async function handleCallback(
   svc: ReturnType<typeof createServiceRoleClient>,
-  callback: { id: string; data?: string; message?: { message_id: number; chat: { id: number } }; from?: { first_name?: string } },
+  callback: {
+    id: string
+    data?: string
+    message?: { message_id: number; chat: { id: number }; text?: string }
+    from?: { id?: number; first_name?: string; last_name?: string; username?: string }
+  },
 ): Promise<void> {
   const chatId = String(callback.message?.chat?.id || '')
   const messageId = callback.message?.message_id
   const data = callback.data || ''
-  if (!chatId || typeof callback.id !== 'string' || (!data.startsWith('link:') && !data.startsWith('report:'))) return
+  if (!chatId || typeof callback.id !== 'string') return
+
+  if (data.startsWith('ar:')) {
+    await handleAttemptRequestCallback(svc, callback, data, chatId, messageId)
+    return
+  }
+
+  if (!data.startsWith('link:') && !data.startsWith('report:')) return
 
   const classId = data.slice(data.indexOf(':') + 1)
   if (!UUID.test(classId)) return
@@ -324,12 +391,145 @@ async function handleCallback(
   }
 }
 
+async function handleAttemptRequestCallback(
+  svc: ReturnType<typeof createServiceRoleClient>,
+  callback: {
+    id: string
+    data?: string
+    message?: { message_id: number; chat: { id: number }; text?: string }
+    from?: { id?: number; first_name?: string; last_name?: string; username?: string }
+  },
+  data: string,
+  chatId: string,
+  messageId?: number,
+): Promise<void> {
+  const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET')?.trim()
+  if (!webhookSecret) {
+    await answerCallback(callback.id, 'Chức năng duyệt chưa được cấu hình bảo mật.')
+    return
+  }
+
+  const match = /^ar:(ok|no):(.+)$/.exec(data)
+  const requestId = match?.[2] || ''
+  if (!match || !UUID.test(requestId)) {
+    await answerCallback(callback.id, 'Yêu cầu không hợp lệ')
+    return
+  }
+
+  const adminUserIds = parseIdList(Deno.env.get('TELEGRAM_ADMIN_USER_IDS'))
+  const fromId = callback.from?.id !== undefined && callback.from?.id !== null ? String(callback.from.id) : ''
+  if (!fromId || !adminUserIds.includes(fromId)) {
+    await answerCallback(callback.id, 'Bạn không có quyền duyệt yêu cầu này.')
+    return
+  }
+
+  const adminChatIds = parseIdList(Deno.env.get('TELEGRAM_ADMIN_CHAT_ID'))
+  if (!chatId || !adminChatIds.includes(chatId)) {
+    await answerCallback(callback.id, 'Nút duyệt không thuộc chat quản trị.')
+    return
+  }
+
+  const approve = match[1] === 'ok'
+  const nameParts = [callback.from?.first_name, callback.from?.last_name].filter(Boolean).join(' ').trim()
+  const deciderName = nameParts || callback.from?.username || fromId || 'Admin'
+
+  const { data: rpcData, error: rpcError } = await svc.rpc('decide_exam_attempt_request', {
+    p_request_id: requestId,
+    p_approve: approve,
+    p_decider_telegram_id: Number(fromId),
+    p_decider_name: deciderName,
+  })
+
+  if (rpcError) {
+    if (rpcError.message?.includes('REQUEST_NOT_FOUND')) {
+      await answerCallback(callback.id, 'Không tìm thấy yêu cầu.')
+      return
+    }
+    console.error('[telegram-bot] decide_exam_attempt_request RPC error')
+    await answerCallback(callback.id, 'Không thể xử lý yêu cầu lúc này, vui lòng thử lại.')
+    return
+  }
+
+  const result = rpcData as {
+    success?: boolean
+    alreadyDecided?: boolean
+    notEligible?: boolean
+    status?: 'APPROVED' | 'REJECTED'
+    decidedAt?: string
+    decidedByName?: string
+  } | null
+
+  if (!result || !result.success) {
+    console.error('[telegram-bot] decide_exam_attempt_request returned unsuccessful result')
+    await answerCallback(callback.id, 'Không thể xử lý yêu cầu lúc này, vui lòng thử lại.')
+    return
+  }
+
+  const isApproved = result.status === 'APPROVED'
+  if (result.alreadyDecided) {
+    const statusText = isApproved ? 'đã cấp lượt' : 'đã từ chối'
+    await answerCallback(callback.id, `Yêu cầu đã được xử lý trước đó (${statusText}).`)
+  } else if (result.notEligible) {
+    await answerCallback(
+      callback.id,
+      'Không thể cấp lượt: bài thi đã đóng hoặc học sinh không còn được giao bài. Yêu cầu đã được đóng.',
+    )
+  } else {
+    const alertText = isApproved ? 'Đã cấp thêm 1 lượt thi.' : 'Đã từ chối yêu cầu.'
+    await answerCallback(callback.id, alertText)
+  }
+
+  if (messageId) {
+    const rawText = callback.message?.text || ''
+    const stripped = rawText.replace(
+      /\n\n(?:[✅❌]\s*Đã\s*(?:cấp thêm 1 lượt|từ chối)|⚠️\s*Không thể cấp lượt)[\s\S]*$/,
+      '',
+    )
+    const baseHtml = escapeTelegramHtml(stripped)
+    const deciderDisp = escapeTelegramHtml(result.decidedByName || deciderName)
+    const timeDisp = formatVnTimeShort(result.decidedAt)
+    let decisionLine = ''
+    if (result.notEligible || (result.alreadyDecided && rawText.includes('⚠️ Không thể cấp lượt'))) {
+      decisionLine = `\n\n⚠️ Không thể cấp lượt (bài đã đóng hoặc học sinh không còn được giao bài) — ${deciderDisp}, ${timeDisp}`
+    } else if (isApproved) {
+      decisionLine = `\n\n✅ Đã cấp thêm 1 lượt — ${deciderDisp}, ${timeDisp}`
+    } else {
+      decisionLine = `\n\n❌ Đã từ chối — ${deciderDisp}, ${timeDisp}`
+    }
+    const newText = baseHtml ? `${baseHtml}${decisionLine}` : decisionLine.trimStart()
+
+    try {
+      await editBotMessage(chatId, messageId, newText, { inline_keyboard: [] })
+    } catch (e) {
+      if (e instanceof TelegramDeliveryError && e.status === 400) {
+        // Message already modified/buttons removed on idempotent retry
+      } else {
+        throw e
+      }
+    }
+  }
+}
+
 async function answerCallback(callbackQueryId: string, text: string): Promise<void> {
   await telegramRequest('answerCallbackQuery', { callback_query_id: callbackQueryId, text })
 }
 
-async function editBotMessage(chatId: string, messageId: number, text: string): Promise<void> {
-  await telegramRequest('editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML' })
+async function editBotMessage(
+  chatId: string,
+  messageId: number,
+  text: string,
+  replyMarkup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> | [] },
+): Promise<void> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: 'HTML',
+  }
+  if (replyMarkup !== undefined) {
+    payload.reply_markup = replyMarkup
+  }
+  await telegramRequest('editMessageText', payload)
 }
 
 function escapeTelegramHtml(str: string): string {

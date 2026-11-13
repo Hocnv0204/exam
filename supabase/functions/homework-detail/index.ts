@@ -166,6 +166,43 @@ serve(async (req: Request) => {
 
     let attemptsCount = attemptsRes.count ?? 0
     const activeAttemptNo = (activeAttemptRes as any)?.attemptNo || 0
+    // Hạn mức hiệu lực và yêu cầu thêm lượt chỉ áp dụng cho học sinh làm bài EXAM.
+    // Đây là dữ liệu phụ: lỗi truy vấn không được làm hỏng luồng xem bài hiện có.
+    let effectiveMaxAttempts = homework.max_attempts
+    let attemptRequest: { requestId: string; status: string; requestedAt: string; decidedAt: string | null } | null = null
+    if (user?.role === 'STUDENT' && homework.type === 'EXAM') {
+      try {
+        const [allowanceRes, requestRes] = await Promise.all([
+          serviceRoleClient.rpc('exam_attempt_allowance', {
+            p_homework_id: homeworkId,
+            p_student_id: user.id,
+          }),
+          serviceRoleClient
+            .from('exam_attempt_requests')
+            .select('id,status,requested_at,decided_at')
+            .eq('homework_id', homeworkId)
+            .eq('student_id', user.id)
+            .order('requested_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ])
+        // allowance 0 = không giới hạn → giữ max_attempts gốc (null/0) để client không hiểu nhầm.
+        const allowance = Number(allowanceRes.data)
+        if (!allowanceRes.error && Number.isFinite(allowance) && allowance > 0) {
+          effectiveMaxAttempts = allowance
+        }
+        if (!requestRes.error && requestRes.data) {
+          attemptRequest = {
+            requestId: requestRes.data.id,
+            status: requestRes.data.status,
+            requestedAt: requestRes.data.requested_at,
+            decidedAt: requestRes.data.decided_at,
+          }
+        }
+      } catch {
+        // Migration/function may not be deployed yet; preserve the old response.
+      }
+    }
 
     let pdfUrl = homework.pdf_path || ''
     if (pdfRes.data?.signedUrl) {
@@ -202,6 +239,8 @@ serve(async (req: Request) => {
         createdAt: homework.created_at,
         deadline: homework.deadline,
         maxAttempts: homework.max_attempts,
+        effectiveMaxAttempts,
+        attemptRequest,
         type: homework.type || 'PRACTICE',
         maxViolations: homework.max_violations !== undefined ? homework.max_violations : 3,
         showSolutions: homework.show_solutions !== false,
