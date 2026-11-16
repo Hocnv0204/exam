@@ -15,7 +15,6 @@ import {
   syncHomeworkQuestionsToConstantBank,
 } from './auto-bank-sync.ts'
 import { loadClassHomeworkProgress } from './class-progress.ts'
-import { scheduleHomeworkTelegram } from './telegram-notify.ts'
 import { fetchAllRows, fetchAllRowsInChunks, isFetchAllRowsError } from '../../shared/fetch-all-rows.ts'
 
 serve(async (req: Request) => {
@@ -830,7 +829,6 @@ serve(async (req: Request) => {
         }
       }
 
-      scheduleHomeworkTelegram(serviceRoleClient, homework)
       return jsonResponse(
         {
           homework,
@@ -1087,7 +1085,6 @@ serve(async (req: Request) => {
             }
           }
 
-          scheduleHomeworkTelegram(serviceRoleClient, newHw)
           return {
             classId: targetClassId,
             homeworkId: newHw.id,
@@ -1379,7 +1376,6 @@ serve(async (req: Request) => {
         }
       }
 
-      scheduleHomeworkTelegram(serviceRoleClient, updatedHomework, previousHomework)
       return jsonResponse({
         homework: updatedHomework,
         autoBankSync,

@@ -131,63 +131,32 @@ async function request(db, body, action = 'create', method = 'POST') {
   const response = await handler({ method, url: `https://mock/create-homework?action=${action}`, json: async () => body })
   return { response, notices }
 }
+// Đã bỏ thông báo Telegram về bài tập (tạo / giao cho lớp / cập nhật): handler không được gọi gửi tin.
+assert.doesNotMatch(source, /scheduleHomeworkTelegram|notifyHomeworkTelegram/, 'create-homework không còn gửi Telegram')
 for (const isPublished of [true, false]) {
   const result = await request(database({}), { lessonId: 'lesson-a', title: 'New', questions: [], isPublished })
   assert.equal(result.response.status, 201)
-  assert.equal(result.notices.length, isPublished ? 1 : 0)
+  assert.equal(result.notices.length, 0)
 }
-for (const failedTable of ['homeworks', 'homework_targets', 'questions', 'question_answers']) {
-  const result = await request(database({}, (t, op) => t === failedTable && op === 'insert'), { lessonId: 'lesson-a', title: 'New', questions: [], isPublished: true, assignedStudentIds: ['s'] })
-  assert.equal(result.response.status, 500, failedTable)
-  assert.equal(result.notices.length, 0, failedTable)
-}
-for (const [before, patch, expected] of [
-  [false, { isPublished: true, deadline: null }, 'published'],
-  [true, { deadline: null }, 'deadline'],
-  [true, { deadline: '2026-10-29T07:00:00+07:00' }, null],
-  [true, { title: 'Rename' }, null],
-  [false, { deadline: null }, null],
-  [true, { isPublished: false, deadline: null }, null],
+for (const [before, patch] of [
+  [false, { isPublished: true, deadline: null }],
+  [true, { deadline: null }],
+  [true, { title: 'Rename' }],
 ]) {
   const db = database({ homeworks: [{ ...published, is_published: before, updated_at: 'old' }] })
   const result = await request(db, { homeworkId: 'hw', ...patch }, 'update', 'PATCH')
   assert.equal(result.response.status, 200)
-  assert.equal(result.notices[0]?.kind ?? null, expected)
-  const retry = await request(db, { homeworkId: 'hw', ...patch }, 'update', 'PATCH')
-  assert.equal(retry.notices.length, 0, 'same-value retries do not notify')
-}
-for (const failedTable of ['homeworks', 'homework_targets', 'questions', 'question_answers']) {
-  const db = database({ homeworks: [{ ...published, is_published: false }] }, (t, op) => t === failedTable && op !== 'select')
-  const result = await request(db, { homeworkId: 'hw', isPublished: true, assignedStudentIds: ['s'], questions: [{ questionNumber: 1 }] }, 'update', 'PATCH')
-  assert.equal(result.response.status, 500)
   assert.equal(result.notices.length, 0)
 }
-let concurrentDb
-concurrentDb = database({ homeworks: [{ ...published, is_published: false, updated_at: 'same-millisecond' }] }, (t, op) => {
-  if (t === 'homeworks' && op === 'update') concurrentDb.tables.homeworks[0].is_published = true
-  return false
-})
-const raced = await request(concurrentDb, { homeworkId: 'hw', isPublished: true }, 'update', 'PATCH')
-assert.equal(raced.response.status, 409)
-assert.equal(raced.notices.length, 0, 'concurrent publisher already won')
 const cloneSeed = {
   homeworks: [{ ...published, lessons: { title: 'Lesson', chapters: { title: 'Chapter' } } }],
   questions: [{ id: 'q', homework_id: 'hw', question_number: 1, question_answers: { mc_answer: 'A' } }],
   chapters: [{ id: 'ch-a', class_id: 'a', title: 'Chapter' }, { id: 'ch-b', class_id: 'b', title: 'Chapter' }],
   lessons: [{ id: 'lesson-a', chapter_id: 'ch-a', title: 'Lesson' }, { id: 'lesson-b', chapter_id: 'ch-b', title: 'Lesson' }],
 }
-let answers = 0
-const cloned = await request(database(cloneSeed, (t, op) => t === 'question_answers' && op === 'insert' && ++answers === 2), { sourceHomeworkId: 'hw', targetClassIds: ['a', 'b'] }, 'assign-to-class')
+const cloned = await request(database(cloneSeed), { sourceHomeworkId: 'hw', targetClassIds: ['a', 'b'] }, 'assign-to-class')
 assert.equal(cloned.response.status, 200)
-assert.equal(cloned.response.data.createdHomeworks.length, 1)
-assert.equal(cloned.response.data.errors.length, 1)
-assert.equal(cloned.notices.length, 1)
-assert.equal(cloned.notices[0].lesson_id, 'lesson-a')
-const draftClone = await request(database(cloneSeed), { sourceHomeworkId: 'hw', targetClassIds: ['a'], targetLessonId: 'lesson-b', customSettings: { isPublished: false } }, 'assign-to-class')
-assert.equal(draftClone.notices.length, 0)
-const persistedLessonClone = await request(database(cloneSeed), { sourceHomeworkId: 'hw', targetClassIds: ['a'], targetLessonId: 'lesson-b' }, 'assign-to-class')
-assert.equal(persistedLessonClone.notices.length, 1)
-assert.equal(persistedLessonClone.notices[0].lesson_id, 'lesson-b', 'route by persisted lesson, never the claimed target class')
+assert.equal(cloned.notices.length, 0)
 
 // Execute the actual submission-routing code through the config lookup. A student in B
 // must never cause homework A to search B, even when A has no Telegram configuration.

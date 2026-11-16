@@ -1,19 +1,45 @@
+// Toast dùng chung. Chống lặp: cùng nội dung + cùng loại khi toast trước còn hiện → không thêm toast mới,
+// chỉ gia hạn thời gian hiển thị (trước đây gọi 2 lần là hiện 2 toast giống hệt nhau).
+// Nội dung hiển thị dạng text (không chèn HTML) để thông báo lỗi chứa ký tự <…> không bị diễn giải.
+const TOAST_DURATION_MS = 3500
+const TOAST_FADE_MS = 300
+const MAX_TOASTS = 4
+const ICONS = { success: 'fa-circle-check', error: 'fa-triangle-exclamation' }
+
+function scheduleHide(toast) {
+  clearTimeout(toast._hideTimer)
+  clearTimeout(toast._removeTimer)
+  toast.style.opacity = ''
+  toast.style.transform = ''
+  toast._hideTimer = setTimeout(() => {
+    toast.style.opacity = '0'
+    toast.style.transform = 'translateY(10px)'
+    toast._removeTimer = setTimeout(() => toast.remove(), TOAST_FADE_MS)
+  }, TOAST_DURATION_MS)
+}
+
 export function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container')
   if (!container) return
 
+  const text = String(message ?? '')
+  const key = `${type}|${text}`
+  const existing = [...container.children].find(el => el._toastKey === key && el.isConnected)
+  if (existing) {
+    scheduleHide(existing)
+    return
+  }
+
   const toast = document.createElement('div')
   toast.className = `toast toast-${type}`
-  toast.innerHTML = `
-    <i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i>
-    <span>${message}</span>
-  `
-
+  toast._toastKey = key
+  const icon = document.createElement('i')
+  icon.className = `fa-solid ${ICONS[type] || 'fa-circle-info'}`
+  const span = document.createElement('span')
+  span.textContent = text
+  toast.append(icon, span)
   container.appendChild(toast)
 
-  setTimeout(() => {
-    toast.style.opacity = '0'
-    toast.style.transform = 'translateY(10px)'
-    setTimeout(() => toast.remove(), 300)
-  }, 3500)
+  while (container.children.length > MAX_TOASTS) container.firstElementChild?.remove()
+  scheduleHide(toast)
 }
