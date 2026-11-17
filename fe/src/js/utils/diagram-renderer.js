@@ -2,7 +2,7 @@
  * diagram-renderer.js — Facade biên dịch khối hình (giữ tương thích API cũ).
  *
  * Hỗ trợ: Bảng biến thiên (bbt), Đồ thị hàm số (graph), Hình không gian (geo3d),
- * Công thức cấu tạo (smiles).
+ * Công thức cấu tạo Hóa học: thu gọn (ctct) và từ SMILES (smiles, có vòng/polime).
  *
  * - Toán học (bbt/graph/geo3d) nằm trong thư mục ./diagrams (module thuần, test được).
  * - Biểu thức KHÔNG dùng eval / new Function.
@@ -12,21 +12,28 @@
 
 import { compileDiagram, formatDiagnostics } from './diagrams/compiler.js'
 import { collectDiagramBlocks } from './diagrams/fence.js'
+import { renderCtct } from './diagrams/chem-ctct.js'
+import { renderSmiles } from './diagrams/chem-smiles.js'
+
+const CHEM_TYPES = ['smiles', 'ctct']
 
 let diagramUid = 0
 
 /**
  * Biên dịch khối hình → HTML (API cũ, giữ nguyên hành vi cho caller hiện có).
- * @param {string} type bbt | graph | geo3d | smiles
+ * @param {string} type bbt | graph | geo3d | axes3d | sphere3d | smiles | ctct
  * @param {string} code nội dung khối
+ * @param {{inline?:boolean}} [opts] inline = thẻ [SMILES: ...] nằm giữa dòng chữ
  * @returns {string} HTML
  */
-export function compileDiagramToSVG(type, code) {
+export function compileDiagramToSVG(type, code, opts = {}) {
   diagramUid += 1
   const kind = String(type || '').toLowerCase()
 
-  if (kind === 'smiles') {
-    return renderSmilesBlock(code, diagramUid)
+  if (CHEM_TYPES.includes(kind)) {
+    const result = compileChem(kind, code, {})
+    if (result.ok) return chemWrap(result.svg, !!opts.inline)
+    return renderErrorBlock(kind, result.diagnostics.filter(d => d.severity === 'error'))
   }
 
   const result = compileDiagram(kind, code, { uid: diagramUid })
@@ -41,15 +48,37 @@ export function compileDiagramToSVG(type, code) {
 export function compileDiagramWithDiagnostics(type, code, ctx = {}) {
   diagramUid += 1
   const kind = String(type || '').toLowerCase()
-  if (kind === 'smiles') {
+  if (CHEM_TYPES.includes(kind)) {
+    const result = compileChem(kind, code, ctx)
     return {
-      ok: true,
+      ok: result.ok,
       model: null,
-      svg: renderSmilesBlock(code, diagramUid),
-      diagnostics: []
+      svg: result.ok ? chemWrap(result.svg, false) : renderErrorBlock(kind, result.diagnostics.filter(d => d.severity === 'error')),
+      diagnostics: result.diagnostics
     }
   }
   return compileDiagram(kind, code, { ...ctx, uid: diagramUid })
+}
+
+function compileChem(kind, code, ctx) {
+  try {
+    return kind === 'ctct' ? renderCtct(code, ctx) : renderSmiles(code, ctx)
+  } catch (err) {
+    console.error('[DiagramRenderer] chem render failed:', err)
+    return {
+      ok: false,
+      svg: '',
+      diagnostics: [{ severity: 'error', code: 'RENDER_FAILED', field: null, line: ctx.line ?? null, message: `Không vẽ được công thức (${err && err.message ? err.message : 'lỗi không xác định'}).` }]
+    }
+  }
+}
+
+/** SVG công thức dùng currentColor: nền trong suốt, theo màu chữ của nơi hiển thị. */
+function chemWrap(svg, inline) {
+  if (inline) {
+    return `<span class="diagram-wrap chem-wrap chem-inline" style="display:inline-block;vertical-align:middle;margin:4px 8px;max-width:100%;">${svg}</span>`
+  }
+  return `<div class="diagram-wrap chem-wrap" style="margin:12px 0;max-width:100%;overflow-x:auto;">${svg}</div>`
 }
 
 /**
@@ -75,8 +104,8 @@ export function validateDiagramsInText(text) {
 
   blocks.forEach(b => {
     if (!b.closed) return
-    if (b.type === 'smiles') return
-    const res = compileDiagramWithDiagnostics(b.type, b.code, { line: b.startLine })
+    // Khối fence: dòng mở ``` là startLine, nội dung bắt đầu ở dòng kế; thẻ inline nằm ngay trên dòng đó.
+    const res = compileDiagramWithDiagnostics(b.type, b.code, { line: b.inline ? b.startLine - 1 : b.startLine })
     res.diagnostics.forEach(d => {
       const item = { ...d, line: d.line ?? b.startLine }
       if (item.severity === 'error') errors.push(item)
@@ -113,27 +142,4 @@ function esc(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-}
-
-/* ==========================================================================
- * CÔNG THỨC CẤU TẠO HÓA HỌC 2D (SMILES) — giữ nguyên hành vi cũ
- * ========================================================================== */
-function renderSmilesBlock(smilesCode, uid) {
-  const svgId = `smiles-svg-${uid}`
-  setTimeout(() => {
-    try {
-      const el = document.getElementById(svgId)
-      if (el && window.SmilesDrawer) {
-        const drawer = new window.SmilesDrawer.SvgDrawer({ width: 220, height: 140 })
-        window.SmilesDrawer.parse(smilesCode, (tree) => {
-          drawer.draw(tree, `#${svgId}`, 'light', false)
-        })
-      }
-    } catch (e) {
-      console.error('[DiagramRenderer] SmilesDrawer failed:', e)
-    }
-  }, 0)
-
-  return `<span class="diagram-wrap" style="display:inline-flex;align-items:center;justify-content:center;margin:4px 8px;vertical-align:middle;">` +
-    `<svg id="${svgId}" width="220" height="140" style="background:#fff;border-radius:6px;" data-smiles="${String(smilesCode || '').replace(/"/g, '&quot;')}"></svg></span>`
 }

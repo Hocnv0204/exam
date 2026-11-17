@@ -7,9 +7,9 @@
  *  - kiểm tra lỗi: fence chưa đóng.
  */
 
-export const DIAGRAM_FENCE_TYPES = ['bbt', 'graph', 'geo3d', 'axes3d', 'sphere3d', 'smiles']
+export const DIAGRAM_FENCE_TYPES = ['bbt', 'graph', 'geo3d', 'axes3d', 'sphere3d', 'smiles', 'ctct']
 
-const FENCE_OPEN = /^```\s*(bbt|graph|geo3d|axes3d|sphere3d|smiles)\s*$/i
+const FENCE_OPEN = /^```\s*(bbt|graph|geo3d|axes3d|sphere3d|smiles|ctct)\s*$/i
 const FENCE_CLOSE = /^```\s*$/
 
 /**
@@ -94,7 +94,8 @@ export function collectDiagramBlocks(text) {
     code: s.code,
     startLine: s.line,
     endLine: s.line,
-    closed: true
+    closed: true,
+    inline: true
   }))
   return { blocks: all.concat(inline), unclosed }
 }

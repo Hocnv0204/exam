@@ -379,7 +379,8 @@ img { max-width: 100%; height: auto; }
 .md-li { margin-left: 20px; line-height: 1.6; }
 .md-spacer { height: 8px; }
 .md-img { max-width: 100%; max-height: 360px; object-fit: contain; border-radius: 8px; margin: 8px 0; border: 1px solid #e2e8f0; display: block; }
-/* Khối hình (bbt/graph/geo3d/SMILES): nền trắng, chữ tối, không tràn trang */
+/* Khối hình (bbt/graph/geo3d/SMILES/ctct): nền trắng, chữ tối, không tràn trang */
+.chem-wrap svg { color: #000; }
 .diagram-wrap { max-width: 100%; break-inside: avoid; page-break-inside: avoid; }
 .diagram-wrap svg { max-width: 100%; height: auto; background: #fff; }
 .diagram-wrap foreignObject div { color: #0f172a; }
@@ -687,7 +688,7 @@ export async function exportExamPdf({ title, meta = {}, questions, mode = 'stude
 
     await ensureKatexLoaded()
     await renderMath(holder)
-    // SMILES vẽ bằng setTimeout(0) qua document.getElementById → chờ vài nhịp.
+    // Chờ vài nhịp cho layout/ font ổn định (công thức Hóa đã là SVG đồng bộ).
     await nextFrame()
     await nextFrame()
     await wait(60)

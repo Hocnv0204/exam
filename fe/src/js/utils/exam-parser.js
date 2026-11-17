@@ -249,7 +249,7 @@ import { compileDiagramToSVG, validateDiagramsInText } from './diagram-renderer.
 import { scanDiagramFences } from './diagrams/fence.js'
 
 /**
- * Che khu vực các khối hình (```bbt / ```graph / ```geo3d / ```smiles) trước khi
+ * Che khu vực các khối hình (```bbt / ```graph / ```geo3d / ```smiles / ```ctct) trước khi
  * xử lý toán $...$ để ký hiệu trong khối không bị bóc nhầm.
  * Khối chưa đóng fence vẫn được che lại (kèm cảnh báo) để không "nuốt" câu hỏi.
  */
@@ -294,7 +294,7 @@ export function renderMarkdown(text) {
   // Thẻ inline [SMILES: ...]
   str = str.replace(/\[SMILES:\s*([^\]]+)\]/gi, (match, smilesCode) => {
     const placeholder = `@@DIAGRAMXTOKENX${diagramTokens.length}XTOKENXDIAGRAM@@`
-    diagramTokens.push({ type: 'smiles', code: (smilesCode || '').trim(), closed: true })
+    diagramTokens.push({ type: 'smiles', code: (smilesCode || '').trim(), closed: true, inline: true })
     return placeholder
   })
 
@@ -408,8 +408,8 @@ export function renderMarkdown(text) {
   str = str.replace(/@@DIAGRAMXTOKENX(\d+)XTOKENXDIAGRAM@@/g, (match, index) => {
     const item = diagramTokens[Number(index)]
     if (!item) return ''
-    if (item.type === 'smiles') {
-      return compileDiagramToSVG('smiles', item.code)
+    if (item.inline) {
+      return compileDiagramToSVG('smiles', item.code, { inline: true })
     }
     if (!item.closed) {
       return `<div style="padding:8px 10px;font-size:12px;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;">` +
@@ -728,7 +728,7 @@ export function parseExamMarkdown(rawText, imageMapOrSection = {}, defaultSectio
     currentOption = null
   }
 
-  const FENCE_OPEN = /^```\s*(bbt|graph|geo3d|axes3d|sphere3d|smiles)\s*$/i
+  const FENCE_OPEN = /^```\s*(bbt|graph|geo3d|axes3d|sphere3d|smiles|ctct)\s*$/i
   const FENCE_CLOSE = /^```\s*$/
   const isQuestionHeader = (text) => /^\[(?:Câu|Bài)\s*\d+\]/i.test(text) || /^(?:Câu|Bài)\s*\d+/.test(text)
 
