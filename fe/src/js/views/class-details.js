@@ -1915,8 +1915,13 @@ export function bindClassDetailsEvents() {
       if (!targetTab || targetTab === activeTab) return
 
       activeTab = targetTab
-      document.querySelectorAll('.class-tab-item').forEach(b => b.classList.remove('active'))
-      btn.classList.add('active')
+      // Cập nhật cả aria-selected: CSS Pro tô [role="tab"][aria-selected="true"], nếu chỉ đổi class
+      // thì tab mở ban đầu vẫn bị tô cùng tab vừa chọn.
+      document.querySelectorAll('.class-tab-item').forEach(b => {
+        const selected = b === btn
+        b.classList.toggle('active', selected)
+        if (b.hasAttribute('aria-selected')) b.setAttribute('aria-selected', String(selected))
+      })
 
       const container = document.getElementById('class-tab-content-container')
       if (container) {
