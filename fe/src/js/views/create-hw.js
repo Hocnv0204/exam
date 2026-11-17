@@ -1449,6 +1449,7 @@ export function renderProCreateHwView() {
                     </button>
                   </div>
                   <div class="ap-deadline-quick" role="group" aria-label="Chọn nhanh hạn nộp">
+                    <button type="button" data-deadline-days="0">Hôm nay</button>
                     <button type="button" data-deadline-days="1">+1 ngày</button>
                     <button type="button" data-deadline-days="3">+3 ngày</button>
                     <button type="button" data-deadline-days="7">+1 tuần</button>
@@ -3967,8 +3968,9 @@ export function bindCreateHwEvents() {
     if (isNaN(d.getTime())) { el.textContent = ''; return }
     const days = Math.ceil((d.getTime() - Date.now()) / 86400000)
     const when = d.toLocaleString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    el.textContent = days < 0 ? `Hạn nộp ${when} — đã qua.` : `Hạn nộp ${when} (còn ${days} ngày).`
-    el.classList.toggle('is-past', days < 0)
+    const sameDay = d.toDateString() === new Date().toDateString()
+    el.textContent = days < 0 || d.getTime() < Date.now() ? `Hạn nộp ${when} — đã qua.` : sameDay ? `Hạn nộp ${when} (trong hôm nay).` : `Hạn nộp ${when} (còn ${days} ngày).`
+    el.classList.toggle('is-past', days < 0 || d.getTime() < Date.now())
   }
   document.querySelectorAll('[data-deadline-days]').forEach(btn => {
     btn.addEventListener('click', () => {

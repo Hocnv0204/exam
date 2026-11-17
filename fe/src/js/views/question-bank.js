@@ -6031,6 +6031,7 @@ export function renderProMatrixModalHtml({ uniqueBlocks = [], treeDataCache = {}
                   <button type="button" id="mx-deadline-clear" class="ap-mx-icon-btn" title="Xóa hạn nộp" aria-label="Xóa hạn nộp"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                 </div>
                 <div class="ap-mx-deadline-quick" role="group" aria-label="Chọn nhanh hạn nộp">
+                  <button type="button" data-mx-deadline-days="0">Hôm nay</button>
                   <button type="button" data-mx-deadline-days="1">+1 ngày</button>
                   <button type="button" data-mx-deadline-days="3">+3 ngày</button>
                   <button type="button" data-mx-deadline-days="7">+1 tuần</button>
@@ -7870,8 +7871,9 @@ async function openMatrixGeneratorModal() {
     if (isNaN(d.getTime())) { el.textContent = ''; return }
     const days = Math.ceil((d.getTime() - Date.now()) / 86400000)
     const when = d.toLocaleString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    el.textContent = days < 0 ? `Hạn nộp ${when} — đã qua.` : `Hạn nộp ${when} (còn ${days} ngày).`
-    el.classList.toggle('is-past', days < 0)
+    const sameDay = d.toDateString() === new Date().toDateString()
+    el.textContent = days < 0 || d.getTime() < Date.now() ? `Hạn nộp ${when} — đã qua.` : sameDay ? `Hạn nộp ${when} (trong hôm nay).` : `Hạn nộp ${when} (còn ${days} ngày).`
+    el.classList.toggle('is-past', days < 0 || d.getTime() < Date.now())
   }
   document.querySelectorAll('[data-mx-deadline-days]').forEach(btn => {
     btn.addEventListener('click', () => {

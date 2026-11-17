@@ -2891,7 +2891,7 @@ html[data-admin-ui="pro"] .ap-create-homework .ap-assign-search i {
   pointer-events: none;
 }
 
-html[data-admin-ui="pro"] .ap-create-homework .ap-assign-search input {
+html[data-admin-ui="pro"] .ap-create-homework .ap-assign-search input[type="search"] {
   width: 100%;
   box-sizing: border-box;
   padding-left: 34px !important;
