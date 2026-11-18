@@ -1,6 +1,7 @@
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { showToast } from '../components/toast.js'
+import { autoBankSyncToastMessage } from '../utils/bank-sync-toast.js'
 import { openModal, closeModal } from '../components/modal.js'
 import { exportExamPdf, renderExamPdfBlob } from '../utils/exam-print.js'
 import { toSafeAsciiFileName } from '../utils/homework-auto-pdf.js'
@@ -138,39 +139,11 @@ function scrollToInteractiveQuestion(target) {
   if (typeof window.scrollTo === 'function') window.scrollTo({ top: Math.max(0, topOffset), behavior })
 }
 
-/**
- * Báo kết quả auto-sync Ngân hàng câu hỏi Constant sau khi lưu bài tập thành công.
- * Tuyệt đối không báo "thành công" cho phần chưa đồng bộ; chỉ hiển thị cho Admin.
- */
 function showAutoBankSyncToast(summary) {
-  if (!summary || !summary.enabled) return
-
-  const created = Number(summary.createdCount) || 0
-  const skipped = Number(summary.skippedDuplicateCount) || 0
-  const unsynced = Number(summary.unsyncedCount) || 0
-  const failed = Number(summary.failedCount) || 0
-  const notSynced = unsynced + failed
-  const targetName = summary.target?.lessonTitle ? ` bài "${escapeHtml(summary.target.lessonTitle)}"` : ''
-  const firstReason = Array.isArray(summary.reasons) && summary.reasons.length > 0
-    ? escapeHtml(summary.reasons[0].reason || '')
-    : ''
-
-  if (notSynced === 0) {
-    if (created === 0 && skipped > 0) {
-      showToast(`Ngân hàng câu hỏi: không có câu mới, bỏ qua ${skipped} câu đã có${targetName}.`, 'info')
-      return
-    }
-    const parts = [`Ngân hàng câu hỏi: đã đồng bộ ${created} câu${targetName}`]
-    if (skipped > 0) parts.push(`bỏ qua ${skipped} câu đã có`)
-    showToast(`${parts.join(', ')}.`, 'success')
-    return
-  }
-
-  const parts = [`Ngân hàng câu hỏi: đã lưu ${created} câu`]
-  if (skipped > 0) parts.push(`bỏ qua ${skipped} câu trùng`)
-  parts.push(`${notSynced} câu CHƯA đồng bộ`)
-  if (firstReason) parts.push(`lý do: ${firstReason}`)
-  showToast(`${parts.join(', ')}.`, 'warning')
+  const msg = autoBankSyncToastMessage(summary)
+  if (!msg) return
+  // Cảnh báo thường dài và trang chuyển sang danh sách bài tập ngay sau khi lưu: giữ lâu hơn để kịp đọc.
+  showToast(msg.text, msg.type, msg.type === 'warning' ? { duration: 12000 } : {})
 }
 
 /* ==========================================================================

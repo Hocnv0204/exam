@@ -132,6 +132,11 @@ export type AutoBankSyncSummary = {
   source: 'MARKDOWN_INTERACTIVE' | null
   totalQuestions: number
   createdCount: number
+  /**
+   * Trong createdCount: số câu đã lưu nhưng CHƯA gắn được Bài Constant (row động, qb_* NULL).
+   * Các câu này không hiện khi lọc Ngân hàng theo Lớp/Chương/Bài Constant; lý do nằm trong reasons.
+   */
+  unattachedCount: number
   skippedDuplicateCount: number
   unsyncedCount: number
   failedCount: number
@@ -1254,6 +1259,7 @@ function emptySummary(enabled: boolean): AutoBankSyncSummary {
     source: enabled ? 'MARKDOWN_INTERACTIVE' : null,
     totalQuestions: 0,
     createdCount: 0,
+    unattachedCount: 0,
     skippedDuplicateCount: 0,
     unsyncedCount: 0,
     failedCount: 0,
@@ -1447,6 +1453,8 @@ export async function syncHomeworkQuestionsToConstantBank(
       dedupKey: string
       lessonId?: string
       gradeBlock?: string
+      /** Row động: lý do chưa gắn được Bài Constant (báo cho Admin sau khi ghi thành công). */
+      unattachedReason?: string
     }
     const prepared: PreparedRow[] = []
     const seenKeys = new Set<string>()
@@ -1565,7 +1573,8 @@ export async function syncHomeworkQuestionsToConstantBank(
       question: SyncQuestionInput,
       classification: Extract<QuestionClassification, { success: true }>,
       dynamicMatch: { matched: boolean; ids: DynamicFallbackIds | null },
-      questionNumber: number | null
+      questionNumber: number | null,
+      unattachedReason: string
     ): Promise<void> => {
       // Giữ đúng chuỗi khối của lớp động nếu cùng Khối/Môn: bộ lọc ngân hàng
       // dùng grade_block.eq (vd "Toán-11"), không phải khóa canonical "11-Toán".
@@ -1590,6 +1599,7 @@ export async function syncHomeworkQuestionsToConstantBank(
         row,
         dedupKey: `dynamic:${gradeBlock}|${hash}`,
         gradeBlock,
+        unattachedReason,
       })
       usedDynamicTarget = true
       syncSummaryTarget()
@@ -1713,7 +1723,13 @@ export async function syncHomeworkQuestionsToConstantBank(
           // id động nếu thực sự khớp; phân cấp Constant mơ hồ vẫn phải fail closed.
           const dynamicMatch = resolveDynamicHierarchyForMetadata(tags, dynamic, classification)
           if (!ambiguousConstant && tags.chapterTag && tags.lessonTag) {
-            await prepareDynamicRow(question, classification, dynamicMatch, questionNumber)
+            await prepareDynamicRow(
+              question,
+              classification,
+              dynamicMatch,
+              questionNumber,
+              resolutionError || 'Không khớp được Chương/Bài Constant'
+            )
             continue
           }
 
@@ -1738,7 +1754,13 @@ export async function syncHomeworkQuestionsToConstantBank(
         // Không có Lớp Constant: fallback động theo Khối/Môn đã xác minh. Chỉ gắn id động
         // nếu metadata khớp đầy đủ cấp bậc bài học động.
         const dynamicMatch = resolveDynamicHierarchyForMetadata(tags, dynamic, classification)
-        await prepareDynamicRow(question, classification, dynamicMatch, questionNumber)
+        await prepareDynamicRow(
+          question,
+          classification,
+          dynamicMatch,
+          questionNumber,
+          classResolution.error || `Không có Lớp Constant cho Khối/Môn "${classification.gradeBlock}"`
+        )
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         markFailed(
@@ -1816,9 +1838,22 @@ export async function syncHomeworkQuestionsToConstantBank(
       return summary
     }
 
+    // Row động ghi thành công vẫn là "đã lưu" nhưng phải báo rõ là CHƯA gắn Bài Constant,
+    // nếu không Admin tưởng đồng bộ đủ mà lọc theo Bài lại không thấy câu.
+    const markCreated = (item: PreparedRow) => {
+      summary.createdCount++
+      if (item.unattachedReason !== undefined) {
+        summary.unattachedCount++
+        pushReason(
+          item.questionNumber,
+          `${item.questionNumber === null ? '' : `Câu ${item.questionNumber}: `}đã lưu nhưng chưa gắn Bài Constant — ${item.unattachedReason}`
+        )
+      }
+    }
+
     const bulkResult = await adapter.insertRows(rowsToInsert.map((item) => item.row))
     if (!bulkResult.error) {
-      summary.createdCount += rowsToInsert.length
+      rowsToInsert.forEach(markCreated)
       return summary
     }
 
@@ -1828,7 +1863,7 @@ export async function syncHomeworkQuestionsToConstantBank(
     for (const item of rowsToInsert) {
       const singleResult = await adapter.insertRows([item.row])
       if (!singleResult.error) {
-        summary.createdCount++
+        markCreated(item)
       } else if (isDuplicateError(singleResult.error)) {
         summary.skippedDuplicateCount++
       } else {

@@ -1103,6 +1103,30 @@ async function run() {
       [['c2', 'b7', 'b7-xd'], ['c2', 'b8', 'b8-th'], ['c2', 'b8', 'b8-th']])
   })
 
+  await test('Summary tách câu đã lưu nhưng CHƯA gắn Bài Constant (unattachedCount + lý do từng câu)', async () => {
+    const taxonomy = {
+      classes: [{ id: 'qb12toan', name: 'Toán 12', grade_block: '12' }],
+      chapters: [{ id: 'c2', class_id: 'qb12toan', title: 'Chương 2: Tọa độ trong không gian Oxyz' }],
+      lessons: [{ id: 'b7', chapter_id: 'c2', title: 'Bài 7. Hệ trục tọa độ trong không gian' }],
+      questionTypes: [{ id: 'b7-k', lesson_id: 'b7', name: 'Khác' }],
+    }
+    const adapter = makeAdapter(taxonomy)
+    const summary = await syncHomeworkQuestionsToConstantBank(adapter, {
+      questions: [
+        mcQuestion({ questionNumber: 1, classTag: '12', subjectTag: 'Toán', chapterTag: 'Chương 2', lessonTag: 'Bài 7. Hệ trục tọa độ trong không gian' }),
+        mcQuestion({ questionNumber: 2, classTag: '12', subjectTag: 'Toán', chapterTag: 'Chương 9. Không tồn tại', lessonTag: 'Bài 99. Không tồn tại',
+          prompt: JSON.stringify({ text: 'Câu khác nội dung', options: [{ id: 'A', text: '1' }] }) }),
+      ],
+      dynamicLesson: null,
+    })
+    assert.equal(summary.createdCount, 2)
+    assert.equal(summary.unattachedCount, 1)
+    assert.equal(summary.unsyncedCount, 0)
+    assert.match(summary.reasons[0].reason, /^Câu 2: đã lưu nhưng chưa gắn Bài Constant — Không có Chương Constant tương ứng/)
+    // Câu gắn đúng không sinh lý do.
+    assert.equal(summary.reasons.length, 1)
+  })
+
   await test('constantClassBlockKey: lấp môn từ tên lớp, không ghi đè khối/môn mâu thuẫn', () => {
     assert.equal(constantClassBlockKey('11', 'Toán 11'), '11-toan')
     assert.equal(constantClassBlockKey('11-Toán', 'Lớp chuyên'), '11-toan')
