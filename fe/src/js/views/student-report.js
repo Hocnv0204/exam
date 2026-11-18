@@ -2,6 +2,7 @@ if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/student-report.css')
   import('../../css/admin-pro/pages/ops.css')
 }
+import { hasReportAttendance, renderReportAttendanceBody, reportAttendanceSubtitle } from '../utils/report-attendance.js'
 import { renderSidebar, bindSidebarEvents } from '../components/sidebar.js'
 import { renderNavbar } from '../components/navbar.js'
 import { renderThemeToggle } from '../theme.js'
@@ -372,6 +373,7 @@ function renderSharedReportData(data) {
     scoreTrend,
     topicBreakdown: data?.topicBreakdown,
     submissions: data?.submissions,
+    attendance: data?.attendance,
     isEmpty
   }, { includeSharePanel: false })
 
@@ -1185,6 +1187,35 @@ function renderTopicSection(topicBreakdown) {
   `
 }
 
+// ================== Điểm danh trong kỳ ==================
+
+function renderAttendanceSection(attendance) {
+  if (!hasReportAttendance(attendance)) return ''
+  const sub = reportAttendanceSubtitle(attendance)
+  return `
+    <div class="report-section report-att">
+      <h2 class="report-section-title"><i class="fa-solid fa-clipboard-user"></i> Điểm danh trong kỳ${sub ? ` <span class="report-att-sub">${escapeHtml(sub)}</span>` : ''}</h2>
+      ${renderReportAttendanceBody(attendance)}
+    </div>
+  `
+}
+
+function renderMochiAttendanceSection(attendance) {
+  if (!hasReportAttendance(attendance)) return ''
+  const sub = reportAttendanceSubtitle(attendance)
+  return `
+    <section class="m-report-section report-att">
+      <div class="m-report-section-head">
+        <h2 class="m-report-section-title"><i class="fa-solid fa-clipboard-user" aria-hidden="true"></i> Điểm danh trong kỳ</h2>
+        ${sub ? `<span class="m-hw-section-sub">${escapeHtml(sub)}</span>` : ''}
+      </div>
+      <div class="m-card report-att-mcard">
+        ${renderReportAttendanceBody(attendance)}
+      </div>
+    </section>
+  `
+}
+
 // ================== Submissions table ==================
 
 function renderSubmissionsSection(submissions) {
@@ -1936,6 +1967,7 @@ export function renderMochiReportInner(opts) {
     scoreTrend,
     topicBreakdown,
     submissions,
+    attendance,
     isEmpty
   } = opts
 
@@ -1954,6 +1986,7 @@ export function renderMochiReportInner(opts) {
     ${renderMochiSummarySection(summary)}
     ${isEmpty ? '' : renderMochiScoreTrendSection()}
     ${renderMochiTrendSection(comparison || {})}
+    ${renderMochiAttendanceSection(attendance)}
     ${renderMochiTopicSection(topicBreakdown)}
     ${renderMochiSubmissionsSection(submissions)}
   `
@@ -1975,6 +2008,7 @@ export function renderClassicReportInner(opts, { includeSharePanel = false } = {
     scoreTrend,
     topicBreakdown,
     submissions,
+    attendance,
     isEmpty
   } = opts
 
@@ -2013,6 +2047,7 @@ export function renderClassicReportInner(opts, { includeSharePanel = false } = {
     ${renderSummarySection(summary)}
     ${isEmpty ? '' : renderScoreTrendSection(scoreTrendArr)}
     ${renderTrendSection(comparison || {})}
+    ${renderAttendanceSection(attendance)}
     ${renderTopicSection(topicBreakdown)}
     ${renderSubmissionsSection(submissions)}
   `
@@ -2034,6 +2069,7 @@ export function renderProReportInner(opts, { includeSharePanel = false } = {}) {
     scoreTrend,
     topicBreakdown,
     submissions,
+    attendance,
     isEmpty
   } = opts
 
@@ -2138,6 +2174,12 @@ export function renderProReportInner(opts, { includeSharePanel = false } = {}) {
       </article>
     </section>
 
+    ${hasReportAttendance(attendance) ? `
+    <!-- Điểm danh trong kỳ -->
+    <section class="report-section ap-card report-att-card" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); margin-bottom:20px;">
+      ${renderAttendanceSection(attendance)}
+    </section>` : ''}
+
     <!-- Phân tích theo chương -->
     <section class="report-section ap-card" style="padding:22px; border:2px solid var(--ap-line); border-radius:22px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); margin-bottom:20px;">
       ${renderTopicSection(topicBreakdown)}
@@ -2201,6 +2243,7 @@ function renderReport(data) {
     scoreTrend,
     topicBreakdown: data?.topicBreakdown,
     submissions: data?.submissions,
+    attendance: data?.attendance,
     isEmpty
   }, { includeSharePanel: true })
 

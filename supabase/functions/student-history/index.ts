@@ -3,6 +3,7 @@ import { handleCors, jsonResponse, errorResponse } from '../../shared/response-h
 import { requireAuth } from '../../shared/auth-middleware.ts'
 import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { QUESTION_AWARD_LOG_SELECT, mapQuestionAwardLogRow } from '../../shared/question-award-logs.ts'
+import { loadReportAttendance } from './report-attendance.ts'
 import { resolveWrongQuestionType, isBlankWrongAnswer, loadAllAnalysisRows, loadChunkedWrongAnalysis, ANALYSIS_SUBMISSION_CHUNK_SIZE, uniqueWrongAttempts } from './wrong-analysis.ts'
 
 /* ---------------------------------------------------------------------------
@@ -278,6 +279,19 @@ serve(async (req: Request) => {
       } else {
         return errorResponse('Forbidden: Progress report requires an authenticated student or admin account', 403)
       }
+
+      // Điểm danh trong kỳ: chạy song song với phần bài tập; chỉ khi báo cáo có lớp cụ thể
+      // (quyền + ghi danh đã kiểm ở trên). Không bao giờ reject để không làm hỏng báo cáo.
+      const attendancePromise = loadReportAttendance(serviceRoleClient, {
+        studentId: reportStudentId,
+        classId: reportClassId,
+        fromDate,
+        toDate,
+        isPublic: !!shared,
+      }).catch((err: unknown) => {
+        console.error('[student-history] report attendance error:', err instanceof Error ? err.message : String(err))
+        return { error: 'Không tải được dữ liệu điểm danh.' }
+      })
 
       // ----- Resolve homework scope via class chain (Class -> Chapter -> Lesson -> Homework) -----
       const reportClassIds: string[] = []
@@ -578,6 +592,8 @@ serve(async (req: Request) => {
         trend,
       }
 
+      const attendance = await attendancePromise
+
       // Public payload: giữ đủ dữ liệu render + tên học sinh/lớp + hạn share,
       // nhưng bỏ toàn bộ id nội bộ (studentId/submissionId/homeworkId/classId/
       // lessonId/chapterId...) và không bao giờ trả token/hash/phone/username.
@@ -645,6 +661,7 @@ serve(async (req: Request) => {
           scoreTrend: publicScoreTrend,
           topicBreakdown: publicTopicBreakdown,
           submissions: publicSubmissions,
+          attendance,
         })
       }
 
@@ -659,6 +676,7 @@ serve(async (req: Request) => {
         scoreTrend,
         topicBreakdown,
         submissions: reportSubmissions,
+        attendance,
       })
     }
 

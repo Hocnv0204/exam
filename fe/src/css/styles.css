@@ -5801,3 +5801,49 @@ body.review-split-mode .page-header {
   .lw-video-card { padding: 12px; }
   .lw-hw-card { padding: 12px; }
 }
+
+/* ===== Báo cáo tiến độ: mục "Điểm danh trong kỳ" (classic / Mochi Pro / Mochi / link chia sẻ) ===== */
+.report-att {
+  --report-att-ok: #15803d;
+  --report-att-ok-bg: rgba(22, 163, 74, 0.12);
+  --report-att-bad: #b91c1c;
+  --report-att-bad-bg: rgba(220, 38, 38, 0.10);
+  --report-att-line: color-mix(in srgb, currentColor 14%, transparent);
+  --report-att-muted: color-mix(in srgb, currentColor 62%, transparent);
+}
+/* Báo cáo chỉ tối khi admin xem (.admin-dark) hoặc học sinh Mochi chọn chế độ Tối;
+   link chia sẻ công khai luôn nền sáng nên giữ màu đậm ở trên. */
+html[data-theme="dark"] .admin-dark .report-att,
+html[data-student-theme="dark"] .report-att {
+  --report-att-ok: #4ade80;
+  --report-att-ok-bg: rgba(74, 222, 128, 0.14);
+  --report-att-bad: #f87171;
+  --report-att-bad-bg: rgba(248, 113, 113, 0.14);
+}
+.report-att-sub { font-size: 0.72em; font-weight: 700; opacity: 0.7; margin-left: 6px; }
+.report-att-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 4px 0 12px; }
+.report-att-stat { min-width: 0; padding: 12px 14px; border: 1.5px solid var(--report-att-line); border-radius: 14px; display: flex; flex-direction: column; gap: 2px; }
+.report-att-stat-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; color: var(--report-att-muted); }
+.report-att-stat-value { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.report-att-stat-note { font-size: 12px; font-weight: 700; color: var(--report-att-muted); }
+.report-att-stat.is-present .report-att-stat-value { color: var(--report-att-ok); }
+.report-att-stat.is-absent { border-color: var(--report-att-bad); background: var(--report-att-bad-bg); }
+.report-att-stat.is-absent .report-att-stat-value { color: var(--report-att-bad); }
+.report-att-hint { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--report-att-muted); }
+.report-att-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.report-att-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1.5px solid var(--report-att-line); border-radius: 12px; min-height: 44px; box-sizing: border-box; }
+.report-att-row.is-absent { border-color: var(--report-att-bad); background: var(--report-att-bad-bg); }
+.report-att-when { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.report-att-when strong { font-weight: 800; }
+.report-att-note { font-size: 13px; color: var(--report-att-muted); overflow-wrap: anywhere; }
+.report-att-class { font-size: 13px; font-weight: 600; color: var(--report-att-muted); white-space: nowrap; }
+.report-att-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; border: 1.5px solid var(--report-att-line); color: var(--report-att-muted); }
+.report-att-badge.is-present { color: var(--report-att-ok); background: var(--report-att-ok-bg); border-color: transparent; }
+.report-att-badge.is-absent { color: var(--report-att-bad); background: var(--report-att-bad-bg); border-color: var(--report-att-bad); }
+.report-att-empty { margin: 0; color: var(--report-att-muted); font-weight: 600; }
+.report-att-error { color: var(--report-att-bad); }
+@media (max-width: 640px) {
+  .report-att-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-att-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .report-att-class { grid-column: 1 / -1; grid-row: 2; white-space: normal; }
+}
