@@ -215,6 +215,27 @@ export function canonicalGradeBlock(value: unknown): string | null {
   return `${grade}-${normalizeTaxonomyText(subject)}`
 }
 
+/**
+ * Khối/Môn canonical của một Lớp Constant. grade_block là nguồn chính; dữ liệu thật có
+ * lớp "Toán 11" với grade_block = "11" (thiếu môn) nên khi grade_block không tách được
+ * môn thì bổ sung MÔN (và khối nếu thiếu) từ tên lớp. Tên lớp chỉ lấp phần thiếu, không
+ * ghi đè: khối trong tên khác khối trong grade_block -> null (không đoán).
+ */
+export function constantClassBlockKey(gradeBlock: unknown, className: unknown): string | null {
+  const direct = canonicalGradeBlock(gradeBlock)
+  if (direct) return direct
+  const blockGrade = extractGradeLevel(gradeBlock)
+  const nameGrade = extractGradeLevel(className)
+  if (blockGrade !== null && nameGrade !== null && blockGrade !== nameGrade) return null
+  const grade = blockGrade ?? nameGrade
+  const blockSubject = normalizeSubject(gradeBlock)
+  const nameSubject = normalizeSubject(className)
+  if (blockSubject && nameSubject && blockSubject !== nameSubject) return null
+  const subject = blockSubject || nameSubject
+  if (!grade || !subject) return null
+  return `${grade}-${normalizeTaxonomyText(subject)}`
+}
+
 function romanOrNumberToInt(raw: string): number | null {
   if (/^\d+$/.test(raw)) return parseInt(raw, 10)
   return ROMAN_MAP[raw] || null
@@ -270,10 +291,11 @@ function titleTagMatchesTarget(tag: unknown, targetTitle: unknown): boolean {
   const targetCore = coreTitleKey(targetTitle)
   if (tagCore && targetCore && tagCore === targetCore && !titleNumbersConflict(tag, targetTitle)) return true
 
-  // Một bên chỉ có "Chương N"/"Bài N": so số thứ tự thay vì so chuỗi con.
+  // Một bên chỉ có "Chương N"/"Bài N" (tag hoặc tiêu đề Constant): so số thứ tự thay vì
+  // so chuỗi con. Cả hai cùng có tên mà tên khác nhau -> vẫn không khớp.
   const tagNumber = extractChapterOrLessonNumber(tag)
   const targetNumber = extractChapterOrLessonNumber(targetTitle)
-  if (!tagCore && tagNumber !== null && targetNumber !== null) return tagNumber === targetNumber
+  if ((!tagCore || !targetCore) && tagNumber !== null && targetNumber !== null) return tagNumber === targetNumber
   return false
 }
 
@@ -296,7 +318,7 @@ export function resolveQuestionMetadataConflict(
     lessonTag,
   } = extractQuestionTaxonomyTags(question)
 
-  const targetBlockKey = canonicalGradeBlock(target.gradeBlock)
+  const targetBlockKey = constantClassBlockKey(target.gradeBlock, target.className)
   const targetGrade =
     extractGradeLevel(target.gradeBlock) ?? extractGradeLevel(target.className)
   const targetSubject =
@@ -346,16 +368,62 @@ export function resolveQuestionMetadataConflict(
   }
 
   const chapterRaw = String(chapterTag ?? '').trim()
-  if (chapterRaw && !titleTagMatchesTarget(chapterRaw, target.chapterTitle)) {
+  const lessonRaw = String(lessonTag ?? '').trim()
+  if (
+    chapterRaw &&
+    !titleTagMatchesTarget(chapterRaw, target.chapterTitle) &&
+    !chapterAcceptedViaLesson(chapterRaw, target.chapterTitle, lessonRaw, target.lessonTitle)
+  ) {
     return `Metadata Chương "${chapterRaw}" không khớp Chương Constant đích "${target.chapterTitle}"`
   }
 
-  const lessonRaw = String(lessonTag ?? '').trim()
   if (lessonRaw && !titleTagMatchesTarget(lessonRaw, target.lessonTitle)) {
     return `Metadata Bài học "${lessonRaw}" không khớp Bài học Constant đích "${target.lessonTitle}"`
   }
 
   return null
+}
+
+/**
+ * Tên chương giữa các bộ sách/đề hay khác nhau ("Chương II. Vectơ và hệ trục tọa độ trong
+ * không gian" ↔ "Chương 2: Tọa độ trong không gian Oxyz") trong khi tên Bài vẫn trùng.
+ * Chấp nhận Chương lệch TÊN khi: số chương hai bên bằng nhau VÀ tag Bài có tên đầy đủ
+ * khớp đúng Bài đích. Sai số chương hoặc Bài chỉ ghi số -> không chấp nhận.
+ */
+function chapterAcceptedViaLesson(
+  chapterTag: unknown,
+  targetChapterTitle: unknown,
+  lessonTag: unknown,
+  targetLessonTitle: unknown
+): boolean {
+  const tagNumber = extractChapterOrLessonNumber(chapterTag)
+  const targetNumber = extractChapterOrLessonNumber(targetChapterTitle)
+  if (tagNumber === null || targetNumber === null || tagNumber !== targetNumber) return false
+  if (coreTitleKey(lessonTag).length < 4) return false
+  return titleTagMatchesTarget(lessonTag, targetLessonTitle)
+}
+
+/**
+ * Khi tag Chương không khớp tên Chương Constant nào: tìm Bài theo tên đầy đủ trong toàn
+ * Lớp. Chỉ trả Chương nếu Bài khớp DUY NHẤT và số chương của tag bằng số của Chương chứa
+ * Bài đó. Không có số chương / Bài chỉ ghi số / khớp nhiều Bài -> null (không đoán).
+ */
+export async function resolveChapterViaLesson<C extends { id: string; title?: string | null }>(
+  chapters: C[],
+  loadLessons: (chapterId: string) => Promise<Array<{ id: string; title?: string | null }>>,
+  chapterTag: unknown,
+  lessonTag: unknown
+): Promise<C | null> {
+  const tagChapterNumber = extractChapterOrLessonNumber(chapterTag)
+  if (tagChapterNumber === null) return null
+  if (coreTitleKey(lessonTag).length < 4) return null
+  const all: Array<{ id: string; title?: string | null; chapter: C }> = []
+  for (const chapter of chapters) {
+    for (const lesson of await loadLessons(chapter.id)) all.push({ ...lesson, chapter })
+  }
+  const match = matchTitle(all, lessonTag)
+  if (!match.row) return null
+  return extractChapterOrLessonNumber(match.row.chapter.title) === tagChapterNumber ? match.row.chapter : null
 }
 
 function pickUniqueBy<T>(
@@ -378,11 +446,24 @@ function matchTitle<T extends { title?: string | null }>(
   if (exact.row || exact.ambiguous) return exact
 
   const core = coreTitleKey(dynamicTitle)
-  if (core.length < 4) return { row: null, ambiguous: false }
-  const coreExact = pickUniqueBy(rows, (row) =>
-    coreTitleKey(row.title) === core && !titleNumbersConflict(dynamicTitle, row.title)
-  )
-  if (coreExact.row || coreExact.ambiguous) return coreExact
+  if (core.length >= 4) {
+    const coreExact = pickUniqueBy(rows, (row) =>
+      coreTitleKey(row.title) === core && !titleNumbersConflict(dynamicTitle, row.title)
+    )
+    if (coreExact.row || coreExact.ambiguous) return coreExact
+  }
+
+  // Một bên chỉ ghi số ("Chương 4" ↔ "Chương IV. Quan hệ song song…", hoặc
+  // "Chương 1. Ester – Lipid" ↔ Constant chỉ đặt "Chương 1"): khớp theo số thứ tự,
+  // chỉ khi DUY NHẤT. Hai bên cùng có tên mà khác tên -> không khớp (không đoán).
+  const number = extractChapterOrLessonNumber(dynamicTitle)
+  if (number !== null) {
+    const byNumber = pickUniqueBy(rows, (row) =>
+      extractChapterOrLessonNumber(row.title) === number &&
+      (!core || !coreTitleKey(row.title))
+    )
+    if (byNumber.row || byNumber.ambiguous) return byNumber
+  }
 
   // Không suy đoán từ chuỗi con: "Đạo hàm" không đương nhiên là
   // "Ứng dụng đạo hàm" dù chỉ có một bài trong danh mục.
@@ -418,7 +499,7 @@ export function resolveConstantClassForDynamic(
   let classMatches: ConstantClassRow[] = []
 
   if (canonicalBlock) {
-    classMatches = classRows.filter((cl) => canonicalGradeBlock(cl.grade_block) === canonicalBlock)
+    classMatches = classRows.filter((cl) => constantClassBlockKey(cl.grade_block, cl.name) === canonicalBlock)
     // Trường hợp Khối custom không tách được môn/khối: so khớp trực tiếp chuỗi đã chuẩn hóa.
     if (classMatches.length === 0) {
       const normalizedDynamicBlock = normalizeTaxonomyText(dynamicGradeBlock)
@@ -753,7 +834,7 @@ export function resolveConstantClassForMetadata(
     if (!expectedBlock) return false
     // grade_block là nguồn phân loại của Constant; tên lớp không được ghi đè
     // một grade_block khác khối/môn.
-    return canonicalGradeBlock(cl.grade_block) === expectedBlock
+    return constantClassBlockKey(cl.grade_block, cl.name) === expectedBlock
   }
 
   // [LỚP: 11] là nhãn khối, KHÔNG phải tên riêng của một lớp Constant.
@@ -1574,7 +1655,12 @@ export async function syncHomeworkQuestionsToConstantBank(
             if (chapters.length === 0) {
               resolutionError = `Lớp Constant "${targetClass.name}" chưa có Chương nào`
             } else {
-              const chapterMatch = matchTitle(chapters, tags.chapterTag)
+              let chapterMatch = matchTitle(chapters, tags.chapterTag)
+              if (!chapterMatch.row && !chapterMatch.ambiguous && tags.lessonTag) {
+                // Tên Chương khác bộ sách nhưng Bài trùng tên + cùng số chương -> dùng Chương của Bài.
+                const viaLesson = await resolveChapterViaLesson(chapters, loadLessons, tags.chapterTag, tags.lessonTag)
+                if (viaLesson) chapterMatch = { row: viaLesson, ambiguous: false }
+              }
               if (!chapterMatch.row) {
                 ambiguousConstant = chapterMatch.ambiguous
                 resolutionError = chapterMatch.ambiguous

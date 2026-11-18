@@ -30,6 +30,7 @@ import {
   resolveQuestionMetadataConflict,
   resolveQuestionTypeForBank,
   syncHomeworkQuestionsToConstantBank,
+  constantClassBlockKey,
 } from '../functions/create-homework/auto-bank-sync.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -949,6 +950,166 @@ async function run() {
     assert.ok(adapter.insertedRows.every(row => row.grade_block === '12-Hóa' && row.subject === 'HOA_HOC'))
     assert.ok(adapter.insertedRows.every(row => row.qb_lesson_id === null && row.lesson_id === null))
     assert.ok(adapter.insertedRows.every(row => row.mc_answer === 'C'))
+  })
+
+  await test('Lớp Constant "Toán 11" có grade_block "11" (thiếu môn): câu Toán 11 vẫn gắn đúng Bài Constant', async () => {
+    // Tái hiện bug thật: grade_block chỉ ghi "11" -> trước đây không khớp "11-Toán",
+    // câu bị lưu thành row động (qb_* NULL) dù báo "đã đồng bộ", lọc theo Bài 11 không thấy.
+    const taxonomy = {
+      classes: [
+        { id: 'qb11toan', name: 'Toán 11', grade_block: '11' },
+        { id: 'qb11hoa', name: 'Hóa 11', grade_block: '11' },
+        { id: 'qb12toan', name: 'Toán 12', grade_block: '12' },
+      ],
+      chapters: [
+        { id: 'ch4', class_id: 'qb11toan', title: 'Chương IV. Quan hệ song song trong không gian' },
+        { id: 'ch4hoa', class_id: 'qb11hoa', title: 'Chương 4. Hydrocarbon' },
+      ],
+      lessons: [
+        { id: 'b10', chapter_id: 'ch4', title: 'Bài 10. Đường thẳng và mặt phẳng trong không gian' },
+        { id: 'b11', chapter_id: 'ch4', title: 'Bài 11. Hai đường thẳng song song' },
+        { id: 'b12', chapter_id: 'ch4', title: 'Bài 12. Đường thẳng và mặt phẳng song song' },
+      ],
+      questionTypes: [
+        { id: 'b11-other', lesson_id: 'b11', name: 'Khác' },
+      ],
+    }
+    const markdown = [
+      '# BÀI TẬP 1 – HAI ĐƯỜNG THẲNG SONG SONG',
+      '',
+      '=== PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D) ===',
+      '',
+      '[Câu 1] [LỚP: 11] [MÔN: Toán] [CHƯƠNG: Chương IV. Quan hệ song song trong không gian] [BÀI HỌC: Bài 11. Hai đường thẳng song song] [MC] [NHAN_BIET] [DẠNG BÀI: Khác]',
+      'Trong không gian, hai đường thẳng phân biệt có thể có những vị trí tương đối nào sau đây?',
+      'A. Chỉ cắt nhau hoặc song song.',
+      'B. Chỉ song song hoặc chéo nhau.',
+      '*C. Cắt nhau, song song hoặc chéo nhau.',
+      'D. Chỉ cắt nhau hoặc chéo nhau.',
+      '[Lời giải]',
+      'Hai đường thẳng phân biệt có thể cắt nhau, song song hoặc chéo nhau.',
+    ].join('\n')
+    const parsed = parseExamMarkdown(markdown).questions
+    assert.equal(parsed.length, 1)
+    const questions = parsed.map((q) => ({
+      questionNumber: q.questionNumber,
+      questionType: q.questionType,
+      source: 'MARKDOWN_INTERACTIVE',
+      prompt: JSON.stringify({ text: q.promptText, options: q.options, metadata: q.metadata }),
+      mcAnswer: q.mcAnswer,
+      points: q.points,
+    }))
+    const adapter = makeAdapter(taxonomy)
+    const summary = await syncHomeworkQuestionsToConstantBank(adapter, {
+      questions,
+      dynamicLesson: dynamicLesson11Math(),
+    })
+    assert.equal(summary.createdCount, 1, JSON.stringify(summary.reasons))
+    assert.equal(summary.unsyncedCount, 0)
+    assert.equal(adapter.insertedRows.length, 1)
+    const row = adapter.insertedRows[0]
+    assert.equal(row.qb_class_id, 'qb11toan')
+    assert.equal(row.qb_chapter_id, 'ch4')
+    assert.equal(row.qb_lesson_id, 'b11')
+    assert.equal(row.qb_question_type_id, 'b11-other')
+    assert.equal(summary.target?.lessonTitle, 'Bài 11. Hai đường thẳng song song')
+  })
+
+  await test('Chương chỉ ghi số ↔ có tên (hai chiều) vẫn gắn đúng Bài; sai số thì không gắn nhầm', async () => {
+    const taxonomy = {
+      classes: [{ id: 'qb12hoa', name: 'Hóa 12', grade_block: '12' }, { id: 'qb11toan', name: 'Toán 11', grade_block: '11' }],
+      chapters: [
+        { id: 'h1', class_id: 'qb12hoa', title: 'Chương 1' },
+        { id: 'h2', class_id: 'qb12hoa', title: 'Chương 2' },
+        { id: 't4', class_id: 'qb11toan', title: 'Chương IV. Quan hệ song song trong không gian' },
+      ],
+      lessons: [
+        { id: 'h1b1', chapter_id: 'h1', title: 'Bài 1. Ester – Lipid' },
+        { id: 'h2b4', chapter_id: 'h2', title: 'Bài 4. Giới thiệu về carbohydrate. Glucose và fructose' },
+        { id: 't4b11', chapter_id: 't4', title: 'Bài 11. Hai đường thẳng song song' },
+      ],
+      questionTypes: [
+        { id: 'k1', lesson_id: 'h1b1', name: 'Khác' },
+        { id: 'k2', lesson_id: 'h2b4', name: 'Khác' },
+        { id: 'k3', lesson_id: 't4b11', name: 'Khác' },
+      ],
+    }
+    const run = async (tags) => {
+      const adapter = makeAdapter(taxonomy)
+      await syncHomeworkQuestionsToConstantBank(adapter, {
+        questions: [mcQuestion({ questionNumber: 1, ...tags })],
+        dynamicLesson: null,
+      })
+      return adapter.insertedRows[0]?.qb_lesson_id ?? null
+    }
+    // Constant chỉ "Chương 1", giáo viên ghi kèm tên chương.
+    assert.equal(await run({ classTag: '12', subjectTag: 'Hóa', chapterTag: 'Chương 1. Ester – Lipid', lessonTag: 'Bài 1. Ester – Lipid' }), 'h1b1')
+    // Constant có tên, giáo viên chỉ ghi số (Ả Rập ↔ La Mã) và Bài chỉ ghi số.
+    assert.equal(await run({ classTag: '11', subjectTag: 'Toán', chapterTag: 'Chương 4', lessonTag: 'Bài 11' }), 't4b11')
+    // Sai số chương: Bài 1 không thuộc Chương 2 -> không gắn vào Bài Constant nào.
+    assert.equal(await run({ classTag: '12', subjectTag: 'Hóa', chapterTag: 'Chương 2', lessonTag: 'Bài 1. Ester – Lipid' }), null)
+    // Tên Chương khác bộ sách nhưng cùng số + Bài trùng tên đầy đủ -> gắn theo Bài.
+    assert.equal(await run({ classTag: '11', subjectTag: 'Toán', chapterTag: 'Chương IV. Vectơ trong không gian', lessonTag: 'Bài 11. Hai đường thẳng song song' }), 't4b11')
+    // Khác tên Chương + Bài chỉ ghi số -> không đủ căn cứ, không gắn.
+    assert.equal(await run({ classTag: '11', subjectTag: 'Toán', chapterTag: 'Chương IV. Vectơ trong không gian', lessonTag: 'Bài 11' }), null)
+    // Khác tên Chương + số chương không phải Chương chứa Bài -> không gắn.
+    assert.equal(await run({ classTag: '11', subjectTag: 'Toán', chapterTag: 'Chương V. Vectơ trong không gian', lessonTag: 'Bài 11. Hai đường thẳng song song' }), null)
+  })
+
+  await test('Đề Toán 12 thật: "Chương II. Vectơ và hệ trục…" ↔ Constant "Chương 2: Tọa độ…Oxyz" gắn đúng Bài 7/8 + Dạng bài', async () => {
+    const taxonomy = {
+      classes: [{ id: 'qb12toan', name: 'Toán 12', grade_block: '12' }],
+      chapters: [
+        { id: 'c1', class_id: 'qb12toan', title: 'Chương 1: Ứng dụng đạo hàm khảo sát hàm số' },
+        { id: 'c2', class_id: 'qb12toan', title: 'Chương 2: Tọa độ trong không gian Oxyz' },
+        { id: 'c5', class_id: 'qb12toan', title: 'Chương V. Phương pháp tọa độ trong không gian' },
+      ],
+      lessons: [
+        { id: 'b6', chapter_id: 'c2', title: 'Bài 6. Vectơ trong không gian' },
+        { id: 'b7', chapter_id: 'c2', title: 'Bài 7. Hệ trục tọa độ trong không gian' },
+        { id: 'b8', chapter_id: 'c2', title: 'Bài 8. Biểu thức tọa độ của các phép toán vectơ' },
+        { id: 'b14', chapter_id: 'c5', title: 'Bài 14. Phương trình mặt phẳng' },
+      ],
+      questionTypes: [
+        { id: 'b7-xd', lesson_id: 'b7', name: 'Xác định tọa độ điểm, vectơ' },
+        { id: 'b7-k', lesson_id: 'b7', name: 'Khác' },
+        { id: 'b8-th', lesson_id: 'b8', name: 'Tọa độ của tổng, hiệu, tích vô hướng' },
+        { id: 'b8-k', lesson_id: 'b8', name: 'Khác' },
+      ],
+    }
+    const head = (lesson, type, kind = 'MC') => `[LỚP: 12] [MÔN: Toán] [CHƯƠNG: Chương II. Vectơ và hệ trục tọa độ trong không gian] [BÀI HỌC: ${lesson}] [${kind}] [NHAN_BIET] [DẠNG BÀI: ${type}]`
+    const markdown = [
+      '=== PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN (A, B, C, D) ===',
+      `[Câu 1] ${head('Bài 7. Hệ trục tọa độ trong không gian', 'Xác định tọa độ điểm, vectơ')}`,
+      'Con chim ở $(4; -3; 7)$ cách mặt đất', 'A. $4$ m', 'B. $3$ m', '*C. $7$ m', 'D. $5$ m', '[Lời giải]', 'Cao độ $z = 7$.', '',
+      `[Câu 2] ${head('Bài 8. Biểu thức tọa độ của các phép toán vectơ', 'Tọa độ của tổng, hiệu, tích vô hướng')}`,
+      'Khoảng cách giữa $A(2; -1; 3)$ và $B(4; 1; 2)$ là', 'A. $9$', '*B. $3$', 'C. $\\sqrt3$', 'D. $5$', '[Lời giải]', '$AB = 3$.', '',
+      '=== PHẦN III: TRẮC NGHIỆM TRẢ LỜI NGẮN (ĐIỀN SỐ) ===',
+      `[Câu 3] ${head('Bài 8. Biểu thức tọa độ của các phép toán vectơ', 'Tọa độ của tổng, hiệu, tích vô hướng', 'SA')}`,
+      'Tính tốc độ drone.', '[Đáp án: 5]', '[Lời giải]', '$25/5 = 5$.',
+    ].join('\n')
+    const parsed = parseExamMarkdown(markdown).questions
+    assert.equal(parsed.length, 3)
+    const adapter = makeAdapter(taxonomy)
+    const summary = await syncHomeworkQuestionsToConstantBank(adapter, {
+      questions: parsed.map((q) => ({
+        questionNumber: q.questionNumber, questionType: q.questionType, source: 'MARKDOWN_INTERACTIVE',
+        prompt: JSON.stringify({ text: q.promptText, options: q.options, metadata: q.metadata }),
+        mcAnswer: q.mcAnswer, saAnswer: q.saAnswer, points: q.points,
+      })),
+      dynamicLesson: null,
+    })
+    assert.equal(summary.createdCount, 3, JSON.stringify(summary.reasons))
+    assert.deepEqual(adapter.insertedRows.map((r) => [r.qb_chapter_id, r.qb_lesson_id, r.qb_question_type_id]),
+      [['c2', 'b7', 'b7-xd'], ['c2', 'b8', 'b8-th'], ['c2', 'b8', 'b8-th']])
+  })
+
+  await test('constantClassBlockKey: lấp môn từ tên lớp, không ghi đè khối/môn mâu thuẫn', () => {
+    assert.equal(constantClassBlockKey('11', 'Toán 11'), '11-toan')
+    assert.equal(constantClassBlockKey('11-Toán', 'Lớp chuyên'), '11-toan')
+    assert.equal(constantClassBlockKey('11', 'Hóa 11'), '11-hoa')
+    assert.equal(constantClassBlockKey('11', 'Toán 12'), null)
+    assert.equal(constantClassBlockKey('11', 'Lớp 11A'), null)
+    assert.equal(constantClassBlockKey('', 'Toán 11'), '11-toan')
   })
 
   await test('Câu thiếu header không làm mất đồng bộ của câu Hóa-12 đủ metadata; lý do nêu số câu', async () => {
