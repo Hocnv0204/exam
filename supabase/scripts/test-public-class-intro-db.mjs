@@ -307,4 +307,38 @@ const allowedRes = await db.query('SELECT count(*)::int as cnt FROM public.fn_pu
 assert.equal(allowedRes.rows[0].cnt, oracleExpected.length)
 console.log('✓ service_role permitted successfully')
 
+// 8. Migration 20261122010000: mặc định hiện mọi lớp + tổng học sinh khác nhau đang theo học
+const followUpSql = readFileSync(new URL('../migrations/20261122010000_public_class_intro_default_listed.sql', import.meta.url), 'utf8')
+await db.exec('RESET ROLE')
+await db.exec(followUpSql)
+await db.exec(followUpSql)
+console.log('✓ Follow-up migration executed idempotently')
+
+const allClasses = (await db.query('SELECT id, is_archived, public_listed FROM public.classes')).rows
+assert.ok(allClasses.every(c => c.public_listed === true), 'mọi lớp hiện có phải được bật hiện')
+const newId = '00000000-0000-4000-8000-00000000ffff'
+await db.query(`INSERT INTO public.classes (id, name, grade_block) VALUES ($1, 'Lớp mới', '12-Toán')`, [newId])
+assert.equal((await db.query('SELECT public_listed FROM public.classes WHERE id = $1', [newId])).rows[0].public_listed, true, 'lớp tạo mới mặc định hiện')
+
+// Oracle JS: đếm học sinh khác nhau có ghi danh ACTIVE ở lớp chưa lưu trữ.
+const archived = new Set(allClasses.filter(c => c.is_archived).map(c => c.id))
+const enrollments = (await db.query('SELECT student_id, class_id, status FROM public.student_classes')).rows
+const oracleTotal = new Set(enrollments.filter(e => e.status === 'ACTIVE' && !archived.has(e.class_id)).map(e => e.student_id)).size
+const perClassSum = enrollments.filter(e => e.status === 'ACTIVE' && !archived.has(e.class_id)).length
+assert.ok(oracleTotal > 0, 'fixture phải có học sinh ACTIVE')
+
+await db.exec('SET ROLE service_role')
+const totalRpc = (await db.query('SELECT public.fn_public_active_student_total() AS t')).rows[0].t
+assert.equal(totalRpc, oracleTotal, 'tổng học sinh khớp oracle (không đếm trùng, bỏ PAUSED và lớp lưu trữ)')
+const listedNow = (await db.query('SELECT count(*)::int AS cnt FROM public.fn_public_class_intro()')).rows[0].cnt
+assert.equal(listedNow, allClasses.filter(c => !c.is_archived).length + 1, 'mọi lớp chưa lưu trữ (kể cả lớp mới) đều hiện')
+console.log(`✓ Default listed + distinct active total = ${totalRpc} (per-class rows ${perClassSum})`)
+
+for (const role of ['anon', 'authenticated']) {
+  await db.exec(`SET ROLE ${role}`)
+  await expectError(() => db.query('SELECT public.fn_public_active_student_total()'), /permission denied/i)
+}
+await db.exec('RESET ROLE')
+console.log('✓ fn_public_active_student_total rejected for anon/authenticated')
+
 console.log('ALL DB TESTS PASSED!')

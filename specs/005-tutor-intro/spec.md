@@ -23,6 +23,11 @@ Khi khách truy cập `https://exam-oex4.vercel.app/` (không hash, chưa đăng
    học thử miễn phí; khiếu nại câu hỏi; thành tích/huy hiệu; lịch sử làm bài; thông báo Telegram cho lớp.
 4. **CTA**: Học thử miễn phí (`#trial?tab=lessons`), Xem lộ trình (`#roadmap`), Đăng nhập (`#login`), Gọi/Zalo.
 
+## Điều chỉnh sau khi deploy (người dùng, 2026-11-22)
+- Mọi lớp chưa lưu trữ **mặc định hiện** (`public_listed DEFAULT TRUE`, bật cho lớp hiện có); admin tắt từng lớp ở tab Cài đặt.
+- `totals.activeStudents` = số học sinh **khác nhau** có ghi danh ACTIVE ở mọi lớp chưa lưu trữ
+  (RPC `fn_public_active_student_total`, migration `20261122010000_public_class_intro_default_listed.sql`), không cộng dồn theo lớp.
+
 ## Định tuyến
 - Route mới `gioi-thieu` (public, thêm `guestRoutes`). `resolveActiveRouteHash()` khi chưa đăng nhập:
   `'roadmap'` → `'gioi-thieu'`. Người đã đăng nhập giữ trang mặc định (admin/student dashboard), vẫn mở được `#gioi-thieu`.

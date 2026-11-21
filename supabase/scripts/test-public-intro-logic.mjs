@@ -284,6 +284,15 @@ console.log('✓ validatePublicIntroInput invariants passed')
   assert.equal(c3.seatsLeft, 0, 'seatsLeft không được âm khi activeStudents > maxStudents')
 
   // Rỗng
+  // Tổng học sinh từ RPC (học sinh học nhiều lớp chỉ tính một lần) được ưu tiên hơn cộng dồn.
+  assert.equal(mapIntroRows(rows, 20).totals.activeStudents, 20)
+  assert.equal(mapIntroRows(rows, 0).totals.activeStudents, 0)
+  assert.equal(mapIntroRows(rows, '7').totals.activeStudents, 7)
+  assert.equal(mapIntroRows(rows, -3).totals.activeStudents, 0)
+  assert.equal(mapIntroRows(rows, null).totals.activeStudents, 35, 'thiếu tổng → cộng dồn theo lớp')
+  assert.equal(mapIntroRows(rows, 'abc').totals.activeStudents, 35)
+  assert.equal(mapIntroRows([], 12).totals.activeStudents, 12, 'không lớp nào hiện vẫn báo tổng học sinh')
+
   const emptyRes = mapIntroRows([])
   assert.equal(emptyRes.totals.classes, 0)
   assert.equal(emptyRes.totals.activeStudents, 0)

@@ -14,14 +14,19 @@ serve(async (req: Request) => {
 
   try {
     const serviceRoleClient = createServiceRoleClient()
-    const { data, error } = await serviceRoleClient.rpc('fn_public_class_intro')
+    const [classesRes, totalRes] = await Promise.all([
+      serviceRoleClient.rpc('fn_public_class_intro'),
+      serviceRoleClient.rpc('fn_public_active_student_total'),
+    ])
 
-    if (error) {
-      console.error('fn_public_class_intro rpc error:', error)
+    if (classesRes.error) {
+      console.error('fn_public_class_intro rpc error:', classesRes.error)
       return errorResponse('Không tải được danh sách lớp', 500)
     }
+    // Tổng học sinh lỗi thì vẫn trả danh sách lớp (dự phòng cộng dồn theo lớp trong mapIntroRows).
+    if (totalRes.error) console.error('fn_public_active_student_total rpc error:', totalRes.error)
 
-    const payload = mapIntroRows(data || [])
+    const payload = mapIntroRows(classesRes.data || [], totalRes.error ? undefined : totalRes.data)
     return jsonResponse(payload, 200, {
       'Cache-Control': 'public, max-age=300',
     })

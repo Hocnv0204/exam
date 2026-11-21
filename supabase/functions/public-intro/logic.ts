@@ -166,7 +166,11 @@ export function validatePublicIntroInput(body: unknown): ValidationResult {
   }
 }
 
-export function mapIntroRows(rows: any[]): IntroPayload {
+/**
+ * totalActiveStudents: số học sinh khác nhau đang theo học (ACTIVE) ở mọi lớp chưa lưu trữ,
+ * lấy từ RPC fn_public_active_student_total. Thiếu/không hợp lệ → cộng dồn theo lớp (dự phòng).
+ */
+export function mapIntroRows(rows: any[], totalActiveStudents?: unknown): IntroPayload {
   const rowList = Array.isArray(rows) ? rows : []
 
   const classes: IntroClassItem[] = rowList.map((row: any) => {
@@ -197,13 +201,16 @@ export function mapIntroRows(rows: any[]): IntroPayload {
     }
   })
 
-  const totalActiveStudents = classes.reduce((sum, c) => sum + c.activeStudents, 0)
+  const totalNumber = Number(totalActiveStudents)
+  const activeTotal = totalActiveStudents !== null && totalActiveStudents !== undefined && Number.isFinite(totalNumber)
+    ? Math.max(0, Math.trunc(totalNumber))
+    : classes.reduce((sum, c) => sum + c.activeStudents, 0)
 
   return {
     classes,
     totals: {
       classes: classes.length,
-      activeStudents: totalActiveStudents,
+      activeStudents: activeTotal,
     },
   }
 }
