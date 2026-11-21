@@ -18,22 +18,30 @@ export const MOCHI_PUBLIC_THEMES = [
 ]
 
 /**
- * @param {{ active: string }} opts  active = route của môn đang xem ('roadmap', 'roadmap-math-12', …) hoặc 'trial'
+ * @param {{ active: string }} opts  active = route của môn đang xem ('roadmap', 'roadmap-math-12', …), 'trial' hoặc 'gioi-thieu'
  */
 export function renderMochiPublicTopbar({ active = '' } = {}) {
   const currentTheme = getStudentTheme()
-  const brandRoute = ROADMAP_SUBJECTS.some(s => s.route === active) ? active : 'roadmap'
+  const brandRoute = ROADMAP_SUBJECTS.some(s => s.route === active) ? active : 'gioi-thieu'
   const trialActive = active === 'trial'
+  const introActive = active === 'gioi-thieu'
   return `
     <header class="m-rm-topbar">
       <div class="m-rm-topbar-inner">
-        <a href="#${escapeHtml(brandRoute)}" class="m-rm-brand" aria-label="EduPortal Trang chủ lộ trình">
+        <a href="#${escapeHtml(brandRoute)}" class="m-rm-brand" aria-label="EduPortal Trang chủ">
           ${renderMascot({ mood: 'happy', size: 36 })}
           <span class="m-rm-brand-text">EduPortal</span>
         </a>
 
         <nav class="m-rm-nav" aria-label="Chọn môn học lộ trình">
           <div class="m-rm-tabs">
+            <a href="#gioi-thieu" class="m-rm-tab m-rm-tab-intro${introActive ? ' is-active' : ''}" ${introActive ? 'aria-current="page"' : ''}>
+              <i class="fa-solid fa-chalkboard-user m-rm-tab-icon" aria-hidden="true"></i>
+              <span class="m-rm-tab-info">
+                <span class="m-rm-tab-label">Giới thiệu</span>
+                <span class="m-rm-tab-tagline">Gia sư &amp; lớp học</span>
+              </span>
+            </a>
             ${ROADMAP_SUBJECTS.map(s => {
               const isActive = s.route === active
               return `

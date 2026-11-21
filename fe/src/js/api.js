@@ -370,7 +370,7 @@ async function request(endpoint, options = {}) {
     (endpoint.startsWith('submit-homework') && !state.token) ||
     (endpoint.startsWith('student-history') && !state.token)
 
-  // Option nội bộ (chỉ gọi bởi api.getSharedReport): TUYỆT ĐỐI không gửi header
+  // Option nội bộ (chỉ gọi bởi api.getSharedReport, api.getPublicIntro): TUYỆT ĐỐI không gửi header
   // Authorization nào (cả token user lẫn anon bearer) theo contract verify_jwt=false
   // của function public. `apikey` vẫn giữ nếu env có (chuẩn Supabase client).
   const omitAuthorization = options.omitAuthorization === true
@@ -498,6 +498,8 @@ export const api = {
   resetPassword: (data) => request('reset-password', { method: 'POST', body: JSON.stringify(data) }),
   createClass: (data) => classMutation('create-class', { method: 'POST', body: JSON.stringify(data) }),
   updateClass: (data) => classMutation('create-class?action=update', { method: 'PUT', body: JSON.stringify(data) }),
+  // Trang giới thiệu (spec 005): bật lớp hiện công khai + lịch học + sĩ số tối đa (ADMIN).
+  updateClassPublicIntro: ({ classId, publicListed, schedule, maxStudents }) => classMutation('create-class?action=update-public-intro', { method: 'PATCH', body: JSON.stringify({ action: 'update-public-intro', classId, publicListed, schedule, maxStudents }) }),
   getClasses: (params = '', options = {}) => getClassesCached(params, options),
   getWeeklyCalendar: (params = {}, options = {}) => {
     const sp = new URLSearchParams()
@@ -601,6 +603,9 @@ export const api = {
   },
   getClassCurriculumSummary: (classId, options = {}) => request(`create-lesson?action=search&classId=${encodeURIComponent(classId)}`, { method: 'GET', ...options }),
   getTrialLessons: () => request('create-lesson?isTrial=true', { method: 'GET', isPublic: true }),
+  // Trang giới thiệu công khai (Edge Function public-intro, verify_jwt=false): danh sách lớp đang mở,
+  // lịch học, sĩ số đang theo học. Không gửi Authorization; view tự xử lý loading/lỗi.
+  getPublicIntro: (options = {}) => request('public-intro', { method: 'GET', isPublic: true, omitAuthorization: true, silent: true, ...options }),
   // Quản lý học thử (ADMIN) qua Edge Function trial-management.
   // - getTrialCatalog: GET toàn bộ catalog + KPI + metadata lớp/chương.
   // - saveTrialVideo: PATCH save-video (lưu nháp, giữ is_trial).

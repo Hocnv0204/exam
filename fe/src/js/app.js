@@ -124,14 +124,14 @@ function applyExamThemeClasses(layout, hash) {
 }
 
 // Route đang được hiển thị thật sự: router render trang mặc định khi URL không
-// có hash (#admin-dashboard với admin, #student-dashboard với học sinh, #roadmap với
+// có hash (#admin-dashboard với admin, #student-dashboard với học sinh, #gioi-thieu với
 // khách). Theme/role sync mà key trên '' sẽ gỡ .admin-dark / .navy-student và
 // ghi đè data-route="" lên root vừa render => vỏ navy nhưng card dashboard sáng
 // trắng. Mọi đường sync đều dùng helper này để khớp với router.
 function resolveActiveRouteHash() {
   const routePath = (window.location.hash || '').replace(/^#/, '').split('?')[0]
   if (routePath) return routePath
-  if (!state.token) return 'roadmap'
+  if (!state.token) return 'gioi-thieu'
   return state.user?.role === 'ADMIN' ? 'admin-dashboard' : 'student-dashboard'
 }
 
@@ -170,6 +170,7 @@ document.addEventListener('eduportal:themechange', () => {
 
 const routes = {
   login: { render: renderLoginView, bind: bindLoginEvents },
+  'gioi-thieu': { loader: () => import('./views/mochi/tutor-intro.js'), renderName: 'renderTutorIntroView', bindName: 'bindTutorIntroEvents' },
   trial: { render: renderTrialRoute, bind: bindTrialRoute },
   'trial-management': { render: renderTrialManagementView, bind: bindTrialManagementEvents },
   roadmap: { render: renderRoadmapPage, bind: bindRoadmapPage },
@@ -234,7 +235,7 @@ async function router() {
       return
     }
     const isTrialMode = params.get('trial') === 'true' || hash === 'trial' || hash.startsWith('roadmap')
-    const guestRoutes = ['login', 'trial', 'roadmap', 'roadmap-12', 'roadmap-11', 'roadmap-math-12', 'roadmap-math-11', 'homework-attempt', 'assignment-review']
+    const guestRoutes = ['login', 'gioi-thieu', 'trial', 'roadmap', 'roadmap-12', 'roadmap-11', 'roadmap-math-12', 'roadmap-math-11', 'homework-attempt', 'assignment-review']
     if (!guestRoutes.includes(hash)) {
       window.location.hash = '#login'
       return

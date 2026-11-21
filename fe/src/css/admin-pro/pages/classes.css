@@ -2957,3 +2957,194 @@ html[data-admin-ui="pro"] #modal-container .ap-att-modal-fee {
   html[data-admin-ui="pro"] #modal-container .ap-att-modal-roster .avatar-circle { display: none !important; }
   html[data-admin-ui="pro"] #modal-container .ap-att-modal-roster .att-status-pill { min-width: 64px; padding: 4px 10px !important; }
 }
+
+/* 11. Cài đặt lớp — Trang giới thiệu công khai */
+html[data-admin-ui="pro"] #class-public-intro-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-title i { color: var(--ap-accent); }
+
+html[data-admin-ui="pro"] .ap-public-intro-toggle {
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  background: var(--ap-surface2);
+  color: var(--ap-ink);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-toggle input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  margin: 1px 0 0;
+  accent-color: var(--ap-accent);
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-toggle-copy strong { font-size: 14px; font-weight: 800; }
+html[data-admin-ui="pro"] .ap-public-intro-toggle-copy small,
+html[data-admin-ui="pro"] .ap-public-intro-max small { color: var(--ap-muted); font-size: 12px; font-weight: 700; }
+
+html[data-admin-ui="pro"] .ap-public-intro-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ap-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #btn-add-public-intro-slot {
+  min-height: 44px;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-slot {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.15fr) minmax(105px, 1fr) minmax(105px, 1fr) 44px;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-slot-day,
+html[data-admin-ui="pro"] .ap-public-intro-time-field {
+  min-width: 0;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-time-field > span {
+  color: var(--ap-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-slot .form-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  color: var(--ap-ink);
+  background: var(--ap-surface2);
+  border-color: var(--ap-line);
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-remove {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius-sm);
+  background: var(--ap-danger-soft);
+  color: var(--ap-danger);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-empty {
+  margin: 0;
+  padding: 12px 14px;
+  border: 2px dashed var(--ap-line);
+  border-radius: var(--ap-radius);
+  background: var(--ap-surface2);
+  color: var(--ap-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-max input { min-height: 44px; }
+
+html[data-admin-ui="pro"] .ap-public-intro-error {
+  padding: 10px 12px;
+  border: 2px solid var(--ap-danger);
+  border-radius: var(--ap-radius-sm);
+  background: var(--ap-danger-soft);
+  color: var(--ap-danger);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] .ap-public-intro-actions { display: flex; justify-content: flex-end; }
+
+html[data-admin-ui="pro"] #btn-save-class-public-intro {
+  width: auto;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+@media (max-width: 480px) {
+  html[data-admin-ui="pro"] .ap-public-intro-section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  html[data-admin-ui="pro"] #btn-add-public-intro-slot { align-self: flex-start; }
+
+  html[data-admin-ui="pro"] .ap-public-intro-slot {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+    grid-template-areas:
+      "day day remove"
+      "start end remove";
+    align-items: end;
+  }
+
+  html[data-admin-ui="pro"] .ap-public-intro-slot-day { grid-area: day; }
+  html[data-admin-ui="pro"] .ap-public-intro-time-field:nth-of-type(2) { grid-area: start; }
+  html[data-admin-ui="pro"] .ap-public-intro-time-field:nth-of-type(3) { grid-area: end; }
+  html[data-admin-ui="pro"] .ap-public-intro-remove { grid-area: remove; align-self: stretch; height: auto; min-height: 44px; }
+  html[data-admin-ui="pro"] .ap-public-intro-actions,
+  html[data-admin-ui="pro"] #btn-save-class-public-intro { width: 100%; }
+}

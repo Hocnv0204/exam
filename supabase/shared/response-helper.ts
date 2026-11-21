@@ -15,8 +15,13 @@ export function handleCors(req: Request): Response | null {
   return null
 }
 
-export function jsonResponse<T = unknown>(data: T, status: any = 200): Response {
+export function jsonResponse<T = unknown>(
+  data: T,
+  status: any = 200,
+  extraHeaders?: Record<string, string>
+): Response {
   const statusCode = typeof status === 'number' ? status : (typeof status === 'object' && status?.status ? Number(status.status) : 200)
+  const additionalHeaders = (typeof status === 'object' && status?.headers) ? status.headers : (extraHeaders || {})
   return new Response(
     JSON.stringify({
       success: true,
@@ -27,6 +32,7 @@ export function jsonResponse<T = unknown>(data: T, status: any = 200): Response 
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json',
+        ...additionalHeaders,
       },
     }
   )

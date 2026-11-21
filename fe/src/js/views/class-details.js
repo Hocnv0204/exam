@@ -15,6 +15,7 @@ import { exportExamPdf } from '../utils/exam-print.js'
 import { renderCurriculumTabHTML, bindCurriculumTabEvents, ensureCurriculumLoaded } from './curriculum.js'
 import { isAdminProUI } from '../ui-flag.js'
 import { mochiConfirm, mochiPrompt } from '../components/mochi-dialog.js'
+import { renderClassPublicIntroCard, bindClassPublicIntroCard } from './class-public-intro.js'
 
 if (typeof document !== 'undefined' && document.head) { import('../../css/admin-pro/pages/classes.css') }
 
@@ -1206,6 +1207,7 @@ function renderProSettingsTabHTML(currentClass) {
             </div>
           </form>
         </div>
+        ${renderClassPublicIntroCard(currentClass)}
       </div>
 
       <!-- Cột Phải: Bot Telegram & Vùng nguy hiểm -->
@@ -3642,6 +3644,8 @@ function bindHomeworkTabEvents(classId, currentClass) {
 // TAB 5 BINDINGS: CÀI ĐẶT (SETTINGS)
 // ---------------------------------------------------------
 function bindSettingsTabEvents(classId, currentClass) {
+  if (document.getElementById('class-public-intro-card')) bindClassPublicIntroCard(classId, currentClass)
+
   // 1. Update class settings form
   const form = document.getElementById('form-update-class-settings')
   if (form) {

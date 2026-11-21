@@ -99,9 +99,12 @@ assert.ok(
   'Anon bearer cung phai bi bo qua khi omitAuthorization (KHONG gui Authorization nao)'
 )
 
-// 8.2 Chi mot wrapper public dung omitAuthorization (khong lan sang endpoint public khac).
-const omitUserCount = [...apiSrc.matchAll(/omitAuthorization:\s*true/g)].length
-assert.equal(omitUserCount, 1, 'chi getSharedReport duoc phep dat omitAuthorization: true')
+// 8.2 Chi cac wrapper public da duyet dung omitAuthorization (khong lan sang endpoint khac):
+// getSharedReport (student-history?scope=shared-report) va getPublicIntro (public-intro, spec 005).
+const omitLines = apiSrc.split('\n').filter(line => /omitAuthorization:\s*true/.test(line))
+assert.equal(omitLines.length, 2, 'chi getSharedReport va getPublicIntro duoc phep dat omitAuthorization: true')
+assert.ok(omitLines.some(line => line.includes("request(`student-history?")), 'getSharedReport phai omitAuthorization')
+assert.ok(omitLines.some(line => /getPublicIntro:.*request\('public-intro'/.test(line)), 'getPublicIntro phai omitAuthorization')
 
 // 8.3 Moi console.* trong api.js KHONG noi chuoi endpoint raw (query co the chua shareToken).
 const rawEndpointLog = [...apiSrc.matchAll(/console\.(log|warn|error)\([^)]*\$\{endpoint\}/g)]

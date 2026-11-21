@@ -104,3 +104,6 @@ verify_jwt = true
 
 [functions.user-activity]
 verify_jwt = true
+
+[functions.public-intro]
+verify_jwt = false

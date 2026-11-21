@@ -15,6 +15,7 @@ import {
   isStudentLockedOn,
 } from '../../shared/student-lock.ts'
 import { fetchAllRows, isFetchAllRowsError } from '../../shared/fetch-all-rows.ts'
+import { validatePublicIntroInput } from '../public-intro/logic.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -175,7 +176,7 @@ serve(async (req: Request) => {
         // Fetch class info
         const { data: classData, error: classErr } = await serviceRoleClient
           .from('classes')
-          .select('id, name, tuition_fee, is_archived')
+          .select('id, name, tuition_fee, is_archived, grade_block, public_listed, public_schedule, max_students')
           .eq('id', classId)
           .single()
 
@@ -320,7 +321,11 @@ serve(async (req: Request) => {
             id: classData.id,
             name: classData.name,
             tuitionFee,
-            isArchived: classData.is_archived || false
+            isArchived: classData.is_archived || false,
+            gradeBlock: classData.grade_block || '12-Toán',
+            publicListed: classData.public_listed ?? false,
+            publicSchedule: classData.public_schedule || [],
+            maxStudents: classData.max_students ?? null
           },
           students
         })
@@ -423,7 +428,10 @@ serve(async (req: Request) => {
             ...rest,
             gradeBlock: c.grade_block || '12-Toán',
             tuitionFee: c.tuition_fee ? Number(c.tuition_fee) : 0,
-            studentsCount: student_classes ? student_classes.length : 0
+            studentsCount: student_classes ? student_classes.length : 0,
+            publicListed: c.public_listed ?? false,
+            publicSchedule: c.public_schedule || [],
+            maxStudents: c.max_students ?? null
           }
         })
         return jsonResponse(formatted)
@@ -454,7 +462,10 @@ serve(async (req: Request) => {
             ...rest,
             gradeBlock: c.grade_block || '12-Toán',
             tuitionFee: c.tuition_fee ? Number(c.tuition_fee) : 0,
-            studentsCount: student_classes ? student_classes.length : 0
+            studentsCount: student_classes ? student_classes.length : 0,
+            publicListed: c.public_listed ?? false,
+            publicSchedule: c.public_schedule || [],
+            maxStudents: c.max_students ?? null
           }
         })
         return jsonResponse(formatted)
@@ -1366,13 +1377,60 @@ serve(async (req: Request) => {
         return jsonResponse({
           ...newClass,
           gradeBlock: newClass.grade_block || '12-Toán',
-          tuitionFee: newClass.tuition_fee ? Number(newClass.tuition_fee) : 0
+          tuitionFee: newClass.tuition_fee ? Number(newClass.tuition_fee) : 0,
+          publicListed: newClass.public_listed ?? false,
+          publicSchedule: newClass.public_schedule || [],
+          maxStudents: newClass.max_students ?? null
         }, 201)
       }
     }
 
-    // PUT / PATCH: Update Class, Grade Block, or Telegram Config
-    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update' || action === 'update-telegram-config' || action === 'update-grade-block') {
+    // PUT / PATCH: Update Class, Grade Block, Telegram Config, or Public Intro
+    if (req.method === 'PUT' || req.method === 'PATCH' || action === 'update' || action === 'update-telegram-config' || action === 'update-grade-block' || action === 'update-public-intro') {
+      const handleUpdatePublicIntro = async (body: any) => {
+        const validation = validatePublicIntroInput(body)
+        if (!validation.ok) {
+          return errorResponse(validation.error, 400)
+        }
+
+        const { classId, publicListed, schedule, maxStudents } = validation.value
+
+        const { data: existingClass, error: findErr } = await serviceRoleClient
+          .from('classes')
+          .select('id')
+          .eq('id', classId)
+          .maybeSingle()
+
+        if (findErr) return errorResponse(findErr.message, 500)
+        if (!existingClass) return errorResponse('Không tìm thấy lớp học', 404)
+
+        const { data: updatedClass, error: updateErr } = await serviceRoleClient
+          .from('classes')
+          .update({
+            public_listed: publicListed,
+            public_schedule: schedule,
+            max_students: maxStudents,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', classId)
+          .select('id, public_listed, public_schedule, max_students')
+          .single()
+
+        if (updateErr) return errorResponse(updateErr.message, 500)
+
+        return jsonResponse({
+          classId: updatedClass.id,
+          publicListed: updatedClass.public_listed,
+          publicSchedule: updatedClass.public_schedule,
+          maxStudents: updatedClass.max_students
+        })
+      }
+
+      if (action === 'update-public-intro') {
+        const body = await req.json()
+        return await handleUpdatePublicIntro(body)
+      }
+
       if (action === 'update-grade-block') {
         const body = await req.json()
         const id = body.id
@@ -1452,6 +1510,10 @@ serve(async (req: Request) => {
       }
 
       const body = await req.json()
+      if (body.action === 'update-public-intro') {
+        return await handleUpdatePublicIntro(body)
+      }
+
       const validation = updateClassSchema.safeParse(body)
       if (!validation.success) {
         return errorResponse('Validation error', 400, validation.error.format())
@@ -1475,7 +1537,10 @@ serve(async (req: Request) => {
       return jsonResponse({
         ...updatedClass,
         gradeBlock: updatedClass.grade_block || '12-Toán',
-        tuitionFee: updatedClass.tuition_fee ? Number(updatedClass.tuition_fee) : 0
+        tuitionFee: updatedClass.tuition_fee ? Number(updatedClass.tuition_fee) : 0,
+        publicListed: updatedClass.public_listed ?? false,
+        publicSchedule: updatedClass.public_schedule || [],
+        maxStudents: updatedClass.max_students ?? null
       })
     }
 
