@@ -64,8 +64,8 @@ test('Mochi student shell có nav, tab bar, picker và route hiện tại', () =
   const navbar = renderNavbar('không dùng trong Mochi')
   const shell = sidebar + navbar
 
-  assert.match(sidebar, /<nav class="m-shell-nav" aria-label="Điều hướng chính">/)
-  assert.match(sidebar, /<nav class="m-tabbar" aria-label="Điều hướng nhanh">/)
+  assert.match(sidebar, /<nav class="m-shell-nav" data-tour="nav" aria-label="Điều hướng chính">/)
+  assert.match(sidebar, /<nav class="m-tabbar" data-tour="nav" aria-label="Điều hướng nhanh">/)
   assert.match(sidebar, /href="#attendance" aria-current="page"/)
   assert.doesNotMatch(sidebar, /href="#weekly-calendar"/, 'học sinh không còn mục Lịch học trên menu')
   assert.equal((sidebar.match(/aria-current="page"/g) || []).length, 2, 'desktop và mobile cùng đánh dấu route')

@@ -1390,6 +1390,8 @@ function lessonTourSteps() {
 }
 
 async function maybeStartLessonTour() {
+  // Mochi (học sinh): tutorial mới do app.js gắn qua utils/student-tour-wiring.js (spec 006).
+  if (isMochiUI() && state.user?.role === 'STUDENT') return
   const { startTour } = await import('../utils/tour.js')
   document.getElementById('btn-replay-lesson-tour')?.addEventListener('click', () => startTour(lessonTourSteps()))
 }
@@ -1405,6 +1407,8 @@ function dashboardTourSteps() {
 }
 
 async function maybeStartDashboardTour() {
+  // Mochi (học sinh): tutorial mới do app.js gắn qua utils/student-tour-wiring.js (spec 006).
+  if (isMochiUI() && state.user?.role === 'STUDENT') return
   // Chụp hash + guard NGAY khi bind view để async import xong không hẹn tour
   // cho một view đã bị thay thế (stale async).
   const boundHash = window.location.hash

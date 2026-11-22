@@ -181,14 +181,14 @@ function renderMochiMyHomeworksView() {
                 <h2 class="m-hw-section-title">Danh sách bài tập</h2>
                 <p class="m-hw-section-sub">Tất cả bài tập và bài thi được giao theo lớp của bạn — gồm cả bài đã làm và bài chưa làm.</p>
               </div>
-              <button type="button" class="m-btn m-btn--secondary" id="btn-replay-myhw-tour" aria-label="Xem hướng dẫn bài tập">
+              <button type="button" class="m-btn m-btn--secondary" id="btn-replay-myhw-tour" data-tour-replay="m2-homeworks" data-tour="tour-replay" aria-label="Xem hướng dẫn bài tập">
                 <i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn
               </button>
             </div>
 
-            <section id="myhw-stats" class="m-hw-stats" aria-label="Thống kê bài tập"></section>
+            <section id="myhw-stats" class="m-hw-stats" data-tour="hw-stats" aria-label="Thống kê bài tập"></section>
 
-            <section class="m-card m-hw-filters" id="tour-myhw-filter" aria-label="Bộ lọc bài tập">
+            <section class="m-card m-hw-filters" id="tour-myhw-filter" data-tour="hw-filters" aria-label="Bộ lọc bài tập">
               <div class="m-hw-filter-bar">
                 <div class="m-hw-status-tabs" role="tablist" aria-label="Trạng thái bài tập">
                   <button type="button" role="tab" class="m-tab myhw-status-btn ${filterStatus === 'all' ? 'active' : ''}" data-status="all" aria-pressed="${filterStatus === 'all'}" aria-selected="${filterStatus === 'all'}">Tất cả</button>
@@ -223,7 +223,7 @@ function renderMochiMyHomeworksView() {
               </div>
             </section>
 
-            <div id="myhw-list" class="m-hw-list" aria-live="polite">
+            <div id="myhw-list" class="m-hw-list" data-tour="hw-list" aria-live="polite">
               <div class="m-loading-box">
                 <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
                 <div>Đang tải bài tập...</div>
@@ -598,6 +598,8 @@ function myhwTourSteps() {
 }
 
 async function maybeStartMyhwTour() {
+  // Mochi (học sinh): tutorial mới do app.js gắn qua utils/student-tour-wiring.js (spec 006).
+  if (isMochiMode()) return
   const { startTour } = await import('../utils/tour.js')
   document.getElementById('btn-replay-myhw-tour')?.addEventListener('click', () => startTour(myhwTourSteps()))
 }

@@ -10,7 +10,7 @@ const THEMES = [
 export function renderStudentThemePicker(extraClass = '') {
   const current = getStudentTheme()
   return `
-    <div class="m-theme-picker${extraClass ? ` ${extraClass}` : ''}" role="group" aria-label="Chế độ màu">
+    <div class="m-theme-picker${extraClass ? ` ${extraClass}` : ''}" data-tour="theme" role="group" aria-label="Chế độ màu">
       ${THEMES.filter(theme => STUDENT_THEMES.includes(theme.id)).map(theme => `
         <button type="button" class="m-theme-choice" data-student-theme-option="${theme.id}"
           aria-pressed="${theme.id === current}" aria-label="Chuyển sang chế độ ${theme.label}">

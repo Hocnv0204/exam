@@ -74,9 +74,9 @@ export function renderMochiLessonDetail({ classes = [], classChapters = [], acti
                   <span class="m-chip">${escapeHtml(chapter?.title || 'Bài học')}</span>
                   <h1>${escapeHtml(activeLesson?.title || 'Chi tiết bài học')}</h1>
                 </div>
-                <button type="button" class="m-btn m-btn--ghost" id="btn-replay-lesson-tour"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button>
+                <button type="button" class="m-btn m-btn--ghost" id="btn-replay-lesson-tour" data-tour-replay="m2-lesson" data-tour="tour-replay"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button>
               </div>
-              <ol class="m-lesson-steps" aria-label="Các bước của bài học">
+              <ol class="m-lesson-steps" data-tour="lesson-steps" aria-label="Các bước của bài học">
                 <li><span>1</span><div><strong>Xem video</strong><small>${embedUrl ? 'Chưa có dữ liệu đã xem' : 'Không có video'}</small></div></li>
                 <li><span>2</span><div><strong>Đọc lý thuyết</strong><small>${activeLesson?.content || files.length ? 'Chưa có dữ liệu đã đọc' : 'Chưa có nội dung'}</small></div></li>
                 <li class="${allHomeworkDone ? 'is-done' : ''}"><span>${allHomeworkDone ? '✓' : '3'}</span><div><strong>Làm bài tập</strong><small>${allHomeworkDone ? 'Đã hoàn thành' : (activeLessonHomeworks.length ? 'Chưa hoàn thành' : 'Chưa có bài tập')}</small></div></li>
@@ -85,7 +85,7 @@ export function renderMochiLessonDetail({ classes = [], classChapters = [], acti
 
             <div class="m-detail-grid">
               <div class="m-detail-main" id="tour-lesson-left">
-                <section class="m-card m-lesson-content">
+                <section class="m-card m-lesson-content" data-tour="lesson-content">
                   <div class="m-tabs" role="tablist" aria-label="Nội dung bài học">
                     ${embedUrl ? `<button type="button" class="m-tab" role="tab" aria-selected="${initialTab === 'video'}" aria-controls="m-panel-video" data-lesson-content-tab="video">Video</button>` : ''}
                     <button type="button" class="m-tab" role="tab" aria-selected="${initialTab === 'theory'}" aria-controls="m-panel-theory" data-lesson-content-tab="theory">Lý thuyết</button>
@@ -99,18 +99,18 @@ export function renderMochiLessonDetail({ classes = [], classChapters = [], acti
                   </div>
                 </section>
 
-                <nav class="m-lesson-pager" aria-label="Điều hướng bài học">
+                <nav class="m-lesson-pager" data-tour="lesson-pager" aria-label="Điều hướng bài học">
                   ${previous ? `<a class="m-btn m-btn--secondary" href="#my-classes?classId=${escapeHtml(classId)}&lessonId=${escapeHtml(previous.id)}">← ${escapeHtml(previous.title || 'Bài trước')}</a>` : '<span></span>'}
                   ${next ? `<a class="m-btn m-btn--secondary" href="#my-classes?classId=${escapeHtml(classId)}&lessonId=${escapeHtml(next.id)}">${escapeHtml(next.title || 'Bài sau')} →</a>` : ''}
                 </nav>
               </div>
 
               <aside class="m-detail-side" id="tour-lesson-right">
-                <section class="m-card m-card--strong" id="tour-lesson-homeworks">
+                <section class="m-card m-card--strong" id="tour-lesson-homeworks" data-tour="lesson-homeworks">
                   <div class="m-section-heading"><h2>Bài tập của bài</h2></div>
                   ${activeLessonHomeworks.length ? activeLessonHomeworks.map(homework => renderHomework(homework, role)).join('') : '<p class="m-empty-copy">Bài học này chưa có bài tập.</p>'}
                 </section>
-                <section class="m-card" id="tour-lesson-files">
+                <section class="m-card" id="tour-lesson-files" data-tour="lesson-files">
                   <div class="m-section-heading"><h2>Tài liệu</h2></div>
                   ${files.length ? `<ul class="m-resource-list">${files.map(file => `<li><span>${escapeHtml(fileName(file))}</span><div><button type="button" class="m-btn m-btn--secondary m-btn--compact btn-preview-theory" data-file="${escapeHtml(file)}">Xem</button><button type="button" class="m-btn m-btn--ghost m-btn--compact btn-download-theory" data-file="${escapeHtml(file)}">Tải xuống</button></div></li>`).join('')}</ul>` : '<p class="m-empty-copy">Chưa có tài liệu đính kèm.</p>'}
                 </section>

@@ -343,13 +343,14 @@ function renderMochiLearningHistoryView() {
                 <span class="m-chip m-chip--accent2">Kết quả</span>
                 <h1 class="m-hw-hero-title">Lịch sử làm bài</h1>
                 <p class="m-hw-hero-desc">Xem lại các bài tập đã làm, điểm số và chi tiết từng câu trả lời.</p>
+                <button type="button" class="m-btn m-btn--ghost m-tour-button" data-tour-replay="m2-history" data-tour="tour-replay"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button>
               </div>
               <div class="m-hw-hero-mascot">
                 ${renderMascot({ mood: 'happy', size: 120 })}
               </div>
             </header>
 
-            <section class="m-hw-stats" aria-label="Thống kê kết quả">
+            <section class="m-hw-stats" data-tour="hist-stats" aria-label="Thống kê kết quả">
               <div class="m-stat-card m-stat-card--avg">
                 <div class="m-stat-label">ĐIỂM TRUNG BÌNH</div>
                 <div class="m-stat-val">${avgProgressText}</div>
@@ -367,7 +368,7 @@ function renderMochiLearningHistoryView() {
               </div>
             </section>
 
-            <section class="m-card m-hw-filters" aria-label="Bộ lọc lịch sử">
+            <section class="m-card m-hw-filters" data-tour="hist-filters" aria-label="Bộ lọc lịch sử">
               <div class="m-hw-filter-bar">
                 <div class="m-hw-search-box">
                   <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
@@ -397,7 +398,7 @@ function renderMochiLearningHistoryView() {
               </div>
             </section>
 
-            <div class="m-history-list" aria-live="polite">
+            <div class="m-history-list" data-tour="hist-list" aria-live="polite">
               ${pagedSubmissions.length === 0 ? `
                 <div class="m-empty-state">
                   ${renderMascot({ mood: 'cheer', size: 140 })}

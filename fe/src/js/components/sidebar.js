@@ -27,7 +27,7 @@ function renderMochiTabbar(currentRoute) {
   const extra = MOCHI_NAV_ITEMS.filter(item => !MOCHI_TAB_PRIMARY.includes(item.route))
   const extraActive = extra.some(item => item.routes.includes(currentRoute))
   return `
-    <nav class="m-tabbar" aria-label="Điều hướng nhanh">
+    <nav class="m-tabbar" data-tour="nav" aria-label="Điều hướng nhanh">
       ${primary.map(item => renderMochiNavLink(item, currentRoute, { compact: true })).join('')}
       <details class="m-tab-more${extraActive ? ' is-active' : ''}">
         <summary class="m-shell-nav-link m-tab-more-toggle">
@@ -63,7 +63,7 @@ export function renderMochiSidebar(currentRoute) {
   const achievementsEnabled = MOCHI_FEATURES.xp || MOCHI_FEATURES.badges || MOCHI_FEATURES.leaderboard
   return `
     <aside class="m-shell-sidebar" id="app-sidebar">
-      <nav class="m-shell-nav" aria-label="Điều hướng chính">
+      <nav class="m-shell-nav" data-tour="nav" aria-label="Điều hướng chính">
         ${MOCHI_NAV_ITEMS.map(item => renderMochiNavLink(item, currentRoute)).join('')}
         ${achievementsEnabled ? '<!-- Thành tích sẽ được bổ sung khi feature có dữ liệu thật. -->' : ''}
       </nav>

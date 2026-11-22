@@ -43,7 +43,7 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
                 <h1 id="m-home-title">Chào ${escapeHtml(firstName(user))}! Hôm nay mình học gì nhé?</h1>
                 <p>Chọn một bài tập cần làm hoặc tiếp tục khám phá lớp học của bạn.</p>
                 <div class="m-home-actions">
-                  <button type="button" class="m-btn m-btn--primary" id="m-home-continue" data-fallback-class-id="${fallbackClassId}">
+                  <button type="button" class="m-btn m-btn--primary" id="m-home-continue" data-tour="home-continue" data-fallback-class-id="${fallbackClassId}">
                     <i class="fa-solid fa-play" aria-hidden="true"></i> Tiếp tục
                   </button>
                   <a class="m-btn m-btn--secondary" href="${firstClass?.id ? `#my-classes?classId=${fallbackClassId}` : '#my-classes'}">Xem bản đồ bài học</a>
@@ -56,7 +56,7 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
             </section>
 
             ${hasAchievementsFeature ? `
-              <section class="m-card m-home-achievements" id="m-home-achievements-card" aria-labelledby="m-achievements-title">
+              <section class="m-card m-home-achievements" id="m-home-achievements-card" data-tour="home-achievements" aria-labelledby="m-achievements-title">
                 <div class="m-section-heading">
                   <h2 id="m-achievements-title">Thành tích &amp; Hoạt động</h2>
                   <a href="#achievements">Xem tất cả</a>
@@ -67,7 +67,7 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
               </section>
             ` : ''}
 
-            <section class="m-card m-home-progress" aria-labelledby="m-progress-title">
+            <section class="m-card m-home-progress" data-tour="home-progress" aria-labelledby="m-progress-title">
               <div class="m-section-heading">
                 <h2 id="m-progress-title">Tiến độ bài tập</h2>
               </div>
@@ -75,7 +75,7 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
             </section>
 
             <div class="m-home-grid">
-              <section class="m-card" id="tour-latest-hw" aria-labelledby="m-todo-title">
+              <section class="m-card" id="tour-latest-hw" data-tour="home-todo" aria-labelledby="m-todo-title">
                 <div class="m-section-heading">
                   <h2 id="m-todo-title">Bài tập cần làm</h2>
                   <a href="#my-homeworks">Xem tất cả</a>
@@ -85,7 +85,7 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
                 </div>
               </section>
 
-              <section class="m-card" aria-labelledby="m-review-title">
+              <section class="m-card" data-tour="home-review" aria-labelledby="m-review-title">
                 <div class="m-section-heading">
                   <h2 id="m-review-title">Mochi gợi ý ôn lại</h2>
                 </div>
@@ -96,17 +96,17 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
               </section>
             </div>
 
-            <section class="m-card" id="inprogress-drafts-card" style="display:none" aria-labelledby="m-drafts-title">
+            <section class="m-card" id="inprogress-drafts-card" data-tour="home-drafts" style="display:none" aria-labelledby="m-drafts-title">
               <div class="m-section-heading"><h2 id="m-drafts-title">Bài đang làm dở</h2></div>
               <div id="inprogress-drafts-container"></div>
             </section>
 
-            <section class="m-card" aria-labelledby="m-scores-title">
+            <section class="m-card" data-tour="home-scores" aria-labelledby="m-scores-title">
               <div class="m-section-heading"><h2 id="m-scores-title">Điểm 10 bài nộp gần nhất</h2></div>
               <div id="student-dashboard-scores" aria-live="polite">Đang tải biểu đồ điểm số...</div>
             </section>
 
-            <button type="button" class="m-btn m-btn--ghost m-tour-button" id="btn-replay-tour">
+            <button type="button" class="m-btn m-btn--ghost m-tour-button" id="btn-replay-tour" data-tour-replay="m2-welcome" data-tour="tour-replay">
               <i class="fa-solid fa-circle-question" aria-hidden="true"></i> Xem hướng dẫn
             </button>
           </div>

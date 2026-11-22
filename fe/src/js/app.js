@@ -661,6 +661,12 @@ async function router() {
     } catch (bindErr) {
       console.error(`[Router] Error binding events for route "${hash}":`, bindErr)
     }
+    // Tutorial học sinh Mochi (spec 006): nút "Hướng dẫn" + tự mở lần đầu vào trang.
+    if (state.user?.role === 'STUDENT' && isMochiUI()) {
+      import('./utils/student-tour-wiring.js')
+        .then(({ attachStudentTour }) => attachStudentTour(hash, params))
+        .catch(err => console.warn('[Router] student tour wiring failed:', err?.message))
+    }
     // Chip chuỗi ngày học trên header Mochi: dùng cache 60s của progress-widgets nên không gọi API mỗi lần đổi trang.
     if (state.user?.role === 'STUDENT' && app.querySelector('[data-progress-slot]')) {
       import('./components/progress-widgets.js')

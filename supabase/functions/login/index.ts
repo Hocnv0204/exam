@@ -3,8 +3,7 @@ import { createServiceRoleClient, createAnonClient } from '../../shared/supabase
 import { handleCors, jsonResponse, errorResponse } from '../../shared/response-helper.ts'
 import { requireAuth } from '../../shared/auth-middleware.ts'
 import { loginSchema } from '../../shared/validators.ts'
-
-const TOUR_KEYS = ['student-dashboard', 'student-lesson', 'student-myhw']
+import { isValidTourKey } from './tour-keys.ts'
 
 serve(async (req: Request) => {
   const corsRes = handleCors(req)
@@ -15,24 +14,21 @@ serve(async (req: Request) => {
     if (req.method === 'PATCH') {
       const { user, serviceRoleClient } = await requireAuth(req)
       const body = await req.json().catch(() => ({}))
-      const tourKey = String(body?.tourKey || '')
-      if (!TOUR_KEYS.includes(tourKey)) {
+      const tourKey = body?.tourKey
+      if (!isValidTourKey(tourKey)) {
         return errorResponse('tourKey không hợp lệ', 400)
       }
-      const { data: prof } = await serviceRoleClient
-        .from('profiles')
-        .select('seen_tours')
-        .eq('id', user.id)
-        .maybeSingle()
-      const seen: string[] = Array.isArray((prof as any)?.seen_tours) ? (prof as any).seen_tours : []
-      if (!seen.includes(tourKey)) {
-        seen.push(tourKey)
-        await serviceRoleClient
-          .from('profiles')
-          .update({ seen_tours: seen })
-          .eq('id', user.id)
+      const { data, error } = await serviceRoleClient.rpc('fn_mark_tour_seen', {
+        p_user_id: user.id,
+        p_key: tourKey,
+      })
+      if (error) {
+        return errorResponse('Không lưu được trạng thái hướng dẫn', 500)
       }
-      return jsonResponse({ success: true, seenTours: seen })
+      if (data === null || data === undefined) {
+        return errorResponse('Không tìm thấy tài khoản', 404)
+      }
+      return jsonResponse({ success: true, seenTours: Array.isArray(data) ? data : [] })
     }
 
     if (req.method !== 'POST') {

@@ -143,7 +143,7 @@ export function renderAchievementsContent({
     <!-- 1. Stats Grid: XP Card & Streak Card -->
     <div class="m-achievements-stats-grid">
       ${MOCHI_FEATURES.xp ? `
-        <div class="m-stat-card" aria-label="Chi tiết điểm kinh nghiệm">
+        <div class="m-stat-card" data-tour="ach-xp" aria-label="Chi tiết điểm kinh nghiệm">
           <div class="m-stat-card-header">
             <h2 class="m-stat-card-title">
               <i class="fa-solid fa-bolt" style="color:var(--m-accent);" aria-hidden="true"></i> Cấp độ &amp; XP
@@ -170,7 +170,7 @@ export function renderAchievementsContent({
       ` : ''}
 
       ${MOCHI_FEATURES.streak ? `
-        <div class="m-stat-card" aria-label="Chi tiết chuỗi ngày học">
+        <div class="m-stat-card" data-tour="ach-streak" aria-label="Chi tiết chuỗi ngày học">
           <div class="m-stat-card-header">
             <h2 class="m-stat-card-title">
               <i class="fa-solid fa-fire" style="color:var(--m-warn);" aria-hidden="true"></i> Chuỗi ngày học
@@ -196,7 +196,7 @@ export function renderAchievementsContent({
 
     <!-- 2. Badges Section -->
     ${MOCHI_FEATURES.badges ? `
-      <section class="m-card" aria-labelledby="m-badges-heading">
+      <section class="m-card" data-tour="ach-badges" aria-labelledby="m-badges-heading">
         <div class="m-section-heading">
           <h2 id="m-badges-heading">Huy hiệu học tập</h2>
           <span class="m-chip m-chip--accent2">${escapeHtml(earnedBadgesCount)} / ${escapeHtml(badges.length)} đã đạt</span>
@@ -245,7 +245,7 @@ export function renderAchievementsContent({
 
     <!-- 3. XP Rules Section -->
     ${rules.length > 0 ? `
-      <section class="m-card" aria-labelledby="m-rules-heading">
+      <section class="m-card" data-tour="ach-rules" aria-labelledby="m-rules-heading">
         <div class="m-section-heading">
           <h2 id="m-rules-heading">Cách nhận điểm XP</h2>
         </div>
@@ -263,7 +263,7 @@ export function renderAchievementsContent({
 
     <!-- 4. Class Leaderboard Section -->
     ${MOCHI_FEATURES.leaderboard ? `
-      <section class="m-card" id="achievements-leaderboard-section" aria-labelledby="m-leaderboard-heading">
+      <section class="m-card" id="achievements-leaderboard-section" data-tour="ach-leaderboard" aria-labelledby="m-leaderboard-heading">
         <div class="m-section-heading">
           <h2 id="m-leaderboard-heading">Bảng xếp hạng lớp</h2>
         </div>
@@ -336,6 +336,7 @@ export function renderAchievementsView({ achievementsData = null, leaderboardDat
                     : 'Khám phá cấp độ, chuỗi ngày học và huy hiệu của bạn.'
                   }
                 </p>
+                <button type="button" class="m-btn m-btn--ghost m-tour-button" data-tour-replay="m2-achievements" data-tour="tour-replay"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button>
               </div>
               <div class="m-achievements-hero-mascot">
                 ${renderMascot({ mood: 'cheer', size: 140 })}

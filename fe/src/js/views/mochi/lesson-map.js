@@ -42,14 +42,15 @@ export function renderMochiLessonMap({ classes = [], classChapters = [], classId
         <main class="content-body">
           <div class="m-page-wrap">
             <a class="m-back-link" href="#my-classes"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Về danh sách lớp</a>
-            <header class="m-map-header">
+            <header class="m-map-header" data-tour="map-header">
               <div>
                 <p class="m-eyebrow">${escapeHtml(selectedClass?.name || 'Lớp học của tôi')}</p>
                 <h1>${escapeHtml(activeChapter?.title || 'Bản đồ bài học')}</h1>
+                <button type="button" class="m-btn m-btn--ghost m-tour-button" data-tour-replay="m2-classes" data-tour="tour-replay"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button>
                 ${progress === null ? '<p class="m-muted">Chưa có bài học trong chương này.</p>' : `
                   <div class="m-map-progress"><div class="m-progress" aria-label="Đã hoàn thành ${doneCount} trên ${lessons.length} bài"><span style="--m-progress:${progress}%"></span></div><strong>${doneCount}/${lessons.length} bài</strong></div>`}
               </div>
-              <div class="m-tabs m-map-chapters" role="tablist" aria-label="Chọn chương">
+              <div class="m-tabs m-map-chapters" data-tour="map-chapters" role="tablist" aria-label="Chọn chương">
                 ${sortedChapters.map((chapter, index) => `<button type="button" class="m-tab m-chapter-tab" role="tab" aria-selected="${chapter.id === activeChapter?.id}" data-chapter-id="${escapeHtml(chapter.id)}">Chương ${index + 1}</button>`).join('')}
               </div>
             </header>
@@ -59,7 +60,7 @@ export function renderMochiLessonMap({ classes = [], classChapters = [], classId
             ` : lessons.length === 0 ? `
               <section class="m-card m-empty-state"><h2>Chương chưa có bài học</h2><p>Hãy quay lại sau khi giáo viên cập nhật nội dung.</p></section>
             ` : `
-              <ol class="m-lesson-path" aria-label="Lộ trình bài học">
+              <ol class="m-lesson-path" data-tour="map-path" aria-label="Lộ trình bài học">
                 ${lessons.map((lesson, index) => {
                   const done = lessonHasCompletionEvidence(lesson)
                   return `<li class="m-path-row ${done ? 'is-done' : ''}">

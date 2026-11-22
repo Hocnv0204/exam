@@ -123,13 +123,13 @@ export function renderAttendanceData(data, statusFilter = 'ALL') {
   const average = summary.classAverageRate == null ? 0 : Math.min(100, Math.max(0, safeNumber(summary.classAverageRate)))
   const chronological = [...sessions].sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')))
 
-  return `<div class="m-att-data-stack"><section class="m-att-overview" aria-label="Tổng quan điểm danh">
+  return `<div class="m-att-data-stack"><section class="m-att-overview" data-tour="att-overview" aria-label="Tổng quan điểm danh">
     <div class="m-att-stat"><span>Buổi lớp đã học</span><strong>${Math.max(0, safeNumber(summary.classSessions))}</strong></div>
     <div class="m-att-stat is-present"><span>Có mặt</span><strong>${Math.max(0, safeNumber(summary.present))}</strong></div>
     <div class="m-att-stat is-absent"><span>Vắng</span><strong>${Math.max(0, safeNumber(summary.absent))}</strong></div>
     ${notCounted > 0 ? `<div class="m-att-stat is-not-counted" title="Buổi trước khi vào lớp, tạm nghỉ hoặc tài khoản tạm khoá"><span>Không tính <i class="fa-regular fa-circle-question" aria-hidden="true"></i></span><strong>${notCounted}</strong><small>Buổi trước khi vào lớp, tạm nghỉ hoặc tài khoản tạm khoá</small></div>` : ''}
   </section>
-  <section class="m-card m-att-compare" aria-label="So sánh chuyên cần">
+  <section class="m-card m-att-compare" data-tour="att-compare" aria-label="So sánh chuyên cần">
     <div class="m-att-rate-copy"><span class="m-chip m-chip--accent2">Tỉ lệ chuyên cần</span><h2>Bạn và cả lớp</h2><p>${comparison(summary)}</p></div>
     <div class="m-att-rate-bars">
       <div><span>Bạn <strong>${rateText(summary.attendanceRate)}</strong></span><div class="m-att-rate-track"><i style="--m-att-rate:${mine}%"></i></div></div>
@@ -140,7 +140,7 @@ export function renderAttendanceData(data, statusFilter = 'ALL') {
     const meta = statusMeta(session?.status)
     return `<span class="${meta.className}" title="${escapeHtml(`${formatDate(session?.date)}: ${meta.label}`)}" aria-label="${escapeHtml(`${formatDate(session?.date)}: ${meta.label}`)}"></span>`
   }).join('')}</div></section>` : ''}
-  <section class="m-att-list-section" aria-labelledby="attendance-list-title">
+  <section class="m-att-list-section" data-tour="att-list" aria-labelledby="attendance-list-title">
     <div class="m-att-list-head"><div><h2 id="attendance-list-title">Các buổi học</h2><p>${escapeHtml(data?.className || 'Lớp học')}</p></div>
       <div class="m-tabs m-att-status-filter" role="group" aria-label="Lọc trạng thái">
         ${[['ALL', 'Tất cả'], ['PRESENT', 'Có mặt'], ['ABSENT', 'Vắng']].map(([value, label]) => `<button type="button" class="m-tab" data-att-status="${value}" aria-pressed="${statusFilter === value}">${label}</button>`).join('')}
@@ -165,7 +165,7 @@ export function renderAttendanceView() {
     <div class="main-content">
       ${renderNavbar('Học tập / Điểm danh')}
       <main class="content-body"><div class="m-att-wrap" id="attendance-root">
-        <header class="m-att-hero"><div><span class="m-chip"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> Chuyên cần</span><h1>Điểm danh</h1><p>Theo dõi các buổi bạn đã học và đã nghỉ so với cả lớp</p></div><div class="m-att-hero-mascot">${renderMascot({ mood: 'happy', size: 112 })}</div></header>
+        <header class="m-att-hero" data-tour="att-hero"><div><span class="m-chip"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> Chuyên cần</span><h1>Điểm danh</h1><p>Theo dõi các buổi bạn đã học và đã nghỉ so với cả lớp</p><button type="button" class="m-btn m-btn--ghost m-tour-button" data-tour-replay="m2-attendance" data-tour="tour-replay"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button></div><div class="m-att-hero-mascot">${renderMascot({ mood: 'happy', size: 112 })}</div></header>
         <div id="attendance-app" aria-live="polite">${renderSkeleton()}</div>
       </div></main>
     </div>
@@ -179,7 +179,7 @@ function normalizeClasses(raw) {
 }
 
 function renderFilters(container, classes, filters) {
-  container.innerHTML = `<section class="m-card m-att-filters" aria-label="Bộ lọc điểm danh">
+  container.innerHTML = `<section class="m-card m-att-filters" data-tour="att-filters" aria-label="Bộ lọc điểm danh">
     <div class="m-att-filter-grid">
       <label class="m-att-field"><span>Lớp học</span>${classes.length > 1
         ? `<select id="attendance-class" class="m-select">${classes.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === filters.classId ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select>`
