@@ -61,8 +61,9 @@ export function updateTokens(token, refreshToken = null) {
 export function logout() {
   setSession(null, null)
   try {
-    // Xóa cả backup mượn phiên (nếu có) để tab mới đăng nhập không bị banner cũ
+    // Xóa cả backup mượn phiên và cờ nhắc học phí (nếu có) để lần đăng nhập sau hoạt động đúng
     sessionStorage.removeItem('edu_admin_backup')
+    sessionStorage.removeItem('edu_student_tuition_popup_pending_user')
   } catch {}
   window.location.hash = '#login'
 }

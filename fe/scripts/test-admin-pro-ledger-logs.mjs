@@ -254,6 +254,8 @@ test('(b) Pro dựng lại bố cục mới và giữ tập id/data-* chức nă
   assert.match(proLogs, /ap-filter-item/)
   assert.match(proLogs, /ap-timeline-card/)
   assert.match(proLogs, /<ol id="activity-logs-tbody" class="ap-tl">/)
+  assert.match(proLogs, /ap-tl-loading-banner/, 'Nhật ký Pro phải hiển thị banner loading ngay khi render')
+  assert.match(proLogs, /ap-tl-skeleton/, 'Nhật ký Pro phải hiển thị dòng skeleton shimmer khi đang tải')
   assert.match(proLogs, /id="activity-pagination-wrapper"/)
 })
 
@@ -493,4 +495,6 @@ test('(e) mọi rule trong ledger-logs.css đều scope bằng cổng html[data-
   assert.match(ledgerLogsCss, /@media\s*\(max-width:\s*900px\)/, 'Phải có responsive breakpoint 900px')
   assert.match(ledgerLogsCss, /@media\s*\(max-width:\s*640px\)/, 'Phải có responsive breakpoint 640px')
   assert.match(ledgerLogsCss, /overflow-x:\s*auto/, 'Phải hỗ trợ cuộn ngang bảng overflow-x: auto')
+  assert.match(ledgerLogsCss, /#activity-logs\s+\.ap-tl-loading-banner/, 'ledger-logs.css phải style banner loading cho nhật ký Pro')
+  assert.match(ledgerLogsCss, /#activity-logs\s+\.ap-tl-skeleton\s+\.ap-tl-skeleton-icon/, 'ledger-logs.css phải style icon skeleton cho nhật ký Pro')
 })

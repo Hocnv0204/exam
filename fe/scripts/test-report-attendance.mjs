@@ -30,26 +30,27 @@ test('ẩn mục khi báo cáo không có lớp (attendance null/thiếu)', () =
   assert.equal(hasReportAttendance(DATA), true)
 })
 
-test('tổng hợp: lớp đã học, có mặt, vắng, chuyên cần so với TB lớp', () => {
+test('tổng hợp: lớp đã học, có mặt, vắng, chuyên cần (không hiển thị TB lớp)', () => {
   const html = renderReportAttendanceBody(DATA)
   assert.match(html, /Lớp đã học<\/span>\s*<strong[^>]*>3 buổi/)
   assert.match(html, /Có mặt<\/span>\s*<strong[^>]*>1 buổi/)
   assert.match(html, /report-att-stat is-absent[\s\S]*?Vắng<\/span>\s*<strong[^>]*>1 buổi/)
-  assert.match(html, /50%[\s\S]*TB lớp 83,3%/)
+  assert.match(html, /Chuyên cần<\/span>\s*<strong[^>]*>50%/)
+  assert.doesNotMatch(html, /TB lớp/)
   assert.match(html, /1 buổi không tính/)
   assert.equal(reportAttendanceSubtitle(DATA), '3 buổi · vắng 1')
 })
 
-test('từng buổi: trạng thái, sĩ số lớp, ghi chú được escape', () => {
+test('từng buổi: chỉ hiển thị ngày học và trạng thái tham gia (ẩn note và sĩ số lớp)', () => {
   const html = renderReportAttendanceBody(DATA)
   const rows = [...html.matchAll(/<li class="report-att-row ([^"]+)">([\s\S]*?)<\/li>/g)]
   assert.deepEqual(rows.map(r => r[1]), ['is-absent', 'is-present', 'is-not-counted'])
   assert.match(rows[0][2], /CN, 15\/11\/2026/)
-  assert.match(rows[0][2], /Lớp có mặt 9\/10/)
   assert.match(rows[0][2], /> Vắng</)
   assert.match(rows[1][2], /> Có mặt</)
-  assert.match(rows[2][2], /Chưa có dữ liệu sĩ số/)
-  assert.ok(html.includes('Ôn &lt;chương 2&gt;') && !html.includes('<chương'))
+  assert.doesNotMatch(html, /Lớp có mặt/)
+  assert.doesNotMatch(html, /Chưa có dữ liệu sĩ số/)
+  assert.doesNotMatch(html, /Ôn .*chương 2/)
 })
 
 test('không có buổi nào / lỗi tải điểm danh', () => {

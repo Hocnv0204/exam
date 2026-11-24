@@ -17,7 +17,8 @@ import {
   createSearchController
 } from '../utils/curriculum-search.js'
 import { getClassLessonsNewestFirst } from '../utils/student-lesson-sort.js'
-import { summarizeStudentProgress, studentBalanceIsZero, recentScores } from '../utils/student-dashboard.js'
+import { summarizeStudentProgress, recentScores } from '../utils/student-dashboard.js'
+import { maybeShowStudentTuitionPopup } from '../components/student-tuition-modal.js'
 import { isMochiUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
 import { renderMochiStudentHome, bindMochiStudentHome } from './mochi/student-home.js'
@@ -630,7 +631,7 @@ export function renderClassicMyClassesView() {
               <p>Chọn lớp để xem bài học và tài liệu.</p>
             </div>
           </div>` : ''}
-          ${isDashboard ? '<div id="student-tuition-notice" aria-live="polite"></div><div id="student-exam-notice" aria-live="polite"></div>' : ''}
+          ${isDashboard ? '<div id="student-exam-notice" aria-live="polite"></div>' : ''}
           ${!isDashboard ? `<div class="page-header">
             <div>
               <h2 class="page-title">Danh sách lớp học</h2>
@@ -715,11 +716,14 @@ async function loadStudentDashboardStats() {
     const response = await api.getMyHomeworks('&status=all&page=1&pageSize=1')
     if (!container.isConnected || state.user?.id !== userId || state.user?.role !== 'STUDENT') return
     const progress = summarizeStudentProgress(response?.stats)
-    const notice = document.getElementById('student-tuition-notice')
-    if (notice) notice.innerHTML = studentBalanceIsZero(response.accountBalance) ? `
-      <div role="status" class="student-tuition-alert"><i class="fa-solid fa-circle-exclamation"></i>
-        <div><strong>Thông báo đóng học phí</strong><br>Bạn đã đến hạn đóng học phí. Vui lòng liên hệ giáo viên để đóng học phí.</div>
-      </div>` : ''
+    if (response && 'accountBalance' in response) {
+      maybeShowStudentTuitionPopup({
+        userId,
+        role: state.user?.role,
+        accountBalance: response.accountBalance,
+        route: 'student-dashboard'
+      })
+    }
     container.innerHTML = `<div class="student-assignment-chart" role="group" aria-label="Đã hoàn thành ${progress.done} trên ${progress.total} bài; còn ${progress.todo} bài chưa hoàn thành">
       <div class="student-assignment-ring" style="--completion:${progress.completion ?? 0}%" aria-hidden="true">
         <div><strong>${progress.completion === null ? '—' : `${progress.completion}%`}</strong><span>hoàn thành</span></div>

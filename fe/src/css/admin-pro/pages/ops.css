@@ -378,6 +378,72 @@ html[data-admin-ui="pro"] #trial-management td span[style*="margin:0 6px"] {
   color: var(--ap-muted) !important;
 }
 
+/* Trạng thái đang tải & skeleton shimmer (#trial-management) */
+html[data-admin-ui="pro"] #trial-management .trial-loading-banner {
+  background: var(--ap-surface2);
+  border-bottom: 1.5px solid var(--ap-line);
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-loading-spinner {
+  border-color: var(--ap-line);
+  border-top-color: var(--ap-accent);
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-loading-title {
+  color: var(--ap-ink);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-loading-desc {
+  color: var(--ap-muted);
+  font-weight: 700;
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-loading-inline {
+  color: var(--ap-accent);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-skeleton-bar,
+html[data-admin-ui="pro"] #trial-management .trial-skeleton-pill {
+  background: linear-gradient(90deg, var(--ap-surface2) 25%, var(--ap-line) 50%, var(--ap-surface2) 75%);
+  background-size: 200% 100%;
+  animation: trial-shimmer 1.3s ease-in-out infinite;
+}
+
+html[data-admin-ui="pro"] #trial-management #trial-kpis .trial-kpi-skeleton {
+  background: var(--ap-surface);
+}
+
+html[data-admin-ui="pro"] #trial-management #trial-kpis .trial-kpi-skeleton > div:last-child {
+  font-size: 0 !important;
+  line-height: 0;
+  height: 28px;
+  margin-top: 10px;
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-skeleton-table td {
+  padding: 14px 16px;
+  vertical-align: middle;
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-toggle-label.is-pending {
+  opacity: 0.7;
+  cursor: wait !important;
+}
+
+html[data-admin-ui="pro"] #trial-management .trial-toggle-spinner {
+  color: var(--ap-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-ui="pro"] #trial-management .trial-loading-spinner,
+  html[data-admin-ui="pro"] #trial-management .trial-skeleton-bar,
+  html[data-admin-ui="pro"] #trial-management .trial-skeleton-pill {
+    animation: none;
+  }
+}
+
 /* ==========================================================================
    5. LỊCH TUẦN ADMIN (#weekly-calendar[data-role="ADMIN"])
    ========================================================================== */

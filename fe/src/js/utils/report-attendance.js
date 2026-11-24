@@ -57,21 +57,17 @@ export function renderReportAttendanceBody(attendance) {
     { label: 'Lớp đã học', value: `${num(s.classSessions)} buổi`, cls: '' },
     { label: 'Có mặt', value: `${num(s.present)} buổi`, cls: 'is-present' },
     { label: 'Vắng', value: `${num(s.absent)} buổi`, cls: num(s.absent) > 0 ? 'is-absent' : '' },
-    { label: 'Chuyên cần', value: rateText(s.attendanceRate), cls: '', note: `TB lớp ${rateText(s.classAverageRate)}` }
+    { label: 'Chuyên cần', value: rateText(s.attendanceRate), cls: '' }
   ]
   const notCounted = num(s.notCounted)
 
   const rows = sessions.map(item => {
     const meta = STATUS[item?.status] || STATUS.NOT_COUNTED
-    const total = num(item?.classTotal)
-    const classLine = total > 0 ? `Lớp có mặt ${num(item?.classPresent)}/${total}` : 'Chưa có dữ liệu sĩ số'
     return `
       <li class="report-att-row ${meta.cls}">
         <div class="report-att-when">
           <strong>${formatSessionDate(item?.date)}</strong>
-          ${item?.note ? `<span class="report-att-note">${esc(item.note)}</span>` : ''}
         </div>
-        <span class="report-att-class">${classLine}</span>
         <span class="report-att-badge ${meta.cls}"><i class="fa-solid ${meta.icon}" aria-hidden="true"></i> ${meta.label}</span>
       </li>`
   }).join('')

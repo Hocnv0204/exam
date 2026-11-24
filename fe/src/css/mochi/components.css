@@ -346,3 +346,10 @@ html[data-ui="mochi"] .m-tab-more-logout {display:none}
 :is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-text {margin:0 0 8px;color:var(--m-muted);font-size:15px;font-weight:600;line-height:1.6}
 :is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-actions {display:flex;flex-wrap:wrap;justify-content:center;gap:10px;width:100%}
 :is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-reg-actions > * {flex:1 1 180px;min-height:46px;justify-content:center;text-decoration:none}
+
+/* Popup "Thông báo đóng học phí" sau đăng nhập học sinh (bản Mochi) */
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-tuition-modal {display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 4px 10px;text-align:center}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-tuition-modal-icon {display:flex;align-items:center;justify-content:center;line-height:0}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-tuition-modal-title {margin:4px 0 0;font:800 20px/1.35 var(--m-font-heading);color:var(--m-ink)}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .m-tuition-modal-text {margin:0;color:var(--m-muted);font-size:15px;font-weight:700;line-height:1.6}
+:is(html[data-ui="mochi"] #modal-container, #modal-container[data-mochi-theme]) .student-tuition-modal #modal-cancel-btn {min-width:110px;background:var(--m-accent);border-color:var(--m-ink);color:var(--m-accent-ink);box-shadow:var(--m-shadow-sm)}

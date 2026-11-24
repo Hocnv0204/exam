@@ -13,6 +13,7 @@ import {
   parseAttendanceQuery,
   parseLeaderboardQuery,
   processLeaderboardData,
+  sanitizeStudentAttendanceData,
 } from './logic.ts'
 
 serve(async (req: Request) => {
@@ -63,7 +64,7 @@ serve(async (req: Request) => {
         return errorResponse('Không tải được thông tin điểm danh. Vui lòng thử lại sau.', 500)
       }
 
-      const res = jsonResponse(data)
+      const res = jsonResponse(sanitizeStudentAttendanceData(data))
       res.headers.set('Cache-Control', 'no-store')
       return res
     }

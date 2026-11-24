@@ -35,7 +35,6 @@ export function renderMochiStudentHome({ classes = [], user } = {}) {
         ${renderNavbar('Học tập / Trang chủ')}
         <main class="content-body">
           <div class="m-page-wrap">
-            <div id="student-tuition-notice" aria-live="polite"></div>
             <div id="student-exam-notice" aria-live="polite"></div>
             <section class="m-home-hero" aria-labelledby="m-home-title">
               <div class="m-home-hero-copy">

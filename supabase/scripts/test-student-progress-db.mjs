@@ -111,10 +111,13 @@ await db.exec(`
   grant usage on schema public to anon, authenticated, service_role;
 `)
 
-console.log('2. Loading Migration 20261108000000_student_progress_rpc.sql...')
+console.log('2. Loading Migration 20261108000000_student_progress_rpc.sql & 20261125000000_minimize_student_attendance_payload.sql...')
 const migrationPath = new URL('../migrations/20261108000000_student_progress_rpc.sql', import.meta.url)
 const migrationSql = readFileSync(migrationPath, 'utf8')
 await db.exec(migrationSql)
+const minimizeAttPath = new URL('../migrations/20261125000000_minimize_student_attendance_payload.sql', import.meta.url)
+const minimizeAttSql = readFileSync(minimizeAttPath, 'utf8')
+await db.exec(minimizeAttSql)
 
 console.log('3. Seeding Test Fixtures...')
 // Identifiers
@@ -271,16 +274,9 @@ function oracleCalculateAttendance({
   let presentCount = 0
   let absentCount = 0
   let notCountedCount = 0
-  const classRates = []
 
   for (const s of filteredSessions) {
     const sessionRecords = records.filter((r) => r.session_id === s.id)
-    const classTotal = sessionRecords.length
-    const classPresent = sessionRecords.filter((r) => r.is_present).length
-    const classRate = classTotal > 0 ? Math.round((classPresent * 100 / classTotal) * 10) / 10 : null
-    if (classTotal > 0) {
-      classRates.push((classPresent * 100) / classTotal)
-    }
 
     const isLocked = lockIntervals.some(
       (inv) =>
@@ -305,11 +301,7 @@ function oracleCalculateAttendance({
     sessionItems.push({
       sessionId: s.id,
       date: s.session_date,
-      note: s.note,
       status,
-      classPresent,
-      classTotal,
-      classRate,
     })
   }
 
@@ -318,10 +310,6 @@ function oracleCalculateAttendance({
   const classSessions = filteredSessions.length
   const countedSessions = presentCount + absentCount
   const attendanceRate = countedSessions > 0 ? Math.round((presentCount * 100 / countedSessions) * 10) / 10 : null
-  const classAverageRate =
-    classRates.length > 0
-      ? Math.round((classRates.reduce((a, b) => a + b, 0) / classRates.length) * 10) / 10
-      : null
 
   return {
     classId,
@@ -334,7 +322,6 @@ function oracleCalculateAttendance({
       absent: absentCount,
       notCounted: notCountedCount,
       attendanceRate,
-      classAverageRate,
     },
     sessions: sessionItems,
   }
@@ -618,9 +605,14 @@ console.log('--- Test A: Attendance for student 1 (s1) ---')
   // Compare actual with oracle
   assert.equal(actual.classId, c1)
   assert.equal(actual.className, 'Toán 12A')
+  assert.equal('classAverageRate' in actual.summary, false, 'Summary must not expose classAverageRate')
   assert.deepStrictEqual(actual.summary, oracle.summary, 'Summary mismatch')
   assert.equal(actual.sessions.length, oracle.sessions.length, 'Sessions length mismatch')
   for (let i = 0; i < actual.sessions.length; i++) {
+    assert.equal('note' in actual.sessions[i], false, 'Session must not expose note')
+    assert.equal('classPresent' in actual.sessions[i], false, 'Session must not expose classPresent')
+    assert.equal('classTotal' in actual.sessions[i], false, 'Session must not expose classTotal')
+    assert.equal('classRate' in actual.sessions[i], false, 'Session must not expose classRate')
     assert.deepStrictEqual(actual.sessions[i], oracle.sessions[i], `Session [${i}] mismatch`)
   }
 }

@@ -244,6 +244,7 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proMarkup, /id="add-chapter-btn-tree"/, 'Cây chương trình phải có nút thêm chương')
 
   // 4. Thanh công cụ & tìm kiếm bài học
+  assert.match(proMarkup, /id="curriculum-chapter-search-input"/, 'Cây chương trình phải có ô lọc nhanh chương')
   assert.match(proMarkup, /id="curriculum-lesson-search-input"/, 'Phải giữ id ô tìm kiếm')
   assert.match(proMarkup, /id="curriculum-sort-select"/, 'Phải giữ id select sắp xếp')
   assert.match(proMarkup, /id="btn-quick-add-lesson"/, 'Phải giữ id nút tạo bài học nhanh')
@@ -267,11 +268,18 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   const proWsHooks = functionalHooks(proWs)
 
   assert.match(proWs, /class="curriculum-breadcrumb ap-lw-breadcrumb"/, 'Workspace Pro phải có breadcrumb')
+  assert.match(proWs, /class="curriculum-bc-link btn-bc-all-lessons ap-lw-bc-back"/, 'Breadcrumb phải có nút click xem toàn bộ danh sách bài học')
+  assert.match(proWs, /class="curriculum-bc-link btn-bc-chapter ap-lw-bc-chapter"[^>]+data-chapter-id="ch1"/, 'Breadcrumb phải có nút click lọc bài học theo chương ch1')
   assert.match(proWs, /class="btn-secondary lw-btn btn-back-to-curriculum ap-lw-back-btn"/, 'Workspace Pro phải có nút quay lại')
   assert.match(proWs, /class="ap-lw-grid"/, 'Workspace Pro phải có grid 2 cột')
   assert.match(proWs, /class="ap-lw-left-col"/, 'Workspace Pro phải có cột trái video + lý thuyết')
   assert.match(proWs, /class="ap-lw-right-col"/, 'Workspace Pro phải có cột phải bài tập')
   assert.match(proWs, /#trial-management\?lessonId=l1/, 'Workspace Pro phải có link sang Quản lý học thử')
+  assert.match(proWs, /<iframe[^>]+src="https:\/\/drive\.google\.com\/file\/d\/sample\/preview"/, 'Workspace Pro phải hiển thị video nhúng trực tiếp khi bài học có video')
+  assert.doesNotMatch(proWs, /btn-preview-video/, 'Workspace Pro không còn nút Xem trước modal khi đã hiển thị video trực tiếp')
+
+  const curriculumJsSource = readFileSync(resolve(scriptDir, '../src/js/views/curriculum.js'), 'utf8')
+  assert.doesNotMatch(curriculumJsSource, /📹/, 'Nút Tạo buổi học Google Meet không lặp emoji 📹')
 
   assertSuperset(proWsHooks, classicWsHooks, 'Curriculum Pro Workspace Detail')
 })
@@ -360,6 +368,12 @@ test('(e) mọi rule CSS mới có tiền tố html[data-admin-ui="pro"]', () =>
   assert.match(curriculumCss, /@media\s*\(max-width:\s*900px\)/, 'Phải có responsive breakpoint 900px')
   assert.match(curriculumCss, /@media\s*\(max-width:\s*640px\)/, 'Phải có responsive breakpoint 640px')
   assert.match(curriculumCss, /overflow-x:\s*auto/, 'Phải hỗ trợ cuộn ngang overflow-x: auto')
+  assert.match(curriculumCss, /#curriculum-lesson-search-input[\s\S]*?padding:\s*0\s+76px\s+0\s+40px\s*!important/, 'Ô tìm kiếm bài học phải giữ padding trái !important để tránh đè icon kính lúp')
+  assert.match(curriculumCss, /#curriculum-chapter-search-input[\s\S]*?padding:\s*0\s+10px\s+0\s+34px\s*!important/, 'Ô lọc nhanh chương phải giữ padding trái !important để tránh đè icon kính lúp')
+  assert.match(curriculumCss, /\.ap-video-card[\s\S]*?align-items:\s*stretch/, 'Video card cột dọc phải dùng align-items: stretch')
+  assert.match(curriculumCss, /\.ap-video-meta[\s\S]*?flex:\s*0\s+0\s+auto/, 'Video meta phải reset flex: 0 0 auto để không bị giãn 240px theo chiều dọc')
+  assert.match(curriculumCss, /\.ap-curriculum-tree[\s\S]*?position:\s*sticky/, 'Cây chương trình phải sticky và cuộn độc lập trên desktop')
+  assert.match(curriculumCss, /\.ap-lesson-card[\s\S]*?flex-direction:\s*row/, 'Thẻ bài học trên desktop dùng bố cục ngang gọn gàng')
 
   // Không có màu cứng ngoài biến --ap-*
   const hexColors = curriculumCss.match(/#[0-9a-fA-F]{3,8}/g) || []

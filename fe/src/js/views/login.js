@@ -5,6 +5,7 @@ import { getLoginReturnTarget } from '../utils/login-return.js'
 import { renderThemeToggle, getStudentTheme, setStudentTheme, STUDENT_THEMES } from '../theme.js'
 import { isMochiUI, loadMochiStyles } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
+import { markStudentTuitionPopupPending } from '../components/student-tuition-modal.js'
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/mochi/login.css')
 }
@@ -202,12 +203,14 @@ export function bindLoginEvents() {
       showToast('Đang xác thực với hệ thống Supabase Auth...', 'info')
       const data = await api.login(username, password)
       setSession(data.user, data.accessToken, data.refreshToken)
+      if (data.user?.role === 'STUDENT') markStudentTuitionPopupPending(data.user.id)
       showToast('Xin chào, đăng nhập thành công!', 'success')
       window.location.hash = getLoginReturnTarget(window.location.hash, data.user.role)
     } catch (err) {
       if (username === 'student' || username.startsWith('student')) {
         const studentUser = { id: 's1', username, fullName: 'Nguyễn Văn An', role: 'STUDENT', classId: 'c1' }
         setSession(studentUser, 'mock_student_token')
+        markStudentTuitionPopupPending(studentUser.id)
         showToast('Đăng nhập thành công với quyền Học sinh (Chế độ Demo)', 'success')
         window.location.hash = getLoginReturnTarget(window.location.hash, studentUser.role)
       } else {

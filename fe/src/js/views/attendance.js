@@ -77,34 +77,22 @@ function statusMeta(status) {
   return STATUS[status] || STATUS.NOT_COUNTED
 }
 
-function comparison(summary) {
-  const mine = Number(summary?.attendanceRate)
-  const average = Number(summary?.classAverageRate)
-  if (summary?.attendanceRate == null || summary?.classAverageRate == null || !Number.isFinite(mine) || !Number.isFinite(average)) {
-    return 'Chưa đủ dữ liệu để so sánh với lớp.'
+function attendanceSummaryCopy(summary) {
+  const counted = Math.max(0, safeNumber(summary?.countedSessions))
+  const present = Math.max(0, safeNumber(summary?.present))
+  if (summary?.attendanceRate == null || !Number.isFinite(Number(summary?.attendanceRate)) || counted === 0) {
+    return 'Chưa đủ dữ liệu chuyên cần trong khoảng thời gian này.'
   }
-  const difference = mine - average
-  if (Math.abs(difference) < 1) return 'Tỉ lệ chuyên cần của bạn đang ngang với lớp.'
-  return difference > 0
-    ? `Bạn đang cao hơn trung bình lớp ${Math.abs(difference).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} điểm phần trăm.`
-    : `Bạn đang thấp hơn trung bình lớp ${Math.abs(difference).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} điểm phần trăm.`
+  return `Bạn đã tham gia ${present}/${counted} buổi được tính trong khoảng đã chọn.`
 }
 
 function renderSession(session) {
   const status = statusMeta(session?.status)
-  const total = Math.max(0, safeNumber(session?.classTotal))
-  const present = Math.max(0, safeNumber(session?.classPresent))
-  const classRate = session?.classRate == null ? null : safeNumber(session.classRate, null)
   return `<article class="m-att-session ${status.className}">
     <div class="m-att-session-main">
       <time datetime="${escapeHtml(session?.date || '')}" class="m-att-session-date">${formatDate(session?.date)}</time>
-      ${session?.note ? `<p class="m-att-session-note">${escapeHtml(session.note)}</p>` : ''}
     </div>
     <span class="m-att-status ${status.className}"><i class="fa-solid ${status.icon}" aria-hidden="true"></i>${status.label}</span>
-    <div class="m-att-class-stat">
-      <span>Lớp: <strong>${present}/${total}</strong> có mặt (${rateText(classRate)})</span>
-      <div class="m-att-mini-progress" aria-hidden="true"><span style="--m-att-rate:${Math.min(100, Math.max(0, classRate || 0))}%"></span></div>
-    </div>
   </article>`
 }
 
@@ -120,7 +108,6 @@ export function renderAttendanceData(data, statusFilter = 'ALL') {
   })
   const notCounted = Math.max(0, safeNumber(summary.notCounted))
   const mine = summary.attendanceRate == null ? 0 : Math.min(100, Math.max(0, safeNumber(summary.attendanceRate)))
-  const average = summary.classAverageRate == null ? 0 : Math.min(100, Math.max(0, safeNumber(summary.classAverageRate)))
   const chronological = [...sessions].sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')))
 
   return `<div class="m-att-data-stack"><section class="m-att-overview" data-tour="att-overview" aria-label="Tổng quan điểm danh">
@@ -129,11 +116,10 @@ export function renderAttendanceData(data, statusFilter = 'ALL') {
     <div class="m-att-stat is-absent"><span>Vắng</span><strong>${Math.max(0, safeNumber(summary.absent))}</strong></div>
     ${notCounted > 0 ? `<div class="m-att-stat is-not-counted" title="Buổi trước khi vào lớp, tạm nghỉ hoặc tài khoản tạm khoá"><span>Không tính <i class="fa-regular fa-circle-question" aria-hidden="true"></i></span><strong>${notCounted}</strong><small>Buổi trước khi vào lớp, tạm nghỉ hoặc tài khoản tạm khoá</small></div>` : ''}
   </section>
-  <section class="m-card m-att-compare" data-tour="att-compare" aria-label="So sánh chuyên cần">
-    <div class="m-att-rate-copy"><span class="m-chip m-chip--accent2">Tỉ lệ chuyên cần</span><h2>Bạn và cả lớp</h2><p>${comparison(summary)}</p></div>
+  <section class="m-card m-att-compare" data-tour="att-compare" aria-label="Tỉ lệ chuyên cần">
+    <div class="m-att-rate-copy"><span class="m-chip m-chip--accent2">Tỉ lệ chuyên cần</span><h2>Chuyên cần của bạn</h2><p>${attendanceSummaryCopy(summary)}</p></div>
     <div class="m-att-rate-bars">
-      <div><span>Bạn <strong>${rateText(summary.attendanceRate)}</strong></span><div class="m-att-rate-track"><i style="--m-att-rate:${mine}%"></i></div></div>
-      <div><span>Trung bình lớp <strong>${rateText(summary.classAverageRate)}</strong></span><div class="m-att-rate-track is-class"><i style="--m-att-rate:${average}%"></i></div></div>
+      <div><span>Tỉ lệ tham gia <strong>${rateText(summary.attendanceRate)}</strong></span><div class="m-att-rate-track"><i style="--m-att-rate:${mine}%"></i></div></div>
     </div>
   </section>
   ${sessions.length ? `<section class="m-card m-att-heatmap" aria-label="Lịch chấm điểm danh"><div><h2>Lịch chấm</h2><p>Mỗi ô là một buổi, theo thứ tự thời gian.</p></div><div class="m-att-heat-cells">${chronological.map(session => {
@@ -165,7 +151,7 @@ export function renderAttendanceView() {
     <div class="main-content">
       ${renderNavbar('Học tập / Điểm danh')}
       <main class="content-body"><div class="m-att-wrap" id="attendance-root">
-        <header class="m-att-hero" data-tour="att-hero"><div><span class="m-chip"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> Chuyên cần</span><h1>Điểm danh</h1><p>Theo dõi các buổi bạn đã học và đã nghỉ so với cả lớp</p><button type="button" class="m-btn m-btn--ghost m-tour-button" data-tour-replay="m2-attendance" data-tour="tour-replay"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button></div><div class="m-att-hero-mascot">${renderMascot({ mood: 'happy', size: 112 })}</div></header>
+        <header class="m-att-hero" data-tour="att-hero"><div><span class="m-chip"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> Chuyên cần</span><h1>Điểm danh</h1><p>Theo dõi các buổi học của lớp và các buổi bạn đã tham gia</p><button type="button" class="m-btn m-btn--ghost m-tour-button" data-tour-replay="m2-attendance" data-tour="tour-replay"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Hướng dẫn</button></div><div class="m-att-hero-mascot">${renderMascot({ mood: 'happy', size: 112 })}</div></header>
         <div id="attendance-app" aria-live="polite">${renderSkeleton()}</div>
       </div></main>
     </div>

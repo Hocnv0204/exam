@@ -7,7 +7,7 @@
 html[data-admin-ui="pro"] .ap-curriculum-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -16,9 +16,9 @@ html[data-admin-ui="pro"] .ap-curriculum-header-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 20px 24px;
+  padding: 14px 18px;
   border: 2px solid var(--ap-line);
   border-radius: var(--ap-radius-lg);
   background: var(--ap-surface);
@@ -29,19 +29,19 @@ html[data-admin-ui="pro"] .ap-curriculum-header-card {
 html[data-admin-ui="pro"] .ap-curriculum-header-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   flex: 1 1 320px;
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-class-chip {
   align-self: flex-start;
-  padding: 3px 12px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: var(--ap-accent-soft);
   color: var(--ap-accent);
   font-weight: 800;
-  font-size: 12px;
+  font-size: 11.5px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -50,7 +50,7 @@ html[data-admin-ui="pro"] .ap-curriculum-class-chip {
 html[data-admin-ui="pro"] .ap-curriculum-header-title {
   margin: 0;
   font-family: var(--ap-font-heading);
-  font-size: 26px;
+  font-size: 21px;
   font-weight: 800;
   line-height: 1.25;
   color: var(--ap-ink);
@@ -60,27 +60,28 @@ html[data-admin-ui="pro"] .ap-curriculum-header-title {
 html[data-admin-ui="pro"] .ap-curriculum-header-desc {
   margin: 0;
   color: var(--ap-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-stats {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-stat-card {
-  padding: 10px 16px;
+  padding: 8px 14px;
   border: 2px solid var(--ap-line);
   border-radius: var(--ap-radius);
   background: var(--ap-surface2);
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 120px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  min-width: auto;
   box-sizing: border-box;
 }
 
@@ -88,13 +89,13 @@ html[data-admin-ui="pro"] .ap-curriculum-stat-label {
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   color: var(--ap-muted);
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-stat-value {
   font-family: var(--ap-font-heading);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
   color: var(--ap-ink);
   line-height: 1.2;
@@ -103,20 +104,22 @@ html[data-admin-ui="pro"] .ap-curriculum-stat-value {
 html[data-admin-ui="pro"] .ap-curriculum-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-header-actions button {
-  min-height: 44px;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13.5px;
   box-sizing: border-box;
 }
 
 /* 2. Bố cục 2 cột (Cây chương học + Danh sách bài học) */
 html[data-admin-ui="pro"] .ap-curriculum-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 272px minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
   width: 100%;
   box-sizing: border-box;
@@ -124,6 +127,9 @@ html[data-admin-ui="pro"] .ap-curriculum-grid {
 
 /* Cột trái: Cây chương trình */
 html[data-admin-ui="pro"] .ap-curriculum-tree {
+  position: sticky;
+  top: 84px;
+  max-height: calc(100vh - 108px);
   border: 2px solid var(--ap-line);
   border-radius: var(--ap-radius-lg);
   background: var(--ap-surface);
@@ -135,19 +141,20 @@ html[data-admin-ui="pro"] .ap-curriculum-tree {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-head {
-  padding: 16px 18px;
+  padding: 12px 14px;
   border-bottom: 2px solid var(--ap-line);
   background: var(--ap-surface2);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-title {
   margin: 0;
   font-family: var(--ap-font-heading);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   color: var(--ap-ink);
   line-height: 1.2;
@@ -162,9 +169,9 @@ html[data-admin-ui="pro"] .ap-curriculum-tree-subtitle {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-add-btn {
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
   border-radius: var(--ap-radius-sm);
   border: 2px solid var(--ap-line);
   background: var(--ap-surface);
@@ -183,21 +190,73 @@ html[data-admin-ui="pro"] .ap-curriculum-tree-add-btn:hover {
   transform: translateY(-1px);
 }
 
+html[data-admin-ui="pro"] .ap-curriculum-tree-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1.5px solid var(--ap-line);
+  background: var(--ap-surface2);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-search .ap-tree-search-icon {
+  position: absolute;
+  left: 20px;
+  z-index: 1;
+  color: var(--ap-muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-search input#curriculum-chapter-search-input,
+html[data-admin-ui="pro"] .ap-curriculum-tree-search .ap-tree-search-input {
+  width: 100%;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 10px 0 34px !important;
+  border: 1.5px solid var(--ap-line) !important;
+  border-radius: 10px !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  font-family: var(--ap-font);
+  font-size: 13px !important;
+  font-weight: 700;
+  outline: none;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-search input#curriculum-chapter-search-input:focus,
+html[data-admin-ui="pro"] .ap-curriculum-tree-search .ap-tree-search-input:focus {
+  border-color: var(--ap-accent) !important;
+}
+
 html[data-admin-ui="pro"] .ap-curriculum-tree-list {
-  padding: 12px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-item-wrapper {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 4px;
-  border: 2px solid transparent;
-  border-radius: var(--ap-radius);
-  padding: 4px;
+  border: 1.5px solid transparent;
+  border-radius: var(--ap-radius-sm);
+  padding: 2px 4px;
   transition: border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-item-wrapper:hover {
+  border-color: var(--ap-line);
+  background: var(--ap-surface2);
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-item-wrapper.active {
@@ -207,22 +266,23 @@ html[data-admin-ui="pro"] .ap-curriculum-tree-item-wrapper.active {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-item {
-  width: 100%;
+  flex: 1 1 0%;
+  min-width: 0;
   border: none;
   background: transparent;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: var(--ap-radius-sm);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   text-align: left;
   color: var(--ap-ink);
   font-family: var(--ap-font);
   font-weight: 700;
-  font-size: 14px;
-  min-height: 44px;
+  font-size: 13.5px;
+  min-height: 36px !important;
   box-sizing: border-box;
 }
 
@@ -231,10 +291,10 @@ html[data-admin-ui="pro"] .ap-curriculum-tree-item.active {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-badge {
-  padding: 3px 8px;
+  padding: 2px 6px;
   border-radius: 6px;
   font-family: var(--ap-font-heading);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   background: var(--ap-line);
   color: var(--ap-ink);
@@ -255,28 +315,62 @@ html[data-admin-ui="pro"] .ap-curriculum-tree-item-title {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-count {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: var(--ap-muted);
   flex-shrink: 0;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
   background: var(--ap-surface);
 }
 
-html[data-admin-ui="pro"] .ap-curriculum-tree-item-actions {
-  display: flex;
+html[data-admin-ui="pro"] .ap-curriculum-tree .chapter-weak-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--ap-warn-soft);
+  color: var(--ap-warn);
+  white-space: nowrap;
+  flex-shrink: 0;
   align-items: center;
-  gap: 6px;
-  padding: 2px 8px 4px;
-  opacity: 0.85;
+  gap: 3px;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-item-actions {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-item-wrapper:is(:hover, :focus-within, .active) .ap-curriculum-tree-item-actions {
+  display: inline-flex;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-item-wrapper:is(:hover, :focus-within, .active) .chapter-weak-badge {
+  display: none !important;
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-tree-item-actions button {
-  min-height: 32px;
-  padding: 4px 8px;
+  min-height: 28px !important;
+  height: 28px;
+  width: 28px;
+  padding: 0 !important;
   font-size: 11px;
-  border-radius: 6px;
+  border-radius: 8px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-admin-ui="pro"] .ap-curriculum-tree-no-match {
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ap-muted);
 }
 
 /* 3. Cột phải: Main Area (Toolbar, Banners, Lesson Cards) */
@@ -292,13 +386,13 @@ html[data-admin-ui="pro"] .ap-curriculum-main {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-toolbar-row {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 2px solid var(--ap-line);
   background: var(--ap-surface2);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
   box-sizing: border-box;
 }
@@ -313,15 +407,17 @@ html[data-admin-ui="pro"] .ap-curriculum-search-box {
 html[data-admin-ui="pro"] .ap-curriculum-search-box .ap-search-icon {
   position: absolute;
   left: 14px;
+  z-index: 1;
   color: var(--ap-muted);
   font-size: 14px;
   pointer-events: none;
 }
 
-html[data-admin-ui="pro"] .ap-curriculum-search-box input {
+html[data-admin-ui="pro"] .ap-curriculum-search-box input,
+html[data-admin-ui="pro"] .ap-curriculum-search-box #curriculum-lesson-search-input {
   width: 100%;
   min-height: 44px;
-  padding: 0 76px 0 38px;
+  padding: 0 76px 0 40px !important;
   border: 2px solid var(--ap-line);
   border-radius: var(--ap-radius);
   background: var(--ap-surface);
@@ -398,13 +494,13 @@ html[data-admin-ui="pro"] .ap-curriculum-sort-box select {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-active-banner {
-  padding: 12px 18px;
+  padding: 10px 16px;
   background: var(--ap-blue-soft);
   border-bottom: 2px solid var(--ap-line);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -412,7 +508,7 @@ html[data-admin-ui="pro"] .ap-curriculum-banner-info {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--ap-blue);
   font-weight: 700;
 }
@@ -431,13 +527,13 @@ html[data-admin-ui="pro"] .ap-curriculum-banner-actions button {
 }
 
 html[data-admin-ui="pro"] .ap-curriculum-result-bar {
-  padding: 12px 20px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   border-bottom: 1.5px dashed var(--ap-line);
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--ap-muted);
 }
 
@@ -469,28 +565,34 @@ html[data-admin-ui="pro"] .ap-curriculum-reset-btn:hover {
 
 /* 4. Danh sách thẻ bài học */
 html[data-admin-ui="pro"] .ap-curriculum-cards-list {
-  padding: 16px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
+html[data-admin-ui="pro"] .ap-curriculum-cards-list .ap-lesson-card,
 html[data-admin-ui="pro"] .ap-lesson-card {
-  padding: 18px 20px;
+  padding: 14px 16px !important;
+  margin-bottom: 0 !important;
   border: 2px solid var(--ap-line);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--ap-surface);
-  box-shadow: 0 4px 0 var(--ap-block);
+  box-shadow: 0 3px 0 var(--ap-block);
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   box-sizing: border-box;
 }
 
 html[data-admin-ui="pro"] .ap-lesson-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 0 var(--ap-block);
+  box-shadow: 0 5px 0 var(--ap-block);
   border-color: var(--ap-accent);
 }
 
@@ -499,15 +601,22 @@ html[data-admin-ui="pro"] .ap-lesson-card.active {
   background: var(--ap-surface2);
 }
 
+html[data-admin-ui="pro"] .ap-lesson-card-top {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
 html[data-admin-ui="pro"] .ap-lesson-card-lead {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 html[data-admin-ui="pro"] .ap-lesson-number {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: 2px solid var(--ap-ink);
   border-radius: 50%;
   display: inline-flex;
@@ -516,7 +625,7 @@ html[data-admin-ui="pro"] .ap-lesson-number {
   background: var(--ap-accent-soft);
   color: var(--ap-accent);
   font-family: var(--ap-font-heading);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -526,7 +635,7 @@ html[data-admin-ui="pro"] .ap-lesson-info {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 html[data-admin-ui="pro"] .ap-lesson-badges {
@@ -565,10 +674,10 @@ html[data-admin-ui="pro"] .ap-chip-internal {
 html[data-admin-ui="pro"] .ap-lesson-title {
   margin: 0;
   font-family: var(--ap-font-heading);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   color: var(--ap-ink);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 html[data-admin-ui="pro"] .ap-lesson-desc {
@@ -577,7 +686,7 @@ html[data-admin-ui="pro"] .ap-lesson-desc {
   color: var(--ap-muted);
   line-height: 1.4;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -625,17 +734,50 @@ html[data-admin-ui="pro"] .ap-lesson-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding-top: 10px;
-  border-top: 1.5px dashed var(--ap-line);
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 html[data-admin-ui="pro"] .ap-lesson-actions button {
-  min-height: 40px;
-  font-size: 13px;
-  padding: 0 14px;
+  min-height: 36px !important;
+  height: 36px;
+  font-size: 12.5px;
+  padding: 0 12px !important;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] .ap-lesson-actions .btn-open-lesson-hint {
+  border-color: var(--ap-accent) !important;
+  background: var(--ap-accent-soft) !important;
+  color: var(--ap-accent) !important;
+}
+
+html[data-admin-ui="pro"] .ap-lesson-actions .btn-open-lesson-hint:hover {
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+}
+
+@container (max-width: 700px) {
+  html[data-admin-ui="pro"] .ap-curriculum-cards-list .ap-lesson-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  html[data-admin-ui="pro"] .ap-lesson-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    padding-top: 10px;
+    border-top: 1.5px dashed var(--ap-line);
+  }
 }
 
 /* 5. Workspace chi tiết bài học (Lesson Workspace) */
@@ -676,6 +818,30 @@ html[data-admin-ui="pro"] .ap-lw-bc-back {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+html[data-admin-ui="pro"] .ap-lw-bc-back:hover {
+  text-decoration: underline;
+}
+
+html[data-admin-ui="pro"] .ap-lw-bc-chapter {
+  background: none;
+  border: none;
+  color: var(--ap-muted);
+  cursor: pointer;
+  font-family: var(--ap-font);
+  font-weight: 800;
+  font-size: 14px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s ease;
+}
+
+html[data-admin-ui="pro"] .ap-lw-bc-chapter:hover {
+  color: var(--ap-accent);
+  text-decoration: underline;
 }
 
 html[data-admin-ui="pro"] .ap-lw-bc-current {
@@ -794,13 +960,48 @@ html[data-admin-ui="pro"] .ap-video-card {
   background: var(--ap-surface2);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+html[data-admin-ui="pro"] .ap-video-player {
+  width: 100%;
+  flex: 0 0 auto;
+  border: 2px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  background: var(--ap-surface);
+  box-shadow: var(--ap-shadow);
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] .ap-video-unsupported {
+  padding: 12px 14px;
+  border: 1.5px dashed var(--ap-warn);
+  border-radius: var(--ap-radius-sm);
+  background: var(--ap-warn-soft);
+  color: var(--ap-warn);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.5;
 }
 
 html[data-admin-ui="pro"] .ap-video-meta {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+  box-sizing: border-box;
 }
 
 html[data-admin-ui="pro"] .ap-video-icon {
@@ -817,8 +1018,9 @@ html[data-admin-ui="pro"] .ap-video-icon {
 }
 
 html[data-admin-ui="pro"] .ap-video-info {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
+  overflow: hidden;
 }
 
 html[data-admin-ui="pro"] .ap-video-name {
@@ -829,10 +1031,11 @@ html[data-admin-ui="pro"] .ap-video-name {
 }
 
 html[data-admin-ui="pro"] .ap-video-url {
+  display: block;
+  max-width: 100%;
   font-family: monospace;
   font-size: 12.5px;
   color: var(--ap-accent);
-  overflow-wrap: anywhere;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -841,8 +1044,11 @@ html[data-admin-ui="pro"] .ap-video-url {
 html[data-admin-ui="pro"] .ap-video-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   flex-wrap: wrap;
+  width: 100%;
+  flex: 0 0 auto;
 }
 
 html[data-admin-ui="pro"] .ap-video-actions :is(button, a) {
@@ -853,6 +1059,43 @@ html[data-admin-ui="pro"] .ap-video-actions :is(button, a) {
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #meet-origin .lw-origin {
+  margin-top: 0;
+  padding: 10px 14px;
+  border: 1.5px solid var(--ap-ok);
+  border-radius: var(--ap-radius);
+  background: var(--ap-ok-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #meet-origin .lw-origin-label {
+  color: var(--ap-ok);
+  font-weight: 800;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-admin-ui="pro"] #meet-origin .lw-origin-link {
+  color: var(--ap-accent);
+  font-weight: 800;
+  font-size: 13px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-admin-ui="pro"] #meet-origin .lw-origin-link:hover {
+  text-decoration: underline;
 }
 
 /* Theory Docs Grid */
@@ -1026,6 +1269,93 @@ html[data-admin-ui="pro"] .ap-empty i {
   margin-bottom: 4px;
 }
 
+/* Mochi Meet / chưa gắn video */
+html[data-admin-ui="pro"] #meet-section .lw-empty {
+  padding: 28px 20px;
+  border: 2px dashed var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: var(--ap-surface2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+html[data-admin-ui="pro"] #meet-section .lw-empty-icon:not(.lw-empty-icon--sm) {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--ap-radius);
+  background: var(--ap-accent-soft);
+  color: var(--ap-accent);
+  border: 2px solid var(--ap-line);
+  box-shadow: var(--ap-shadow);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+html[data-admin-ui="pro"] #meet-section .lw-empty-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #meet-section .lw-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+html[data-admin-ui="pro"] #meet-section .lw-empty-actions .btn-secondary {
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+html[data-admin-ui="pro"] #meet-section .lw-btn-meet {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 2px solid var(--ap-ink) !important;
+  border-radius: var(--ap-radius) !important;
+  background: var(--ap-accent) !important;
+  color: var(--ap-accent-ink) !important;
+  box-shadow: var(--ap-shadow) !important;
+  font-family: var(--ap-font);
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-admin-ui="pro"] #meet-section .lw-btn-meet:hover {
+  background: var(--ap-accent2) !important;
+  filter: none;
+  transform: translateY(-1px);
+  box-shadow: var(--ap-shadow-raised) !important;
+}
+
+html[data-admin-ui="pro"] #meet-section .lw-btn-meet:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 html[data-admin-ui="pro"] .ap-curriculum-error {
   border-color: var(--ap-danger);
   background: var(--ap-danger-soft);
@@ -1053,6 +1383,8 @@ html[data-admin-ui="pro"] .ap-curriculum-error p {
   }
 
   html[data-admin-ui="pro"] .ap-curriculum-tree {
+    position: static;
+    max-height: none;
     border-radius: var(--ap-radius);
   }
 
@@ -1060,7 +1392,7 @@ html[data-admin-ui="pro"] .ap-curriculum-error p {
     flex-direction: row;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 10px;
+    padding: 8px 10px;
     gap: 8px;
   }
 
@@ -1068,6 +1400,10 @@ html[data-admin-ui="pro"] .ap-curriculum-error p {
     flex-direction: row;
     flex-shrink: 0;
     align-items: center;
+  }
+
+  html[data-admin-ui="pro"] .ap-curriculum-tree-item-actions {
+    display: none !important;
   }
 
   html[data-admin-ui="pro"] .ap-curriculum-tree-item {
@@ -1119,14 +1455,23 @@ html[data-admin-ui="pro"] .ap-curriculum-error p {
     justify-content: center;
   }
 
-  html[data-admin-ui="pro"] .ap-lesson-card-lead {
+  html[data-admin-ui="pro"] .ap-curriculum-cards-list .ap-lesson-card {
     flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  html[data-admin-ui="pro"] .ap-lesson-card-lead {
+    align-items: flex-start;
     gap: 10px;
   }
 
   html[data-admin-ui="pro"] .ap-lesson-actions {
+    width: 100%;
     flex-direction: column;
     align-items: stretch;
+    padding-top: 10px;
+    border-top: 1.5px dashed var(--ap-line);
   }
 
   html[data-admin-ui="pro"] .ap-lesson-actions button {
@@ -1149,6 +1494,16 @@ html[data-admin-ui="pro"] .ap-curriculum-error p {
   }
 
   html[data-admin-ui="pro"] .ap-video-actions :is(button, a) {
+    width: 100%;
+    justify-content: center;
+  }
+
+  html[data-admin-ui="pro"] #meet-section .lw-empty-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  html[data-admin-ui="pro"] #meet-section .lw-empty-actions :is(button, a) {
     width: 100%;
     justify-content: center;
   }

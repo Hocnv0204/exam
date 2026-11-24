@@ -525,7 +525,10 @@ html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .curriculum-chapt
   box-shadow: 0 0 0 2px var(--ap-line) !important;
 }
 html[data-admin-ui="pro"] .app-layout.admin-dark .content-body .skeleton-bar {
+  display: block;
   background: linear-gradient(90deg, var(--ap-surface2) 25%, var(--ap-line) 50%, var(--ap-surface2) 75%) !important;
+  background-size: 200% 100% !important;
+  animation: skeleton-shimmer 1.3s ease-in-out infinite;
 }
 html[data-admin-ui="pro"] .app-layout.admin-dark[data-route="admin-dashboard"] .content-body .card :is(input.form-input, select.form-input) {
   background: var(--ap-surface2) !important;

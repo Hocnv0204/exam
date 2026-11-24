@@ -42,7 +42,7 @@ const fixture = {
   ]
 }
 
-test('render dữ liệu mẫu có đúng tóm tắt, ba trạng thái, nhóm tháng và escape chuỗi API', () => {
+test('render dữ liệu mẫu có đúng tóm tắt, ba trạng thái, nhóm tháng và ẩn note/sĩ số/TB lớp', () => {
   const html = renderAttendanceData(fixture)
   assert.match(html, /Buổi lớp đã học[\s\S]*?<strong>3<\/strong>/)
   assert.match(html, /Có mặt[\s\S]*?<strong>1<\/strong>/)
@@ -54,14 +54,17 @@ test('render dữ liệu mẫu có đúng tóm tắt, ba trạng thái, nhóm th
   assert.match(html, /Tháng 11\/2026/)
   assert.match(html, /Tháng 10\/2026/)
   assert.match(html, /Toán &lt;12&gt;/)
-  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/)
-  assert.doesNotMatch(html, /<img src=x/)
+  assert.doesNotMatch(html, /onerror=alert/)
+  assert.doesNotMatch(html, /Chưa vào lớp/)
+  assert.doesNotMatch(html, /18\/22|19\/22|20\/22/)
+  assert.doesNotMatch(html, /Trung bình lớp/)
+  assert.doesNotMatch(html, /cao hơn|thấp hơn/)
 })
 
-test('rate null hiển thị dấu gạch và không đưa ra so sánh cao/thấp', () => {
+test('rate null hiển thị dấu gạch và thông báo chưa đủ dữ liệu', () => {
   const html = renderAttendanceData({ ...fixture, summary: { ...fixture.summary, attendanceRate: null, classAverageRate: null } })
-  assert.ok((html.match(/—/g) || []).length >= 2)
-  assert.match(html, /Chưa đủ dữ liệu để so sánh/)
+  assert.match(html, /Tỉ lệ tham gia <strong>—<\/strong>/)
+  assert.match(html, /Chưa đủ dữ liệu chuyên cần/)
   assert.doesNotMatch(html, /cao hơn|thấp hơn/)
 })
 
@@ -74,7 +77,7 @@ test('dữ liệu rỗng không lỗi và có hướng dẫn mở rộng ngày',
 
 test('view có hero Mochi và validation chặn ngày đảo hoặc quá 366 ngày', () => {
   assert.match(renderAttendanceView(), /m-student-page m-attendance-page/)
-  assert.match(renderAttendanceView(), /Theo dõi các buổi bạn đã học và đã nghỉ so với cả lớp/)
+  assert.match(renderAttendanceView(), /Theo dõi các buổi học của lớp và các buổi bạn đã tham gia/)
   assert.match(validateAttendanceRange('2026-11-08', '2026-11-07'), /Từ ngày/)
   assert.match(validateAttendanceRange('2025-01-01', '2026-01-02'), /366 ngày/)
   assert.equal(validateAttendanceRange('2026-01-01', '2027-01-01'), '')

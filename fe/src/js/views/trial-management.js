@@ -90,11 +90,87 @@ function chapterOptionsForClass() {
   return list
 }
 
+function renderKpiSkeletonsHtml(proUI) {
+  const cardClass = proUI ? 'card ap-card ap-kpi-card trial-kpi-skeleton' : 'card trial-kpi-skeleton'
+  return Array.from({ length: 4 }, () => `
+    <div class="${cardClass}" aria-hidden="true">
+      <div class="trial-skeleton-bar trial-kpi-skeleton-label"></div>
+      <div class="trial-skeleton-bar trial-kpi-skeleton-value"></div>
+    </div>
+  `).join('')
+}
+
+function renderLoadingCountHtml() {
+  return `<span class="trial-loading-inline"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Đang tải dữ liệu bài học thử...</span>`
+}
+
+function renderListLoadingHtml() {
+  const rows = [
+    { titleWidth: '72%', metaWidth: '48%' },
+    { titleWidth: '84%', metaWidth: '56%' },
+    { titleWidth: '64%', metaWidth: '44%' },
+    { titleWidth: '78%', metaWidth: '52%' },
+    { titleWidth: '68%', metaWidth: '46%' },
+    { titleWidth: '80%', metaWidth: '50%' },
+  ]
+  return `
+    <div class="trial-loading-state" role="status" aria-live="polite" aria-busy="true">
+      <div class="trial-loading-banner">
+        <div class="trial-loading-spinner" aria-hidden="true"></div>
+        <div>
+          <h3 class="trial-loading-title">Đang tải danh sách bài học...</h3>
+          <p class="trial-loading-desc">Đang đồng bộ danh sách video và trạng thái học thử...</p>
+        </div>
+      </div>
+      <div class="table-responsive" aria-hidden="true">
+        <table class="data-table trial-skeleton-table">
+          <thead>
+            <tr>
+              <th>Bài học</th>
+              <th>Video</th>
+              <th>Trạng thái</th>
+              <th>Tài liệu / Bài tập</th>
+              <th>Cập nhật</th>
+              <th style="text-align:center;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>
+                  <div class="trial-skeleton-cell-stack">
+                    <span class="trial-skeleton-bar" style="width:${row.titleWidth}; height:14px;"></span>
+                    <span class="trial-skeleton-bar" style="width:${row.metaWidth}; height:11px;"></span>
+                  </div>
+                </td>
+                <td><span class="trial-skeleton-pill" style="width:92px;"></span></td>
+                <td><span class="trial-skeleton-pill" style="width:110px;"></span></td>
+                <td><span class="trial-skeleton-bar" style="width:74px; height:13px;"></span></td>
+                <td><span class="trial-skeleton-bar" style="width:82px; height:12px;"></span></td>
+                <td>
+                  <div class="trial-skeleton-actions">
+                    <span class="trial-skeleton-pill" style="width:104px; height:28px;"></span>
+                    <span class="trial-skeleton-pill" style="width:112px; height:24px;"></span>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `
+}
+
 function renderKpis() {
   const el = document.getElementById('trial-kpis')
   if (!el) return
-  const kpis = currentKpis()
   const proUI = typeof isAdminProUI === 'function' && isAdminProUI()
+  if (viewState === 'loading') {
+    el.innerHTML = renderKpiSkeletonsHtml(proUI)
+    return
+  }
+  const kpis = currentKpis()
   const cards = [
     { label: 'Tổng số bài học', value: kpis.total, icon: 'fa-book-open', color: '#0369a1', bg: '#eff6ff', border: '#bfdbfe' },
     { label: 'Đang công khai', value: kpis.publicCount, icon: 'fa-earth-asia', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
@@ -171,19 +247,16 @@ function publicBadge(lesson) {
 function updateList() {
   const container = document.getElementById('trial-mgmt-list')
   if (!container) return
+  const countEl = document.getElementById('trial-count')
 
   if (viewState === 'loading') {
-    container.innerHTML = `
-      <div style="text-align:center; padding:60px 20px;">
-        <div style="display:inline-block; width:40px; height:40px; border:3px solid #e2e8f0; border-top-color:#16a34a; border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:14px;"></div>
-        <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0 0 6px 0;">Đang tải danh sách bài học...</h3>
-        <p style="color:#64748b; font-size:13px; margin:0;">Vui lòng đợi trong giây lát</p>
-      </div>
-    `
+    if (countEl) countEl.innerHTML = renderLoadingCountHtml()
+    container.innerHTML = renderListLoadingHtml()
     return
   }
 
   if (viewState === 'error') {
+    if (countEl) countEl.textContent = ''
     container.innerHTML = `
       <div style="text-align:center; padding:60px 20px;">
         <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#f59e0b; margin-bottom:14px;"></i>
@@ -198,7 +271,6 @@ function updateList() {
   }
 
   const filtered = filterTrialCatalog(allLessons, filters)
-  const countEl = document.getElementById('trial-count')
   if (countEl) countEl.textContent = `Hiển thị ${filtered.length} / ${allLessons.length} bài học`
 
   if (allLessons.length === 0) {
@@ -268,8 +340,8 @@ function updateList() {
                     <button type="button" class="btn-secondary trial-row-action" data-action="copy-video" data-lesson-id="${escapeHtml(lesson.id)}" ${lesson.videoUrl ? '' : 'disabled'} style="width:auto; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; border-radius:6px;" title="${lesson.videoUrl ? 'Sao chép link video bài giảng' : 'Chưa có video; thêm link trong Chương trình học'}">
                       <i class="fa-regular fa-copy"></i> Copy link video
                     </button>
-                    <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;font-weight:600;" title="${!isPublic && !hasSupportedVideo(lesson) ? 'Cần thêm video YouTube hoặc Google Drive hợp lệ trong Chương trình học trước khi bật' : 'Bật hoặc tắt học thử cho bài học này'}">
-                      <input type="checkbox" class="trial-lesson-toggle" data-lesson-id="${escapeHtml(lesson.id)}" ${isPublic ? 'checked' : ''} ${pendingLessons.has(lesson.id) || (!isPublic && !hasSupportedVideo(lesson)) ? 'disabled' : ''} aria-label="Cho phép học thử: ${escapeHtml(lesson.title)}" style="width:auto;cursor:pointer;"> Cho phép học thử
+                    <label class="trial-toggle-label${pendingLessons.has(lesson.id) ? ' is-pending' : ''}" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;font-weight:600;" title="${!isPublic && !hasSupportedVideo(lesson) ? 'Cần thêm video YouTube hoặc Google Drive hợp lệ trong Chương trình học trước khi bật' : 'Bật hoặc tắt học thử cho bài học này'}">
+                      <input type="checkbox" class="trial-lesson-toggle" data-lesson-id="${escapeHtml(lesson.id)}" ${isPublic ? 'checked' : ''} ${pendingLessons.has(lesson.id) || (!isPublic && !hasSupportedVideo(lesson)) ? 'disabled' : ''} aria-label="Cho phép học thử: ${escapeHtml(lesson.title)}" style="width:auto;cursor:pointer;"> Cho phép học thử${pendingLessons.has(lesson.id) ? ' <i class="fa-solid fa-circle-notch fa-spin trial-toggle-spinner" aria-hidden="true"></i>' : ''}
                     </label>
                   </div>
                 </td>
@@ -305,6 +377,7 @@ async function loadCatalog() {
   const gen = ++loadGen
   viewState = 'loading'
   loadErrorMessage = ''
+  renderKpis()
   updateList()
   try {
     const res = await api.getTrialCatalog()
@@ -529,6 +602,17 @@ async function publishFromToggle(lesson, checkbox) {
   }
   pendingLessons.add(lesson.id)
   checkbox.disabled = true
+  const label = typeof checkbox?.closest === 'function' ? checkbox.closest('label') : null
+  let toggleSpinner = null
+  if (label) {
+    label.classList?.add('is-pending')
+    if (typeof document?.createElement === 'function' && !label.querySelector?.('.trial-toggle-spinner')) {
+      toggleSpinner = document.createElement('i')
+      toggleSpinner.className = 'fa-solid fa-circle-notch fa-spin trial-toggle-spinner'
+      toggleSpinner.setAttribute('aria-hidden', 'true')
+      label.appendChild(toggleSpinner)
+    }
+  }
   const gen = loadGen
   try {
     await api.publishTrialLesson(lesson.id)
@@ -541,6 +625,10 @@ async function publishFromToggle(lesson, checkbox) {
   } finally {
     pendingLessons.delete(lesson.id)
     if (checkbox.isConnected) checkbox.disabled = false
+    if (label?.isConnected) {
+      label.classList?.remove('is-pending')
+      toggleSpinner?.remove()
+    }
   }
 }
 
@@ -574,7 +662,7 @@ export function renderClassicTrialManagementView() {
             </div>
           </div>
 
-          <div id="trial-kpis" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; margin-bottom:20px;"></div>
+          <div id="trial-kpis" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; margin-bottom:20px;">${renderKpiSkeletonsHtml(false)}</div>
 
           <div class="card" style="padding:16px 18px; margin-bottom:20px;">
             <div class="trial-filter-bar" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
@@ -612,13 +700,13 @@ export function renderClassicTrialManagementView() {
               </div>
               <button class="btn-secondary" id="btn-trial-reset-filters-top" style="width:auto; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer; border-radius:8px;">Xóa bộ lọc</button>
             </div>
-            <div id="trial-count" style="font-size:12px; color:#64748b; margin-top:12px;"></div>
+            <div id="trial-count" style="font-size:12px; color:#64748b; margin-top:12px;">${renderLoadingCountHtml()}</div>
           </div>
 
           <div id="trial-notice"></div>
 
           <div class="card" style="padding:0; overflow:hidden;">
-            <div id="trial-mgmt-list"></div>
+            <div id="trial-mgmt-list">${renderListLoadingHtml()}</div>
           </div>
         </div>
       </div>
@@ -641,7 +729,7 @@ export function renderProTrialManagementView() {
             </div>
           </section>
 
-          <section id="trial-kpis"></section>
+          <section id="trial-kpis">${renderKpiSkeletonsHtml(true)}</section>
 
           <section class="card ap-card" style="padding:20px; margin-bottom:20px;">
             <div class="trial-filter-bar" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
@@ -679,13 +767,13 @@ export function renderProTrialManagementView() {
               </div>
               <button type="button" class="btn-secondary" id="btn-trial-reset-filters-top" style="min-height:44px; padding:0 16px;">Xóa bộ lọc</button>
             </div>
-            <div id="trial-count" style="font-size:13px; font-weight:800; color:var(--ap-muted); margin-top:14px;"></div>
+            <div id="trial-count" style="font-size:13px; font-weight:800; color:var(--ap-muted); margin-top:14px;">${renderLoadingCountHtml()}</div>
           </section>
 
           <div id="trial-notice"></div>
 
           <section class="card ap-card ap-trial-table-card" style="padding:0; overflow:hidden;">
-            <div id="trial-mgmt-list"></div>
+            <div id="trial-mgmt-list">${renderListLoadingHtml()}</div>
           </section>
         </div>
       </div>

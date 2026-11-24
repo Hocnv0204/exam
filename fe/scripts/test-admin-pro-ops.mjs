@@ -344,6 +344,9 @@ test('(b) cờ bật → có các khối chính của bố cục mới; TẬP id
   assert.match(proTrial, /id="trial-notice"/, 'Khu vực thông báo')
   assert.match(proTrial, /id="trial-mgmt-list"/, 'Danh sách quản lý bài học thử')
   assert.match(proTrial, /class="card ap-card ap-trial-table-card"/, 'Thẻ bọc bảng bài học Pro')
+  assert.match(proTrial, /trial-kpi-skeleton/, 'KPI cards phải hiển thị skeleton khi đang tải')
+  assert.match(proTrial, /trial-loading-banner/, 'Danh sách phải hiển thị banner loading khi đang tải')
+  assert.match(proTrial, /trial-skeleton-table/, 'Danh sách phải hiển thị bảng skeleton khi đang tải')
 
   // Superset hook check
   assertSuperset(functionalHooks(proTrial), functionalHooks(classicTrial), 'TrialManagement Pro')
@@ -628,6 +631,8 @@ test('(f) mọi rule CSS mới có tiền tố html[data-admin-ui="pro"]', () =>
   assert.match(opsCss, /@media\s*\(max-width:\s*900px\)/, 'Phải có responsive breakpoint 900px')
   assert.match(opsCss, /@media\s*\(max-width:\s*640px\)/, 'Phải có responsive breakpoint 640px')
   assert.match(opsCss, /overflow-x:\s*auto/, 'Phải hỗ trợ cuộn ngang bảng overflow-x: auto')
+  assert.match(opsCss, /#trial-management\s+\.trial-loading-banner/, 'ops.css phải style banner loading cho trang học thử Pro')
+  assert.match(opsCss, /#trial-management\s+\.trial-skeleton-bar/, 'ops.css phải style skeleton shimmer cho trang học thử Pro')
 
   // Không được dùng giá trị màu cứng hex
   const hexPropertyValues = opsCss.match(/:\s*#[0-9a-fA-F]{3,8}/g) || []

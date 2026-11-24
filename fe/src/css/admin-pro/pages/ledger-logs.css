@@ -528,8 +528,85 @@ html[data-admin-ui="pro"] #activity-logs .ap-tl-note.ap-tl-error {
   color: var(--ap-danger);
 }
 
+html[data-admin-ui="pro"] #activity-logs .ap-tl-loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ap-accent);
+  font-weight: 800;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin: 12px 0 6px;
+  border-radius: var(--ap-radius-md);
+  border: 1.5px solid var(--ap-line);
+  background: var(--ap-surface2);
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-loading-spinner {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 3px solid var(--ap-line);
+  border-top-color: var(--ap-accent);
+  animation: spin 0.8s linear infinite;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-loading-title {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ap-ink);
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-loading-desc {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ap-muted);
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .ap-tl-skeleton-icon {
+  background: linear-gradient(90deg, var(--ap-surface2) 25%, var(--ap-line) 50%, var(--ap-surface2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .ap-tl-who,
+html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .ap-tl-what,
+html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .ap-tl-when {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .ap-tl-when {
+  align-items: flex-end;
+}
+
 html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .skeleton-bar {
-  min-height: 14px;
+  display: block;
+  min-height: 13px;
+  height: 13px;
+  border-radius: 999px;
+}
+
+html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .skeleton-bar--sub {
+  min-height: 10px;
+  height: 10px;
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-ui="pro"] #activity-logs .ap-tl-loading-spinner,
+  html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .ap-tl-skeleton-icon {
+    animation: none;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -621,5 +698,9 @@ html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .skeleton-bar {
 
   html[data-admin-ui="pro"] #activity-logs .ap-tl-when {
     text-align: left;
+  }
+
+  html[data-admin-ui="pro"] #activity-logs .ap-tl-skeleton .ap-tl-when {
+    align-items: flex-start;
   }
 }

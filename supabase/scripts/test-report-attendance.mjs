@@ -16,29 +16,35 @@ const RAW = {
   ],
 }
 
-test('chuẩn hoá summary + sessions, giữ thứ tự RPC (mới nhất trước)', () => {
+test('chuẩn hoá summary + sessions, giữ thứ tự RPC (mới nhất trước) và loại bỏ note/sĩ số/tỉ lệ lớp', () => {
   const r = toReportAttendance(RAW, false)
-  assert.deepEqual(r.summary, { classSessions: 3, countedSessions: 2, present: 1, absent: 1, notCounted: 1, attendanceRate: 50, classAverageRate: 83.3 })
+  assert.deepEqual(r.summary, { classSessions: 3, countedSessions: 2, present: 1, absent: 1, notCounted: 1, attendanceRate: 50 })
   assert.deepEqual(r.sessions.map(s => [s.date, s.status]), [['2026-11-15', 'ABSENT'], ['2026-11-08', 'PRESENT'], ['2026-11-01', 'NOT_COUNTED']])
   assert.equal(r.sessions[0].sessionId, 's3')
-  assert.equal(r.sessions[1].note, null, 'ghi chú rỗng -> null')
-  assert.equal(r.sessions[2].classRate, null)
+  assert.equal('classAverageRate' in r.summary, false)
+  for (const s of r.sessions) {
+    assert.equal('note' in s, false)
+    assert.equal('classPresent' in s, false)
+    assert.equal('classTotal' in s, false)
+    assert.equal('classRate' in s, false)
+  }
 })
 
 test('link công khai không trả sessionId', () => {
   const r = toReportAttendance(RAW, true)
   assert.ok(r.sessions.every(s => !('sessionId' in s)))
   assert.ok(!JSON.stringify(r).includes('c1'), 'không lộ classId')
+  assert.ok(!JSON.stringify(r).includes('Ôn chương 2'), 'không lộ note buổi học')
 })
 
 test('dữ liệu lạ/thiếu không làm vỡ', () => {
   assert.equal(toReportAttendance(null, false), null)
-  const r = toReportAttendance({ sessions: [{ date: '2026-11-02', status: 'WEIRD', classPresent: 'x' }, null, { status: 'PRESENT' }] }, false)
+  const r = toReportAttendance({ sessions: [{ date: '2026-11-02', status: 'WEIRD', classPresent: 'x', note: 'secret' }, null, { status: 'PRESENT' }] }, false)
   assert.equal(r.summary.classSessions, 0)
   assert.equal(r.summary.attendanceRate, null)
   assert.equal(r.sessions.length, 1)
   assert.equal(r.sessions[0].status, 'NOT_COUNTED')
-  assert.equal(r.sessions[0].classPresent, 0)
+  assert.deepEqual(r.sessions[0], { date: '2026-11-02', status: 'NOT_COUNTED' })
 })
 
 test('không có lớp -> null, không gọi RPC', async () => {

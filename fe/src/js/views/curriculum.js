@@ -98,26 +98,6 @@ function bindCopyVideoLinkButtons(root) {
   })
 }
 
-function bindPreviewVideoButtons(root) {
-  root.querySelectorAll('.btn-preview-video').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const url = btn.getAttribute('data-url') || ''
-      const embedUrl = getSafeEmbedUrl(url)
-      if (!embedUrl) {
-        showToast('Link video không thuộc YouTube hoặc Google Drive được hỗ trợ.', 'error')
-        return
-      }
-      openModal('Xem trước video bài giảng', `
-        <div class="lw-video-preview">
-          <iframe src="${embedUrl}" title="Video bài giảng" allowfullscreen allow="autoplay; encrypted-media; fullscreen" referrerpolicy="no-referrer"></iframe>
-        </div>
-      `)
-      const content = document.querySelector('#modal-container .modal-content')
-      if (content) content.style.maxWidth = '900px'
-    })
-  })
-}
-
 function getVideoPlatformInfo(url) {
   if (!url) return null
   if (url.includes('drive.google.com')) {
@@ -719,16 +699,17 @@ function renderLessonFirstView(currentClass, chapters, lessonResult) {
 
 // Level 2: Chi tiết bài học đã chọn (Lesson Workspace)
 function renderLessonDetail(selectedChapter, selectedLesson) {
+  const breadcrumbChapterId = selectedChapter?.id || selectedLesson?.chapterId || ''
   return `
     <div class="lw-topbar">
       <nav class="curriculum-breadcrumb" style="margin-bottom:0;">
-        <a href="javascript:void(0)" class="curriculum-bc-link btn-back-to-curriculum">
+        <a href="javascript:void(0)" class="curriculum-bc-link btn-bc-all-lessons">
           <i class="fa-solid fa-book-open"></i> Danh sách bài học
         </a>
         <i class="fa-solid fa-chevron-right curriculum-bc-sep"></i>
-        <span style="color:#64748b; font-weight:600;">
+        <a href="javascript:void(0)" class="curriculum-bc-link btn-bc-chapter" data-chapter-id="${escapeHtml(breadcrumbChapterId)}">
           <i class="fa-solid fa-folder"></i> ${escapeHtml(selectedChapter?.title || 'Chương')}
-        </span>
+        </a>
         <i class="fa-solid fa-chevron-right curriculum-bc-sep"></i>
         <span class="curriculum-bc-current">
           Bài ${escapeHtml(selectedLesson?.code || '')}: ${escapeHtml(selectedLesson?.title || '')}
@@ -739,6 +720,25 @@ function renderLessonDetail(selectedChapter, selectedLesson) {
       </button>
     </div>
     ${renderLessonWorkspace(selectedChapter, selectedLesson)}
+  `
+}
+
+/** Khung phát video nhúng an toàn (chỉ nhận URL từ getSafeEmbedUrl). */
+function renderInlineVideoPlayer(lesson, { playerClass = 'lw-video-preview', unsupportedClass = 'lw-video-unsupported', playerStyle = '' } = {}) {
+  const safeEmbedUrl = lesson?.videoUrl ? getSafeEmbedUrl(lesson.videoUrl) : null
+  if (safeEmbedUrl) {
+    const styleAttr = playerStyle ? ` style="${playerStyle}"` : ''
+    return `
+      <div class="${playerClass}"${styleAttr}>
+        <iframe src="${escapeHtml(safeEmbedUrl)}" title="Video bài giảng: ${escapeHtml(lesson.title || '')}" loading="lazy" allowfullscreen allow="autoplay; encrypted-media; fullscreen" referrerpolicy="no-referrer"></iframe>
+      </div>
+    `
+  }
+  return `
+    <div class="${unsupportedClass}"${playerStyle ? ` style="${playerStyle}"` : ''}>
+      <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+      <span>Link video không hỗ trợ phát trực tiếp (chỉ hỗ trợ YouTube và Google Drive). Hãy bấm "Mở tab mới" để xem.</span>
+    </div>
   `
 }
 
@@ -798,6 +798,7 @@ function renderLessonWorkspace(ch, l) {
         </h3>
       </div>
       ${l.videoUrl ? `
+        ${renderInlineVideoPlayer(l, { playerClass: 'lw-video-preview', unsupportedClass: 'lw-video-unsupported', playerStyle: 'margin-bottom:12px;' })}
         <div class="lw-video-card">
           <div class="lw-video-meta">
             <div class="lw-video-icon" style="color:${platform.color};">
@@ -811,13 +812,10 @@ function renderLessonWorkspace(ch, l) {
             </div>
           </div>
           <div class="lw-actions">
-             <button class="btn-primary lw-btn lw-btn-md btn-preview-video" data-url="${escapeHtml(l.videoUrl)}">
-               <i class="fa-solid fa-play"></i> Xem trước
-             </button>
              <button class="btn-secondary lw-btn lw-btn-md btn-copy-video-link" data-url="${escapeHtml(l.videoUrl)}" title="Copy link video">
                <i class="fa-regular fa-copy"></i> Copy link
              </button>
-             <a href="${l.videoUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary lw-btn lw-btn-md">
+             <a href="${escapeHtml(l.videoUrl)}" target="_blank" rel="noopener noreferrer" class="btn-secondary lw-btn lw-btn-md">
                <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở tab mới
              </a>
             <button class="btn-secondary lw-btn lw-btn-md btn-video-url" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" title="Chỉnh sửa liên kết">
@@ -946,17 +944,18 @@ function renderLessonWorkspace(ch, l) {
 }
 
 export function renderProLessonDetail(selectedChapter, selectedLesson) {
+  const breadcrumbChapterId = selectedChapter?.id || selectedLesson?.chapterId || ''
   return `
     <div class="ap-lw-topbar">
       <div class="ap-lw-breadcrumb-row">
         <nav class="curriculum-breadcrumb ap-lw-breadcrumb" aria-label="Đường dẫn bài học">
-          <button type="button" class="curriculum-bc-link btn-back-to-curriculum ap-lw-bc-back" aria-label="Quay lại danh sách bài học">
+          <button type="button" class="curriculum-bc-link btn-bc-all-lessons ap-lw-bc-back" aria-label="Xem toàn bộ danh sách bài học">
             <i class="fa-solid fa-book-open" aria-hidden="true"></i> Danh sách bài học
           </button>
           <i class="fa-solid fa-chevron-right curriculum-bc-sep" aria-hidden="true"></i>
-          <span class="ap-lw-bc-chapter">
+          <button type="button" class="curriculum-bc-link btn-bc-chapter ap-lw-bc-chapter" data-chapter-id="${escapeHtml(breadcrumbChapterId)}" aria-label="Xem danh sách bài học chương ${escapeHtml(selectedChapter?.title || 'Chương')}">
             <i class="fa-solid fa-folder" aria-hidden="true"></i> ${escapeHtml(selectedChapter?.title || 'Chương')}
-          </span>
+          </button>
           <i class="fa-solid fa-chevron-right curriculum-bc-sep" aria-hidden="true"></i>
           <span class="curriculum-bc-current ap-lw-bc-current">
             Bài ${escapeHtml(selectedLesson?.code || '')}: ${escapeHtml(selectedLesson?.title || '')}
@@ -1033,6 +1032,7 @@ export function renderProLessonWorkspace(ch, l) {
             </div>
             ${l.videoUrl ? `
               <div class="lw-video-card ap-video-card">
+                ${renderInlineVideoPlayer(l, { playerClass: 'lw-video-preview ap-video-player', unsupportedClass: 'ap-video-unsupported' })}
                 <div class="lw-video-meta ap-video-meta">
                   <div class="lw-video-icon ap-video-icon" style="color:${platform.color};">
                     <i class="${platform.icon}" aria-hidden="true"></i>
@@ -1045,13 +1045,10 @@ export function renderProLessonWorkspace(ch, l) {
                   </div>
                 </div>
                 <div class="lw-actions ap-video-actions">
-                  <button type="button" class="btn-primary lw-btn lw-btn-md btn-preview-video" data-url="${escapeHtml(l.videoUrl)}" aria-label="Xem trước video bài giảng">
-                    <i class="fa-solid fa-play" aria-hidden="true"></i> Xem trước
-                  </button>
                   <button type="button" class="btn-secondary lw-btn lw-btn-md btn-copy-video-link" data-url="${escapeHtml(l.videoUrl)}" title="Copy link video" aria-label="Copy link video">
                     <i class="fa-regular fa-copy" aria-hidden="true"></i> Copy link
                   </button>
-                  <a href="${l.videoUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary lw-btn lw-btn-md" title="Mở video trong tab mới" aria-label="Mở tab mới">
+                  <a href="${escapeHtml(l.videoUrl)}" target="_blank" rel="noopener noreferrer" class="btn-secondary lw-btn lw-btn-md" title="Mở video trong tab mới" aria-label="Mở tab mới">
                     <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Mở tab mới
                   </a>
                   <button type="button" class="btn-secondary lw-btn lw-btn-md btn-video-url" data-chapter-id="${ch?.id}" data-lesson-id="${l.id}" title="Chỉnh sửa liên kết video" aria-label="Đổi link video">
@@ -1205,6 +1202,14 @@ export function renderProLessonFirstView(currentClass, chapters, lessonResult) {
   if (curriculumCurrentPage < 1) curriculumCurrentPage = 1
 
   const startIndex = (curriculumCurrentPage - 1) * CURRICULUM_PAGE_SIZE
+  const summary = cachedClassCurriculumSummaries[activeClassId]
+  const allLessonsTotal = typeof summary?.totalLessons === 'number' ? summary.totalLessons : totalItems
+  const chapterCountMap = (summary && Array.isArray(summary.results) && summary.results.length === summary.totalLessons)
+    ? summary.results.reduce((map, item) => {
+        if (item?.chapterId) map.set(item.chapterId, (map.get(item.chapterId) || 0) + 1)
+        return map
+      }, new Map())
+    : null
 
   const activeFilteredChapter = selectedChapterFilter !== 'all'
     ? chapters.find(c => c.id === selectedChapterFilter)
@@ -1217,12 +1222,24 @@ export function renderProLessonFirstView(currentClass, chapters, lessonResult) {
         <header class="ap-curriculum-tree-head">
           <div>
             <h3 class="ap-curriculum-tree-title">Cây chương trình</h3>
-            <span class="ap-curriculum-tree-subtitle">${chapters.length} chương · ${totalItems} bài</span>
+            <span class="ap-curriculum-tree-subtitle">${chapters.length} chương · ${allLessonsTotal} bài</span>
           </div>
           <button type="button" class="ap-curriculum-tree-add-btn" id="add-chapter-btn-tree" aria-label="Tạo chương mới" title="Tạo chương mới">
             <i class="fa-solid fa-plus" aria-hidden="true"></i>
           </button>
         </header>
+
+        <div class="ap-curriculum-tree-search">
+          <i class="fa-solid fa-magnifying-glass ap-tree-search-icon" aria-hidden="true"></i>
+          <input
+            type="search"
+            id="curriculum-chapter-search-input"
+            class="ap-tree-search-input"
+            placeholder="Lọc nhanh chương..."
+            autocomplete="off"
+            aria-label="Lọc nhanh chương học"
+          />
+        </div>
 
         <div class="ap-curriculum-tree-list" role="list">
           <!-- Item: Tất cả bài học -->
@@ -1230,21 +1247,27 @@ export function renderProLessonFirstView(currentClass, chapters, lessonResult) {
             <button type="button" class="ap-curriculum-tree-item curriculum-tree-btn ${selectedChapterFilter === 'all' ? 'active' : ''}" data-chapter-id="all" aria-pressed="${selectedChapterFilter === 'all' ? 'true' : 'false'}" aria-label="Xem tất cả bài học">
               <span class="ap-curriculum-tree-badge">ALL</span>
               <span class="ap-curriculum-tree-item-title">Tất cả bài học</span>
-              <span class="ap-curriculum-tree-count">${lessonResult.total || 0} bài</span>
+              <span class="ap-curriculum-tree-count">${allLessonsTotal} bài</span>
             </button>
           </div>
 
           <!-- Danh sách chương -->
           ${chapters.map((ch, idx) => {
             const isSelected = selectedChapterFilter === ch.id
-            const lessonCount = (ch.lessons && Array.isArray(ch.lessons)) ? ch.lessons.length : (ch.lessonCount || 0)
+            const lessonCount = (Array.isArray(ch.lessons) && ch.lessons.length > 0)
+              ? ch.lessons.length
+              : (typeof ch.lessonCount === 'number'
+                  ? ch.lessonCount
+                  : (chapterCountMap
+                      ? (chapterCountMap.get(ch.id) || 0)
+                      : (isSelected && !currentSearchQuery ? totalItems : null)))
             const chapterCode = `C${idx + 1}`
             return `
-              <div class="ap-curriculum-tree-item-wrapper ${isSelected ? 'active' : ''}">
+              <div class="ap-curriculum-tree-item-wrapper ${isSelected ? 'active' : ''}" data-chapter-search="${escapeHtml(normalizeSearchText(`${chapterCode} ${ch.title}`))}">
                 <button type="button" class="ap-curriculum-tree-item curriculum-tree-btn ${isSelected ? 'active' : ''}" data-chapter-id="${ch.id}" aria-pressed="${isSelected ? 'true' : 'false'}" aria-label="Lọc theo chương ${escapeHtml(ch.title)}">
                   <span class="ap-curriculum-tree-badge">${chapterCode}</span>
                   <span class="ap-curriculum-tree-item-title" title="${escapeHtml(ch.title)}">${escapeHtml(ch.title)}</span>
-                  <span class="ap-curriculum-tree-count">${lessonCount} bài</span>
+                  ${lessonCount !== null ? `<span class="ap-curriculum-tree-count">${lessonCount} bài</span>` : ''}
                 </button>
                 <span class="chapter-weak-badge" data-weak-chapter="${ch.id}" style="display:none;" title="Tỉ lệ sai của lớp ở chương này"></span>
                 <div class="ap-curriculum-tree-item-actions">
@@ -1261,6 +1284,7 @@ export function renderProLessonFirstView(currentClass, chapters, lessonResult) {
               </div>
             `
           }).join('')}
+          <div id="curriculum-tree-no-match" class="ap-curriculum-tree-no-match" style="display:none;">Không tìm thấy chương phù hợp</div>
         </div>
       </aside>
 
@@ -1492,7 +1516,6 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
   }
 
   bindCopyVideoLinkButtons(document)
-  bindPreviewVideoButtons(document)
 
   // Nút Thử lại khi có lỗi tải dữ liệu
   document.getElementById('btn-retry-curriculum')?.addEventListener('click', () => {
@@ -1605,33 +1628,12 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
           </label>
           <input type="text" id="modal-quick-lesson-title" class="form-input" placeholder="Ví dụ: Ôn tập đại số cơ bản" required>
         </div>
-        <div>
-          <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px; color:#475569;">
-            Mô tả tóm tắt (tùy chọn)
-          </label>
-          <textarea id="modal-quick-lesson-content" class="form-input" rows="2" placeholder="Tóm tắt ngắn gọn nội dung hoặc mục tiêu bài học..."></textarea>
-        </div>
-        <div>
-          <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px; color:#475569;">
-            Link Video bài giảng (tùy chọn)
-          </label>
-          <input type="text" id="modal-quick-lesson-video" class="form-input" placeholder="Dán link YouTube hoặc Google Drive video">
-        </div>
-        <div>
-          <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#1e293b; cursor:pointer;">
-            <input type="checkbox" id="modal-quick-lesson-trial" style="width:16px; height:16px; accent-color:#16a34a; cursor:pointer;">
-            <span><i class="fa-solid fa-sparkles" style="color:#16a34a;"></i> Cho phép học thử (Công khai cho khách)</span>
-          </label>
-        </div>
       </div>
     `
 
     openModal('Tạo Bài Học Nhanh', modalHTML, async () => {
       const chapterId = document.getElementById('modal-quick-chapter-id')?.value
       const title = document.getElementById('modal-quick-lesson-title')?.value.trim()
-      const content = document.getElementById('modal-quick-lesson-content')?.value.trim() || null
-      const videoUrl = document.getElementById('modal-quick-lesson-video')?.value.trim() || null
-      const isTrial = document.getElementById('modal-quick-lesson-trial')?.checked || false
 
       if (!title) {
         showToast('Vui lòng nhập tên bài học!', 'error')
@@ -1655,10 +1657,10 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
           chapterId,
           title,
           orderIndex,
-          content,
-          videoUrl,
+          content: null,
+          videoUrl: null,
           theoryFiles: [],
-          isTrial
+          isTrial: false
         })
 
         if (!targetChapter.lessons) targetChapter.lessons = []
@@ -1666,10 +1668,10 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
           id: createdLesson.id,
           code: `${orderIndex}`,
           title: createdLesson.title,
-          content: createdLesson.content || content || '',
-          videoUrl: createdLesson.video_url || videoUrl || '',
+          content: createdLesson.content || '',
+          videoUrl: createdLesson.video_url || '',
           theoryFiles: createdLesson.theory_files || [],
-          isTrial: createdLesson.is_trial ?? isTrial,
+          isTrial: createdLesson.is_trial ?? false,
           createdAt: createdLesson.created_at || new Date().toISOString(),
           homeworks: [],
           refCount: 0
@@ -2269,18 +2271,18 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
           <i class="fa-solid fa-film lw-empty-icon"></i>
           <span class="lw-empty-text">Chưa gắn video bài giảng cho bài học này.</span>
           <div class="lw-empty-actions">
-            <button class="btn-secondary lw-btn lw-btn-sm btn-video-url" data-chapter-id="${chIdForMeet || ''}" data-lesson-id="${lessonId}">
-              <i class="fa-solid fa-plus"></i> Thêm link video
+            <button type="button" class="btn-secondary lw-btn lw-btn-sm btn-video-url" data-chapter-id="${chIdForMeet || ''}" data-lesson-id="${lessonId}">
+              <i class="fa-solid fa-plus" aria-hidden="true"></i> Thêm link video
             </button>
-            <button id="btn-create-meet" class="lw-btn lw-btn-md lw-btn-meet">
-              <i class="fa-solid fa-video"></i> 📹 Tạo buổi học Google Meet
+            <button type="button" id="btn-create-meet" class="lw-btn lw-btn-md lw-btn-meet">
+              <i class="fa-solid fa-video" aria-hidden="true"></i> Tạo buổi học Google Meet
             </button>
           </div>
         </div>`
       meetBox.querySelector('#btn-create-meet')?.addEventListener('click', async (e) => {
         const btnEl = e.currentTarget
         btnEl.disabled = true
-        btnEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang tạo link Meet...'
+        btnEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Đang tạo link Meet...'
         try {
           showToast('Đang tạo buổi học Google Meet...', 'info')
           const res = await api.createMeetSession(lessonId, lessonTitle)
@@ -2292,7 +2294,7 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         } catch (err) {
           showToast(`Tạo buổi học thất bại: ${err.message}`, 'error')
           btnEl.disabled = false
-          btnEl.innerHTML = '<i class="fa-solid fa-video"></i> 📹 Tạo buổi học Google Meet'
+          btnEl.innerHTML = '<i class="fa-solid fa-video" aria-hidden="true"></i> Tạo buổi học Google Meet'
         }
       })
       // Nút "Thêm link video" được render động nên bind trực tiếp
@@ -2509,6 +2511,24 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
     }
   })
 
+  // Lọc nhanh chương ngay trên cây chương trình (hỗ trợ tìm tiếng Việt không dấu)
+  const chapterSearchInput = document.getElementById('curriculum-chapter-search-input')
+  chapterSearchInput?.addEventListener('input', (e) => {
+    const q = normalizeSearchText(e.target.value || '')
+    const wrappers = document.querySelectorAll('.ap-curriculum-tree-item-wrapper[data-chapter-search]')
+    let visibleCount = 0
+    wrappers.forEach(w => {
+      const hay = w.getAttribute('data-chapter-search') || ''
+      const matched = !q || hay.includes(q)
+      w.style.display = matched ? '' : 'none'
+      if (matched) visibleCount++
+    })
+    const noMatchEl = document.getElementById('curriculum-tree-no-match')
+    if (noMatchEl) {
+      noMatchEl.style.display = (q && visibleCount === 0) ? 'block' : 'none'
+    }
+  })
+
   // Reset Filters Handlers
   const handleResetFilters = async () => {
     selectedChapterFilter = 'all'
@@ -2613,6 +2633,34 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
         }
 
       refreshUI()
+    })
+  })
+
+  // Breadcrumb navigation: click Danh sách bài học (tất cả) hoặc click Chương (lọc theo chương)
+  const navigateBackToLessons = async (chapterFilter = 'all') => {
+    selectedLessonId = null
+    selectedChapterId = chapterFilter !== 'all' ? chapterFilter : null
+    selectedChapterFilter = chapterFilter || 'all'
+    currentSearchQuery = ''
+    curriculumCurrentPage = 1
+    searchCtrl.abort()
+    isLoadingCurriculum = true
+    refreshUI()
+    await fetchLessonsAndRefresh()
+  }
+
+  document.querySelectorAll('.btn-bc-all-lessons').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault()
+      await navigateBackToLessons('all')
+    })
+  })
+
+  document.querySelectorAll('.btn-bc-chapter').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault()
+      const targetChapterId = btn.getAttribute('data-chapter-id') || ''
+      await navigateBackToLessons(targetChapterId || 'all')
     })
   })
 

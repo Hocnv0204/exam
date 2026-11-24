@@ -63,18 +63,67 @@ test('10 lượt nộp mới nhất kể cả quá 12 tháng, không bỏ bài c
   assert.deepEqual(recentScores(null), [])
 })
 
-test('chỉ nhắc học phí khi backend xác nhận số dư là 0, không nhầm null/missing thành 0', () => {
+test('chỉ nhắc học phí bằng popup sau đăng nhập với nút Đóng khi số dư là 0 (không hiện label)', async () => {
   assert.equal(studentBalanceIsZero(0), true)
   assert.equal(studentBalanceIsZero('0.00'), true)
   for (const value of [undefined, null, '', '   ', 'invalid', -1, 100000]) assert.equal(studentBalanceIsZero(value), false)
-  const backend = read('../../supabase/functions/create-homework/index.ts')
-  assert.match(backend, /\.select\('balance'\)\.eq\('id', user\.id\)\.eq\('role', 'STUDENT'\)\.single\(\)/)
-  assert.match(backend, /accountBalance,/)
+
+  const loginBackend = read('../../supabase/functions/login/index.ts')
+  assert.match(loginBackend, /accountBalance:\s*profile\.role === 'STUDENT'/)
+  const hwBackend = read('../../supabase/functions/create-homework/index.ts')
+  assert.match(hwBackend, /\.select\('balance'\)\.eq\('id', user\.id\)\.eq\('role', 'STUDENT'\)\.single\(\)/)
+  assert.match(hwBackend, /accountBalance,/)
+
+  const loginView = read('../src/js/views/login.js')
+  assert.match(loginView, /markStudentTuitionPopupPending/)
+  const appSrc = read('../src/js/app.js')
+  assert.match(appSrc, /maybeShowStudentTuitionPopup\(/)
   const view = read('../src/js/views/my-classes.js')
-  assert.match(view, /studentBalanceIsZero\(response\.accountBalance\)/)
-  assert.match(view, /Bạn đã đến hạn đóng học phí\. Vui lòng liên hệ giáo viên để đóng học phí\./)
+  const mochiHome = read('../src/js/views/mochi/student-home.js')
+  assert.doesNotMatch(view, /student-tuition-notice|student-tuition-alert/)
+  assert.doesNotMatch(mochiHome, /student-tuition-notice|student-tuition-alert/)
+  assert.match(view, /maybeShowStudentTuitionPopup/)
   assert.match(view, /api\.getStudentHistory\(\{ page: 1, pageSize: 10 \}\)/)
   assert.doesNotMatch(view, /api\.getStudentProgressReport\(/)
   assert.match(view, /student-score-title">\$\{escapeHtml\(item\.title\)\}/)
   assert.match(view, /\$\{!isDashboard \? `<!-- Classes Cards Grid -->/)
+
+  // Giả lập môi trường browser tối thiểu cho module component modal
+  const store = new Map()
+  globalThis.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) }
+  globalThis.sessionStorage = { getItem: k => store.get(`ss:${k}`) ?? null, setItem: (k, v) => store.set(`ss:${k}`, String(v)), removeItem: k => store.delete(`ss:${k}`) }
+  globalThis.window = { location: { hash: '#student-dashboard', search: '' } }
+  globalThis.document = { documentElement: { dataset: { ui: 'mochi' } } }
+
+  const {
+    markStudentTuitionPopupPending,
+    clearStudentTuitionPopupPending,
+    maybeShowStudentTuitionPopup
+  } = await import('../src/js/components/student-tuition-modal.js')
+
+  const opened = []
+  const fakeOpenModal = (title, bodyHTML, onConfirm, options) => opened.push({ title, bodyHTML, onConfirm, options })
+
+  clearStudentTuitionPopupPending()
+  assert.equal(maybeShowStudentTuitionPopup({ userId: 'u1', role: 'STUDENT', accountBalance: 0, route: 'student-dashboard', openModalFn: fakeOpenModal }), false, 'không hiện khi chưa đăng nhập mới')
+
+  markStudentTuitionPopupPending('u1')
+  assert.equal(maybeShowStudentTuitionPopup({ userId: 'u1', role: 'STUDENT', accountBalance: 0, route: 'exam-room', openModalFn: fakeOpenModal }), false, 'không làm phiền trong phòng thi')
+  assert.equal(maybeShowStudentTuitionPopup({ userId: 'u1', role: 'STUDENT', accountBalance: undefined, route: 'student-dashboard', openModalFn: fakeOpenModal }), false, 'chưa có accountBalance thì giữ pending để bước tiếp kiểm tra')
+
+  assert.equal(maybeShowStudentTuitionPopup({ userId: 'u1', role: 'STUDENT', accountBalance: 0, route: 'student-dashboard', openModalFn: fakeOpenModal }), true, 'hiện popup khi số dư là 0 sau đăng nhập')
+  assert.equal(opened.length, 1)
+  assert.equal(opened[0].title, 'Thông báo đóng học phí')
+  assert.match(opened[0].bodyHTML, /m-mascot/)
+  assert.doesNotMatch(opened[0].bodyHTML, /fa-circle-exclamation/)
+  assert.match(opened[0].bodyHTML, /Bạn đã đến hạn đóng học phí\. Vui lòng liên hệ giáo viên để đóng học phí\./)
+  assert.equal(opened[0].onConfirm, null)
+  assert.equal(opened[0].options.cancelLabel, 'Đóng')
+  assert.equal(opened[0].options.showCancel, true)
+
+  assert.equal(maybeShowStudentTuitionPopup({ userId: 'u1', role: 'STUDENT', accountBalance: 0, route: 'student-dashboard', openModalFn: fakeOpenModal }), false, 'chỉ hiện 1 lần sau mỗi lần đăng nhập')
+
+  markStudentTuitionPopupPending('u2')
+  assert.equal(maybeShowStudentTuitionPopup({ userId: 'u2', role: 'STUDENT', accountBalance: 100000, route: 'student-dashboard', openModalFn: fakeOpenModal }), false, 'số dư > 0 không hiện popup')
+  assert.equal(maybeShowStudentTuitionPopup({ userId: 'u2', role: 'STUDENT', accountBalance: 0, route: 'student-dashboard', openModalFn: fakeOpenModal }), false, 'đã xóa pending sau khi xác nhận số dư > 0')
 })

@@ -125,9 +125,7 @@ export function renderActivityLogsView() {
                   </tr>
                 </thead>
                 <tbody id="activity-logs-tbody">
-                  <tr><td colspan="5" style="text-align:center; padding:32px; color:#64748b;">
-                    <i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải nhật ký...
-                  </td></tr>
+                  ${skeletonRows(5, 6)}
                 </tbody>
               </table>
             </div>
@@ -138,6 +136,10 @@ export function renderActivityLogsView() {
       </div>
     </div>
   `
+}
+
+function loadingCountHtml() {
+  return `<span class="ap-tl-loading-inline"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Đang đồng bộ...</span>`
 }
 
 function renderProLogsShell() {
@@ -191,11 +193,9 @@ function renderProLogsShell() {
           <section class="ap-timeline-card">
             <div class="ap-tl-head">
               <h2 class="ap-tl-title"><span class="ap-icon-pill ap-tone-accent" aria-hidden="true"><i class="fa-solid fa-clipboard-list"></i></span> Dòng thời gian</h2>
-              <span id="ap-tl-count" class="ap-tl-count"></span>
+              <span id="ap-tl-count" class="ap-tl-count">${loadingCountHtml()}</span>
             </div>
-            <ol id="activity-logs-tbody" class="ap-tl">
-              <li class="ap-tl-note"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Đang tải nhật ký...</li>
-            </ol>
+            <ol id="activity-logs-tbody" class="ap-tl">${skeletonRows(5, 6)}</ol>
             <div id="activity-pagination-wrapper"></div>
           </section>
         </div>
@@ -205,23 +205,67 @@ function renderProLogsShell() {
 }
 
 function skeletonRows(cols = 5, n = 6) {
+  const presets = [
+    { who: '68%', whoSub: '46%', what: '52%', whatSub: '78%', when: '116px', whenSub: '72px', cols: ['76%', '68%', '56%', '84%', '48%'] },
+    { who: '58%', whoSub: '40%', what: '64%', whatSub: '62%', when: '108px', whenSub: '64px', cols: ['70%', '74%', '62%', '72%', '54%'] },
+    { who: '74%', whoSub: '52%', what: '46%', whatSub: '86%', when: '122px', whenSub: '76px', cols: ['82%', '62%', '50%', '88%', '44%'] },
+  ]
   if (proUI) {
-    return Array.from({ length: n }).map(() => `
-      <li class="ap-tl-item ap-tl-skeleton">
-        <span class="ap-tl-icon"></span>
-        <span class="ap-tl-who"><span class="skeleton-bar" style="width:70%;"></span></span>
-        <span class="ap-tl-what"><span class="skeleton-bar"></span></span>
-        <span class="ap-tl-when"><span class="skeleton-bar"></span></span>
+    const banner = `
+      <li class="ap-tl-loading-banner" role="status" aria-live="polite" aria-busy="true">
+        <div class="ap-tl-loading-spinner" aria-hidden="true"></div>
+        <div>
+          <p class="ap-tl-loading-title">Đang tải nhật ký hoạt động...</p>
+          <p class="ap-tl-loading-desc">Đang truy vấn lịch sử đăng nhập, xem bài và làm bài...</p>
+        </div>
       </li>
-    `).join('')
+    `
+    const items = Array.from({ length: n }).map((_, idx) => {
+      const p = presets[idx % presets.length]
+      return `
+        <li class="ap-tl-item ap-tl-skeleton" aria-hidden="true">
+          <span class="ap-tl-icon ap-tl-skeleton-icon"></span>
+          <span class="ap-tl-who">
+            <span class="skeleton-bar" style="width:${p.who};"></span>
+            <span class="skeleton-bar skeleton-bar--sub" style="width:${p.whoSub};"></span>
+          </span>
+          <span class="ap-tl-what">
+            <span class="skeleton-bar" style="width:${p.what};"></span>
+            <span class="skeleton-bar skeleton-bar--sub" style="width:${p.whatSub};"></span>
+          </span>
+          <span class="ap-tl-when">
+            <span class="skeleton-bar" style="width:${p.when};"></span>
+            <span class="skeleton-bar skeleton-bar--sub" style="width:${p.whenSub};"></span>
+          </span>
+        </li>
+      `
+    }).join('')
+    return banner + items
   }
-  return Array.from({ length: n }).map(() => `
-    <tr class="activity-skeleton-row">
-      ${Array.from({ length: cols }).map((_, i) => `
-        <td><div class="skeleton-bar" style="${i === 1 ? 'width:70%;' : ''}"></div></td>
-      `).join('')}
+  const classicBanner = `
+    <tr class="activity-loading-banner-row" role="status" aria-live="polite" aria-busy="true">
+      <td colspan="${cols}">
+        <div class="activity-loading-banner">
+          <div class="activity-loading-spinner" aria-hidden="true"></div>
+          <div>
+            <div class="activity-loading-title">Đang tải nhật ký hoạt động...</div>
+            <div class="activity-loading-desc">Đang truy vấn dữ liệu nhật ký theo bộ lọc...</div>
+          </div>
+        </div>
+      </td>
     </tr>
-  `).join('')
+  `
+  const classicRows = Array.from({ length: n }).map((_, idx) => {
+    const p = presets[idx % presets.length]
+    return `
+      <tr class="activity-skeleton-row" aria-hidden="true">
+        ${Array.from({ length: cols }).map((__, i) => `
+          <td><div class="skeleton-bar" style="width:${p.cols[i % p.cols.length]};"></div></td>
+        `).join('')}
+      </tr>
+    `
+  }).join('')
+  return classicBanner + classicRows
 }
 
 function timelineItem(l) {
@@ -275,14 +319,18 @@ function renderRows(items) {
 async function loadLogs() {
   const tbody = document.getElementById('activity-logs-tbody')
   const applyBtn = document.getElementById('activity-apply-btn')
+  const resetBtn = document.getElementById('activity-reset-btn')
+  const tlCount = proUI ? document.getElementById('ap-tl-count') : null
   const reqId = ++loadReqId
 
   if (tbody) tbody.innerHTML = skeletonRows(5, 6)
+  if (tlCount) tlCount.innerHTML = loadingCountHtml()
   if (applyBtn) {
     applyBtn.disabled = true
     applyBtn.dataset.origHtml = applyBtn.dataset.origHtml || applyBtn.innerHTML
     applyBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải...'
   }
+  if (resetBtn) resetBtn.disabled = true
 
   try {
     const params = { page: currentPage, limit: pageSize }
@@ -296,10 +344,7 @@ async function loadLogs() {
     cachedTotal = res?.total || 0
     renderRows(res?.items || [])
 
-    if (proUI) {
-      const tlCount = document.getElementById('ap-tl-count')
-      if (tlCount) tlCount.textContent = `Trang ${currentPage} · ${cachedTotal} bản ghi`
-    }
+    if (tlCount) tlCount.textContent = `Trang ${currentPage} · ${cachedTotal} bản ghi`
 
     const wrapper = document.getElementById('activity-pagination-wrapper')
     if (wrapper) {
@@ -319,6 +364,7 @@ async function loadLogs() {
   } catch (err) {
     if (reqId !== loadReqId) return
     console.error('[activity-logs] load failed:', err)
+    if (tlCount) tlCount.textContent = ''
     if (tbody) {
       tbody.innerHTML = proUI
         ? `<li class="ap-tl-note ap-tl-error"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Tải thất bại: ${escapeHtml(err.message)}</li>`
@@ -326,9 +372,12 @@ async function loadLogs() {
     }
     showToast(`Tải nhật ký thất bại: ${err.message}`, 'error')
   } finally {
-    if (reqId === loadReqId && applyBtn) {
-      applyBtn.disabled = false
-      if (applyBtn.dataset.origHtml) applyBtn.innerHTML = applyBtn.dataset.origHtml
+    if (reqId === loadReqId) {
+      if (applyBtn) {
+        applyBtn.disabled = false
+        if (applyBtn.dataset.origHtml) applyBtn.innerHTML = applyBtn.dataset.origHtml
+      }
+      if (resetBtn) resetBtn.disabled = false
     }
   }
 }

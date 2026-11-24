@@ -274,3 +274,76 @@ export function processLeaderboardData(
     totalStudents: rpcData?.totalStudents ?? rawStudents.length,
   }
 }
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'NOT_COUNTED'
+
+export interface StudentAttendanceSession {
+  sessionId?: string
+  date: string
+  status: AttendanceStatus
+}
+
+export interface StudentAttendanceResponse {
+  classId: string
+  className: string
+  fromDate: string
+  toDate: string
+  summary: {
+    classSessions: number
+    countedSessions: number
+    present: number
+    absent: number
+    notCounted: number
+    attendanceRate: number | null
+  }
+  sessions: StudentAttendanceSession[]
+}
+
+const ATTENDANCE_STATUSES = new Set<AttendanceStatus>(['PRESENT', 'ABSENT', 'NOT_COUNTED'])
+
+function nonNegInt(value: unknown): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0
+}
+
+function finiteRateOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Chuẩn hóa dữ liệu điểm danh trả về cho học sinh:
+ * chỉ giữ thông tin buổi học của lớp và sự tham gia của chính học sinh,
+ * loại bỏ hoàn toàn ghi chú buổi học và sĩ số/tỉ lệ chung của lớp.
+ */
+export function sanitizeStudentAttendanceData(raw: any): StudentAttendanceResponse {
+  const s = raw?.summary || {}
+  const rawSessions = Array.isArray(raw?.sessions) ? raw.sessions : []
+  const sessions: StudentAttendanceSession[] = rawSessions
+    .filter((item: any) => item && typeof item.date === 'string')
+    .map((item: any) => {
+      const out: StudentAttendanceSession = {
+        date: item.date,
+        status: ATTENDANCE_STATUSES.has(item.status) ? item.status : 'NOT_COUNTED',
+      }
+      if (item.sessionId) out.sessionId = String(item.sessionId)
+      return out
+    })
+
+  return {
+    classId: raw?.classId ? String(raw.classId) : '',
+    className: raw?.className ? String(raw.className) : '',
+    fromDate: raw?.fromDate ? String(raw.fromDate) : '',
+    toDate: raw?.toDate ? String(raw.toDate) : '',
+    summary: {
+      classSessions: nonNegInt(s.classSessions),
+      countedSessions: nonNegInt(s.countedSessions),
+      present: nonNegInt(s.present),
+      absent: nonNegInt(s.absent),
+      notCounted: nonNegInt(s.notCounted),
+      attendanceRate: finiteRateOrNull(s.attendanceRate),
+    },
+    sessions,
+  }
+}

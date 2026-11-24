@@ -53,6 +53,7 @@ import { renderActivityLogsView, bindActivityLogsEvents } from './views/activity
 import { renderWeeklyCalendarView, bindWeeklyCalendarEvents } from './views/weekly-calendar.js'
 import { renderQuestionAppealsView, bindQuestionAppealsEvents } from './views/question-appeals.js'
 import { showTrialRegistrationModal } from './components/modal.js'
+import { maybeShowStudentTuitionPopup } from './components/student-tuition-modal.js'
 import { showToast } from './components/toast.js'
 import { sortClassChaptersLessons } from './utils/student-lesson-sort.js'
 
@@ -660,6 +661,14 @@ async function router() {
       bindRoute()
     } catch (bindErr) {
       console.error(`[Router] Error binding events for route "${hash}":`, bindErr)
+    }
+    if (state.user?.role === 'STUDENT') {
+      maybeShowStudentTuitionPopup({
+        userId: state.user.id,
+        role: state.user.role,
+        accountBalance: state.user.accountBalance,
+        route: hash
+      })
     }
     // Tutorial học sinh Mochi (spec 006): nút "Hướng dẫn" + tự mở lần đầu vào trang.
     if (state.user?.role === 'STUDENT' && isMochiUI()) {

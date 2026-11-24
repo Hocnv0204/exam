@@ -67,7 +67,7 @@ export const STUDENT_TOURS = {
     steps: [
       { target: 'att-filters', title: 'Chọn lớp & khoảng ngày', text: 'Chọn lớp (nếu bạn học nhiều lớp) và khoảng ngày, rồi bấm "Xem".' },
       { target: 'att-overview', title: 'Tổng quan', text: 'Số buổi lớp đã học, số buổi bạn có mặt và vắng. "Không tính" là các buổi trước khi bạn vào lớp hoặc lúc tạm nghỉ.' },
-      { target: 'att-compare', title: 'Bạn và cả lớp', text: 'So sánh tỉ lệ chuyên cần của bạn với trung bình lớp.' },
+      { target: 'att-compare', title: 'Tỉ lệ chuyên cần', text: 'Tỉ lệ buổi học bạn đã tham gia trên tổng số buổi được tính.' },
       { target: 'att-list', title: 'Từng buổi học', text: 'Danh sách buổi học, lọc nhanh Có mặt / Vắng. Buổi vắng được tô đỏ để bạn dễ thấy.' },
       { target: 'tour-replay', title: 'Xem lại hướng dẫn', text: 'Bấm "Hướng dẫn" để xem lại bất cứ lúc nào.' }
     ]

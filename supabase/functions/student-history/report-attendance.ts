@@ -8,11 +8,7 @@
 export type ReportAttendanceSession = {
   sessionId?: string
   date: string
-  note: string | null
   status: 'PRESENT' | 'ABSENT' | 'NOT_COUNTED'
-  classPresent: number
-  classTotal: number
-  classRate: number | null
 }
 
 export type ReportAttendance = {
@@ -23,7 +19,6 @@ export type ReportAttendance = {
     absent: number
     notCounted: number
     attendanceRate: number | null
-    classAverageRate: number | null
   }
   sessions: ReportAttendanceSession[]
 }
@@ -44,6 +39,7 @@ function rate(value: unknown): number | null {
 /**
  * Chuẩn hoá output RPC. `isPublic` = link chia sẻ công khai: bỏ sessionId (id nội bộ),
  * giống cách payload SHARED_REPORT bỏ mọi id khác.
+ * Chỉ giữ buổi học của lớp và trạng thái tham gia của học sinh (bỏ note, sĩ số/tỉ lệ lớp).
  */
 export function toReportAttendance(raw: any, isPublic: boolean): ReportAttendance | null {
   if (!raw || typeof raw !== 'object') return null
@@ -53,11 +49,7 @@ export function toReportAttendance(raw: any, isPublic: boolean): ReportAttendanc
     .map((x: any) => {
       const item: ReportAttendanceSession = {
         date: x.date,
-        note: typeof x.note === 'string' && x.note.trim() ? x.note : null,
         status: STATUSES.has(x.status) ? x.status : 'NOT_COUNTED',
-        classPresent: int(x.classPresent),
-        classTotal: int(x.classTotal),
-        classRate: rate(x.classRate),
       }
       if (!isPublic && x.sessionId) item.sessionId = String(x.sessionId)
       return item
@@ -70,7 +62,6 @@ export function toReportAttendance(raw: any, isPublic: boolean): ReportAttendanc
       absent: int(s.absent),
       notCounted: int(s.notCounted),
       attendanceRate: rate(s.attendanceRate),
-      classAverageRate: rate(s.classAverageRate),
     },
     sessions,
   }

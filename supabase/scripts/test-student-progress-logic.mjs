@@ -9,6 +9,7 @@ import {
   parseAttendanceQuery,
   parseLeaderboardQuery,
   processLeaderboardData,
+  sanitizeStudentAttendanceData,
 } from '../functions/student-progress/logic.ts'
 
 console.log('Running test-student-progress-logic.mjs...')
@@ -157,3 +158,57 @@ console.log('✓ parseLeaderboardQuery passed')
   assert.equal('studentId' in res.entries[0], false)
 }
 console.log('✓ processLeaderboardData passed')
+
+// 6. sanitizeStudentAttendanceData
+{
+  const sanitized = sanitizeStudentAttendanceData({
+    classId: 'c1',
+    className: 'Toán 12',
+    fromDate: '2026-11-01',
+    toDate: '2026-11-24',
+    summary: {
+      classSessions: 5,
+      countedSessions: 4,
+      present: 3,
+      absent: 1,
+      notCounted: 1,
+      attendanceRate: 75,
+      classAverageRate: 88.5,
+    },
+    sessions: [
+      {
+        sessionId: 's1',
+        date: '2026-11-20',
+        status: 'PRESENT',
+        note: 'Ghi chú nội bộ giáo viên',
+        classPresent: 18,
+        classTotal: 20,
+        classRate: 90,
+      },
+      {
+        date: '2026-11-18',
+        status: 'UNKNOWN',
+        note: 'Không được trả',
+      },
+    ],
+  })
+
+  assert.deepEqual(sanitized.summary, {
+    classSessions: 5,
+    countedSessions: 4,
+    present: 3,
+    absent: 1,
+    notCounted: 1,
+    attendanceRate: 75,
+  })
+  assert.equal('classAverageRate' in sanitized.summary, false)
+  assert.deepEqual(sanitized.sessions, [
+    { sessionId: 's1', date: '2026-11-20', status: 'PRESENT' },
+    { date: '2026-11-18', status: 'NOT_COUNTED' },
+  ])
+  assert.equal('note' in sanitized.sessions[0], false)
+  assert.equal('classPresent' in sanitized.sessions[0], false)
+  assert.equal('classTotal' in sanitized.sessions[0], false)
+  assert.equal('classRate' in sanitized.sessions[0], false)
+}
+console.log('✓ sanitizeStudentAttendanceData passed')

@@ -51,7 +51,7 @@ serve(async (req: Request) => {
     // 1. Parallel: Try signIn with synthetic email + fetch profile (embed student_classes)
     const profilePromise = serviceRoleClient
       .from('profiles')
-      .select('id, username, full_name, role, class_id, is_locked, seen_tours, auto_intro_pending, student_classes(class_id)')
+      .select('id, username, full_name, role, class_id, is_locked, seen_tours, auto_intro_pending, balance, student_classes(class_id)')
       .eq('username', username)
       .maybeSingle()
 
@@ -153,6 +153,7 @@ serve(async (req: Request) => {
         classIds,
         autoIntro,
         seenTours: Array.isArray((profile as any).seen_tours) ? (profile as any).seen_tours : [],
+        accountBalance: profile.role === 'STUDENT' ? (profile as any).balance : undefined,
       },
     })
   } catch (err: unknown) {
