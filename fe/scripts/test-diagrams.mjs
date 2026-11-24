@@ -1124,7 +1124,7 @@ LG
 section('6. Kiểm tra ví dụ trong tài liệu (MD_RULES_VE_HINH_TOAN_V2.md)')
 
 {
-  const docPath = resolve(REPO_ROOT, 'MD_RULES_VE_HINH_TOAN_V2.md')
+  const docPath = resolve(REPO_ROOT, 'docs', 'MD_RULES_VE_HINH_TOAN_V2.md')
   if (!existsSync(docPath)) {
     check('tài liệu V2 tồn tại', false, docPath)
   } else {

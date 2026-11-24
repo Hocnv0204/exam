@@ -310,3 +310,123 @@ export function upsertChapterState({
 
   return { currObj, currentChapters }
 }
+
+/**
+ * Chuẩn hóa danh sách tài liệu lý thuyết: loại bỏ phần tử không hợp lệ hoặc rỗng.
+ * @param {Array<string>|null|undefined} theoryFiles
+ * @returns {string[]}
+ */
+export function normalizeTheoryFiles(theoryFiles) {
+  if (!Array.isArray(theoryFiles)) return []
+  return theoryFiles.filter(f => typeof f === 'string' && f.trim().length > 0)
+}
+
+/**
+ * Gán các trường liên quan đến tài liệu lý thuyết vào một object bài học.
+ * Đảm bảo theoryFiles, theory_files và theoryFilesCount luôn đồng bộ.
+ *
+ * @param {Object} lesson
+ * @param {Array<string>|null|undefined} rawTheoryFiles
+ * @returns {Object} lesson đã được cập nhật
+ */
+export function applyLessonTheoryFiles(lesson, rawTheoryFiles) {
+  if (!lesson || typeof lesson !== 'object') return lesson
+  const normalized = normalizeTheoryFiles(rawTheoryFiles)
+  lesson.theoryFiles = [...normalized]
+  lesson.theory_files = [...normalized]
+  lesson.theoryFilesCount = normalized.length
+  return lesson
+}
+
+/**
+ * Đồng bộ danh sách tài liệu lý thuyết qua tất cả các tầng cache & render:
+ * 1. serverLessonsResult.items
+ * 2. cachedSummaries (cachedClassCurriculumSummaries)
+ * 3. state.curriculums
+ * 4. currentChapters
+ *
+ * @param {Object} params
+ * @returns {{ updatedCount: number, theoryFiles: string[], theoryFilesCount: number }}
+ */
+export function syncLessonTheoryFiles({
+  lessonId,
+  theoryFiles,
+  serverLessonsResult,
+  cachedSummaries,
+  activeClassId,
+  state,
+  currentChapters
+} = {}) {
+  if (!lessonId) {
+    return {
+      updatedCount: 0,
+      theoryFiles: [],
+      theoryFilesCount: 0
+    }
+  }
+
+  const normalized = normalizeTheoryFiles(theoryFiles)
+  let updatedCount = 0
+
+  if (serverLessonsResult && Array.isArray(serverLessonsResult.items)) {
+    for (const item of serverLessonsResult.items) {
+      if (item && item.id === lessonId) {
+        applyLessonTheoryFiles(item, normalized)
+        updatedCount++
+      }
+    }
+  }
+
+  if (cachedSummaries && typeof cachedSummaries === 'object') {
+    const summariesToCheck = activeClassId && cachedSummaries[activeClassId]
+      ? [cachedSummaries[activeClassId]]
+      : Object.values(cachedSummaries)
+
+    for (const summary of summariesToCheck) {
+      if (summary && Array.isArray(summary.results)) {
+        for (const item of summary.results) {
+          if (item && item.id === lessonId) {
+            applyLessonTheoryFiles(item, normalized)
+            updatedCount++
+          }
+        }
+      }
+    }
+  }
+
+  if (state && Array.isArray(state.curriculums)) {
+    for (const curr of state.curriculums) {
+      if (curr && Array.isArray(curr.chapters)) {
+        for (const ch of curr.chapters) {
+          if (ch && Array.isArray(ch.lessons)) {
+            for (const l of ch.lessons) {
+              if (l && l.id === lessonId) {
+                applyLessonTheoryFiles(l, normalized)
+                updatedCount++
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(currentChapters)) {
+    for (const ch of currentChapters) {
+      if (ch && Array.isArray(ch.lessons)) {
+        for (const l of ch.lessons) {
+          if (l && l.id === lessonId) {
+            applyLessonTheoryFiles(l, normalized)
+            updatedCount++
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    updatedCount,
+    theoryFiles: [...normalized],
+    theoryFilesCount: normalized.length
+  }
+}

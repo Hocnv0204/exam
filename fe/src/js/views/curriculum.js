@@ -26,6 +26,7 @@ import {
 import {
   syncLessonVideoUrl,
   syncLessonTitle,
+  syncLessonTheoryFiles,
   findLessonForVideoModal,
   upsertChapterState
 } from '../utils/curriculum-state.js'
@@ -743,7 +744,7 @@ function renderLessonDetail(selectedChapter, selectedLesson) {
 
 function renderLessonWorkspace(ch, l) {
   const platform = getVideoPlatformInfo(l.videoUrl)
-  const theoryFiles = l.theoryFiles || []
+  const theoryFiles = l.theoryFiles || l.theory_files || []
   const homeworks = l.homeworks || []
   const isHwLoading = l.homeworks === null
   const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
@@ -972,7 +973,7 @@ export function renderProLessonDetail(selectedChapter, selectedLesson) {
 
 export function renderProLessonWorkspace(ch, l) {
   const platform = getVideoPlatformInfo(l.videoUrl)
-  const theoryFiles = l.theoryFiles || []
+  const theoryFiles = l.theoryFiles || l.theory_files || []
   const homeworks = l.homeworks || []
   const isHwLoading = l.homeworks === null
   const createdDateStr = (l.createdAt || l.created_at) ? new Date(l.createdAt || l.created_at).toLocaleDateString('vi-VN') : ''
@@ -1936,28 +1937,47 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
     if (!file) return
     const chId = uploadInput.getAttribute('data-chapter-id')
     const lessonId = uploadInput.getAttribute('data-lesson-id')
-    const currObj = state.curriculums.find(c => c.classId === activeClassId)
-    const lesson = currObj?.chapters.find(c => c.id === chId)?.lessons?.find(x => x.id === lessonId)
-    if (!lesson) return
+    const lesson = findLessonForVideoModal({
+      lessonId,
+      chapterId: chId,
+      activeClassId,
+      state,
+      currentChapters,
+      serverLessonsResult,
+      cachedSummaries: cachedClassCurriculumSummaries
+    })
+    if (!lesson) {
+      uploadInput.value = ''
+      showToast('Không tìm thấy thông tin bài học để tải tài liệu lên!', 'error')
+      return
+    }
+    if (uploadBtn) uploadBtn.disabled = true
     try {
       showToast('Đang tải file lên...', 'info')
       const uploadedName = await api.uploadFile(file)
-      const nextFiles = [...(lesson.theoryFiles || []), uploadedName]
+      const currentFiles = Array.isArray(lesson.theoryFiles)
+        ? lesson.theoryFiles
+        : (Array.isArray(lesson.theory_files) ? lesson.theory_files : [])
+      const nextFiles = [...currentFiles, uploadedName]
       await api.updateLesson({
         lessonId,
-        chapterId: chId,
-        title: lesson.title,
-        orderIndex: parseInt(lesson.code, 10) || 1,
-        videoUrl: lesson.videoUrl || null,
-        theoryFiles: nextFiles,
-        isTrial: lesson.isTrial || lesson.is_trial || false
+        theoryFiles: nextFiles
       })
-      lesson.theoryFiles = nextFiles
+      syncLessonTheoryFiles({
+        lessonId,
+        theoryFiles: nextFiles,
+        serverLessonsResult,
+        cachedSummaries: cachedClassCurriculumSummaries,
+        activeClassId,
+        state,
+        currentChapters
+      })
       showToast('Tải file lên thành công!', 'success')
       refreshUI()
     } catch (err) {
       showToast(`Tải lên thất bại: ${err.message}`, 'error')
     } finally {
+      if (uploadBtn) uploadBtn.disabled = false
       uploadInput.value = ''
     }
   })
@@ -1976,20 +1996,28 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
           <span style="font-size:12px; color:#64748b;">File sẽ bị gỡ khỏi danh sách tài liệu lý thuyết.</span>
         </div>
       `, async () => {
-        const currObj = state.curriculums.find(c => c.classId === activeClassId)
-        const lesson = currObj?.chapters.find(c => c.id === chId)?.lessons?.find(x => x.id === lessonId)
-        if (!lesson) return false
+        const lesson = findLessonForVideoModal({
+          lessonId,
+          chapterId: chId,
+          activeClassId,
+          state,
+          currentChapters,
+          serverLessonsResult,
+          cachedSummaries: cachedClassCurriculumSummaries
+        })
+        if (!lesson) {
+          showToast('Không tìm thấy thông tin bài học để xóa tài liệu!', 'error')
+          return false
+        }
         try {
           showToast('Đang xóa file...', 'info')
-          const nextFiles = (lesson.theoryFiles || []).filter(f => f !== file)
+          const currentFiles = Array.isArray(lesson.theoryFiles)
+            ? lesson.theoryFiles
+            : (Array.isArray(lesson.theory_files) ? lesson.theory_files : [])
+          const nextFiles = currentFiles.filter(f => f !== file)
           await api.updateLesson({
             lessonId,
-            chapterId: chId,
-            title: lesson.title,
-            orderIndex: parseInt(lesson.code, 10) || 1,
-            videoUrl: lesson.videoUrl || null,
-            theoryFiles: nextFiles,
-            isTrial: lesson.isTrial || lesson.is_trial || false
+            theoryFiles: nextFiles
           })
           // Best-effort: xóa object trong storage nếu là file Supabase Storage
           if (!file.startsWith('http')) {
@@ -2000,7 +2028,15 @@ export function bindCurriculumTabEvents(classId, currentClass, onRefresh) {
               })
             } catch (_) {}
           }
-          lesson.theoryFiles = nextFiles
+          syncLessonTheoryFiles({
+            lessonId,
+            theoryFiles: nextFiles,
+            serverLessonsResult,
+            cachedSummaries: cachedClassCurriculumSummaries,
+            activeClassId,
+            state,
+            currentChapters
+          })
           showToast('Đã xóa file thành công!', 'success')
           refreshUI()
           return true

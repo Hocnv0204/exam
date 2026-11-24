@@ -43,20 +43,19 @@ Theo mức độ thay đổi (ghi rõ trong báo cáo đã bỏ bước nào và
 
 ## Danh sách subagent (CLI)
 
-Thứ tự ưu tiên (3 mức): **free → Gemini ∥ ChatGPT (song song, cùng mức) → Claude**. Free thường hết hạn mức nhanh; khi đó bắt đầu thẳng từ mức 2. Luôn tra catalog (`/opt/OpenCode/resources/opencode-cli models`, `agy models`) trước khi gọi, không đoán ID.
+Thứ tự ưu tiên (3 mức): **free (opencode) → Gemini (agy) → Claude**. ChatGPT (`github-copilot/gpt-*`, `openai/gpt-*`) **không còn hợp lệ** (hết gói Plus từ 2026-11-22) — không gọi. Free thường hết hạn mức nhanh; khi đó bắt đầu thẳng từ mức 2. Luôn tra catalog (`/opt/OpenCode/resources/opencode-cli models`, `agy models`) trước khi gọi, không đoán ID.
 
 | Mức | Subagent | Dùng cho |
 |---|---|---|
 | 1. Free | opencode (11 model, kiểm tra lại catalog mỗi lần dùng): ưu tiên `opencode/glm-5.3-flash-free`, `opencode/deepseek-v4.1-flash-free` (logic/parser nhiều bước), `opencode/mimo-v2.6-flash-free` (tra cứu, sửa cơ học); dự phòng khi hết hạn mức: `opencode/big-pickle`, `opencode/longcat-2.5-free`, `opencode/flint-40b-free`, `opencode/beam-free`, `opencode/iceman-free`, `opencode/inkling-2-small-free` (rất nhẹ), `opencode/nemotron-3.5-lightning-free` (nhanh); `opencode/nemotron-3.5-super-vl-free` đọc được ảnh — dùng để soát ảnh chụp màn hình | Khám phá code, task cơ học, trang nhỏ, viết test đơn giản, review chỉ đọc |
-| 2a. Gemini | agy `gemini-3.8-flash-low` / `-medium` / `-high` (effort theo độ khó) | Implement view/CSS lớn, test, docs — song song với 2b |
-| 2b. ChatGPT | opencode `openai/gpt-5.6-luna` (nhẹ), `openai/gpt-5.6-terra` (thường), `openai/gpt-5.6-sol` (suy luận nhiều). KHÔNG dùng dòng gpt-6.x (tốn token) trừ khi người dùng yêu cầu | Implement, test, docs — song song với 2a |
+| 2. Gemini | agy `gemini-3.8-flash-low` / `-medium` / `-high` (effort theo độ khó) | Implement view/CSS lớn, backend, test, docs |
 | 3. Claude | Agent tool của Claude Code | Kiến trúc, bug khó (luồng thi/autosave/heartbeat, tính tiền, RPC SQL), review cuối quan trọng |
 
-Quy tắc dùng song song mức 2:
+Quy tắc chạy song song và chuyển provider:
 
-- **Chia tải:** các task độc lập (khác file) chia xen kẽ giữa Gemini và ChatGPT, chạy đồng thời (background). Không giao hai provider sửa cùng một file; file dùng chung (`app.js`, `sidebar.js`, `navbar.js`, `ui-flag.js`, `api.js`, `package.json`, `components.css`, `tokens.css`) do Claude hoặc một owner duy nhất sửa.
-- **Chéo khi sửa lỗi:** task của provider A làm sai → giao lại cùng provider 1 lần kèm lỗi cụ thể (tái sử dụng session: opencode `-c`); vẫn sai → chuyển sang provider B; B cũng sai → Claude.
-- **Review chéo (task rủi ro cao: exam-room/homework-solver, nghiệp vụ tiền, migration/RPC, auth):** provider A implement, provider B review chỉ đọc và trả danh sách vấn đề; Claude vẫn tự review và verify cuối.
+- **Chia tải:** các task độc lập (khác file) chạy đồng thời (background): nhiều phiên `agy` song song, hoặc Gemini + model free opencode. Không giao hai provider sửa cùng một file; file dùng chung (`app.js`, `sidebar.js`, `navbar.js`, `ui-flag.js`, `api.js`, `package.json`, `components.css`, `tokens.css`) do Claude hoặc một owner duy nhất sửa.
+- **Chéo khi sửa lỗi:** task của provider A làm sai → giao lại cùng provider 1 lần kèm lỗi cụ thể (tái sử dụng session: opencode `-c`); vẫn sai → chuyển sang provider còn lại (Gemini ↔ model free opencode); vẫn sai → Claude.
+- **Review chéo (task rủi ro cao: exam-room/homework-solver, nghiệp vụ tiền, migration/RPC, auth):** một provider implement (thường Gemini), provider khác review chỉ đọc (model free opencode khác, hoặc phiên `agy --mode plan` khác model/effort) và trả danh sách vấn đề; Claude vẫn tự review và verify cuối.
 - Ghi rõ trong báo cáo cuối task nào chạy bằng provider/model nào.
 
 Cách gọi (luôn chạy từ repo root, bọc `timeout`, ghi output vào scratchpad, chỉ đọc phần cuối):
@@ -94,7 +93,7 @@ Báo cáo: FILES, mô tả thay đổi, TESTS (lệnh + kết quả thật), BLO
 2. Đối chiếu diff với acceptance criteria và AGENTS.md: không đổi logic/API/state ngoài phạm vi; id/handler còn nguyên; quyền kiểm ở backend; stale async (AbortController/requestId); chống double submit; escape HTML; nghiệp vụ tiền/bài thi không bị đổi.
 3. Tự chạy lại kiểm tra (không tin báo cáo): `cd fe && npm test && npm run build`; backend: test PGlite liên quan, kiểm cú pháp TS `fe/node_modules/.bin/esbuild <file.ts> --loader:.ts=ts --log-level=error`.
 4. Giao diện: chụp trình duyệt headless (Brave + CDP, mock `functions/v1/*` bọc `{success:true,data}`) ở 360/412/768/1024/1440px, Sáng/Tối (và 4 chế độ màu học sinh), kiểm tra tràn ngang, chữ bị cắt, tương phản, vùng bấm.
-5. Không đạt → giao lại cùng subagent kèm lỗi cụ thể (1 lần); vẫn sai → chuyển provider còn lại ở mức 2; vẫn sai → Claude tự sửa.
+5. Không đạt → giao lại cùng subagent kèm lỗi cụ thể (1 lần); vẫn sai → chuyển provider còn lại (Gemini ↔ free); vẫn sai → Claude tự sửa.
 6. Đạt → commit đúng các file của task (không commit `.claude/`, `CLAUDE.md` trừ khi người dùng yêu cầu), push `main` khi người dùng đã cho phép.
 
 ## Báo cáo cuối

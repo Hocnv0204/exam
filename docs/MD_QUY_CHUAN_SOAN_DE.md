@@ -132,7 +132,8 @@ y  | +\infty ~> -1 -> 3 ~> -\infty
 ```
 ````
 - Loại khối: `bbt` (bảng biến thiên/xét dấu), `graph` (đồ thị hàm số),
-  `geo3d` (hình không gian theo preset), `smiles` (cấu tạo phân tử Hóa).
+  `geo3d` (hình không gian theo preset), `ctct` (công thức cấu tạo thu gọn),
+  `smiles` (cấu tạo phân tử Hóa/polime có vòng).
 - Chi tiết từng loại xem mục 8 bên dưới.
 
 **Cách 2 — Ảnh Base64 gom cuối file (file .md duy nhất, không kèm ảnh rời):**
@@ -252,15 +253,33 @@ right_angle: (S,A,D), (S,A,B), (A,H,B)
   Cần hình 3D đúng (toạ độ toán học + chiếu trực giao) → dùng JSON `version: 2`.
 
 
-### 8.4. Cấu tạo phân tử `smiles`
+### 8.4. Cấu tạo phân tử và polime có vòng `smiles`
 
 ````md
 ```smiles
-CC(=O)O
+*CC(c1ccccc1)*
+style: condensed
 ```
 ````
-hoặc inline: `[SMILES: c1cccccO]`
-- Viết chuỗi SMILES của phân tử (axit axetic: `CC(=O)O`, benzen: `c1ccccc1`).
+hoặc inline: `[SMILES: c1ccccc1O]`
+- Dòng đầu là chuỗi SMILES; các dòng tiếp theo là tuỳ chọn: `style: skeletal` (mặc định) | `condensed`, `polymer: n`.
+- Đặt `*` ở hai đầu mắt xích polime; vòng thơm dùng chữ thường (`c1ccccc1`) để vẽ vòng tròn nội tiếp; nguyên tử mang điện tích trong ngoặc vuông (`[NH3+]`).
+- Chi tiết và bảng tra cứu SMILES polime: xem [MD_QUY_CHUAN_VE_CTCT.md](MD_QUY_CHUAN_VE_CTCT.md).
+
+### 8.5. Công thức cấu tạo thu gọn trên lưới ký tự `ctct`
+
+````md
+```ctct
+polymer n
+CH2 — CH
+      |
+      Cl
+```
+````
+- "Vẽ bằng chữ" mạch hở, phân nhánh, este, polime: căn cột bằng **dấu cách** (KHÔNG dùng phím Tab).
+- Liên kết: ngang `—`/`-`, `=`, `≡`; dọc `|` (đơn), `‖` (đôi, dựng đứng C=O); chéo `/`, `\`.
+- Dòng đầu tuỳ chọn `polymer n` (tự vẽ ngoặc mắt xích và chỉ số *n*); số sau chữ cái tự thành chỉ số dưới.
+- Chi tiết quy tắc lưới, 14 ví dụ mẫu và mã lỗi: xem [MD_QUY_CHUAN_VE_CTCT.md](MD_QUY_CHUAN_VE_CTCT.md).
 
 ## 9. Checklist trước khi bấm nhập file
 
@@ -268,7 +287,8 @@ hoặc inline: `[SMILES: c1cccccO]`
 - [ ] Đủ 3 phần (hoặc bỏ phần không dùng), câu đánh số liên tục.
 - [ ] Mỗi câu trắc nghiệm có đúng 1 dấu `*`; mỗi ý Đúng/Sai có/không `*` rõ ràng.
 - [ ] Câu điền số có `[Đáp án: ...]`.
-- [ ] Khối ` ```bbt/graph/geo3d/smiles ` mở và đóng đủ dấu \`\`\`.
+- [ ] Khối ` ```bbt/graph/geo3d/ctct/smiles ` mở và đóng đủ dấu \`\`\`.
+- [ ] Khối ` ```ctct `: căn cột bằng dấu cách (KHÔNG dùng phím Tab), liên kết dọc `|` và `‖` thẳng cột nhóm nguyên tử nối.
 - [ ] Dòng `[Ảnh: ...]` đứng riêng 1 dòng; định nghĩa `[id]: ...` nằm cuối file.
 - [ ] Phần đề nằm trước phương án đầu tiên; hình trong lời giải nằm sau `[Lời giải]`.
 - [ ] Nếu phân loại Dạng bài: tên trong `[DẠNG BÀI: ...]` phải đúng tuyệt đối theo Bài học Constant đã chọn.

@@ -4,6 +4,9 @@ import {
   applyLessonVideoFields,
   syncLessonTitle,
   syncLessonVideoUrl,
+  normalizeTheoryFiles,
+  applyLessonTheoryFiles,
+  syncLessonTheoryFiles,
   findLessonForVideoModal,
   upsertChapterItem,
   upsertChapterState
@@ -385,6 +388,121 @@ console.log('\n--- 6. An toàn dữ liệu khi API thất bại ---')
   console.log('  ✓ Đảm bảo chỉ đồng bộ state sau khi API thành công, không làm hỏng dữ liệu khi có lỗi')
 }
 
+// =========================================================================
+// Phần 7: Đồng bộ Tài liệu lý thuyết (theoryFiles) qua các tầng cache & render
+// =========================================================================
+console.log('\n--- 7. Đồng bộ Tài liệu lý thuyết (upload / delete) ---')
+{
+  assert.deepEqual(normalizeTheoryFiles(null), [])
+  assert.deepEqual(normalizeTheoryFiles(undefined), [])
+  assert.deepEqual(normalizeTheoryFiles('not-an-array'), [])
+  assert.deepEqual(
+    normalizeTheoryFiles(['https://cdn.example.com/a.pdf', '', '   ', null, 123, 'b.pdf']),
+    ['https://cdn.example.com/a.pdf', 'b.pdf']
+  )
+
+  const lessonId = 'les-theory-1'
+  const activeClassId = 'cls-theory'
+
+  const serverItem = { id: lessonId, chapterId: 'ch-1', title: 'Bài 1', theoryFiles: [], theory_files: [], theoryFilesCount: 0 }
+  const summaryItem = { id: lessonId, chapterId: 'ch-1', title: 'Bài 1', theoryFiles: [], theory_files: [], theoryFilesCount: 0 }
+  const stateItem = { id: lessonId, chapterId: 'ch-1', title: 'Bài 1', theoryFiles: [], theory_files: [], theoryFilesCount: 0 }
+  const currentChapterItem = { id: lessonId, chapterId: 'ch-1', title: 'Bài 1', theoryFiles: [], theory_files: [], theoryFilesCount: 0 }
+
+  const serverLessonsResult = { items: [serverItem] }
+  const cachedSummaries = { [activeClassId]: { results: [summaryItem] } }
+  const state = {
+    curriculums: [
+      {
+        classId: activeClassId,
+        chapters: [{ id: 'ch-1', lessons: [stateItem] }]
+      }
+    ]
+  }
+  const currentChapters = [{ id: 'ch-1', lessons: [currentChapterItem] }]
+
+  // Tái hiện kịch bản bug: ensureCurriculumLoaded không tải lessons vào state.curriculums[].chapters[].lessons
+  const stateWithoutLessons = {
+    curriculums: [{ classId: activeClassId, chapters: [{ id: 'ch-1', lessons: [] }] }]
+  }
+  const foundFromServer = findLessonForVideoModal({
+    lessonId,
+    chapterId: 'ch-1',
+    activeClassId,
+    state: stateWithoutLessons,
+    currentChapters: [{ id: 'ch-1', lessons: [] }],
+    serverLessonsResult,
+    cachedSummaries
+  })
+  assert.ok(foundFromServer, 'Phải tìm thấy lesson từ serverLessonsResult khi chapters[].lessons rỗng')
+  assert.equal(foundFromServer.id, lessonId)
+
+  // Upload file 1 (0 -> 1)
+  const add1 = syncLessonTheoryFiles({
+    lessonId,
+    theoryFiles: ['https://r2.example.com/file1.pdf'],
+    serverLessonsResult,
+    cachedSummaries,
+    activeClassId,
+    state,
+    currentChapters
+  })
+  assert.equal(add1.updatedCount, 4)
+  assert.equal(add1.theoryFilesCount, 1)
+  for (const item of [serverItem, summaryItem, stateItem, currentChapterItem]) {
+    assert.deepEqual(item.theoryFiles, ['https://r2.example.com/file1.pdf'])
+    assert.deepEqual(item.theory_files, ['https://r2.example.com/file1.pdf'])
+    assert.equal(item.theoryFilesCount, 1)
+  }
+
+  // Upload file 2 (1 -> 2)
+  const add2 = syncLessonTheoryFiles({
+    lessonId,
+    theoryFiles: ['https://r2.example.com/file1.pdf', 'https://r2.example.com/file2.pdf'],
+    serverLessonsResult,
+    cachedSummaries,
+    activeClassId,
+    state,
+    currentChapters
+  })
+  assert.equal(add2.theoryFilesCount, 2)
+  assert.deepEqual(serverItem.theoryFiles, ['https://r2.example.com/file1.pdf', 'https://r2.example.com/file2.pdf'])
+
+  // Xóa file 1 (2 -> 1)
+  syncLessonTheoryFiles({
+    lessonId,
+    theoryFiles: ['https://r2.example.com/file2.pdf'],
+    serverLessonsResult,
+    cachedSummaries,
+    activeClassId,
+    state,
+    currentChapters
+  })
+  for (const item of [serverItem, summaryItem, stateItem, currentChapterItem]) {
+    assert.deepEqual(item.theoryFiles, ['https://r2.example.com/file2.pdf'])
+    assert.deepEqual(item.theory_files, ['https://r2.example.com/file2.pdf'])
+    assert.equal(item.theoryFilesCount, 1)
+  }
+
+  // Xóa file còn lại (1 -> 0)
+  syncLessonTheoryFiles({
+    lessonId,
+    theoryFiles: [],
+    serverLessonsResult,
+    cachedSummaries,
+    activeClassId,
+    state,
+    currentChapters
+  })
+  for (const item of [serverItem, summaryItem, stateItem, currentChapterItem]) {
+    assert.deepEqual(item.theoryFiles, [])
+    assert.deepEqual(item.theory_files, [])
+    assert.equal(item.theoryFilesCount, 0)
+  }
+
+  console.log('  ✓ Đồng bộ theoryFiles, theory_files và theoryFilesCount qua đủ 4 tầng cache khi thêm/xóa tài liệu')
+}
+
 console.log('\n========================================')
-console.log('Toàn bộ 6 nhóm kiểm thử Regression State Curriculum ĐÃ ĐẠT!')
+console.log('Toàn bộ 7 nhóm kiểm thử Regression State Curriculum ĐÃ ĐẠT!')
 console.log('========================================\n')
