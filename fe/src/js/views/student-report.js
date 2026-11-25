@@ -12,6 +12,7 @@ import { openModal } from '../components/modal.js'
 import { showToast } from '../components/toast.js'
 import { isMochiUI, isAdminProUI } from '../ui-flag.js'
 import { renderMascot } from '../components/mascot.js'
+import { renderProgressReport } from './report/progress-report.js'
 import QRCode from 'qrcode'
 import {
   buildSharedReportUrl,
@@ -374,6 +375,7 @@ function renderSharedReportData(data) {
     topicBreakdown: data?.topicBreakdown,
     submissions: data?.submissions,
     attendance: data?.attendance,
+    ...progressReportExtras(data),
     isEmpty
   }, { includeSharePanel: false })
 
@@ -2214,17 +2216,128 @@ export function renderProReportInner(opts, { includeSharePanel = false } = {}) {
 
 // ================== Full render ==================
 
+// Trường bổ sung của báo cáo mới (spec 007). Backend cũ không có → renderer tự ẩn khối tương ứng.
+function progressReportExtras(data) {
+  return {
+    previousPeriod: data?.previousPeriod ?? null,
+    classAverage: data?.classAverage ?? null,
+    weeklyTrend: Array.isArray(data?.weeklyTrend) ? data.weeklyTrend : [],
+    levelBreakdown: Array.isArray(data?.levelBreakdown) ? data.levelBreakdown : [],
+    commonMistakes: Array.isArray(data?.commonMistakes) ? data.commonMistakes : [],
+    notes: data?.notes ?? null,
+    goalPrevious: data?.goalPrevious ?? null
+  }
+}
+
+
+// Lần render gần nhất (để cập nhật nhận xét vừa lưu mà không tải lại cả báo cáo).
+let lastProgressRender = null
+
+function bindProgressReportActions(opts, variant) {
+  const body = document.getElementById(reportBodyId)?.querySelector('.pr-report')
+  if (!body) return
+  body.querySelectorAll('[data-pr-action="print"]').forEach(btn => btn.addEventListener('click', () => window.print()))
+  if (variant !== 'pro' || state.user?.role !== 'ADMIN') return
+  body.querySelectorAll('[data-pr-action="edit-notes"]').forEach(btn => btn.addEventListener('click', async () => {
+    const { studentId, classId, fromDate, toDate } = state.reportParams || {}
+    if (!studentId || !classId || !fromDate || !toDate) {
+      showToast('Báo cáo cần có học sinh, lớp và khoảng ngày để soạn nhận xét.', 'warning')
+      return
+    }
+    const { openReportNotesEditor } = await import('./report/report-notes-editor.js')
+    openReportNotesEditor({ studentId, classId, fromDate, toDate }, {
+      onSaved: saved => {
+        // Báo cáo đã đổi (đổi kỳ/rời trang) trong lúc soạn → không ghi đè.
+        if (!lastProgressRender || lastProgressRender.opts !== opts) return
+        replaceProgressArticle({ ...opts, notes: saved ? { ...saved, isSaved: true } : null }, variant)
+      }
+    })
+  }))
+}
+
+function progressArticleHtml(opts, variant) {
+  return renderProgressReport(opts, {
+    variant,
+    canEditNotes: variant === 'pro' && state.user?.role === 'ADMIN'
+  })
+}
+
+function renderProgressBody(opts, variant, { prefixHtml = '', afterRender = null } = {}) {
+  setBody(`${prefixHtml}${progressArticleHtml(opts, variant)}`)
+  lastProgressRender = { opts, variant }
+  afterRender?.()
+  bindProgressReportActions(opts, variant)
+}
+
+// Chỉ thay khối báo cáo (giữ nguyên bộ lọc ngày + khung chia sẻ link và các sự kiện đã gắn).
+function replaceProgressArticle(opts, variant) {
+  const article = document.getElementById(reportBodyId)?.querySelector('.pr-report')
+  if (!article) return
+  const holder = document.createElement('div')
+  holder.innerHTML = progressArticleHtml(opts, variant)
+  const next = holder.firstElementChild
+  if (!next) return
+  article.replaceWith(next)
+  lastProgressRender = { opts, variant }
+  bindProgressReportActions(opts, variant)
+}
+
 function renderReportInner(opts, { includeSharePanel = false } = {}) {
   if (isMochiMode()) {
-    renderMochiReportInner(opts)
+    renderProgressBody(opts, 'mochi')
     return
   }
-  // Báo cáo chia sẻ công khai (#shared-report) luôn giữ giao diện classic, kể cả khi admin đang đăng nhập.
-  if (reportMountedPath !== 'shared-report' && state.user?.role === 'ADMIN' && typeof isAdminProUI === 'function' && isAdminProUI()) {
-    renderProReportInner(opts, { includeSharePanel })
+  // Link chia sẻ công khai: mẫu báo cáo mới cho phụ huynh; ?ui=classic giữ báo cáo cũ.
+  if (reportMountedPath === 'shared-report') {
+    if (isMochiUI()) renderProgressBody(opts, 'shared')
+    else renderClassicReportInner(opts, { includeSharePanel: false })
+    return
+  }
+  if (state.user?.role === 'ADMIN' && typeof isAdminProUI === 'function' && isAdminProUI()) {
+    renderProProgressInner(opts, { includeSharePanel })
     return
   }
   renderClassicReportInner(opts, { includeSharePanel })
+}
+
+// Admin Pro: giữ đầu trang, bộ lọc khoảng ngày và khung chia sẻ link; thân báo cáo dùng mẫu mới.
+function renderProProgressInner(opts, { includeSharePanel = false } = {}) {
+  const { studentName, className, period } = opts
+  const sharePanel = includeSharePanel && state.user?.role === 'ADMIN' ? renderSharePanel() : ''
+  const prefixHtml = `
+    <section class="page-header pr-screen-only" style="margin-bottom:20px;">
+      <div>
+        <p style="margin:0 0 4px; color:var(--ap-muted); font-weight:700; font-size:13px;">Báo cáo tiến độ học tập · Quản trị</p>
+        <h1 class="page-title" style="margin:0; font-family:var(--ap-font-heading, 'Baloo 2', sans-serif); font-size:34px; font-weight:800; line-height:1.15; color:var(--ap-ink);">Báo cáo tiến độ</h1>
+        <p class="page-description" style="margin:6px 0 0 0; color:var(--ap-muted); font-size:15px; font-weight:700;">${escapeHtml(studentName || 'Học sinh')} &middot; ${escapeHtml(className || '')}</p>
+      </div>
+    </section>
+    <section class="card ap-card pr-screen-only" style="padding:18px 20px; border:2px solid var(--ap-line); border-radius:20px; background:var(--ap-surface); box-shadow:0 4px 0 var(--ap-block); display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+      <label style="font-weight:800; font-size:13px; color:var(--ap-ink);">Từ ngày
+        <input type="date" id="report-filter-from" value="${escapeHtml(period?.fromDate || '')}" style="min-height:44px; display:block; margin-top:6px;">
+      </label>
+      <label style="font-weight:800; font-size:13px; color:var(--ap-ink);">Đến ngày
+        <input type="date" id="report-filter-to" value="${escapeHtml(period?.toDate || '')}" style="min-height:44px; display:block; margin-top:6px;">
+      </label>
+      <button type="button" id="btn-report-update-date" class="btn-primary" style="width:auto; min-height:44px; padding:0 18px;">Cập nhật báo cáo</button>
+    </section>
+    ${sharePanel ? `<div class="pr-screen-only">${sharePanel}</div>` : ''}
+  `
+  renderProgressBody(opts, 'pro', {
+    prefixHtml,
+    afterRender: () => {
+      document.getElementById('btn-report-update-date')?.addEventListener('click', () => {
+        const from = document.getElementById('report-filter-from')?.value || ''
+        const to = document.getElementById('report-filter-to')?.value || ''
+        if (!from || !to) {
+          showToast('Vui lòng chọn cả từ ngày và đến ngày.', 'warning')
+          return
+        }
+        const { studentId, classId } = state.reportParams || {}
+        window.location.hash = `#student-report?studentId=${encodeURIComponent(studentId)}&classId=${encodeURIComponent(classId)}&fromDate=${encodeURIComponent(from)}&toDate=${encodeURIComponent(to)}`
+      })
+    }
+  })
 }
 
 function renderReport(data) {
@@ -2244,6 +2357,7 @@ function renderReport(data) {
     topicBreakdown: data?.topicBreakdown,
     submissions: data?.submissions,
     attendance: data?.attendance,
+    ...progressReportExtras(data),
     isEmpty
   }, { includeSharePanel: true })
 

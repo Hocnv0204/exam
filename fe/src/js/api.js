@@ -735,6 +735,14 @@ export const api = {
   getStudentAttendance: (params = {}, options = {}) => request(`student-progress?${progressQuery('attendance', params)}`, { method: 'GET', ...options }),
   getStudentAchievements: (options = {}) => request(`student-progress?${progressQuery('achievements')}`, { method: 'GET', ...options }),
   getClassLeaderboard: (params = {}, options = {}) => request(`student-progress?${progressQuery('leaderboard', params)}`, { method: 'GET', ...options }),
+  // Nhận xét giáo viên cho báo cáo tiến độ (spec 007, ADMIN): GET trả { saved, draft }, PUT upsert trả bản đã lưu.
+  // silent: khối soạn nhận xét tự quản lý loading/lỗi.
+  getStudentReportNotes: (params = {}, options = {}) => {
+    const sp = new URLSearchParams()
+    ;['studentId', 'classId', 'fromDate', 'toDate'].forEach(k => { if (params[k]) sp.set(k, params[k]) })
+    return request(`student-report-notes?${sp.toString()}`, { method: 'GET', silent: true, ...options })
+  },
+  saveStudentReportNotes: (payload = {}) => request('student-report-notes', { method: 'PUT', body: JSON.stringify(payload), silent: true }),
   // Quản lý link chia sẻ báo cáo tiến độ công khai (student-report-shares).
   // - createStudentReportShare POST /student-report-shares: { studentId, classId, fromDate, toDate, expiresInDays? }
   //   -> 201 { shareId, shareToken, expiresAt, createdAt, ..., status, period } (raw token chỉ 1 lần).

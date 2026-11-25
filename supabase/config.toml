@@ -107,3 +107,6 @@ verify_jwt = true
 
 [functions.public-intro]
 verify_jwt = false
+
+[functions.student-report-notes]
+verify_jwt = true

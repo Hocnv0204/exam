@@ -5,6 +5,19 @@ import { createServiceRoleClient } from '../../shared/supabase-client.ts'
 import { QUESTION_AWARD_LOG_SELECT, mapQuestionAwardLogRow } from '../../shared/question-award-logs.ts'
 import { loadReportAttendance } from './report-attendance.ts'
 import { resolveWrongQuestionType, isBlankWrongAnswer, loadAllAnalysisRows, loadChunkedWrongAnalysis, ANALYSIS_SUBMISSION_CHUNK_SIZE, uniqueWrongAttempts } from './wrong-analysis.ts'
+import {
+  isValidCalendarDate,
+  getPreviousPeriod,
+  buildPeriodSummary,
+  computeClassAverage,
+  computeWeeklyTrend,
+  computeLevelBreakdown,
+  computeCommonMistakes,
+  mapReportNotes,
+  mapPreviousGoal,
+  getEmptyLevelBreakdown,
+  type PreviousPeriod,
+} from './report-insights.ts'
 
 /* ---------------------------------------------------------------------------
  * Public shared progress report (scope=shared-report)
@@ -214,18 +227,15 @@ serve(async (req: Request) => {
         return errorResponse('Missing report period: fromDate and toDate are required (format: YYYY-MM-DD)', 400)
       }
 
-      // Kiểm tra ngày theo lịch thật: Date.UTC() tự "lăn" 2026-02-30 -> 01/03,
-      // nên phải so sánh round-trip để chặn ngày không tồn tại
-      const isValidCalendarDate = (raw: string): boolean => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false
-        const [y, m, d] = raw.split('-').map((v: string) => Number(v))
-        if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return false
-        const dt = new Date(Date.UTC(y, m - 1, d))
-        return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
-      }
       if (!isValidCalendarDate(fromDate) || !isValidCalendarDate(toDate)) {
         return errorResponse('Invalid report period: fromDate/toDate must be valid dates formatted as YYYY-MM-DD', 400)
       }
+
+      const prevPeriod = getPreviousPeriod(fromDate, toDate)
+      const prevPeriodFromDate = new Date(`${prevPeriod.fromDate}T00:00:00.000Z`)
+      const prevPeriodToDate = new Date(`${prevPeriod.toDate}T23:59:59.999Z`)
+      const prevPeriodFromIso = prevPeriodFromDate.toISOString()
+      const prevPeriodToIso = prevPeriodToDate.toISOString()
 
       const periodFromDate = new Date(`${fromDate}T00:00:00.000Z`)
       const periodToDate = new Date(`${toDate}T23:59:59.999Z`)
@@ -293,6 +303,51 @@ serve(async (req: Request) => {
         return { error: 'Không tải được dữ liệu điểm danh.' }
       })
 
+      const notesPromise = (async () => {
+        if (!reportStudentId || !reportClassId) return null
+        try {
+          const { data, error } = await serviceRoleClient
+            .from('student_report_notes')
+            .select('summary, strengths, improvements, attitude, goal_text, goal_score, teacher_support, parent_actions, updated_at')
+            .eq('student_id', reportStudentId)
+            .eq('class_id', reportClassId)
+            .eq('from_date', fromDate)
+            .eq('to_date', toDate)
+            .maybeSingle()
+          if (error) {
+            console.error('[student-history] fetch student_report_notes error:', error.message || error)
+            return null
+          }
+          return mapReportNotes(data)
+        } catch (err: unknown) {
+          console.error('[student-history] fetch student_report_notes exception:', err instanceof Error ? err.message : String(err))
+          return null
+        }
+      })()
+
+      const goalPreviousPromise = (async () => {
+        if (!reportStudentId || !reportClassId) return null
+        try {
+          const { data, error } = await serviceRoleClient
+            .from('student_report_notes')
+            .select('goal_score, goal_text, from_date, to_date')
+            .eq('student_id', reportStudentId)
+            .eq('class_id', reportClassId)
+            .lt('to_date', fromDate)
+            .order('to_date', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (error) {
+            console.error('[student-history] fetch previous goal error:', error.message || error)
+            return null
+          }
+          return mapPreviousGoal(data)
+        } catch (err: unknown) {
+          console.error('[student-history] fetch previous goal exception:', err instanceof Error ? err.message : String(err))
+          return null
+        }
+      })()
+
       // ----- Resolve homework scope via class chain (Class -> Chapter -> Lesson -> Homework) -----
       const reportClassIds: string[] = []
       if (reportStudentId) {
@@ -351,7 +406,59 @@ serve(async (req: Request) => {
       }
       const reportHwIds: string[] = reportHomeworks.map((h: any) => h.id).filter(Boolean)
 
-      // ----- Fetch submissions of the student within the reporting period (toDate inclusive) -----
+      const classStatsPromise = (async () => {
+        if (!reportClassId || reportHwIds.length === 0) return null
+
+        // 1. Thử gọi RPC fn_report_class_stats
+        try {
+          const { data: rpcData, error: rpcErr } = await serviceRoleClient.rpc('fn_report_class_stats', {
+            p_class_id: reportClassId,
+            p_from_date: fromDate,
+            p_to_date: toDate,
+          })
+          if (!rpcErr && rpcData && typeof rpcData === 'object') {
+            const classAvg = rpcData.classAverage || { averageScore: null, studentCount: 0 }
+            const weeklyClassAverages = new Map<string, number | null>()
+            for (const item of (rpcData.weeklyClassAverages || [])) {
+              if (item?.weekStart) weeklyClassAverages.set(item.weekStart, item.classAverageScore ?? null)
+            }
+            return { classAverage: classAvg, weeklyClassAverages }
+          }
+          if (rpcErr) {
+            console.error('[student-history] fn_report_class_stats rpc error, falling back to query:', rpcErr.message || rpcErr)
+          }
+        } catch (rpcEx) {
+          console.error('[student-history] fn_report_class_stats exception, falling back to query:', rpcEx instanceof Error ? rpcEx.message : String(rpcEx))
+        }
+
+        // 2. Fallback: truy vấn gộp qua student_classes và submissions (tránh N+1)
+        try {
+          const [actRes, subsRes] = await Promise.all([
+            serviceRoleClient
+              .from('student_classes')
+              .select('student_id')
+              .eq('class_id', reportClassId)
+              .eq('status', 'ACTIVE'),
+            loadAllAnalysisRows(() => serviceRoleClient
+              .from('submissions')
+              .select('id, student_id, homework_id, total_score, max_score, submitted_at')
+              .eq('status', 'SUBMITTED')
+              .in('homework_id', reportHwIds)
+              .gte('submitted_at', periodFromIso)
+              .lte('submitted_at', periodToIso)
+            )
+          ])
+          const activeStudentIds = new Set<string>((actRes.data || []).map((sc: any) => sc.student_id))
+          const classSubs = (subsRes.data || []).filter((s: any) => activeStudentIds.has(s.student_id))
+          const classAvg = computeClassAverage(activeStudentIds, classSubs)
+          return { classAverage: classAvg, rawClassSubs: classSubs, activeStudentIds }
+        } catch (queryErr) {
+          console.error('[student-history] fallback class stats query error:', queryErr instanceof Error ? queryErr.message : String(queryErr))
+          return { classAverage: { averageScore: null, studentCount: 0 } }
+        }
+      })()
+
+      // ----- Fetch submissions of the student spanning both previous period and current period (single query, no N+1) -----
       const reportSubmissionQuery = serviceRoleClient
         .from('submissions')
         .select(`
@@ -360,7 +467,7 @@ serve(async (req: Request) => {
         `)
         .eq('status', 'SUBMITTED')
         .eq('student_id', reportStudentId as string)
-        .gte('submitted_at', periodFromIso)
+        .gte('submitted_at', prevPeriodFromIso)
         .lte('submitted_at', periodToIso)
 
       const { data: periodSubmissions, error: periodSubsErr } = await reportSubmissionQuery.order('submitted_at', { ascending: true })
@@ -371,7 +478,7 @@ serve(async (req: Request) => {
       // Submission chỉ hợp lệ khi homework thuộc đúng phạm vi lớp truy vấn.
       // Lớp không có homework published/lesson thật -> rỗng tuyệt đối, KHÔNG fallback sang mọi bài
       const classHwIdSet = new Set<string>(reportHwIds)
-      const periodAttemptRows: any[] = classHwIdSet.size > 0
+      const validClassSubs: any[] = classHwIdSet.size > 0
         ? allPeriodSubs.filter((s: any) => classHwIdSet.has(s.homework_id))
         : []
 
@@ -381,8 +488,7 @@ serve(async (req: Request) => {
       }
       const round2 = (n: number): number => Math.round(n * 100) / 100
 
-      // ----- Build attempt records (each submission = one attempt; summary uses best score per homework) -----
-      const attempts: any[] = periodAttemptRows.map((s: any) => {
+      const mapAttemptRow = (s: any) => {
         const hw = s.homeworks || {}
         const lesson = hw.lessons || {}
         const chapter = lesson.chapters || {}
@@ -421,7 +527,20 @@ serve(async (req: Request) => {
           classId: cls.id || null,
           className: cls.name || null,
         }
-      }).sort((a: any, b: any) => (a.submittedAtMs || 0) - (b.submittedAtMs || 0) || (a.attemptNo || 0) - (b.attemptNo || 0))
+      }
+
+      const periodAttemptRows = validClassSubs.filter((s: any) => {
+        const ms = s.submitted_at ? new Date(s.submitted_at).getTime() : NaN
+        return Number.isFinite(ms) && ms >= periodFromDate.getTime() && ms <= periodToDate.getTime()
+      })
+      const prevPeriodAttemptRows = validClassSubs.filter((s: any) => {
+        const ms = s.submitted_at ? new Date(s.submitted_at).getTime() : NaN
+        return Number.isFinite(ms) && ms >= prevPeriodFromDate.getTime() && ms <= prevPeriodToDate.getTime()
+      })
+
+      // ----- Build attempt records (each submission = one attempt; summary uses best score per homework) -----
+      const attempts: any[] = periodAttemptRows.map(mapAttemptRow).sort((a: any, b: any) => (a.submittedAtMs || 0) - (b.submittedAtMs || 0) || (a.attemptNo || 0) - (b.attemptNo || 0))
+      const prevAttempts: any[] = prevPeriodAttemptRows.map(mapAttemptRow).sort((a: any, b: any) => (a.submittedAtMs || 0) - (b.submittedAtMs || 0) || (a.attemptNo || 0) - (b.attemptNo || 0))
 
       const bestByHomework = new Map<string, any>()
       attempts.forEach((a: any) => {
@@ -433,6 +552,63 @@ serve(async (req: Request) => {
       bestByHomework.forEach((a: any) => {
         a.isBest = true
       })
+      const bestSubmissionIds = Array.from(bestByHomework.values()).map((a: any) => a.submissionId)
+
+      const answersPromise = (async () => {
+        if (bestSubmissionIds.length === 0) {
+          return { levelBreakdown: getEmptyLevelBreakdown(), commonMistakes: [] }
+        }
+        try {
+          const buildAnswersQuery = (submissionIds: string[]) => serviceRoleClient
+            .from('submission_answers')
+            .select('submission_id, question_id, given_answer, is_correct, score_earned')
+            .in('submission_id', submissionIds)
+
+          const { data: subAns, error: subAnsErr } = await loadChunkedWrongAnalysis(
+            bestSubmissionIds,
+            (ids: string[]) => buildAnswersQuery(ids).order('submission_id').order('question_id')
+          )
+          if (subAnsErr) {
+            console.error('[student-history] load best submission answers error:', subAnsErr.message || subAnsErr)
+            return { levelBreakdown: getEmptyLevelBreakdown(), commonMistakes: [] }
+          }
+
+          const distinctQIds = [...new Set((subAns || []).map((sa: any) => sa.question_id).filter(Boolean))]
+          if (distinctQIds.length === 0) {
+            return { levelBreakdown: getEmptyLevelBreakdown(), commonMistakes: [] }
+          }
+
+          const { data: qRows, error: qLoadErr } = await serviceRoleClient
+            .from('questions')
+            .select(`
+              id,
+              question_number,
+              question_type,
+              prompt,
+              question_bank_id,
+              question_bank (
+                id,
+                difficulty,
+                qb_lesson_id,
+                qb_question_types (id, lesson_id, name)
+              )
+            `)
+            .in('id', distinctQIds)
+
+          if (qLoadErr) {
+            console.error('[student-history] load questions for report breakdown error:', qLoadErr.message || qLoadErr)
+            return { levelBreakdown: getEmptyLevelBreakdown(), commonMistakes: [] }
+          }
+
+          const qMap = new Map((qRows || []).map((q: any) => [q.id, q]))
+          const levelBreakdown = computeLevelBreakdown(subAns || [], qMap)
+          const commonMistakes = computeCommonMistakes(subAns || [], qMap)
+          return { levelBreakdown, commonMistakes }
+        } catch (ansEx) {
+          console.error('[student-history] load answers/questions exception:', ansEx instanceof Error ? ansEx.message : String(ansEx))
+          return { levelBreakdown: getEmptyLevelBreakdown(), commonMistakes: [] }
+        }
+      })()
 
       // Bài giao trong khoảng xác định theo deadline (ngày đến hạn thuộc kỳ).
       // Bài KHÔNG deadline coi như luôn mở: tính là bài giao của cả kỳ gốc và của cả hai nửa so sánh
@@ -478,6 +654,25 @@ serve(async (req: Request) => {
       }
 
       const summaryStats = buildPeriodStats(attempts, assignedHomeworks)
+
+      const prevAssignedHomeworks = (reportHomeworks || []).filter((h: any) => deadlineInRange(h, prevPeriodFromDate.getTime(), prevPeriodToDate.getTime()))
+      const prevSummary = prevAttempts.length > 0
+        ? (() => {
+            const s = buildPeriodStats(prevAttempts, prevAssignedHomeworks)
+            return {
+              averageScore: s.averageScore,
+              completionRate: s.completionRate,
+              onTimeRate: s.onTimeRate,
+              submittedCount: s.submittedCount,
+            }
+          })()
+        : null
+
+      const previousPeriod: PreviousPeriod = {
+        fromDate: prevPeriod.fromDate,
+        toDate: prevPeriod.toDate,
+        summary: prevSummary,
+      }
 
       const periodMidMs = periodFromDate.getTime() + (periodToDate.getTime() - periodFromDate.getTime()) / 2
       // Guard: lượt nộp thiếu timestamp hợp lệ (không thể xảy ra với NOT NULL, nhưng chặn mọi trường hợp)
@@ -592,7 +787,35 @@ serve(async (req: Request) => {
         trend,
       }
 
-      const attendance = await attendancePromise
+      const [
+        attendance,
+        notes,
+        goalPrevious,
+        classStatsRes,
+        breakdownRes,
+      ] = await Promise.all([
+        attendancePromise,
+        notesPromise,
+        goalPreviousPromise,
+        classStatsPromise,
+        answersPromise,
+      ])
+
+      const classAverage = reportClassId
+        ? (classStatsRes?.classAverage || { averageScore: null, studentCount: 0 })
+        : null
+
+      const weeklyTrend = computeWeeklyTrend({
+        fromDate,
+        toDate,
+        studentAttempts: attempts,
+        classAttempts: classStatsRes?.rawClassSubs,
+        activeStudentIds: classStatsRes?.activeStudentIds,
+        classWeeklyStatsMap: classStatsRes?.weeklyClassAverages,
+      })
+
+      const levelBreakdown = breakdownRes?.levelBreakdown || getEmptyLevelBreakdown()
+      const commonMistakes = breakdownRes?.commonMistakes || []
 
       // Public payload: giữ đủ dữ liệu render + tên học sinh/lớp + hạn share,
       // nhưng bỏ toàn bộ id nội bộ (studentId/submissionId/homeworkId/classId/
@@ -662,6 +885,13 @@ serve(async (req: Request) => {
           topicBreakdown: publicTopicBreakdown,
           submissions: publicSubmissions,
           attendance,
+          previousPeriod,
+          classAverage,
+          weeklyTrend,
+          levelBreakdown,
+          commonMistakes,
+          notes,
+          goalPrevious,
         })
       }
 
@@ -677,6 +907,13 @@ serve(async (req: Request) => {
         topicBreakdown,
         submissions: reportSubmissions,
         attendance,
+        previousPeriod,
+        classAverage,
+        weeklyTrend,
+        levelBreakdown,
+        commonMistakes,
+        notes,
+        goalPrevious,
       })
     }
 
