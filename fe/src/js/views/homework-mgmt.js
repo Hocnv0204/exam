@@ -7,6 +7,8 @@ import { api } from '../api.js'
 import { renderPaginationBar, bindPaginationEvents } from '../components/pagination.js'
 import { openAssignHomeworkModal } from '../components/assign-homework-modal.js'
 import { isAdminProUI } from '../ui-flag.js'
+import { openClassHomeworkHistoryModal } from './class-homework-history-modal.js'
+import { todayDeadlineRange, buildHomeworkReminderMessage } from '../utils/homework-reminder.js'
 
 if (typeof document !== 'undefined' && document.head) {
   import('../../css/admin-pro/pages/homework.css')
@@ -16,6 +18,7 @@ let currentHomeworks = []
 let totalHomeworks = 0
 let globalStats = { total: 0, practiceCount: 0, examCount: 0, classesCount: 0 }
 let allClasses = []
+const remindInflightIds = new Set()
 
 let filterState = {
   search: '',
@@ -23,6 +26,7 @@ let filterState = {
   chapterId: '',
   lessonId: '',
   type: '',
+  dueToday: false,
   sortBy: 'newest',
   page: 1,
   pageSize: 10
@@ -68,24 +72,35 @@ function buildStudentHomeworkUrl(homeworkId, type) {
 /**
  * Copy text với fallback cho trình duyệt cũ / iframe không có quyền clipboard.
  */
+function showReminderFallback(message, count) {
+  openModal('Tin nhắn nhắc học sinh chưa làm', `
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.5;">Trình duyệt chưa cho phép tự sao chép. Nội dung đã được bôi đen sẵn: nhấn <strong>Ctrl+C</strong> (hoặc giữ và chọn <strong>Sao chép</strong> trên điện thoại) rồi dán vào nhóm lớp. Nhắc ${Number(count) || 0} học sinh.</p>
+    <textarea id="hw-reminder-fallback-text" class="form-input" readonly rows="12" style="width:100%; font-family:inherit; font-size:14px; line-height:1.5; white-space:pre-wrap;">${escapeAttr(message)}</textarea>
+  `, null, { cancelLabel: 'Đóng' })
+  const area = document.getElementById('hw-reminder-fallback-text')
+  if (area) { area.focus(); area.select() }
+}
+
 async function copyTextToClipboard(text) {
   try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch (e) {
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(ta)
-      return ok
-    } catch (e2) {
-      return false
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(text)
+      return true
     }
+  } catch (e) { /* Chuyển sang fallback execCommand bên dưới. */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    if (typeof ta.setAttribute === 'function') ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch (e2) {
+    return false
   }
 }
 
@@ -424,6 +439,17 @@ export function renderProHomeworkMgmtView() {
                   </select>
                 </div>
 
+                <button
+                  type="button"
+                  class="ap-btn-due-today${filterState.dueToday ? ' is-active' : ''}"
+                  id="hw-filter-due-today"
+                  aria-pressed="${filterState.dueToday ? 'true' : 'false'}"
+                >
+                  <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>
+                  <span>Đến hạn hôm nay</span>
+                  <i class="fa-solid fa-check ap-due-today-check" aria-hidden="true"></i>
+                </button>
+
                 <button type="button" class="btn-secondary ap-btn-reset-filters" id="hw-reset-filter-btn">
                   <i class="fa-solid fa-arrow-rotate-left"></i> Đặt lại
                 </button>
@@ -552,6 +578,11 @@ async function fetchHomeworksData() {
     if (filterState.chapterId) params.chapterId = filterState.chapterId
     if (filterState.lessonId) params.lessonId = filterState.lessonId
     if (filterState.type) params.type = filterState.type
+    if (filterState.dueToday) {
+      const { deadlineFrom, deadlineTo } = todayDeadlineRange(new Date())
+      params.deadlineFrom = deadlineFrom
+      params.deadlineTo = deadlineTo
+    }
 
     const res = await api.getHomeworks(params)
     if (requestId !== fetchHomeworksData.requestId || !tableBody.isConnected) return
@@ -580,12 +611,18 @@ async function fetchHomeworksData() {
 
     // Empty state
     if (currentHomeworks.length === 0) {
+      const emptyTitle = filterState.dueToday
+        ? 'Không có bài tập nào đến hạn hôm nay.'
+        : 'Không tìm thấy bài tập nào'
+      const emptyDesc = filterState.dueToday
+        ? 'Thử tắt bộ lọc "Đến hạn hôm nay" hoặc điều chỉnh các bộ lọc khác.'
+        : 'Thử điều chỉnh từ khóa tìm kiếm hoặc các bộ lọc lớp / chương / bài học.'
       tableBody.innerHTML = `
         <tr>
           <td colspan="7" style="padding:40px; text-align:center; color:#64748b;">
             <i class="fa-regular fa-folder-open" style="font-size:40px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
-            <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px;">Không tìm thấy bài tập nào</div>
-            <p style="font-size:13px; color:#64748b; margin:0;">Thử điều chỉnh từ khóa tìm kiếm hoặc các bộ lọc lớp / chương / bài học.</p>
+            <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px;">${emptyTitle}</div>
+            <p style="font-size:13px; color:#64748b; margin:0;">${emptyDesc}</p>
           </td>
         </tr>
       `
@@ -734,7 +771,15 @@ function attachFilterListeners() {
   const lessonSelect = document.getElementById('hw-filter-lesson')
   const typeSelect = document.getElementById('hw-filter-type')
   const sortSelect = document.getElementById('hw-sort-select')
+  const dueTodayBtn = document.getElementById('hw-filter-due-today')
   const resetBtn = document.getElementById('hw-reset-filter-btn')
+
+  const syncDueTodayButton = () => {
+    if (!dueTodayBtn) return
+    const active = Boolean(filterState.dueToday)
+    dueTodayBtn.setAttribute('aria-pressed', active ? 'true' : 'false')
+    dueTodayBtn.classList.toggle('is-active', active)
+  }
 
   let debounceTimer = null
   searchInput?.addEventListener('input', (e) => {
@@ -772,6 +817,13 @@ function attachFilterListeners() {
     fetchHomeworksData()
   })
 
+  dueTodayBtn?.addEventListener('click', () => {
+    filterState.dueToday = !filterState.dueToday
+    filterState.page = 1
+    syncDueTodayButton()
+    fetchHomeworksData()
+  })
+
   resetBtn?.addEventListener('click', () => {
     filterState = {
       search: '',
@@ -779,6 +831,7 @@ function attachFilterListeners() {
       chapterId: '',
       lessonId: '',
       type: '',
+      dueToday: false,
       sortBy: 'newest',
       page: 1,
       pageSize: 10
@@ -790,6 +843,7 @@ function attachFilterListeners() {
     if (lessonSelect) lessonSelect.innerHTML = '<option value="">Tất cả bài học</option>'
     if (typeSelect) typeSelect.value = ''
     if (sortSelect) sortSelect.value = 'newest'
+    syncDueTodayButton()
 
     fetchHomeworksData()
   })
@@ -841,6 +895,10 @@ function renderProHomeworkTableRows(list, tableBody, fromIndex) {
     const createdAtText = hw.createdAt ? new Date(hw.createdAt).toLocaleDateString('vi-VN') : ''
     const attemptsText = isExam ? '1 lần' : (hw.maxAttempts ? `Tối đa ${escapeAttr(hw.maxAttempts)} lần` : 'Không giới hạn')
     const id = escapeAttr(hw.id)
+    const hasClassId = Boolean(hw.classId)
+    const isRemindBusy = remindInflightIds.has(hw.id)
+    const statsTitle = hasClassId ? 'Thống kê nộp bài' : 'Bài tập chưa gán lớp'
+    const remindTitle = hasClassId ? 'Copy tin nhắn nhắc học sinh chưa làm' : 'Bài tập chưa gán lớp'
 
     return `
       <tr class="ap-hw-row">
@@ -885,6 +943,12 @@ function renderProHomeworkTableRows(list, tableBody, fromIndex) {
           <div class="ap-hw-actions">
             <button type="button" class="ap-hw-preview-btn btn-preview-hw" data-id="${id}" aria-label="Xem trước đề: ${title}" title="Xem trước nội dung đề">
               <i class="fa-solid fa-eye" aria-hidden="true"></i><span>Xem trước</span>
+            </button>
+            <button type="button" class="ap-hw-icon-btn is-blue btn-stats-hw" data-id="${id}" ${hasClassId ? '' : 'disabled'} title="${statsTitle}" aria-label="${statsTitle}: ${title}">
+              <i class="fa-solid fa-chart-column" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="ap-hw-icon-btn is-warn btn-remind-hw" data-id="${id}" ${!hasClassId || isRemindBusy ? 'disabled' : ''} ${isRemindBusy ? 'aria-busy="true"' : ''} title="${remindTitle}" aria-label="${remindTitle}: ${title}">
+              <i class="fa-solid ${isRemindBusy ? 'fa-spinner fa-spin' : 'fa-bell'}" aria-hidden="true"></i>
             </button>
             <button type="button" class="ap-hw-icon-btn is-accent btn-copy-link-hw" data-id="${id}" data-type="${escapeAttr(hw.type || 'PRACTICE')}" title="Sao chép link làm bài" aria-label="Sao chép link làm bài: ${title}">
               <i class="fa-solid fa-link" aria-hidden="true"></i>
@@ -1109,6 +1173,89 @@ function attachRowActions(tableBody) {
     btn.addEventListener('click', () => {
       const hwId = btn.getAttribute('data-id')
       openHomeworkPreview(currentHomeworks.find(h => h.id === hwId), btn)
+    })
+  })
+
+  // Attach Stats buttons (Mochi Pro) -> modal thống kê nộp bài của lớp
+  tableBody.querySelectorAll('.btn-stats-hw').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hwId = btn.getAttribute('data-id')
+      const targetHw = currentHomeworks.find(h => h.id === hwId)
+      if (!targetHw || !targetHw.classId) return
+      openClassHomeworkHistoryModal(targetHw.classId, targetHw)
+    })
+  })
+
+  // Attach Remind buttons (Mochi Pro) -> fetch học sinh chưa làm & copy tin nhắn nhắc
+  tableBody.querySelectorAll('.btn-remind-hw').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const hwId = btn.getAttribute('data-id')
+      const targetHw = currentHomeworks.find(h => h.id === hwId)
+      if (!targetHw || !targetHw.classId || !hwId || remindInflightIds.has(hwId) || btn.disabled) return
+
+      remindInflightIds.add(hwId)
+      btn.disabled = true
+      btn.setAttribute('aria-busy', 'true')
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>'
+      let copiedSuccess = false
+
+      try {
+        const data = await api.getStudentHistory(
+          { scope: 'CLASS', classId: targetHw.classId, homeworkId: targetHw.id, includeDraft: 'true' },
+          { silent: true }
+        )
+        if (!Array.isArray(data?.classHomeworks) || !data.classHomeworks.some(item => item.id === targetHw.id)) {
+          throw new Error('Không tìm thấy bài tập trong lớp này.')
+        }
+
+        const unsubmitted = Array.isArray(data?.unsubmittedStudents) ? data.unsubmittedStudents : []
+        if (unsubmitted.length === 0) {
+          showToast('Tất cả học sinh đã làm bài này 🎉', 'success')
+          return
+        }
+
+        const url = buildStudentHomeworkUrl(targetHw.id, targetHw.type)
+        if (!url) {
+          showToast('Không tạo được link bài tập!', 'error')
+          return
+        }
+
+        const message = buildHomeworkReminderMessage({
+          title: targetHw.title,
+          deadline: targetHw.deadline || data?.submissionStats?.deadline || null,
+          students: unsubmitted,
+          totalStudents: data?.submissionStats?.totalStudents,
+          url
+        })
+
+        const ok = await copyTextToClipboard(message)
+        if (ok) {
+          copiedSuccess = true
+          showToast(`Đã sao chép tin nhắn nhắc ${unsubmitted.length} học sinh chưa làm.`, 'success')
+        } else {
+          // Trình duyệt (nhất là Safari/iOS) có thể chặn ghi clipboard sau khi chờ API:
+          // hiện sẵn nội dung đã bôi đen để giáo viên tự sao chép.
+          showReminderFallback(message, unsubmitted.length)
+        }
+      } catch (err) {
+        showToast(`Không tải được danh sách nhắc nhở: ${err?.message || 'Lỗi không xác định'}`, 'error')
+      } finally {
+        remindInflightIds.delete(hwId)
+        if (btn.isConnected) {
+          btn.disabled = !targetHw.classId
+          btn.removeAttribute('aria-busy')
+          if (copiedSuccess) {
+            btn.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i>'
+            setTimeout(() => {
+              if (btn.isConnected && !remindInflightIds.has(hwId)) {
+                btn.innerHTML = '<i class="fa-solid fa-bell" aria-hidden="true"></i>'
+              }
+            }, 2000)
+          } else {
+            btn.innerHTML = '<i class="fa-solid fa-bell" aria-hidden="true"></i>'
+          }
+        }
+      }
     })
   })
 

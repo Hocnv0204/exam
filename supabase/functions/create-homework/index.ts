@@ -15,6 +15,7 @@ import {
   syncHomeworkQuestionsToConstantBank,
 } from './auto-bank-sync.ts'
 import { loadClassHomeworkProgress } from './class-progress.ts'
+import { parseDeadlineRange } from './deadline-range.ts'
 import { fetchAllRows, fetchAllRowsInChunks, isFetchAllRowsError } from '../../shared/fetch-all-rows.ts'
 
 serve(async (req: Request) => {
@@ -365,6 +366,13 @@ serve(async (req: Request) => {
       if (type) {
         query = query.eq('type', type)
       }
+
+      // Lọc theo khoảng hạn nộp (vd "Đến hạn hôm nay": client gửi đầu/cuối ngày theo giờ máy giáo viên).
+      // Bài không có hạn nộp tự bị loại khi có bộ lọc này.
+      const deadlineRange = parseDeadlineRange(url.searchParams.get('deadlineFrom'), url.searchParams.get('deadlineTo'))
+      if (!deadlineRange.ok) return errorResponse(deadlineRange.error, 400)
+      if (deadlineRange.from) query = query.gte('deadline', deadlineRange.from)
+      if (deadlineRange.to) query = query.lte('deadline', deadlineRange.to)
 
       if (search && search.trim()) {
         const cleanSearch = search.trim()
