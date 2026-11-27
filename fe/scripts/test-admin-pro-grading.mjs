@@ -417,3 +417,31 @@ test('(f) học sinh render assignment-review KHÔNG chịu ảnh hưởng — o
   assert.match(studentMochiReview, /m-review-hero/, 'Hero card Mochi học sinh')
   assert.match(studentMochiReview, /m-mascot/, 'Linh vật Mochi học sinh')
 })
+
+test('(g) nav-grid-item trạng thái một phần và active/focus-visible trong Admin Pro có màu tương phản đúng', () => {
+  const lightOverridesPath = resolve(scriptDir, '../src/css/admin-pro/light-overrides.css')
+  const lightOverridesCss = readFileSync(lightOverridesPath, 'utf8')
+
+  const partialNavMatch = lightOverridesCss.match(
+    /html\[data-admin-ui="pro"\]:not\(\[data-theme="dark"\]\)\s+\.app-layout\.admin-dark\[data-route="assignment-review"\]\s+\.nav-grid-item\[style\*="background:#fef3c7"\][^}]*\{([^}]*)\}/
+  )
+  assert.ok(partialNavMatch, 'Phải có rule light-overrides cho .nav-grid-item[style*="background:#fef3c7"]')
+  assert.match(partialNavMatch[1], /color:\s*var\(--ap-warn\)\s*!important;/, 'Ô điểm một phần ở nền sáng phải dùng màu chữ var(--ap-warn)')
+  assert.doesNotMatch(partialNavMatch[1], /--ap-accent-ink/, 'Ô điểm một phần nền vàng nhạt không được dùng chữ trắng --ap-accent-ink')
+
+  assert.match(
+    gradingCss,
+    /html\[data-admin-ui="pro"\]\s+#assignment-review\s+\.nav-grid-item\.active-nav-question\s*\{[^}]*var\(--ap-accent\)/,
+    'grading.css phải định nghĩa .nav-grid-item.active-nav-question với var(--ap-accent)'
+  )
+  assert.match(
+    gradingCss,
+    /html\[data-admin-ui="pro"\]\s+#assignment-review\s+\.nav-grid-item:focus-visible\s*\{[^}]*var\(--ap-accent\)/,
+    'grading.css phải định nghĩa .nav-grid-item:focus-visible với var(--ap-accent)'
+  )
+  assert.match(
+    gradingCss,
+    /html\[data-admin-ui="pro"\]\s+#assignment-review\s+\.nav-grid-item\.active-nav-question:focus-visible\s*\{[^}]*outline:\s*none\s*!important;/,
+    'grading.css phải tắt outline kép khi .active-nav-question đang :focus-visible'
+  )
+})

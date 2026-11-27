@@ -78,7 +78,7 @@ for (const f of files) {
     const sel = m[1].trim(); const body = m[2]
     if (!sel.includes('admin-dark') || sel.startsWith('@')) continue
     const decls = [...body.matchAll(/(?:^|;)\s*(color|background|background-color|border-color)\s*:\s*([^;]+)/g)]
-    const solidBg = decls.some(([, p, v]) => p !== 'color' && !v.includes('var(') && (() => { const c = parseColor(v.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/)?.[0] || ''); return c && c.a >= 0.6 && !family(c).endsWith('gray') && hsl(c).l < 0.6 })())
+    const solidBg = decls.some(([, p, v]) => (p === 'background' || p === 'background-color') && !v.includes('var(') && (() => { const c = parseColor(v.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/)?.[0] || ''); return c && c.a >= 0.6 && !family(c).endsWith('gray') && hsl(c).l < 0.6 })())
     const mapped = []
     for (const [, prop, val] of decls) {
       if (val.includes('var(') || /gradient|url\(/.test(val)) continue

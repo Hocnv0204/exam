@@ -973,6 +973,22 @@ html[data-admin-ui="pro"] #assignment-review .nav-grid-item:hover {
   transform: scale(1.08);
 }
 
+html[data-admin-ui="pro"] #assignment-review .nav-grid-item.active-nav-question {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 2px var(--ap-surface), 0 0 0 4.5px var(--ap-accent) !important;
+  z-index: 2;
+}
+
+html[data-admin-ui="pro"] #assignment-review .nav-grid-item:focus-visible {
+  outline: 2.5px solid var(--ap-accent) !important;
+  outline-offset: 2px !important;
+}
+
+html[data-admin-ui="pro"] #assignment-review .nav-grid-item.active-nav-question:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 2px var(--ap-surface), 0 0 0 4.5px var(--ap-accent) !important;
+}
+
 html[data-admin-ui="pro"] #assignment-review .award-question-btn {
   min-height: 38px;
   padding: 0 16px;

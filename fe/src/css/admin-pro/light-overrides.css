@@ -240,11 +240,11 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .conte
 }
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background:#dcfce7"],
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background: #dcfce7"] {
-  color: var(--ap-accent-ink) !important;
+  color: var(--ap-ok) !important;
 }
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background:#fef3c7"],
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="student-details"] .calendar-day-btn[style*="background: #fef3c7"] {
-  color: var(--ap-accent-ink) !important;
+  color: var(--ap-warn) !important;
 }
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark .content-body .curriculum-search-mark {
   color: var(--ap-warn) !important;
@@ -477,7 +477,7 @@ html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-r
 }
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background:#fef3c7"],
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="assignment-review"] .nav-grid-item[style*="background: #fef3c7"] {
-  color: var(--ap-accent-ink) !important;
+  color: var(--ap-warn) !important;
 }
 html[data-admin-ui="pro"]:not([data-theme="dark"]) .app-layout.admin-dark[data-route="assignment-review"] .pdf-toolbar i.fa-file-pdf {
   color: var(--ap-accent2) !important;
